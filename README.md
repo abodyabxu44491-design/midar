@@ -77,17 +77,12 @@ git clone https://github.com/USERNAME/midar.git && cd midar
 gcloud sql connect midar-db --user=postgres
 ```
 
-داخل psql نفّذ السطر التالي، وغيّر كلمتي المرور لكلمتين قويتين:
-
-```sql
-\i db/setup-roles.sql
-```
-
-قبلها عرّف كلمتي المرور بالأمرين التاليين:
+داخل psql عرّف كلمتي المرور أولًا (غيّرهما لكلمتين قويتين)، ثم شغّل ملف الإعداد:
 
 ```sql
 \set owner_pw '''كلمة-قوية-1'''
 \set app_pw '''كلمة-قوية-2'''
+\i db/setup-roles.sql
 ```
 
 ### الخطوة 3: الأسرار
