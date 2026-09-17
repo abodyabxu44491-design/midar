@@ -1,0 +1,41 @@
+# نشر مِدار على Render (الخطة المجانية)
+# Dashboard ← New ← Blueprint ← اختر المستودع، ثم أدخل قيم قاعدة البيانات والأسرار.
+services:
+  - type: web
+    name: midar
+    runtime: node
+    plan: free
+    region: frankfurt          # الأقرب للسعودية ضمن مناطق Render
+    branch: main
+    buildCommand: npm ci
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SESSION_COOKIE_MODE
+        value: separate
+      - key: DATABASE_SSL
+        value: "true"
+      - key: FIREBASE_ANALYTICS
+        value: "true"
+      # القيم التالية تُدخل يدويًا من لوحة Render (sync: false = لا تُحفظ في Git)
+      - key: DATABASE_URL            # رابط Neon بمستخدم midar_app
+        sync: false
+      - key: MIGRATION_DATABASE_URL  # رابط Neon بمستخدم المالك (للترحيلات)
+        sync: false
+      - key: OWNER_PATH              # رابط لوحتك السري
+        sync: false
+      - key: OWNER_USERNAME
+        sync: false
+      - key: OWNER_PASSWORD_HASH     # npm run owner:password
+        sync: false
+      - key: OWNER_TOTP_SECRET       # npm run owner:totp
+        sync: false
+      - key: PUBLIC_URL              # https://midar.onrender.com أو نطاقك
+        sync: false

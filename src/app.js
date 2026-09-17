@@ -24,10 +24,13 @@ export function createApp() {
   app.disable("x-powered-by");
   app.use(securityHeaders, noIndex);
 
-  // فحص الصحة للمراقبة
-  app.get("/healthz", async (req, res) => {
-    try { await healthCheck(); res.json({ ok: true }); }
-    catch { res.status(503).json({ ok: false }); }
+  // فحص سريع للمراقبة وإيقاظ الخادم (لا يلمس قاعدة البيانات حتى لا تُستهلك ساعات حوسبتها)
+  app.get("/healthz", (req, res) => res.json({ ok: true }));
+
+  // فحص عميق يشمل قاعدة البيانات
+  app.get("/healthz/db", async (req, res) => {
+    try { await healthCheck(); res.json({ ok: true, db: true }); }
+    catch { res.status(503).json({ ok: false, db: false }); }
   });
 
   /* ---------- الواجهات البرمجية ---------- */
