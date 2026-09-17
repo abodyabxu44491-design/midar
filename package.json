@@ -1,0 +1,35 @@
+{
+  "name": "midar",
+  "version": "2.0.0",
+  "description": "مِدار | MIDAR — منصة إدارة المدارس. برمجة وتطوير: المبرمج عبدالله السكني",
+  "author": "المبرمج عبدالله السكني",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "seed:demo": "node scripts/seed-demo.js",
+    "owner:password": "node scripts/owner-password.js",
+    "owner:totp": "node scripts/owner-totp.js",
+    "test": "NODE_ENV=test node --test --test-concurrency=1 tests/*.test.js",
+    "build:hosting": "node scripts/build-hosting.js",
+    "deploy": "firebase deploy --only hosting,functions"
+  },
+  "dependencies": {
+    "@google-cloud/cloud-sql-connector": "^1.12.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^6.6.0",
+    "helmet": "^8.0.0",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "main": "src/firebase.js"
+}

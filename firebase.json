@@ -1,0 +1,31 @@
+{
+  "hosting": {
+    "public": "hosting-dist",
+    "cleanUrls": false,
+    "trailingSlash": false,
+    "predeploy": ["npm run build:hosting"],
+    "ignore": ["firebase.json", "**/.*"],
+    "headers": [
+      { "source": "/brand/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }] },
+      { "source": "/shared/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] },
+      { "source": "**", "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ] }
+    ],
+    "rewrites": [
+      { "source": "**", "function": { "functionId": "app", "region": "me-central2" } }
+    ]
+  },
+  "functions": [
+    {
+      "source": ".",
+      "codebase": "midar",
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules", ".git", ".github", "tests", "docs", "deploy", "backups", "hosting-dist",
+        "firebase-debug.log", "*.local", ".env.local", "public/pages/**/*.md"
+      ]
+    }
+  ]
+}

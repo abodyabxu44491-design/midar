@@ -1,0 +1,27 @@
+// لوحة مالك المنصة — نقطة البداية
+import { $, mount, h } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { topbar, footer, tabs, loginScreen } from "/shared/js/ui.js";
+import overview from "./views/overview.js";
+import schools from "./views/schools.js";
+import create from "./views/create.js";
+import audit from "./views/audit.js";
+
+const app = $("#app");
+export const API = "/api/owner";
+
+async function start() {
+  try {
+    await api(`${API}/me`);
+  } catch {
+    const { totp } = await api(`${API}/config`).catch(() => ({ totp: false }));
+    return mount(app, loginScreen({ role: "لوحة مالك المنصة", endpoint: `${API}/login`, withSchool: false, withCode: totp, onSuccess: start }));
+  }
+  const t = tabs([["overview", "المؤشرات"], ["schools", "المدارس والاشتراكات"], ["create", "إضافة مدرسة"], ["audit", "سجل العمليات"]],
+    { overview, schools, create, audit }, {});
+  mount(app,
+    topbar({ subtitle: "لوحة مالك المنصة", onLogout: async () => { await api(`${API}/logout`, {}); location.reload(); } }),
+    h("main", {}, t.el), footer());
+  t.show("overview");
+}
+start();

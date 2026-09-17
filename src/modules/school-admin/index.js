@@ -1,0 +1,31 @@
+// لوحة إدارة المدرسة — تجميع الأقسام
+// كل قسم في ملف مستقل. لإضافة قسم جديد: أنشئ ملفًا يصدّر Router ثم سجّله هنا.
+import { Router } from "express";
+import { requireStaff } from "../../core/auth/guards.js";
+import { staffAuthRouter, changePassword } from "../shared/staff-auth.js";
+import dashboard from "./dashboard.js";
+import structure from "./structure.js";
+import teachers from "./teachers.js";
+import students from "./students.js";
+import attendance from "./attendance.js";
+import exams from "./exams.js";
+import finance from "./finance.js";
+import announcements from "./announcements.js";
+import settings from "./settings.js";
+import audit from "./audit.js";
+
+const r = Router();
+r.use(staffAuthRouter("admin"));          // /login و /logout (بدون حارس)
+r.use(requireStaff("admin"));             // كل ما بعده للمدير فقط
+r.post("/password", changePassword);
+r.use(dashboard);
+r.use("/structure", structure);
+r.use("/teachers", teachers);
+r.use("/students", students);
+r.use("/attendance", attendance);
+r.use("/exams", exams);
+r.use("/finance", finance);
+r.use("/announcements", announcements);
+r.use("/settings", settings);
+r.use("/audit", audit);
+export default r;
