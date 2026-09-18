@@ -6,6 +6,8 @@ import overview from "./views/overview.js";
 import schools from "./views/schools.js";
 import create from "./views/create.js";
 import audit from "./views/audit.js";
+import leads from "./views/leads.js";
+import settings from "./views/settings.js";
 
 const app = $("#app");
 export const API = "/api/owner";
@@ -17,8 +19,9 @@ async function start() {
     const { totp } = await api(`${API}/config`).catch(() => ({ totp: false }));
     return mount(app, loginScreen({ role: "لوحة مالك المنصة", endpoint: `${API}/login`, withSchool: false, withCode: totp, onSuccess: start }));
   }
-  const t = tabs([["overview", "المؤشرات"], ["schools", "المدارس والاشتراكات"], ["create", "إضافة مدرسة"], ["audit", "سجل العمليات"]],
-    { overview, schools, create, audit }, {});
+  const t = tabs([["overview", "المؤشرات"], ["schools", "المدارس والاشتراكات"], ["create", "إضافة مدرسة"],
+    ["leads", "طلبات التجربة"], ["settings", "إعدادات المنصة"], ["audit", "سجل العمليات"]],
+    { overview, schools, create, leads, settings, audit }, {});
   mount(app,
     topbar({ subtitle: "لوحة مالك المنصة", onLogout: async () => { await api(`${API}/logout`, {}); location.reload(); } }),
     h("main", {}, t.el), footer());

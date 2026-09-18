@@ -8,13 +8,15 @@ import attendance from "./views/attendance.js";
 import exams from "./views/exams.js";
 import announcements from "./views/announcements.js";
 import account from "./views/account.js";
+import timetable from "./views/timetable.js";
 
 const app = $("#app");
 
 export async function startTeacher() {
   const me = await api("/api/teacher/me");
-  const t = tabs([["home", "فصولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"], ["announcements", "الإعلانات"], ["account", "حسابي"]],
-    { home, attendance, exams, announcements, account }, { me });
+  const t = tabs([["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"],
+    ["announcements", "الإعلانات"], ["account", "حسابي"]],
+    { home, timetable, attendance, exams, announcements, account }, { me });
   mount(app,
     topbar({ school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`,
       onLogout: async () => { await api("/api/teacher/logout", {}); location.reload(); } }),

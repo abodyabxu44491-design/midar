@@ -13,6 +13,9 @@ import finance from "./finance.js";
 import announcements from "./announcements.js";
 import settings from "./settings.js";
 import audit from "./audit.js";
+import timetable from "./timetable.js";
+import reports from "./reports.js";
+import messaging from "./messaging.js";
 
 const r = Router();
 r.use(staffAuthRouter("admin"));          // /login و /logout (بدون حارس)
@@ -27,5 +30,8 @@ r.use("/exams", exams);
 r.use("/finance", finance);
 r.use("/announcements", announcements);
 r.use("/settings", settings);
+r.use("/timetable", timetable);
+r.use("/reports", reports);
+r.use("/messaging", messaging);
 r.use("/audit", audit);
 export default r;

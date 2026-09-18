@@ -9,7 +9,8 @@ import { securityHeaders, noIndex, sameOrigin, noStore } from "./core/http/secur
 import { errorHandler, notFound } from "./core/http/errors.js";
 import { limits } from "./core/rate-limit.js";
 import { ownerNetwork } from "./core/auth/guards.js";
-import { healthCheck } from "./core/db/pool.js";
+import { healthCheck, transaction } from "./core/db/pool.js";
+import { handle } from "./core/http/errors.js";
 import { isSchoolCode } from "./core/reserved.js";
 import ownerApi from "./modules/owner/index.js";
 import adminApi from "./modules/school-admin/index.js";
@@ -36,7 +37,10 @@ export function createApp() {
   });
 
   /* ---------- الواجهات البرمجية ---------- */
-  app.get("/api/site", (req, res) => res.set("Cache-Control", "public, max-age=300").json({ analytics: env.FIREBASE_ANALYTICS }));
+  app.get("/api/site", handle(async (req, res) => {
+    const [s] = await transaction({}, (q) => q("SELECT landing_mode, brand_phone, brand_email FROM platform_settings WHERE id"));
+    res.set("Cache-Control", "no-store").json({ analytics: env.FIREBASE_ANALYTICS, ...s });
+  }));
   const api = express.Router();
   api.use(limits.api, noStore, express.json({ limit: "512kb" }), cookieParser(), sameOrigin);
   api.use("/owner", ownerApi);

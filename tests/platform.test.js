@@ -210,6 +210,80 @@ test("إعدادات الصفحة العامة: كل عنصر اختياري", a
   assert.equal(bSettings.data.access_mode, "code");
 });
 
+test("الجدول الدراسي: يُحفظ ويمنع تعارض المعلمين", async () => {
+  const [cls2] = (await A.admin.get("/api/admin/structure/classes")).data.filter((c) => c.id !== s.classId);
+  const put = (body) => A.admin.put("/api/admin/timetable/slot", body);
+
+  // مادة غير مسندة للمعلم تُرفض
+  assert.equal((await put({ class_id: s.classId, day: 0, period: 1, subject_id: s.subjectId, teacher_id: 999999 })).status, 400);
+
+  const teacherId = (await A.admin.get("/api/admin/teachers")).data[0].id;
+  assert.equal((await put({ class_id: s.classId, day: 0, period: 1, subject_id: s.subjectId, teacher_id: teacherId })).status, 200);
+
+  // نفس المعلم في صف آخر بنفس الوقت = تعارض
+  await A.admin.post("/api/admin/teachers/" + teacherId + "/load", {});
+  const clash = await put({ class_id: cls2.id, day: 0, period: 1, subject_id: s.subjectId, teacher_id: teacherId });
+  assert.equal(clash.status, 409, JSON.stringify(clash.data));
+
+  const slots = (await A.admin.get(`/api/admin/timetable?class_id=${s.classId}`)).data;
+  assert.equal(slots.length, 1);
+  assert.equal(slots[0].period, 1);
+
+  // يظهر في بوابة المعلم وفي ملف الطالب
+  const mine = await s.teacher.get("/api/teacher/timetable");
+  assert.equal(mine.data.week.length, 1);
+  const anon = client(srv.base);
+  const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
+  assert.equal(prof.data.timetable.length, 1);
+
+  // إخفاء الجدول من الإعدادات
+  await A.admin.put("/api/admin/settings/public-page", { profile_show_timetable: false });
+  const hidden = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
+  assert.equal(hidden.data.timetable.length, 0);
+  await A.admin.put("/api/admin/settings/public-page", { profile_show_timetable: true });
+});
+
+test("كشف الدرجات يُبنى من الاختبارات المنشورة فقط", async () => {
+  const card = await A.admin.get(`/api/admin/reports/report-card/${s.student.id}`);
+  assert.equal(card.status, 200);
+  assert.equal(card.data.subjects.length, 1);
+  assert.equal(card.data.subjects[0].score, 17.5);
+  assert.equal(card.data.summary.percent, 87.5);
+  assert.ok(card.data.summary.grade);
+  // كشف مدرسة أخرى غير متاح
+  assert.equal((await B.admin.get(`/api/admin/reports/report-card/${s.student.id}`)).status, 404);
+});
+
+test("قوالب واتساب تُحفظ لكل مدرسة على حدة", async () => {
+  const r = await A.admin.put("/api/admin/messaging/templates", { absence: "غياب {الطالب} اليوم", country_code: "966" });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.absence, "غياب {الطالب} اليوم");
+  const b = await B.admin.get("/api/admin/messaging/templates");
+  assert.match(b.data.absence, /نفيدكم بغياب/, "قوالب مدرسة أخرى لم تتأثر");
+  const data = await A.admin.get(`/api/admin/messaging/student/${s.student.id}?kind=absence`);
+  assert.equal(data.status, 200);
+  assert.equal(data.data.student.name, "طالب الاختبار");
+});
+
+test("طلبات التجربة: تصل للمالك فقط", async () => {
+  const anon = client(srv.base);
+  const bad = await anon.post("/api/public/leads", { school_name: "م", contact_name: "ا", phone: "x" });
+  assert.equal(bad.status, 400);
+  const ok = await anon.post("/api/public/leads", { school_name: "مدرسة الطلب", contact_name: "أبو محمد", phone: "0500000009", students_count: 120 });
+  assert.equal(ok.status, 201, JSON.stringify(ok.data));
+  assert.equal((await A.admin.get("/api/owner/leads")).status, 401, "الإدارة لا ترى الطلبات");
+  const list = await owner.get("/api/owner/leads");
+  assert.ok(list.data.some((l) => l.school_name === "مدرسة الطلب"));
+});
+
+test("شكل الصفحة الرئيسية يتحكم به المالك", async () => {
+  const site = () => fetch(`${srv.base}/api/site`).then((r) => r.json());
+  assert.equal((await site()).landing_mode, "blank");
+  assert.equal((await owner.put("/api/owner/settings", { landing_mode: "marketing", brand_phone: "0500000000" })).status, 200);
+  assert.equal((await site()).landing_mode, "marketing");
+  await owner.put("/api/owner/settings", { landing_mode: "blank" });
+});
+
 test("المالية: لا دفع زائد، لا تكرار، لا إلغاء مع دفعات، والاسترداد صحيح", async () => {
   const inv = await A.admin.post("/api/admin/finance/invoices", { target: "student", target_id: s.student.id, title: "رسوم الاختبار", amount: 1000.5 });
   assert.equal(inv.status, 201);

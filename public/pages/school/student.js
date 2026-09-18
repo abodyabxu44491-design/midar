@@ -3,6 +3,7 @@ import { h, $, mount } from "/shared/js/dom.js";
 import { api, idempotencyKey } from "/shared/js/api.js";
 import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select } from "/shared/js/ui.js";
 import { money, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "/shared/js/format.js";
+import { timetableGrid } from "/shared/js/timetable.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -48,6 +49,11 @@ function render(d) {
         info("جوال ولي الأمر", s.guardian_phone, "ltr"), info("تاريخ التسجيل", fmtDate(s.since))),
 
       f && feesSection(f),
+
+      d.timetable?.length ? section("الجدول الدراسي",
+        timetableGrid(d.timetable, { cell: (day, p, sl) => (sl
+          ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
+          : h("span", { class: "muted" }, "—")) })) : null,
 
       d.settings.profile_show_grades ? section("الدرجات", d.grades.length ? d.grades.map((g) => {
         const p = Math.round((g.score / g.max_score) * 100);

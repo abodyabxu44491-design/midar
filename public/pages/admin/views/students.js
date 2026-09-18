@@ -4,10 +4,13 @@ import { api } from "/shared/js/api.js";
 import { panel, field, input, textarea, select, btn, empty, badge, line, sub, keyText, toast, dialog,
   showCredentials, confirmAction, notice, brandLogo } from "/shared/js/ui.js";
 import { money, csv, fmtDate } from "/shared/js/format.js";
+import { waButton, messageVars } from "/shared/js/whatsapp.js";
 import { A, loadClasses, classOptions, directoryLink } from "./common.js";
+import { api as call } from "/shared/js/api.js";
 
 export default async function students({ me, refresh }) {
-  const [classes, list, archived] = await Promise.all([loadClasses(), api(`${A}/students`), api(`${A}/students?archived=1`)]);
+  const [classes, list, archived, templates] = await Promise.all([
+    loadClasses(), api(`${A}/students`), api(`${A}/students?archived=1`), api(`${A}/messaging/templates`)]);
 
   /* ---- إضافة طالب ---- */
   const f = { name: input(), cls: select(classOptions(classes, "بدون فصل")), gname: input(), gphone: input({ class: "ltr", inputMode: "tel" }),
@@ -69,6 +72,8 @@ export default async function students({ me, refresh }) {
         sub("المعرّف: ", keyText(s.access_key))),
       h("div", { class: "row", style: "flex:none;align-items:center" },
         h("span", { class: "sub", style: "flex:none;min-width:0" }, "الرسوم"), sw,
+        waButton({ phone: s.guardian_phone, template: templates.general, countryCode: templates.country_code,
+          vars: messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) }), label: "واتساب" }),
         btn("بطاقة", () => card(me, s), "ghost sm"),
         btn("تعديل", () => edit(s, classes, refresh), "ghost sm"),
         btn("معرّف جديد", async () => {

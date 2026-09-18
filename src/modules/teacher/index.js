@@ -5,6 +5,7 @@ import { staffAuthRouter, changePassword } from "../shared/staff-auth.js";
 import profile from "./profile.js";
 import attendance from "./attendance.js";
 import exams from "./exams.js";
+import timetable from "./timetable.js";
 
 const r = Router();
 r.use(staffAuthRouter("teacher"));
@@ -13,4 +14,5 @@ r.post("/password", changePassword);
 r.use(profile);
 r.use("/attendance", attendance);
 r.use("/exams", exams);
+r.use("/timetable", timetable);
 export default r;

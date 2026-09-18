@@ -9,6 +9,7 @@ import { limits } from "../../core/rate-limit.js";
 import { inSchool, accessSchema, checkAccess } from "./context.js";
 import { getSettings } from "../shared/public-settings.service.js";
 import { studentSummary } from "../shared/finance.service.js";
+import { forAllClasses } from "../shared/timetable.service.js";
 
 const r = Router({ mergeParams: true });
 const openSchema = accessSchema.partial();
@@ -59,6 +60,7 @@ r.post("/page", limits.api, handle(async (req, res) => {
       const counts = settings.show_class_counts
         ? await q("SELECT class_id, count(*)::int AS n FROM students WHERE archived_at IS NULL GROUP BY class_id") : [];
       const teachers = settings.show_teachers ? await classTeachers(q) : [];
+      const slots = settings.show_timetable ? await forAllClasses(q) : [];
       const students = settings.show_student_names
         ? await q("SELECT id, full_name AS name, class_id, fees_enabled FROM students WHERE archived_at IS NULL ORDER BY full_name") : [];
 
@@ -70,6 +72,9 @@ r.post("/page", limits.api, handle(async (req, res) => {
           count: settings.show_class_counts ? (counts.find((x) => x.class_id === c.id)?.n ?? 0) : null,
           students: settings.show_student_names ? await withBadges(q, mine, settings) : null,
           teachers: settings.show_teachers ? teachers.filter((t) => t.class_id === c.id).map(({ teacher, subject }) => ({ teacher, subject })) : null,
+          timetable: settings.show_timetable
+            ? slots.filter((x) => x.class_id === c.id).map(({ day, period, subject, teacher, room }) => ({ day, period, subject, teacher, room }))
+            : null,
         });
       }
       if (settings.show_student_names) {

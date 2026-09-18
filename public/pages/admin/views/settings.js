@@ -10,10 +10,12 @@ export default async function settings({ me, refresh }) {
   const acc = { bank: input({ placeholder: "مثال: مصرف الراجحي" }), holder: input(), iban: input({ class: "ltr", placeholder: "SA00 0000 0000 0000 0000 0000" }), number: input({ class: "ltr" }) };
   const note = textarea({ rows: 2, value: pay.payment_note || "", placeholder: "مثال: الدفع النقدي في مكتب المحاسب من الأحد إلى الخميس، 8 صباحًا – 12 ظهرًا" });
   const pub = await api(`${A}/settings/public-page`);
+  const tpl = await api(`${A}/messaging/templates`);
   const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
   const nxt = input({ type: "password", class: "ltr", autocomplete: "new-password" });
   return [
     publicPagePanel(pub, me, refresh),
+    messagesPanel(tpl),
     panel("طرق السداد", null,
       sub("الحسابات المفعّلة تظهر لولي الأمر عند الضغط على «ادفع» في صفحة الطالب."),
       pay.accounts.length ? pay.accounts.map((a) => line(
@@ -68,9 +70,11 @@ const OPTIONS = [
   ["show_teachers", "جدول معلمي الصف ومواده", "يظهر داخل الصف عند فتحه"],
   ["show_class_counts", "عدد الطلاب في كل صف", null],
   ["show_announcements", "إعلانات المدرسة", null],
+  ["show_timetable", "جدول حصص الصف", "يظهر داخل الصف في الصفحة العامة"],
   ["profile_show_grades", "الدرجات داخل ملف الطالب", "الدرجات المعتمدة فقط، ولصاحب المعرّف فقط"],
   ["profile_show_attendance", "الحضور والغياب داخل ملف الطالب", null],
   ["profile_show_teachers", "المعلمون داخل ملف الطالب", null],
+  ["profile_show_timetable", "الجدول الدراسي داخل ملف الطالب", null],
 ];
 
 function publicPagePanel(pub, me, refresh) {
@@ -108,4 +112,30 @@ function publicPagePanel(pub, me, refresh) {
     ...rows,
     feeRow,
     notice("حالة السداد بيانات مالية عن أسرة الطالب. إظهارها للجميع قد يُحرج الطالب أمام زملائه، وقد يخالف نظام حماية البيانات الشخصية. الأفضل إبقاؤها موقوفة، فولي الأمر يرى رسومه داخل ملف ابنه على أي حال.", "warn"));
+}
+
+
+/* ---------- قوالب رسائل واتساب ---------- */
+const TPL = [
+  ["absence", "رسالة الغياب"],
+  ["late", "رسالة التأخر"],
+  ["fees", "رسالة تذكير الرسوم"],
+  ["general", "الرسالة العامة"],
+];
+
+function messagesPanel(tpl) {
+  const code = input({ class: "ltr", value: tpl.country_code, style: "max-width:120px" });
+  const fields = Object.fromEntries(TPL.map(([k, label]) => [k, textarea({ rows: 2, value: tpl[k], "aria-label": label })]));
+  return panel("رسائل واتساب", null,
+    sub("المنصة تجهّز الرسالة وتفتح واتساب من جوالك، بدون أي اشتراك في مزود رسائل."),
+    sub("المتغيرات المتاحة: {الطالب} {المدرسة} {الفصل} {التاريخ} {المبلغ} {الرابط}"),
+    field("رمز الدولة", code),
+    TPL.map(([k, label]) => field(label, fields[k])),
+    btn("حفظ القوالب", async () => {
+      await api(`${A}/messaging/templates`, {
+        country_code: code.value,
+        ...Object.fromEntries(TPL.map(([k]) => [k, fields[k].value])),
+      }, "PUT");
+      toast("تم حفظ القوالب");
+    }));
 }

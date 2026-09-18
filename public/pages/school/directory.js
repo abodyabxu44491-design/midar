@@ -5,6 +5,7 @@ import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub, badge, brandLogo } from "/shared/js/ui.js";
 import { fmtDate } from "/shared/js/format.js";
+import { timetableGrid } from "/shared/js/timetable.js";
 import { startAnalytics } from "/shared/js/analytics.js";
 
 const app = $("#app");
@@ -94,6 +95,8 @@ function render(data) {
   };
 
   const classBody = (c) => [
+    c.timetable?.length ? h("div", { class: "teachers" }, h("h4", {}, "جدول الحصص"),
+      timetableGrid(c.timetable, { cell: (d, p, s) => (s ? h("b", { class: "small" }, s.subject) : h("span", { class: "muted" }, "—")) })) : null,
     c.teachers?.length
       ? h("div", { class: "teachers" }, h("h4", {}, "معلمو الصف"),
           h("table", { class: "grid" },

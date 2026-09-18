@@ -6,6 +6,7 @@ import { inSchool, verifyStudent } from "./context.js";
 import { studentSummary, listInvoices, listPayments } from "../shared/finance.service.js";
 import { listAccounts, claimsForStudent } from "../shared/payments.service.js";
 import { getSettings } from "../shared/public-settings.service.js";
+import { forClass } from "../shared/timetable.service.js";
 
 const r = Router({ mergeParams: true });
 const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, "•") : null);
@@ -44,6 +45,7 @@ r.post("/student", limits.studentKey, handle(async (req, res) => {
       student: { id: s.id, name: s.full_name, class_name: cls?.name || "غير محدد", guardian_name: s.guardian_name,
         guardian_phone: mask(s.guardian_phone), since: s.created_at },
       settings, attendance, grades, teachers, announcements: news, fees,
+      timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],
     };
   }));
 }));

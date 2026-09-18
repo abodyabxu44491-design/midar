@@ -3,11 +3,14 @@ import { h } from "/shared/js/dom.js";
 import { api, idempotencyKey } from "/shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, confirmAction } from "/shared/js/ui.js";
 import { money, csv, fmtDate, fmtDateTime, METHODS } from "/shared/js/format.js";
+import { waButton, messageVars } from "/shared/js/whatsapp.js";
 import { A, loadClasses } from "./common.js";
 
 export default async function finance({ refresh }) {
-  const [{ invoices, totals }, classes, students, claims] = await Promise.all([
-    api(`${A}/finance/invoices`), loadClasses(), api(`${A}/students`), api(`${A}/finance/claims`)]);
+  const [{ invoices, totals }, classes, students, claims, templates, me2] = await Promise.all([
+    api(`${A}/finance/invoices`), loadClasses(), api(`${A}/students`), api(`${A}/finance/claims`),
+    api(`${A}/messaging/templates`), api(`${A}/me`)]);
+  const byId = new Map(students.map((s) => [s.id, s]));
   const pending = claims.filter((c) => c.status === "pending");
   const target = select([["", "اختر"], ...classes.map((c) => [`class:${c.id}`, `فصل كامل: ${c.name}`]),
     ...students.map((s) => [`student:${s.id}`, `طالب: ${s.name}`])]);
@@ -34,7 +37,7 @@ export default async function finance({ refresh }) {
       })),
     panel("الفواتير", btn("تصدير", () => csv("الفواتير.csv", [["رقم", "الطالب", "الفصل", "البند", "المبلغ", "المدفوع", "المتبقي", "الحالة", "الاستحقاق"],
       ...invoices.map((i) => [i.id, i.student_name, i.class_name, i.title, i.amount, i.paid, i.amount - i.paid, i.status === "void" ? "ملغاة" : "", i.due_date])]), "ghost sm"),
-      invoices.length ? invoices.map((i) => invoiceRow(i, refresh)) : empty("لم تُصدر فواتير بعد.")),
+      invoices.length ? invoices.map((i) => invoiceRow(i, refresh, { templates, me: me2, student: byId.get(i.student_id) })) : empty("لم تُصدر فواتير بعد.")),
   ];
 }
 
@@ -69,7 +72,7 @@ function claimRow(c, refresh) {
       }, "danger sm")));
 }
 
-function invoiceRow(i, refresh) {
+function invoiceRow(i, refresh, ctx = {}) {
   const rem = Math.round((i.amount - i.paid) * 100) / 100;
   const status = i.status === "void" ? badge("ملغاة", "gray") : rem <= 0 ? badge("مسددة") : i.paid > 0 ? badge("مسددة جزئيًا", "amber") : badge("غير مسددة", "red");
   return line(
@@ -78,6 +81,9 @@ function invoiceRow(i, refresh) {
       i.void_reason && sub(`سبب الإلغاء: ${i.void_reason}`)),
     i.status === "open" && h("div", { class: "row", style: "flex:none" },
       rem > 0 && btn("دفعة نقدية / تحويل", () => payDialog(i, rem, refresh), "soft sm"),
+      rem > 0 && ctx.student ? waButton({ phone: ctx.student.guardian_phone, template: ctx.templates.fees, countryCode: ctx.templates.country_code,
+        vars: messageVars({ student: ctx.student, school: ctx.me.school.name, fees: { remaining: rem },
+          link: `${location.origin}/${ctx.me.school.id}` }), label: "تذكير واتساب" }) : null,
       i.paid > 0 && btn("استرداد", () => refundDialog(i, refresh), "ghost sm"),
       btn("السجل", () => history(i), "ghost sm"),
       i.paid <= 0 && btn("إلغاء", () => voidDialog(i, refresh), "danger sm")));

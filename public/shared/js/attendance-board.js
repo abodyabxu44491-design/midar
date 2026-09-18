@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { field, input, select, btn, panel, empty, line, toast, notice } from "./ui.js";
 import { ATTENDANCE, today } from "./format.js";
 
-export function attendanceBoard(endpoint, classes) {
+export function attendanceBoard(endpoint, classes, wa = null) {
   if (!classes.length) return panel("تسجيل الحضور", null, empty("لا توجد فصول."));
   const cls = select(classes.map((c) => [c.id, c.name]));
   const date = input({ type: "date", value: today(), max: today() });
@@ -25,7 +25,9 @@ export function attendanceBoard(endpoint, classes) {
       const pending = rows.filter((r) => !r.status);
       mount(box,
         pending.length ? btn(`تحديد الباقين حاضرين (${pending.length})`, () => save(pending.map((r) => ({ student_id: r.id, status: "present" }))), "soft sm") : null,
-        rows.map((r) => line(h("b", {}, r.name),
+        rows.map((r) => line(
+          h("div", { class: "pill" }, h("b", {}, r.name),
+            wa && ["absent", "late"].includes(r.status) ? wa(r) : null),
           h("div", { class: "chips" }, Object.entries(ATTENDANCE).map(([k, [label, color]]) => h("button", {
             type: "button", class: `chip${r.status === k ? " on" : ""}`, "aria-pressed": String(r.status === k),
             style: `color:${color};${r.status === k ? `background:${color}` : ""}`,
