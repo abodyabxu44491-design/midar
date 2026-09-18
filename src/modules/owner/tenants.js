@@ -6,6 +6,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword, newDirectoryCode } from "../../core/auth/codes.js";
 import { RESERVED_CODES } from "../../core/reserved.js";
+import { ensureDefaults } from "../shared/academic.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -66,6 +67,7 @@ r.post("/", handle(async (req, res) => {
       [b.id, b.name, b.plan, b.max_students, b.subscription_end, directory, b.subscription_price ?? 0, b.grace_days ?? 14]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash) VALUES ($1, 'admin', $2, 'admin', $3)`,
       [b.id, b.admin_name, hash]);
+    await ensureDefaults(q);          // سنة دراسية وفصولها جاهزة من اليوم الأول
   });
   res.status(201).json({
     school: { id: b.id, name: b.name },

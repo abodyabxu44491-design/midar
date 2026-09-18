@@ -9,8 +9,9 @@ const r = Router();
 
 r.get("/report-card/:studentId", handle(async (req, res) => {
   const id = parse(t.id, req.params.studentId);
+  const termId = req.query.term_id ? parse(t.id, req.query.term_id) : null;
   res.json(await inTenant(req, async (q) => {
-    const card = await buildReportCard(q, id);
+    const card = await buildReportCard(q, id, termId);
     if (!card) throw notFound("الطالب غير موجود");
     return card;
   }));
@@ -18,7 +19,8 @@ r.get("/report-card/:studentId", handle(async (req, res) => {
 
 r.get("/report-cards", handle(async (req, res) => {
   const classId = parse(t.id, req.query.class_id);
-  res.json(await inTenant(req, (q) => classReportCards(q, classId)));
+  const termId = req.query.term_id ? parse(t.id, req.query.term_id) : null;
+  res.json(await inTenant(req, (q) => classReportCards(q, classId, termId)));
 }));
 
 export default r;

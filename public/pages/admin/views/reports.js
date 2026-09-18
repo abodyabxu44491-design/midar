@@ -6,7 +6,11 @@ import { fmtDate } from "/shared/js/format.js";
 import { A, loadClasses } from "./common.js";
 
 export default async function reports({ me }) {
-  const [classes, students] = await Promise.all([loadClasses(), api(`${A}/students`)]);
+  const [classes, students, academic] = await Promise.all([loadClasses(), api(`${A}/students`), api(`${A}/academic`)]);
+  const currentYearTerms = academic.terms.filter((t) => t.year_id === academic.current?.year_id);
+  const termPicker = select([["", "السنة كاملة"], ...currentYearTerms.map((t) => [t.id, t.name])],
+    { value: academic.current?.term_id ?? "" });
+  const termQuery = () => (termPicker.value ? `?term_id=${termPicker.value}` : "");
   const classPicker = select([["", "اختر الصف"], ...classes.map((c) => [c.id, c.name])]);
   const studentPicker = select([["", "اختر الطالب"], ...students.map((s) => [s.id, s.name])]);
   const out = h("div");
@@ -25,12 +29,13 @@ export default async function reports({ me }) {
   return [
     panel("كشف الدرجات", null,
       sub("يُبنى من الاختبارات المعتمدة والمنشورة فقط. للحفظ كملف PDF اضغط طباعة ثم اختر «حفظ كـ PDF»."),
+      field("الفصل الدراسي", termPicker),
       h("div", { class: "row" },
         field("طالب واحد", studentPicker),
-        btn("عرض", () => studentPicker.value && show(async () => [await api(`${A}/reports/report-card/${studentPicker.value}`)]), "soft")),
+        btn("عرض", () => studentPicker.value && show(async () => [await api(`${A}/reports/report-card/${studentPicker.value}${termQuery()}`)]), "soft")),
       h("div", { class: "row" },
         field("صف كامل", classPicker),
-        btn("عرض الصف", () => classPicker.value && show(() => api(`${A}/reports/report-cards?class_id=${classPicker.value}`)), "soft")),
+        btn("عرض الصف", () => classPicker.value && show(() => api(`${A}/reports/report-cards?class_id=${classPicker.value}${termQuery().replace("?", "&")}`)), "soft")),
       msg),
     out,
   ];

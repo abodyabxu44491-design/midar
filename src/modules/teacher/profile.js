@@ -3,12 +3,13 @@ import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
 import { myLoad } from "./access.js";
+import { current } from "../shared/academic.service.js";
 
 const r = Router();
 
 r.get("/me", handle(async (req, res) => {
-  const load = await inTenant(req, (q) => myLoad(q, req.user.teacher_id));
-  res.json({ name: req.user.full_name, school: { id: req.tenant.id, name: req.tenant.name }, load });
+  const data = await inTenant(req, async (q) => ({ load: await myLoad(q, req.user.teacher_id), academic: await current(q) }));
+  res.json({ name: req.user.full_name, school: { id: req.tenant.id, name: req.tenant.name }, ...data });
 }));
 
 r.get("/announcements", handle(async (req, res) => {

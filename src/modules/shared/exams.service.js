@@ -14,9 +14,10 @@ export const scoresSchema = z.object({
 });
 
 const SELECT = `SELECT e.id, e.title, e.exam_date, e.max_score, e.status, e.published_at, e.created_by,
-    e.class_id, e.subject_id, c.name AS class_name, s.name AS subject_name,
+    e.class_id, e.subject_id, e.term_id, tr.name AS term_name, c.name AS class_name, s.name AS subject_name,
     (SELECT count(*) FROM scores x WHERE x.exam_id = e.id AND x.score IS NOT NULL)::int AS graded
-  FROM exams e JOIN classes c ON c.id = e.class_id JOIN subjects s ON s.id = e.subject_id`;
+  FROM exams e JOIN classes c ON c.id = e.class_id JOIN subjects s ON s.id = e.subject_id
+  LEFT JOIN terms tr ON tr.id = e.term_id`;
 
 export const listAll = (q) => q(`${SELECT} ORDER BY e.id DESC LIMIT 500`);
 export const listForTeacher = (q, teacherId) => q(

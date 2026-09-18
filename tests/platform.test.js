@@ -481,3 +481,69 @@ test("إيقاف المدرسة يُخرج مستخدميها فورًا", async
   assert.equal((await B.admin.get("/api/admin/me")).status, 401);
   assert.equal((await client(srv.base).post(`/api/public/${B.id}/directory`, { access: B.directory })).status, 404);
 });
+
+// يُنفَّذ أخيرًا لأنه ينقل الطلاب بين الصفوف
+test("السنة الدراسية والفصول: ربط تلقائي وبدء سنة جديدة", async () => {
+  // إعادة تفعيل جلسة المعلم بعد اختبارات الإيقاف والقفل السابقة
+  const teacherId = (await A.admin.get("/api/admin/teachers")).data[0].id;
+  s.teacherPw = (await A.admin.post(`/api/admin/teachers/${teacherId}/reset-password`, {})).data.credentials.password;
+  s.teacher = client(srv.base);
+  await s.teacher.post("/api/staff/login", { school: A.id, username: "tester", password: s.teacherPw });
+
+  const state = await A.admin.get("/api/admin/academic");
+  assert.equal(state.status, 200, JSON.stringify(state.data));
+  assert.ok(state.data.current.year_name, "توجد سنة حالية");
+  const terms = state.data.terms.filter((t) => t.year_id === state.data.current.year_id);
+  assert.equal(terms.length, 3, "ثلاثة فصول افتراضية");
+  const first = terms.find((t) => t.ordinal === 1);
+  assert.equal(first.is_current, true);
+
+  // الاختبار الجديد يُربط تلقائيًا بالفصل الحالي
+  const e1 = await s.teacher.post("/api/teacher/exams", { class_id: s.classId, subject_id: s.subjectId, title: "اختبار الفصل الأول", max_score: 10 });
+  assert.equal(e1.status, 201);
+  const listed = (await A.admin.get("/api/admin/exams")).data.find((x) => x.id === e1.data.id);
+  assert.equal(listed.term_id, first.id);
+  assert.equal(listed.term_name, "الفصل الأول");
+
+  // تغيير الفصل الحالي ثم اختبار جديد يذهب للفصل الثاني
+  const second = terms.find((t) => t.ordinal === 2);
+  assert.equal((await A.admin.post(`/api/admin/academic/terms/${second.id}/current`, {})).status, 200);
+  const e2 = await s.teacher.post("/api/teacher/exams", { class_id: s.classId, subject_id: s.subjectId, title: "اختبار الفصل الثاني", max_score: 10 });
+  const listed2 = (await A.admin.get("/api/admin/exams")).data.find((x) => x.id === e2.data.id);
+  assert.equal(listed2.term_name, "الفصل الثاني");
+
+  // كشف الدرجات يفصل بين الفصلين
+  await s.teacher.put(`/api/teacher/exams/${e2.data.id}/scores`, { scores: { [s.student.id]: 9 } });
+  await s.teacher.post(`/api/teacher/exams/${e2.data.id}/submit`, {});
+  await A.admin.post(`/api/admin/exams/${e2.data.id}/status`, { status: "published" });
+  const termCard = await A.admin.get(`/api/admin/reports/report-card/${s.student.id}?term_id=${second.id}`);
+  assert.equal(termCard.data.subjects[0].score, 9, "درجات الفصل الثاني فقط");
+  const yearCard = await A.admin.get(`/api/admin/reports/report-card/${s.student.id}`);
+  assert.ok(yearCard.data.subjects[0].max > termCard.data.subjects[0].max, "السنة كاملة تجمع الفصول");
+
+  // بدء سنة جديدة: نقل الطلاب وحفظ سجل السنة المنتهية
+  const classes = (await A.admin.get("/api/admin/structure/classes")).data;
+  const target = classes.find((c) => c.id !== s.classId);
+  const rollover = await A.admin.post("/api/admin/academic/start-year", {
+    year: { name: "2030/2031", start_date: "2030-08-01", end_date: "2031-06-30", terms: 2 },
+    moves: [{ from_class_id: s.classId, action: "promote", to_class_id: target.id }],
+    archive_graduates: true,
+  });
+  assert.equal(rollover.status, 200, JSON.stringify(rollover.data));
+  assert.ok(rollover.data.promoted >= 1);
+
+  const after = await A.admin.get("/api/admin/academic");
+  assert.equal(after.data.current.year_name, "2030/2031");
+  assert.equal(after.data.terms.filter((t) => t.year_id === after.data.current.year_id).length, 2);
+  assert.ok(after.data.years.some((y) => y.status === "archived"), "السنة السابقة صارت مؤرشفة");
+
+  const student = (await A.admin.get("/api/admin/students")).data.find((x) => x.id === s.student.id);
+  assert.equal(student.class_id, target.id, "الطالب انتقل للصف الجديد");
+
+  const history = await A.admin.get(`/api/admin/academic/students/${s.student.id}/history`);
+  assert.equal(history.data[0].result, "promoted");
+  assert.ok(history.data[0].year_name, "سجل السنة محفوظ");
+
+  // الدرجات القديمة لم تُحذف
+  assert.ok((await A.admin.get(`/api/admin/reports/report-card/${s.student.id}?term_id=${second.id}`)).data.subjects.length >= 1);
+});

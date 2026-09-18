@@ -61,7 +61,7 @@ function render(d) {
           sub(`${w.subject}${w.teacher ? ` — ${w.teacher}` : ""}${w.due_date ? ` — التسليم ${fmtDate(w.due_date)}` : ""}`),
           w.details ? sub(w.details) : null))) ) : null,
 
-      d.settings.profile_show_grades ? section("الدرجات", d.grades.length ? d.grades.map((g) => {
+      d.settings.profile_show_grades ? section(d.academic?.term_name ? `الدرجات — ${d.academic.term_name}` : "الدرجات", d.grades.length ? d.grades.map((g) => {
         const p = Math.round((g.score / g.max_score) * 100);
         const color = p >= 65 ? "var(--teal)" : p >= 50 ? "var(--amber)" : "var(--red)";
         return h("div", { style: "padding:8px 0;border-top:1px solid var(--line)" },

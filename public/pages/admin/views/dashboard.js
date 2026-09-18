@@ -7,6 +7,7 @@ import { A, directoryLink, staffLink } from "./common.js";
 export default async function dashboard({ me }) {
   const d = await api(`${A}/dashboard`);
   return [
+    d.academic ? notice(`السنة الدراسية: ${d.academic.year_name} — الفصل الحالي: ${d.academic.term_name || "غير محدد"}`, "") : null,
     stats([
       ["طالب", d.students, `حد الباقة ${me.school.max_students}`], ["معلم", d.teachers], ["فصل", d.classes],
       ["غائب اليوم", d.absent_today, d.recorded_today ? `سُجل ${d.recorded_today} طالب` : "لم يُسجل الحضور بعد"],
