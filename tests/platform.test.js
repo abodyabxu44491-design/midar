@@ -12,7 +12,7 @@ async function makeSchool(name) {
   const r = await owner.post("/api/owner/tenants", { id, name, max_students: 3 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   const admin = client(srv.base);
-  const login = await admin.post("/api/admin/login", { school: id, username: "admin", password: r.data.credentials.password });
+  const login = await admin.post("/api/staff/login", { school: id, username: "admin", password: r.data.credentials.password });
   assert.equal(login.status, 200);
   return { id, admin, directory: r.data.credentials.directory_code, password: r.data.credentials.password };
 }
@@ -91,9 +91,9 @@ test("جلسة المدير لا تفتح واجهة المالك أو المع�
 
 test("بيانات المعلم لا تدخل لوحة الإدارة، والعكس", async () => {
   const x = client(srv.base);
-  assert.equal((await x.post("/api/admin/login", { school: A.id, username: "tester", password: s.teacherPw })).status, 401);
+  assert.equal((await x.post("/api/staff/login", { school: A.id, username: "tester", password: "كلمة-خاطئة" })).status, 401);
   const teacher = client(srv.base);
-  assert.equal((await teacher.post("/api/teacher/login", { school: A.id, username: "tester", password: s.teacherPw })).status, 200);
+  assert.equal((await teacher.post("/api/staff/login", { school: A.id, username: "tester", password: s.teacherPw })).data.role, "teacher");
   assert.equal((await teacher.get("/api/admin/students")).status, 401);
   s.teacher = teacher;
 });
@@ -364,8 +364,8 @@ test("سجل التدقيق يسجل التعديلات بالقيم", async () 
 
 test("قفل الحساب بعد 5 محاولات خاطئة", async () => {
   const x = client(srv.base);
-  for (let i = 0; i < 5; i++) await x.post("/api/teacher/login", { school: A.id, username: "tester", password: "wrong-pass" });
-  const r = await x.post("/api/teacher/login", { school: A.id, username: "tester", password: s.teacherPw });
+  for (let i = 0; i < 5; i++) await x.post("/api/staff/login", { school: A.id, username: "tester", password: "wrong-pass" });
+  const r = await x.post("/api/staff/login", { school: A.id, username: "tester", password: s.teacherPw });
   assert.equal(r.status, 401);
   assert.match(r.data.error, /مقفل/);
 });

@@ -1,0 +1,18 @@
+# تشغيل مِدار كخدمة دائمة على سيرفر Ubuntu
+# sudo cp deploy/midar.service /etc/systemd/system/ && sudo systemctl enable --now midar
+[Unit]
+Description=MIDAR school platform
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=midar
+WorkingDirectory=/opt/midar
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+# المتغيرات تُقرأ من /opt/midar/.env
+
+[Install]
+WantedBy=multi-user.target

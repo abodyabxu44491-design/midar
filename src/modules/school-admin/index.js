@@ -2,7 +2,7 @@
 // كل قسم في ملف مستقل. لإضافة قسم جديد: أنشئ ملفًا يصدّر Router ثم سجّله هنا.
 import { Router } from "express";
 import { requireStaff } from "../../core/auth/guards.js";
-import { staffAuthRouter, changePassword } from "../shared/staff-auth.js";
+import { logoutRouter, changePassword } from "../shared/staff-auth.js";
 import dashboard from "./dashboard.js";
 import structure from "./structure.js";
 import teachers from "./teachers.js";
@@ -19,7 +19,7 @@ import messaging from "./messaging.js";
 import exportData from "./export.js";
 
 const r = Router();
-r.use(staffAuthRouter("admin"));          // /login و /logout (بدون حارس)
+r.use(logoutRouter("admin"));            // /logout (بدون حارس)
 r.use(requireStaff("admin"));             // كل ما بعده للمدير فقط
 r.post("/password", changePassword);
 r.use(dashboard);
