@@ -2,6 +2,7 @@
 import { h, $, mount } from "/shared/js/dom.js";
 import { api, idempotencyKey } from "/shared/js/api.js";
 import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select } from "/shared/js/ui.js";
+import { installPrompt } from "/shared/js/ui.js";
 import { money, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "/shared/js/format.js";
 import { timetableGrid } from "/shared/js/timetable.js";
 
@@ -44,6 +45,7 @@ function render(d) {
           f && h("div", {}, h("b", {}, f.status === "paid" ? "مسدد" : f.status === "unpaid" ? money(f.remaining) : "—"),
             f.status === "unpaid" ? "رسوم متبقية" : "حالة الرسوم"))),
 
+      h("div", { class: "cols-2" },
       section("البيانات الأساسية",
         info("اسم الطالب", s.name), info("الفصل", s.class_name), info("ولي الأمر", s.guardian_name),
         info("جوال ولي الأمر", s.guardian_phone, "ltr"), info("تاريخ التسجيل", fmtDate(s.since))),
@@ -70,7 +72,7 @@ function render(d) {
       d.settings.profile_show_teachers ? section("المعلمون والمواد", d.teachers.length ? d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher))) : empty("لا يوجد.")) : null,
 
       section("الإعلانات", d.announcements.length ? d.announcements.map((a) => line(
-        h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))) : empty("لا توجد إعلانات."))),
+        h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))) : empty("لا توجد إعلانات.")))),
     footer());
 }
 
@@ -165,3 +167,4 @@ function payDialog(f, inv, available) {
 }
 
 load();
+installPrompt();

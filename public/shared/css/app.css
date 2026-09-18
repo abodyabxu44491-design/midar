@@ -195,3 +195,65 @@ table.timetable select { padding: 4px; font-size: 12px; }
 .quick-name[data-state="absent"] { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .quick-name[data-state="late"] { border-color: var(--amber); background: var(--amber-soft); color: #8A5A00; }
 .quick-name[data-state="excused"] { border-color: #6B5B95; background: #EFEBF7; color: #6B5B95; }
+
+/* ===================== التجاوب: جوال وكمبيوتر ===================== */
+/* مساحات آمنة في أجهزة iPhone وعند التثبيت كتطبيق */
+body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+
+/* --- الجوال: مساحات لمس مريحة --- */
+@media (max-width: 719px) {
+  main { padding: 12px; }
+  .btn { min-height: 44px; padding: 11px 16px; }
+  .btn.sm { min-height: 38px; }
+  input, select, textarea { min-height: 44px; font-size: 16px; }  /* 16px يمنع تكبير الشاشة في iOS */
+  .panel { padding: 14px; }
+  .line { padding: 12px 0; }
+  .row > * { min-width: 100%; }
+  .row > .btn, .row > .switch { min-width: 0; }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .topbar .in { padding: 10px 12px; }
+  .brand-logo { height: 32px; }
+  table.grid { font-size: 13px; }
+}
+
+/* --- اللوحي والكمبيوتر --- */
+@media (min-width: 720px) {
+  main { max-width: 1120px; padding: 20px; }
+  .topbar .in { max-width: 1120px; }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+}
+
+/* --- الشاشات الكبيرة: التبويبات عمود جانبي ثابت --- */
+@media (min-width: 1080px) {
+  .tabs-layout { display: grid; grid-template-columns: 216px 1fr; gap: 18px; align-items: start; }
+  .tabs-layout > .tabs {
+    flex-direction: column; overflow: visible; padding: 8px; margin: 0;
+    position: sticky; top: 16px; border-radius: 12px;
+  }
+  .tabs-layout > .tabs button {
+    width: 100%; text-align: right; border-bottom: none; border-radius: 8px; padding: 11px 12px;
+    border-inline-start: 3px solid transparent;
+  }
+  .tabs-layout > .tabs button.on { background: var(--teal-soft); border-inline-start-color: var(--accent); }
+  .tabs-layout > .tabs button:hover { background: var(--bg); }
+  /* الصفحة العامة وملف الطالب: عمودان على الشاشات الكبيرة */
+  .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; align-items: start; }
+  .cols-2 > * { min-width: 0; }
+}
+@media (min-width: 1400px) {
+  main { max-width: 1280px; }
+  .topbar .in { max-width: 1280px; }
+}
+
+/* شريط عنوان التطبيق المثبّت على سطح المكتب */
+@media (display-mode: window-controls-overlay) {
+  .topbar { position: sticky; top: 0; z-index: 20; -webkit-app-region: drag; }
+  .topbar .btn { -webkit-app-region: no-drag; }
+}
+@media (display-mode: standalone) {
+  .install-hint { display: none !important; }
+}
+
+/* زر التثبيت العائم */
+.install-fab { position: fixed; inset-inline-end: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 40;
+  box-shadow: 0 6px 20px rgba(22, 36, 74, .28); }

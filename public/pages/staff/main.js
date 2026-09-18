@@ -3,6 +3,7 @@
 import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { brandLogo, footer, field, input, btn, notice, sub } from "/shared/js/ui.js";
+import { installPrompt } from "/shared/js/ui.js";
 import { startAnalytics } from "/shared/js/analytics.js";
 import { startAdmin } from "/admin/app.js";
 import { startTeacher } from "/teacher/app.js";
@@ -47,3 +48,4 @@ function showLogin(error) {
 }
 
 start();
+installPrompt();

@@ -2,6 +2,7 @@
 import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { brandLogo, footer, field, input, textarea, btn, notice, sub } from "/shared/js/ui.js";
+import { installPrompt } from "/shared/js/ui.js";
 import { startAnalytics } from "/shared/js/analytics.js";
 
 const app = $("#app");
@@ -86,3 +87,4 @@ function leadForm() {
 }
 
 start();
+installPrompt();

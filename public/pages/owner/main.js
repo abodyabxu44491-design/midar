@@ -2,6 +2,7 @@
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { topbar, footer, tabs, loginScreen } from "/shared/js/ui.js";
+import { installPrompt } from "/shared/js/ui.js";
 import overview from "./views/overview.js";
 import schools from "./views/schools.js";
 import create from "./views/create.js";
@@ -29,3 +30,4 @@ async function start() {
   t.show("overview");
 }
 start();
+installPrompt();

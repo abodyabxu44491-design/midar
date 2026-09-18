@@ -11,14 +11,35 @@ window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); inst
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
-export function installButton(label = "تثبيت التطبيق") {
+export function installButton(label = "تثبيت التطبيق", cls = "ghost sm") {
   if (!installEvent) return null;
   return btn(label, async () => {
     const e = installEvent;
     installEvent = null;
     e.prompt();
     await e.userChoice;
-  }, "ghost sm");
+    document.querySelector(".install-fab")?.remove();
+  }, cls);
+}
+
+// زر تثبيت عائم يظهر تلقائيًا عندما يسمح المتصفح، ويُخفى بعد التثبيت
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+export function installPrompt() {
+  if (isStandalone()) return;
+  const show = () => {
+    if (document.querySelector(".install-fab")) return;
+    const b = installButton("تثبيت مِدار", "install-fab");
+    if (b) document.body.append(b);
+  };
+  if (installEvent) show();
+  window.addEventListener("beforeinstallprompt", () => setTimeout(show, 1200));
+  window.addEventListener("appinstalled", () => document.querySelector(".install-fab")?.remove());
+  // أجهزة آيفون لا تدعم زر التثبيت التلقائي
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (iOS && !sessionStorage.getItem("midar_ios_hint")) {
+    sessionStorage.setItem("midar_ios_hint", "1");
+    setTimeout(() => toast("لتثبيت مِدار على الآيفون: زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»"), 2500);
+  }
 }
 
 /* ---------- الهوية ---------- */
@@ -118,7 +139,7 @@ export function tabs(list, views, ctx) {
     }
   };
   for (const [key, label] of list) bar.append(h("button", { type: "button", role: "tab", "data-k": key, onclick: () => show(key) }, label));
-  return { el: h("div", {}, bar, body), show };
+  return { el: h("div", { class: "tabs-layout" }, bar, body), show };
 }
 
 /* ---------- النوافذ ---------- */

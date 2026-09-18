@@ -4,6 +4,7 @@
 import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub, badge, brandLogo } from "/shared/js/ui.js";
+import { installPrompt } from "/shared/js/ui.js";
 import { fmtDate } from "/shared/js/format.js";
 import { timetableGrid } from "/shared/js/timetable.js";
 import { startAnalytics } from "/shared/js/analytics.js";
@@ -149,3 +150,4 @@ function askKey(student) {
 }
 
 start();
+installPrompt();
