@@ -482,6 +482,35 @@ test("إيقاف المدرسة يُخرج مستخدميها فورًا", async
   assert.equal((await client(srv.base).post(`/api/public/${B.id}/directory`, { access: B.directory })).status, 404);
 });
 
+test("التحليلات والتنبيهات والبحث السريع", async () => {
+  const alerts = await A.admin.get("/api/admin/analytics/alerts");
+  assert.equal(alerts.status, 200, JSON.stringify(alerts.data));
+  for (const k of ["pending_exams", "overdue_invoices", "frequent_absentees", "teachers_without_load"]) {
+    assert.equal(typeof alerts.data.counts[k], "number", k);
+  }
+  assert.ok(Array.isArray(alerts.data.absentees) && Array.isArray(alerts.data.overdue));
+
+  const an = await A.admin.get("/api/admin/analytics?months=6");
+  assert.equal(an.status, 200);
+  for (const k of ["attendance_by_month", "attendance_by_class", "grades_by_class", "grades_by_subject", "top_students", "fees_by_month"]) {
+    assert.ok(Array.isArray(an.data[k]), k);
+  }
+  assert.equal(typeof an.data.fees.collected, "number");
+
+  const found = await A.admin.get(`/api/admin/analytics/search?q=${encodeURIComponent("طالب")}`);
+  assert.equal(found.status, 200, JSON.stringify(found.data));
+  assert.ok(found.data.students.length >= 1);
+  assert.equal((await A.admin.get("/api/admin/analytics/search?q=ط")).status, 400, "حرف واحد غير كافٍ");
+
+  // البحث لا يتجاوز المدرسة (نعيد تفعيل مدرسة ب بعد اختبار الإيقاف)
+  await owner.patch(`/api/owner/tenants/${B.id}`, { status: "active" });
+  B.admin = client(srv.base);
+  await B.admin.post("/api/staff/login", { school: B.id, username: "admin", password: B.password });
+  const other = await B.admin.get(`/api/admin/analytics/search?q=${encodeURIComponent("طالب")}`);
+  assert.equal(other.status, 200, JSON.stringify(other.data));
+  assert.equal(other.data.students.length, 0);
+});
+
 // يُنفَّذ أخيرًا لأنه ينقل الطلاب بين الصفوف
 test("السنة الدراسية والفصول: ربط تلقائي وبدء سنة جديدة", async () => {
   // إعادة تفعيل جلسة المعلم بعد اختبارات الإيقاف والقفل السابقة

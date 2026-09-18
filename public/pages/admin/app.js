@@ -16,6 +16,7 @@ import settings from "./views/settings.js";
 import audit from "./views/audit.js";
 import timetable from "./views/timetable.js";
 import reports from "./views/reports.js";
+import analytics from "./views/analytics.js";
 import admissions from "./views/admissions.js";
 
 const app = $("#app");
@@ -24,9 +25,9 @@ export async function startAdmin() {
   const me = await api("/api/admin/me");
   const t = tabs([
     ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"], ["academic", "السنة الدراسية"],
-    ["attendance", "الحضور"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["reports", "كشف الدرجات"],
+    ["attendance", "الحضور"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["reports", "كشف الدرجات"], ["analytics", "التحليلات"],
     ["finance", "الرسوم"], ["admissions", "طلبات التسجيل"], ["announcements", "الإعلانات"], ["settings", "الإعدادات"], ["audit", "السجل"],
-  ], { dashboard, students, teachers, structure, academic, attendance, timetable, exams, reports, finance, admissions, announcements, settings, audit }, { me });
+  ], { dashboard, students, teachers, structure, academic, attendance, timetable, exams, reports, analytics, finance, admissions, announcements, settings, audit }, { me });
 
   mount(app,
     topbar({ school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,

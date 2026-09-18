@@ -280,3 +280,14 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .icon { vertical-align: middle; flex: none; }
 .install-steps ol { padding-inline-start: 18px; line-height: 2.1; }
 @media print { .install-bar { display: none; } }
+
+.chart { max-width: 100%; height: auto; display: block; }
+.chart-value { font-size: 11px; fill: var(--ink); font-family: inherit; font-weight: 700; }
+.chart-label { font-size: 11px; fill: var(--muted); font-family: inherit; }
+.alert-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.alert-card { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: #fff; font-weight: 600; }
+.alert-card b { font-size: 22px; }
+.alert-card.warn { border-color: var(--amber); background: var(--amber-soft); }
+.alert-card.bad { border-color: var(--red); background: var(--red-soft); color: var(--red); }
+.search-result { padding: 10px 0; border-top: 1px solid var(--line); }
