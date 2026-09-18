@@ -9,14 +9,14 @@ export default async function announcements({ refresh }) {
   const [list, classes] = await Promise.all([api(`${A}/announcements`), loadClasses()]);
   const title = input(), body = textarea({ rows: 3 }), target = select(classOptions(classes, "كل المدرسة"));
   return [
-    panel("نشر إعلان", null, field("العنوان", title), field("التفاصيل", body), field("يظهر لـ", target),
-      btn("نشر الإعلان", async () => {
+    panel("إرسال تعميم", null, field("العنوان", title), field("التفاصيل", body), field("يظهر لـ", target),
+      btn("إرسال التعميم", async () => {
         await api(`${A}/announcements`, { title: title.value, body: body.value || null, class_id: target.value || null });
-        toast("تم النشر"); refresh();
+        toast("أُرسل التعميم"); refresh();
       })),
-    panel("الإعلانات", null, list.length ? list.map((a) => line(
+    panel("التعاميم المرسلة", null, list.length ? list.map((a) => line(
       h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(`${a.class_name || "كل المدرسة"} — ${a.created_by} — ${fmtDate(a.created_at)}`)),
-      btn("حذف", async () => { if (confirmAction("حذف الإعلان؟")) { await api(`${A}/announcements/${a.id}`, undefined, "DELETE"); refresh(); } }, "danger sm")))
-      : empty("لا توجد إعلانات.")),
+      btn("حذف", async () => { if (confirmAction("حذف التعميم؟")) { await api(`${A}/announcements/${a.id}`, undefined, "DELETE"); refresh(); } }, "danger sm")))
+      : empty("لا توجد تعاميم.")),
   ];
 }

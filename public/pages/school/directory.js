@@ -117,7 +117,7 @@ function render(data) {
       onLogout: st.access_mode === "code" ? () => { sessionStorage.removeItem(ACCESS); location.reload(); } : null }),
     h("main", {},
       data.announcements.length
-        ? h("section", { class: "panel" }, h("h2", {}, "إعلانات المدرسة"),
+        ? h("section", { class: "panel" }, h("h2", {}, "تعاميم المدرسة"),
             data.announcements.map((a) => line(h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))))
         : null,
       notice("اضغط على اسم الطالب ثم أدخل معرّفه لفتح صفحته الكاملة والرسوم."),

@@ -16,7 +16,7 @@ const app = $("#app");
 export async function startTeacher() {
   const me = await api("/api/teacher/me");
   const t = tabs([["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"], ["homework", "الواجبات"],
-    ["announcements", "الإعلانات"], ["account", "حسابي"]],
+    ["announcements", "التعاميم"], ["account", "حسابي"]],
     { home, timetable, attendance, exams, homework, announcements, account }, { me });
   mount(app,
     topbar({ school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`,

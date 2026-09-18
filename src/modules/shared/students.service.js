@@ -85,11 +85,22 @@ export async function regenerateKey(q, id) {
   throw conflict("تعذر إنشاء معرّف جديد، أعد المحاولة");
 }
 
-export async function setArchived(q, tenant, id, archived) {
+export const STATUSES = ["active", "graduated", "transferred", "withdrawn"];
+export const STATUS_LABEL = {
+  active: "على رأس القيد", graduated: "متخرج", transferred: "منقول لمدرسة أخرى", withdrawn: "منسحب",
+};
+export const statusSchema = z.object({
+  status: z.enum(STATUSES),
+  note: t.optText(300),
+});
+
+// تغيير حالة الطالب: الأرشفة تتبع الحالة تلقائيًا في قاعدة البيانات
+export async function setStatus(q, tenant, id, { status, note }) {
   const s = await get(q, id, { includeArchived: true });
-  if (!archived && s.archived_at) {
+  if (status === "active" && s.status !== "active") {
     await q("SELECT id FROM tenants WHERE id = app_tenant() FOR UPDATE");
     await ensureCapacity(q, tenant, 1);
   }
-  await q(`UPDATE students SET archived_at = ${archived ? "now()" : "NULL"} WHERE id = $1`, [id]);
+  await q("UPDATE students SET status = $2, status_note = $3 WHERE id = $1", [id, status, note ?? null]);
+  return { status };
 }

@@ -38,7 +38,7 @@ export async function verifyStudent(req, tenant, q, body) {
   if ((await recentFailures(q, "student_key_failed", subject, 30)) >= MAX_KEY_FAILS) {
     throw unauthorized("تم إيقاف المحاولة مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد 30 دقيقة أو تواصل مع المدرسة.");
   }
-  const [s] = await q("SELECT * FROM students WHERE id = $1 AND archived_at IS NULL", [b.student_id]);
+  const [s] = await q("SELECT * FROM students WHERE id = $1 AND status = 'active'", [b.student_id]);
   if (!s || !safeEqual(b.key, s.access_key)) {
     await transaction({ tenantId: tenant.id, actor: "زائر", ip: req.ip }, async (q2) => {
       await securityEvent(q2, { kind: "student_key_failed", subject, tenantId: tenant.id, ip: req.ip });

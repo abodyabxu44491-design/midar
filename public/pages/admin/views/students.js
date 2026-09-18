@@ -9,8 +9,8 @@ import { A, loadClasses, classOptions, directoryLink } from "./common.js";
 import { api as call } from "/shared/js/api.js";
 
 export default async function students({ me, refresh }) {
-  const [classes, list, archived, templates] = await Promise.all([
-    loadClasses(), api(`${A}/students`), api(`${A}/students?archived=1`), api(`${A}/messaging/templates`)]);
+  const [classes, list, inactive, templates] = await Promise.all([
+    loadClasses(), api(`${A}/students`), api(`${A}/students?status=inactive`), api(`${A}/messaging/templates`)]);
 
   /* ---- إضافة طالب ---- */
   const f = { name: input(), cls: select(classOptions(classes, "بدون فصل")), gname: input(), gphone: input({ class: "ltr", inputMode: "tel" }),
@@ -71,6 +71,7 @@ export default async function students({ me, refresh }) {
         sub(`${s.class_name || "بدون فصل"} — ولي الأمر: ${s.guardian_name || "—"} ${s.guardian_phone || ""}`),
         sub("المعرّف: ", keyText(s.access_key))),
       h("div", { class: "row", style: "flex:none;align-items:center" },
+        btn("الحالة", () => statusDialog(s, refresh), "ghost sm"),
         h("span", { class: "sub", style: "flex:none;min-width:0" }, "الرسوم"), sw,
         waButton({ phone: s.guardian_phone, template: templates.general, countryCode: templates.country_code,
           vars: messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) }), label: "واتساب" }),
@@ -96,9 +97,16 @@ export default async function students({ me, refresh }) {
       h("div", { class: "toolbar" }, q, filter),
       sub("زر «الرسوم» يُظهر الفواتير وحالة السداد وزر الدفع في صفحة الطالب. حالة السداد تظهر لصاحب المعرّف فقط."),
       box),
-    archived.length ? panel(`الطلاب المؤرشفون (${archived.length})`, null, archived.map((s) => line(
-      h("div", { class: "muted-row" }, h("b", {}, s.name), sub(`أُرشف ${fmtDate(s.archived_at)}`)),
-      btn("استعادة", async () => { await api(`${A}/students/${s.id}/archive`, { archived: false }); toast("تمت الاستعادة"); refresh(); }, "soft sm")))) : null,
+    inactive.length ? panel(`طلاب خارج القيد (${inactive.length})`, null,
+      sub("سجلاتهم ودرجاتهم محفوظة، ولا يظهرون في القوائم ولا يُفتح ملفهم."),
+      inactive.map((s) => line(
+        h("div", { class: "muted-row" }, h("b", {}, s.name), " ", statusBadge(s.status),
+          sub(`${s.class_name || "بدون فصل"}${s.status_changed_at ? ` — منذ ${fmtDate(s.status_changed_at)}` : ""}`),
+          s.status_note ? sub(s.status_note) : null),
+        btn("إعادة للقيد", async () => {
+          await api(`${A}/students/${s.id}/status`, { status: "active", note: null });
+          toast("عاد الطالب على رأس القيد"); refresh();
+        }, "soft sm")))) : null,
   ];
 }
 
@@ -112,12 +120,27 @@ function edit(s, classes, refresh) {
         guardian_name: f.gname.value, guardian_phone: f.gphone.value }, "PATCH");
       d.close(); toast("تم الحفظ"); refresh();
     }),
-    btn("أرشفة الطالب", async () => {
-      if (!confirmAction(`أرشفة ${s.name}؟ يختفي من القوائم وتبقى سجلاته محفوظة ويمكن استعادته.`)) return;
-      await api(`${A}/students/${s.id}/archive`, { archived: true });
-      d.close(); toast("تمت الأرشفة"); refresh();
-    }, "danger"),
+    btn("تغيير الحالة", () => { d.close(); statusDialog(s, refresh); }, "danger"),
   ]);
+}
+
+export const STATUS_LABEL = {
+  active: "على رأس القيد", graduated: "متخرج", transferred: "منقول لمدرسة أخرى", withdrawn: "منسحب",
+};
+const STATUS_TONE = { active: "", graduated: "", transferred: "gray", withdrawn: "red" };
+export const statusBadge = (status) => badge(STATUS_LABEL[status] || status, STATUS_TONE[status] ?? "gray");
+
+// تغيير حالة الطالب: تخرّج، نقل لمدرسة أخرى، انسحاب، أو إعادة للقيد
+function statusDialog(s, refresh) {
+  const status = select(Object.entries(STATUS_LABEL), { value: s.status || "active" });
+  const note = input({ placeholder: "السبب أو الملاحظة (اختياري)", value: s.status_note || "" });
+  const d = dialog(`حالة الطالب: ${s.name}`, h("div", {},
+    sub("الطالب خارج القيد لا يظهر في القوائم ولا يُفتح ملفه، وتبقى درجاته وفواتيره محفوظة."),
+    field("الحالة", status), field("ملاحظة", note)),
+  [btn("حفظ الحالة", async () => {
+    await api(`${A}/students/${s.id}/status`, { status: status.value, note: note.value || null });
+    d.close(); toast("تم تحديث الحالة"); refresh();
+  })]);
 }
 
 function card(me, s) {

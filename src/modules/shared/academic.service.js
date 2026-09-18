@@ -14,19 +14,38 @@ export const termSchema = z.object({
   start_date: t.date,
   end_date: t.date,
 });
+export const ACTIONS = ["promote", "repeat", "graduate", "transfer", "withdraw"];
+export const ACTION_LABEL = {
+  promote: "ترفيع للصف التالي", repeat: "إعادة السنة", graduate: "تخرّج",
+  transfer: "نقل لمدرسة أخرى", withdraw: "انسحاب",
+};
+// نتيجة السنة ← الإجراء المقترح
+const RESULT_OF_ACTION = { promote: "promoted", repeat: "repeated", graduate: "graduated", transfer: "transferred", withdraw: "withdrawn" };
+const STATUS_OF_ACTION = { promote: "active", repeat: "active", graduate: "graduated", transfer: "transferred", withdraw: "withdrawn" };
+
 export const rolloverSchema = z.object({
   year: yearSchema,
-  // خريطة النقل: من صف إلى صف، أو تخرّج، أو بقاء في نفس الصف
+  // خريطة الصفوف: إلى أي صف يُرفَّع كل صف (أو تخرّج طلابه)
   moves: z.array(z.object({
     from_class_id: t.id,
-    action: z.enum(["promote", "stay", "graduate"]),
+    action: z.enum(["promote", "graduate", "repeat"]).default("promote"),
     to_class_id: t.optId,
   })).max(200).default([]),
-  archive_graduates: z.boolean().default(true),
+  // استثناءات لطلاب بأعينهم (تتقدم على خريطة الصف)
+  overrides: z.array(z.object({
+    student_id: t.id,
+    action: z.enum(ACTIONS),
+    to_class_id: t.optId,
+    note: t.optText(300),
+  })).max(2000).default([]),
+  // الراسب يعيد السنة تلقائيًا ولا يُرفَّع
+  repeat_failed: z.boolean().default(true),
 });
 
+export const passMarkSchema = z.object({ pass_mark: z.coerce.number().min(0).max(100) });
+
 export const listYears = (q) => q(
-  `SELECT y.id, y.name, y.start_date, y.end_date, y.is_current, y.status,
+  `SELECT y.id, y.name, y.start_date, y.end_date, y.is_current, y.status, y.pass_mark,
           (SELECT count(*) FROM student_years sy WHERE sy.year_id = y.id)::int AS archived_students
      FROM academic_years y ORDER BY y.start_date DESC`);
 
@@ -98,15 +117,66 @@ export async function updateTerm(q, termId, b) {
   if (!rows.length) throw notFound("الفصل الدراسي غير موجود");
 }
 
-// متوسط الطالب في سنة (من الاختبارات المنشورة داخل فصولها)
-async function yearAverage(q, studentId, yearId) {
-  const [r] = await q(
-    `SELECT CASE WHEN COALESCE(SUM(e.max_score), 0) > 0
-              THEN ROUND(SUM(sc.score) / SUM(e.max_score) * 100, 2) END AS avg
-       FROM scores sc JOIN exams e ON e.id = sc.exam_id JOIN terms t ON t.id = e.term_id
-      WHERE sc.student_id = $1 AND t.year_id = $2 AND e.status = 'published' AND sc.score IS NOT NULL`,
-    [studentId, yearId]);
-  return r.avg;
+/**
+ * نتائج كل الطلاب في سنة: المتوسط من الاختبارات المنشورة، ونسبة الحضور داخل مدة السنة،
+ * والنتيجة (ناجح / راسب / غير مكتمل) حسب درجة النجاح المعتمدة للسنة.
+ */
+export async function yearResults(q, yearId) {
+  const [year] = await q("SELECT id, pass_mark, start_date, end_date FROM academic_years WHERE id = $1", [yearId]);
+  if (!year) return { year: null, students: [] };
+  const rows = await q(
+    `SELECT s.id, s.full_name AS name, s.class_id, s.status, c.name AS class_name,
+            g.average, COALESCE(a.records, 0)::int AS attendance_records, a.attended,
+            CASE WHEN COALESCE(a.records, 0) > 0 THEN ROUND(a.attended::numeric / a.records * 100, 2) END AS attendance_rate
+       FROM students s
+       LEFT JOIN classes c ON c.id = s.class_id
+       LEFT JOIN LATERAL (
+         SELECT ROUND(SUM(sc.score) / NULLIF(SUM(e.max_score), 0) * 100, 2) AS average
+           FROM scores sc JOIN exams e ON e.id = sc.exam_id JOIN terms t ON t.id = e.term_id
+          WHERE sc.student_id = s.id AND t.year_id = $1 AND e.status = 'published' AND sc.score IS NOT NULL
+       ) g ON true
+       LEFT JOIN LATERAL (
+         SELECT count(*)::int AS records, count(*) FILTER (WHERE status IN ('present', 'late'))::int AS attended
+           FROM attendance WHERE student_id = s.id AND day BETWEEN $2 AND $3
+       ) a ON true
+      WHERE s.status = 'active'
+      ORDER BY c.id NULLS LAST, s.full_name`,
+    [yearId, year.start_date, year.end_date]);
+
+  const pass = Number(year.pass_mark);
+  return {
+    year,
+    students: rows.map((r) => ({
+      ...r,
+      average: r.average === null ? null : Number(r.average),
+      outcome: r.average === null ? "incomplete" : Number(r.average) >= pass ? "passed" : "failed",
+    })),
+  };
+}
+
+export async function setPassMark(q, yearId, passMark) {
+  const rows = await q("UPDATE academic_years SET pass_mark = $2 WHERE id = $1 RETURNING id", [yearId, passMark]);
+  if (!rows.length) throw notFound("السنة غير موجودة");
+}
+
+/**
+ * معاينة الترفيع: لكل طالب نتيجته والإجراء المقترح، قبل تنفيذ بدء السنة.
+ */
+export async function promotionPreview(q, moves = []) {
+  const cur = await current(q);
+  if (!cur) return { year: null, students: [] };
+  const { year, students } = await yearResults(q, cur.year_id);
+  const moveOf = new Map(moves.map((m) => [Number(m.from_class_id), m]));
+  return {
+    year: { id: year.id, name: cur.year_name, pass_mark: Number(year.pass_mark) },
+    students: students.map((s) => {
+      const move = s.class_id ? moveOf.get(Number(s.class_id)) : null;
+      let action = move?.action || "promote";
+      if (action === "promote" && s.outcome === "failed") action = "repeat";      // الراسب يعيد
+      if (action === "graduate" && s.outcome === "failed") action = "repeat";     // لا تخرّج براسب
+      return { ...s, suggested_action: action, to_class_id: action === "promote" ? move?.to_class_id ?? null : null };
+    }),
+  };
 }
 
 /**
@@ -118,33 +188,41 @@ async function yearAverage(q, studentId, yearId) {
  */
 export async function startNewYear(q, b) {
   const old = await current(q);
-  const summary = { promoted: 0, stayed: 0, graduated: 0, archived: 0, year: null };
+  const summary = { promoted: 0, repeated: 0, graduated: 0, transferred: 0, withdrawn: 0, passed: 0, failed: 0, incomplete: 0, year: null };
 
   if (old) {
-    const moveOf = new Map(b.moves.map((m) => [m.from_class_id, m]));
-    const students = await q(
-      "SELECT s.id, s.class_id, c.name AS class_name FROM students s LEFT JOIN classes c ON c.id = s.class_id WHERE s.archived_at IS NULL");
+    const preview = await promotionPreview(q, b.moves);
+    const overrideOf = new Map(b.overrides.map((o) => [Number(o.student_id), o]));
 
-    for (const st of students) {
-      const move = st.class_id ? moveOf.get(Number(st.class_id)) : null;
-      const action = move?.action || "stay";
-      const result = action === "graduate" ? "graduated" : action === "promote" ? "promoted" : "repeated";
+    for (const st of preview.students) {
+      const override = overrideOf.get(Number(st.id));
+      let action = override?.action || st.suggested_action;
+      if (!b.repeat_failed && action === "repeat" && st.outcome === "failed" && st.to_class_id) action = "promote";
+      const toClass = override?.to_class_id ?? st.to_class_id;
+
+      // سجل السنة المنتهية: النتيجة والإجراء والمتوسط ونسبة الحضور
       await q(
-        `INSERT INTO student_years (tenant_id, student_id, year_id, class_id, class_name, result, average)
-         VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)
-         ON CONFLICT (student_id, year_id) DO UPDATE SET result = EXCLUDED.result, average = EXCLUDED.average`,
-        [st.id, old.year_id, st.class_id, st.class_name, result, await yearAverage(q, st.id, old.year_id)]);
+        `INSERT INTO student_years (tenant_id, student_id, year_id, class_id, class_name, result, outcome, average, attendance_rate, note)
+         VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (student_id, year_id) DO UPDATE SET
+           result = EXCLUDED.result, outcome = EXCLUDED.outcome, average = EXCLUDED.average,
+           attendance_rate = EXCLUDED.attendance_rate, note = EXCLUDED.note`,
+        [st.id, old.year_id, st.class_id, st.class_name, RESULT_OF_ACTION[action], st.outcome,
+         st.average, st.attendance_rate, override?.note ?? null]);
 
-      if (action === "promote" && move.to_class_id) {
-        await q("UPDATE students SET class_id = $2 WHERE id = $1", [st.id, move.to_class_id]);
+      summary[st.outcome]++;
+
+      if (action === "promote") {
+        if (toClass) await q("UPDATE students SET class_id = $2 WHERE id = $1", [st.id, toClass]);
         summary.promoted++;
-      } else if (action === "graduate") {
-        if (b.archive_graduates) {
-          await q("UPDATE students SET archived_at = now() WHERE id = $1", [st.id]);
-          summary.archived++;
-        }
-        summary.graduated++;
-      } else summary.stayed++;
+      } else if (action === "repeat") {
+        summary.repeated++;                                   // يبقى في صفه نفسه
+      } else {
+        // تخرّج أو نقل أو انسحاب: تتغير حالة الطالب ويخرج من القوائم مع بقاء سجله
+        await q("UPDATE students SET status = $2, status_note = $3 WHERE id = $1",
+          [st.id, STATUS_OF_ACTION[action], override?.note ?? null]);
+        summary[RESULT_OF_ACTION[action]]++;
+      }
     }
     await q("UPDATE academic_years SET status = 'archived', is_current = false WHERE id = $1", [old.year_id]);
     await q("UPDATE terms SET is_current = false WHERE year_id = $1", [old.year_id]);

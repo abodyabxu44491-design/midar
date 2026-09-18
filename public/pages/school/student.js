@@ -75,8 +75,8 @@ function render(d) {
 
       d.settings.profile_show_teachers ? section("المعلمون والمواد", d.teachers.length ? d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher))) : empty("لا يوجد.")) : null,
 
-      section("الإعلانات", d.announcements.length ? d.announcements.map((a) => line(
-        h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))) : empty("لا توجد إعلانات.")))),
+      section("التعاميم", d.announcements.length ? d.announcements.map((a) => line(
+        h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))) : empty("لا توجد تعاميم.")))),
     footer());
 }
 

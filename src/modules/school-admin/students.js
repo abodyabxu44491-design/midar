@@ -9,14 +9,14 @@ import { studentSummary } from "../shared/finance.service.js";
 const r = Router();
 
 r.get("/", handle(async (req, res) => {
-  const archived = req.query.archived === "1";
+  const scope = req.query.status || "active";     // active | inactive | all
   res.json(await inTenant(req, async (q) => {
     const rows = await q(
       `SELECT s.id, s.full_name AS name, s.class_id, c.name AS class_name, s.guardian_name, s.guardian_phone,
-              s.access_key, s.fees_enabled, s.version, s.archived_at, s.created_at
+              s.access_key, s.fees_enabled, s.version, s.status, s.status_note, s.status_changed_at, s.created_at
          FROM students s LEFT JOIN classes c ON c.id = s.class_id
-        WHERE (s.archived_at IS NOT NULL) = $1
-        ORDER BY c.id NULLS LAST, s.full_name`, [archived]);
+        WHERE ($1 = 'all' OR ($1 = 'active') = (s.status = 'active'))
+        ORDER BY c.id NULLS LAST, s.full_name`, [scope]);
     for (const s of rows) s.fees = s.fees_enabled ? await studentSummary(q, s.id) : null;
     return rows;
   }));
@@ -45,12 +45,11 @@ r.post("/:id/regenerate-key", handle(async (req, res) => {
   res.json({ access_key: await inTenant(req, (q) => students.regenerateKey(q, id)) });
 }));
 
-// لا يوجد حذف نهائي: الأرشفة تحفظ السجلات المالية والأكاديمية
-r.post("/:id/archive", handle(async (req, res) => {
+// لا يوجد حذف نهائي: تتغير حالة الطالب فقط وتبقى سجلاته
+r.post("/:id/status", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  const { archived } = parse(z.object({ archived: z.boolean() }), req.body);
-  await inTenant(req, (q) => students.setArchived(q, req.tenant, id, archived));
-  res.json({ ok: true });
+  const b = parse(students.statusSchema, req.body);
+  res.json(await inTenant(req, (q) => students.setStatus(q, req.tenant, id, b)));
 }));
 
 export default r;

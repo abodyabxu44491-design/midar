@@ -5,6 +5,6 @@ import { fmtDate } from "/shared/js/format.js";
 
 export default async function announcements() {
   const list = await api("/api/teacher/announcements");
-  return panel("الإعلانات", null, list.length ? list.map((a) => line(
-    h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(`${a.class_name || "كل المدرسة"} — ${fmtDate(a.created_at)}`)))) : empty("لا توجد إعلانات."));
+  return panel("التعاميم المرسلة", null, list.length ? list.map((a) => line(
+    h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(`${a.class_name || "كل المدرسة"} — ${fmtDate(a.created_at)}`)))) : empty("لا توجد تعاميم."));
 }

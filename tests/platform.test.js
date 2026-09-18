@@ -346,11 +346,19 @@ test("المالية: لا دفع زائد، لا تكرار، لا إلغاء �
   assert.equal(prof.data.fees.receipts[0].method, "transfer");
 });
 
-test("الأرشفة بدل الحذف، والطالب المؤرشف لا يُفتح ملفه", async () => {
-  assert.equal((await A.admin.post(`/api/admin/students/${s.student.id}/archive`, { archived: true })).status, 200);
+test("حالات الطالب: خروج من القيد وإعادته، ولا يُفتح ملف غير النشط", async () => {
   const anon = client(srv.base);
-  assert.equal((await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key })).status, 401);
-  assert.equal((await A.admin.post(`/api/admin/students/${s.student.id}/archive`, { archived: false })).status, 200);
+  for (const status of ["graduated", "transferred", "withdrawn"]) {
+    assert.equal((await A.admin.post(`/api/admin/students/${s.student.id}/status`, { status, note: "اختبار" })).status, 200, status);
+    assert.equal((await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key })).status, 401);
+    const list = await A.admin.get("/api/admin/students");
+    assert.ok(!list.data.some((x) => x.id === s.student.id), `${status}: لا يظهر في القائمة النشطة`);
+    const off = await A.admin.get("/api/admin/students?status=inactive");
+    assert.equal(off.data.find((x) => x.id === s.student.id).status, status);
+  }
+  assert.equal((await A.admin.post(`/api/admin/students/${s.student.id}/status`, { status: "active", note: null })).status, 200);
+  assert.equal((await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key })).status, 200);
+  assert.equal((await A.admin.post(`/api/admin/students/${s.student.id}/status`, { status: "خطأ" })).status, 400);
 });
 
 test("طلب من موقع خارجي يُرفض (CSRF)", async () => {
@@ -550,13 +558,32 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
   const yearCard = await A.admin.get(`/api/admin/reports/report-card/${s.student.id}`);
   assert.ok(yearCard.data.subjects[0].max > termCard.data.subjects[0].max, "السنة كاملة تجمع الفصول");
 
-  // بدء سنة جديدة: نقل الطلاب وحفظ سجل السنة المنتهية
+  // النتائج: ناجح أو راسب حسب درجة النجاح
   const classes = (await A.admin.get("/api/admin/structure/classes")).data;
   const target = classes.find((c) => c.id !== s.classId);
+
+  const yearId = (await A.admin.get("/api/admin/academic")).data.current.year_id;
+  assert.equal((await A.admin.patch(`/api/admin/academic/years/${yearId}/pass-mark`, { pass_mark: 95 })).status, 200);
+  let preview = await A.admin.post("/api/admin/academic/promotion-preview", {
+    moves: [{ from_class_id: s.classId, action: "promote", to_class_id: target.id }] });
+  let mine = preview.data.students.find((x) => x.id === s.student.id);
+  assert.equal(mine.outcome, "failed", "أقل من درجة النجاح = راسب");
+  assert.equal(mine.suggested_action, "repeat", "الراسب يُعاد تلقائيًا");
+
+  assert.equal((await A.admin.patch(`/api/admin/academic/years/${yearId}/pass-mark`, { pass_mark: 50 })).status, 200);
+  preview = await A.admin.post("/api/admin/academic/promotion-preview", {
+    moves: [{ from_class_id: s.classId, action: "promote", to_class_id: target.id }] });
+  mine = preview.data.students.find((x) => x.id === s.student.id);
+  assert.equal(mine.outcome, "passed");
+  assert.equal(mine.suggested_action, "promote");
+  assert.ok(mine.average > 0 && mine.attendance_rate !== undefined);
+
+  // بدء سنة جديدة مع استثناء طالب (تخرّج)
+  const other = preview.data.students.find((x) => x.id !== s.student.id);
   const rollover = await A.admin.post("/api/admin/academic/start-year", {
     year: { name: "2030/2031", start_date: "2030-08-01", end_date: "2031-06-30", terms: 2 },
     moves: [{ from_class_id: s.classId, action: "promote", to_class_id: target.id }],
-    archive_graduates: true,
+    overrides: other ? [{ student_id: other.id, action: "graduate", note: "أنهى المرحلة" }] : [],
   });
   assert.equal(rollover.status, 200, JSON.stringify(rollover.data));
   assert.ok(rollover.data.promoted >= 1);
@@ -571,7 +598,16 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
 
   const history = await A.admin.get(`/api/admin/academic/students/${s.student.id}/history`);
   assert.equal(history.data[0].result, "promoted");
+  assert.equal(history.data[0].outcome, "passed");
+  assert.ok(Number(history.data[0].average) > 0, "المعدل محفوظ في السجل");
   assert.ok(history.data[0].year_name, "سجل السنة محفوظ");
+
+  if (other) {
+    const grad = (await A.admin.get("/api/admin/students?status=inactive")).data.find((x) => x.id === other.id);
+    assert.equal(grad.status, "graduated", "الاستثناء نُفِّذ: تخرّج");
+    const gradHistory = await A.admin.get(`/api/admin/academic/students/${other.id}/history`);
+    assert.equal(gradHistory.data[0].result, "graduated");
+  }
 
   // الدرجات القديمة لم تُحذف
   assert.ok((await A.admin.get(`/api/admin/reports/report-card/${s.student.id}?term_id=${second.id}`)).data.subjects.length >= 1);

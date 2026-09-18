@@ -5,6 +5,10 @@ import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialo
 import { fmtDate } from "/shared/js/format.js";
 import { A, loadClasses, classOptions } from "./common.js";
 
+const OUTCOME = { passed: ["ناجح", ""], failed: ["راسب", "red"], incomplete: ["غير مكتمل", "amber"] };
+const ACTIONS = [["promote", "ترفيع للصف التالي"], ["repeat", "إعادة السنة"], ["graduate", "تخرّج"],
+  ["transfer", "نقل لمدرسة أخرى"], ["withdraw", "انسحاب"]];
+
 export default async function academic({ refresh }) {
   const [data, classes] = await Promise.all([api(`${A}/academic`), loadClasses()]);
   const { current, years, terms } = data;
@@ -33,6 +37,8 @@ export default async function academic({ refresh }) {
         : empty("لا توجد فصول. أنشئ سنة دراسية أولًا."),
       sub("تغيير الفصل الحالي يحدد أين تُسجَّل الاختبارات والفواتير الجديدة. البيانات القديمة تبقى في فصلها.")),
 
+    passMarkPanel(current, years, refresh),
+
     panel("السنوات الدراسية", btn("بدء سنة دراسية جديدة", () => startYear(classes, current, refresh), "sm"),
       years.map((y) => line(
         h("div", { class: y.is_current ? "" : "muted-row" },
@@ -40,6 +46,20 @@ export default async function academic({ refresh }) {
           sub(`${fmtDate(y.start_date)} إلى ${fmtDate(y.end_date)}${y.archived_students ? ` — ${y.archived_students} طالب في سجلها` : ""}`)))),
       sub("«بدء سنة جديدة» يحفظ سجل كل طالب في السنة المنتهية، ثم ينقل الطلاب للصفوف التالية.")),
   ];
+}
+
+// درجة النجاح المعتمدة للسنة الحالية
+function passMarkPanel(current, years, refresh) {
+  const year = years.find((y) => y.is_current);
+  if (!year) return null;
+  const mark = input({ type: "number", min: 0, max: 100, step: "0.5", value: year.pass_mark });
+  return panel("درجة النجاح", null,
+    sub("النسبة التي يُعتبر الطالب ناجحًا عندها أو فوقها. تُستخدم في حساب نتيجة السنة تلقائيًا."),
+    h("div", { class: "row" }, field("النسبة المئوية", mark),
+      btn("حفظ", async () => {
+        await api(`${A}/academic/years/${year.id}/pass-mark`, { pass_mark: mark.value }, "PATCH");
+        toast("تم حفظ درجة النجاح"); refresh();
+      }, "soft")));
 }
 
 function editTerm(t, refresh) {
@@ -53,7 +73,7 @@ function editTerm(t, refresh) {
     })]);
 }
 
-// معالج بدء السنة: بيانات السنة + خريطة نقل الصفوف
+// معالج بدء السنة: بيانات السنة، خريطة الصفوف، ثم مراجعة نتيجة كل طالب
 function startYear(classes, current, refresh) {
   const nextName = current?.year_name?.includes("/")
     ? current.year_name.split("/").map((n) => Number(n) + 1).join("/") : "";
@@ -61,42 +81,72 @@ function startYear(classes, current, refresh) {
   const start = input({ type: "date", value: current ? addYear(current.year_end) : "" });
   const end = input({ type: "date", value: current ? addYear(current.year_end, 366) : "" });
   const count = select([[2, "فصلان"], [3, "ثلاثة فصول"]], { value: 2 });
-  const archive = input({ type: "checkbox", checked: true });
 
-  // لكل صف: ماذا يحدث لطلابه
+  // خريطة الصفوف: إلى أي صف يُرفَّع كل صف
   const rows = classes.map((c) => {
-    const action = select([["promote", "ترفيع إلى صف"], ["stay", "بقاء في نفس الصف"], ["graduate", "تخرّج"]]);
+    const action = select([["promote", "ترفيع إلى صف"], ["graduate", "تخرّج طلابه"], ["repeat", "إعادة الجميع"]]);
     const to = select(classOptions(classes, "اختر الصف"));
     const toWrap = h("div", { style: "flex:1;min-width:150px" }, to);
-    action.addEventListener("change", () => { toWrap.classList.toggle("hidden", action.value !== "promote"); });
+    action.addEventListener("change", () => toWrap.classList.toggle("hidden", action.value !== "promote"));
     return { c, action, to, el: h("div", { class: "row", style: "align-items:center" },
       h("div", { style: "flex:1;min-width:120px" }, h("b", {}, c.name), sub(`${c.students ?? 0} طالب`)), action, toWrap) };
   });
+  const moves = () => rows.map((x) => ({
+    from_class_id: x.c.id, action: x.action.value,
+    to_class_id: x.action.value === "promote" ? x.to.value || null : null,
+  }));
 
+  const review = h("div");
   const msg = h("div");
+  let overrides = new Map();
+
+  const loadReview = async () => {
+    mount(review, empty("جارٍ حساب النتائج…"));
+    try {
+      const data = await api(`${A}/academic/promotion-preview`, { moves: moves() });
+      if (!data.students.length) return mount(review, empty("لا يوجد طلاب على رأس القيد."));
+      const counts = data.students.reduce((a, s) => ({ ...a, [s.outcome]: (a[s.outcome] || 0) + 1 }), {});
+      overrides = new Map();
+      mount(review,
+        notice(`درجة النجاح ${data.year.pass_mark}% — ناجح: ${counts.passed || 0}، راسب: ${counts.failed || 0}، غير مكتمل: ${counts.incomplete || 0}. الراسب يُعاد تلقائيًا، ويمكنك تعديل أي طالب.`, ""),
+        data.students.map((st) => {
+          const action = select(ACTIONS, { value: st.suggested_action });
+          action.addEventListener("change", () => overrides.set(st.id, { student_id: st.id, action: action.value, to_class_id: st.to_class_id }));
+          return line(
+            h("div", {}, h("b", {}, st.name), " ", badge(...OUTCOME[st.outcome]),
+              sub(`${st.class_name || "بدون فصل"} — المعدل ${st.average === null ? "—" : `${st.average}%`} — الحضور ${st.attendance_rate === null ? "—" : `${st.attendance_rate}%`}`)),
+            h("div", { style: "flex:none;min-width:190px" }, action));
+        }));
+    } catch (e) { mount(review, notice(e.message, "err")); }
+  };
+  for (const r of rows) r.action.addEventListener("change", loadReview);
+  for (const r of rows) r.to.addEventListener("change", loadReview);
+
   const d = dialog("بدء سنة دراسية جديدة", h("div", {},
-    notice("كل شيء يتم في خطوة واحدة: حفظ سجل السنة المنتهية، ونقل الطلاب، وإنشاء السنة وفصولها. لا تُحذف أي درجة أو فاتورة قديمة.", "warn"),
+    notice("تُحفظ نتيجة كل طالب (ناجح/راسب) ومعدله ونسبة حضوره في سجل السنة المنتهية، ثم يُنفَّذ الإجراء. لا تُحذف أي درجة أو فاتورة.", "warn"),
     field("اسم السنة الجديدة", name),
     h("div", { class: "row" }, field("تبدأ في", start), field("تنتهي في", end)),
     field("عدد الفصول الدراسية", count),
-    h("h3", { class: "sec-title" }, "نقل الطلاب"),
+    h("h3", { class: "sec-title" }, "ترفيع الصفوف"),
     classes.length ? rows.map((r) => r.el) : empty("لا توجد صفوف."),
-    h("label", { class: "f pill" }, archive, "أرشفة الطلاب المتخرجين (تبقى سجلاتهم محفوظة)"),
-    msg),
+    h("h3", { class: "sec-title" }, "مراجعة نتائج الطلاب"),
+    review, msg),
   [btn("تنفيذ بدء السنة", async () => {
-    if (!confirmAction("تأكيد بدء السنة الجديدة؟ لا يمكن التراجع عن نقل الطلاب إلا يدويًا.")) return;
+    if (!confirmAction("تأكيد بدء السنة الجديدة؟ سيُنفَّذ الإجراء المحدد لكل طالب.")) return;
     mount(msg);
     try {
       const r = await api(`${A}/academic/start-year`, {
         year: { name: name.value, start_date: start.value, end_date: end.value, terms: Number(count.value), make_current: true },
-        moves: rows.map((x) => ({ from_class_id: x.c.id, action: x.action.value, to_class_id: x.action.value === "promote" ? x.to.value || null : null })),
-        archive_graduates: archive.checked,
+        moves: moves(),
+        overrides: [...overrides.values()],
+        repeat_failed: true,
       });
       d.close();
-      toast(`تمت السنة الجديدة: رُفّع ${r.promoted}، بقي ${r.stayed}، تخرّج ${r.graduated}`);
+      toast(`تمت السنة الجديدة: رُفّع ${r.promoted}، أعاد ${r.repeated}، تخرّج ${r.graduated}, نُقل ${r.transferred}, انسحب ${r.withdrawn}`);
       refresh();
     } catch (e) { mount(msg, notice(e.message, "err")); }
   })]);
+  loadReview();
 }
 
 function addYear(dateStr, days = 1) {
