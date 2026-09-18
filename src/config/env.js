@@ -12,7 +12,7 @@ const bool = z.enum(["true", "false"]).transform((v) => v === "true");
 const schema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("production"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-  PUBLIC_URL: z.string().url().optional(),
+  PUBLIC_URL: z.union([z.string().url(), z.literal("")]).optional().transform((v) => v || undefined),
   DATABASE_URL: z.string().startsWith("postgres"),
   // عند الاستضافة على Firebase: اسم اتصال Cloud SQL بصيغة project:region:instance
   CLOUD_SQL_INSTANCE: z.string().regex(/^[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]+$/).optional().or(z.literal("")),
