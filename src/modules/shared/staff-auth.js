@@ -17,6 +17,43 @@ const loginSchema = z.object({
 });
 const label = { admin: "إدارة", teacher: "معلم" };
 
+/**
+ * باب واحد لمنسوبي المدرسة: النظام يعرف من الحساب هل هو مدير أو معلم،
+ * ويفتح له جلسة من نوعه. الفصل بين الدورين يبقى كما هو في الخلفية.
+ */
+export const staffLoginRouter = () => {
+  const r = Router();
+  r.post("/login", limits.login, handle(async (req, res) => {
+    const b = parse(loginSchema, req.body);
+    const outcome = await transaction({ tenantId: b.school, actor: b.username, ip: req.ip }, async (q) => {
+      const [tenant] = await q("SELECT id, status FROM tenants WHERE id = $1", [b.school]);
+      const [user] = tenant ? await q(
+        "SELECT id, full_name, role, password_hash, is_active, failed_logins, locked_until > now() AS locked FROM users WHERE username = $1",
+        [b.username]) : [];
+      const ok = await verifyPassword(b.password, user?.password_hash);
+      if (!tenant || !user || !user.is_active) return { error: "بيانات الدخول غير صحيحة" };
+      if (user.locked) return { error: `الحساب مقفل مؤقتًا بسبب محاولات خاطئة. حاول بعد ${LOCK_MIN} دقيقة.` };
+      if (!ok) {
+        const fails = user.failed_logins + 1;
+        const lock = fails >= MAX_FAILS;
+        await q(`UPDATE users SET failed_logins = $2::int,
+                   locked_until = CASE WHEN $3::boolean THEN now() + make_interval(mins => $4::int) ELSE NULL END
+                 WHERE id = $1`, [user.id, lock ? 0 : fails, lock, LOCK_MIN]);
+        await logEvent(q, { tenantId: tenant.id, actor: b.username, action: lock ? "قفل الحساب بعد محاولات خاطئة" : "محاولة دخول فاشلة" });
+        return { error: "بيانات الدخول غير صحيحة" };
+      }
+      if (tenant.status !== "active") return { error: "حساب المدرسة موقوف. تواصل مع إدارة المنصة.", status: 403 };
+      await q("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [user.id]);
+      await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent") }, q);
+      await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role]})` });
+      return { role: user.role };
+    });
+    if (outcome.error) throw outcome.status === 403 ? forbidden(outcome.error) : unauthorized(outcome.error);
+    res.json({ role: outcome.role });
+  }));
+  return r;
+};
+
 export function staffAuthRouter(role) {
   const r = Router();
 

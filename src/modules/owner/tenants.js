@@ -5,12 +5,14 @@ import { handle, notFound, conflict } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword, newDirectoryCode } from "../../core/auth/codes.js";
+import { RESERVED_CODES } from "../../core/reserved.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 const inSchool = (req, tenantId, fn) => transaction({ tenantId, actor: req.actor, ip: req.ip }, fn);
 
-const codeSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)");
+const codeSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)")
+  .refine((v) => !RESERVED_CODES.has(v), "هذا الرمز محجوز للنظام، اختر غيره");
 const createSchema = z.object({
   id: codeSchema,
   name: t.shortText("اسم المدرسة", 150),
@@ -59,7 +61,10 @@ r.post("/", handle(async (req, res) => {
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash) VALUES ($1, 'admin', $2, 'admin', $3)`,
       [b.id, b.admin_name, hash]);
   });
-  res.status(201).json({ credentials: { school: b.id, username: "admin", password, directory_code: directory } });
+  res.status(201).json({
+    school: { id: b.id, name: b.name },
+    credentials: { school: b.id, username: "admin", password, directory_code: directory },
+  });
 }));
 
 r.patch("/:id", handle(async (req, res) => {

@@ -10,10 +10,12 @@ import { errorHandler, notFound } from "./core/http/errors.js";
 import { limits } from "./core/rate-limit.js";
 import { ownerNetwork } from "./core/auth/guards.js";
 import { healthCheck } from "./core/db/pool.js";
+import { isSchoolCode } from "./core/reserved.js";
 import ownerApi from "./modules/owner/index.js";
 import adminApi from "./modules/school-admin/index.js";
 import teacherApi from "./modules/teacher/index.js";
 import publicApi from "./modules/public/index.js";
+import { staffLoginRouter } from "./modules/shared/staff-auth.js";
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 const pages = path.join(WEB, "pages");
@@ -41,6 +43,7 @@ export function createApp() {
   api.use("/admin", adminApi);
   api.use("/teacher", teacherApi);
   api.use("/public", publicApi);
+  api.use("/staff", staffLoginRouter());     // باب موحّد: يوجّه الحساب إلى لوحته
   api.use((req, res, next) => next(notFound("المسار غير موجود")));
   app.use("/api", api);
 
@@ -50,15 +53,30 @@ export function createApp() {
   app.use("/shared", express.static(path.join(WEB, "shared"), assets));
   app.get("/favicon.ico", (req, res) => res.sendFile(path.join(WEB, "brand", "favicon.ico")));
 
-  /* ---------- الصفحات (كل دور في مجلد منفصل) ---------- */
-  const page = (dir) => express.static(path.join(pages, dir), { index: "index.html", redirect: true, maxAge: 0 });
-  app.use(env.OWNER_PATH, ownerNetwork, page("owner"));       // لوحة المالك على الرابط السري فقط
-  app.use("/admin", page("admin"));                            // إدارة المدرسة
-  app.use("/teacher", page("teacher"));                        // بوابة المعلم
-  app.use("/school-page", page("school"));                     // ملفات صفحة الطلاب
-  app.get("/s/:school", (req, res) => res.sendFile(path.join(pages, "school", "index.html")));
-  app.get("/s/:school/student", (req, res) => res.sendFile(path.join(pages, "school", "student.html")));
-  app.use("/", page("home"));
+  /* ---------- الصفحات ----------
+     الرابط الرئيسي صفحة فاضية بلا روابط.
+     كل مدرسة لها رابطها الخاص:
+       /<رمز المدرسة>           صفحة الطلاب وأولياء الأمور
+       /<رمز المدرسة>/student   ملف الطالب
+       /<رمز المدرسة>/idara     باب المدير والمعلم
+     ولوحة المالك على رابط سري فقط.                                   */
+  const file = (...p) => path.join(pages, ...p);
+  const send = (...p) => (req, res) => res.sendFile(file(...p));
+
+  app.use(env.OWNER_PATH, ownerNetwork, express.static(file("owner"), { index: "index.html", redirect: true }));
+  app.use("/school-page", express.static(file("school"), { index: false }));
+  // ملفات لوحتي الإدارة والمعلم تُحمّل من باب المدرسة الموحّد
+  app.use("/admin", express.static(file("admin"), { index: false }));
+  app.use("/teacher", express.static(file("teacher"), { index: false }));
+  app.use("/staff-page", express.static(file("staff"), { index: false }));
+  app.use("/home-page", express.static(file("home"), { index: false }));
+  app.get("/", send("home", "index.html"));
+
+  const school = (handler) => (req, res, next) =>
+    (isSchoolCode(req.params.school) ? handler(req, res) : next());
+  app.get("/:school", school(send("school", "index.html")));
+  app.get("/:school/student", school(send("school", "student.html")));
+  app.get("/:school/idara", school(send("staff", "index.html")));
 
   app.use((req, res) => res.status(404).sendFile(path.join(pages, "404.html")));
   app.use(errorHandler);

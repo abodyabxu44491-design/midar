@@ -1,7 +1,8 @@
 import { h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, empty, badge, field, input, select, btn, sub, toast, showCredentials, confirmAction } from "/shared/js/ui.js";
+import { panel, empty, badge, field, input, select, btn, sub, toast, confirmAction } from "/shared/js/ui.js";
 import { fmtDate } from "/shared/js/format.js";
+import { handoverCard } from "./create.js";
 
 const STATUS = { active: ["مفعّلة", ""], suspended: ["موقوفة", "red"], archived: ["مؤرشفة", "gray"] };
 const PLANS = [["basic", "الأساسية"], ["pro", "الاحترافية"], ["enterprise", "المؤسسات"]];
@@ -21,7 +22,7 @@ export default async function schools({ refresh }) {
     };
     return panel(x.name, badge(...STATUS[x.status]),
       sub(`الرمز: ${x.id} — ${x.students} طالب — ${x.teachers} معلم — ${x.open_sessions} جلسة نشطة — أُنشئت ${fmtDate(x.created_at)}`),
-      sub(`صفحة الطلاب: ${location.origin}/s/${x.id}`),
+      sub(`رابط الطلاب: ${location.origin}/${x.id} — دخول المنسوبين: ${location.origin}/${x.id}/idara`),
       h("div", { class: "row spaced" }, field("الباقة", plan), field("حد الطلاب", max), field("نهاية الاشتراك", end)),
       h("div", { class: "row", style: "justify-content:flex-start" },
         btn("حفظ الاشتراك", patch({ plan: plan.value, max_students: Number(max.value), subscription_end: end.value || null }, "تم حفظ الاشتراك"), "sm"),
@@ -32,7 +33,7 @@ export default async function schools({ refresh }) {
         btn("كلمة مرور جديدة للمدير", async () => {
           if (!confirmAction("إنشاء كلمة مرور جديدة لمدير هذه المدرسة؟ القديمة ستتوقف.")) return;
           const r = await api(`/api/owner/tenants/${x.id}/reset-admin`, {});
-          showCredentials("بيانات دخول المدير الجديدة", r.credentials);
+          handoverCard({ school: { name: x.name }, credentials: { ...r.credentials, directory_code: "— بدون تغيير —" } });
         }, "ghost sm")));
   });
 }

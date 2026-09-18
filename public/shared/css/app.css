@@ -143,3 +143,7 @@ footer.dev { text-align: center; padding: 14px; font-size: 12px; color: var(--mu
 .key { word-break: break-all; max-width: 100%; }
 .key.plain { font-family: inherit; letter-spacing: 0; direction: rtl; }
 .pill { flex-wrap: wrap; justify-content: flex-end; }
+
+.blank-home { display: flex; align-items: center; justify-content: center; min-height: 70vh; }
+.handover { line-height: 2; }
+.handover .line { border-top: 1px dashed var(--line); }

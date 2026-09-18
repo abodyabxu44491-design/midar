@@ -3,7 +3,7 @@ import { h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, field, input, btn, empty, badge, line, sub, toast, dialog, showCredentials, confirmAction } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
-import { A, loadClasses, loadSubjects } from "./common.js";
+import { A, loadClasses, loadSubjects, staffLink } from "./common.js";
 
 function loadPicker(classes, subjects, current = []) {
   const boxes = [];
@@ -17,7 +17,7 @@ function loadPicker(classes, subjects, current = []) {
   return { el, value: () => boxes.filter(([cb]) => cb.checked).map(([, class_id, subject_id]) => ({ class_id, subject_id })) };
 }
 
-export default async function teachers({ refresh }) {
+export default async function teachers({ me, refresh }) {
   const [classes, subjects, list] = await Promise.all([loadClasses(), loadSubjects(), api(`${A}/teachers`)]);
   const f = { name: input(), user: input({ class: "ltr", placeholder: "mona.saeed" }), phone: input({ class: "ltr" }) };
   const picker = loadPicker(classes, subjects);
@@ -28,7 +28,7 @@ export default async function teachers({ refresh }) {
       sub("الفصول والمواد المسندة (المعلم يرى هذه فقط)"), picker.el,
       btn("إضافة المعلم", async () => {
         const r = await api(`${A}/teachers`, { name: f.name.value, username: f.user.value, phone: f.phone.value || null, load: picker.value() });
-        showCredentials("تمت إضافة المعلم", r.credentials, `يدخل المعلم من: ${location.origin}/teacher — ويُنصح بتغيير كلمة المرور بعد أول دخول.`);
+        showCredentials("تمت إضافة المعلم", r.credentials, `يدخل المعلم من: ${staffLink(me)} — ويُنصح بتغيير كلمة المرور بعد أول دخول.`);
         refresh();
       })),
     panel("المعلمون", null, list.length ? list.map((t) => line(

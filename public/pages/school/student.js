@@ -5,10 +5,10 @@ import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, ke
 import { money, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "/shared/js/format.js";
 
 const app = $("#app");
-const school = decodeURIComponent(location.pathname.split("/")[2] || "").toLowerCase();
+const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
 const KEY = `midar_student_${school}`;
-const back = () => { location.href = `/s/${encodeURIComponent(school)}`; };
+const back = () => { location.href = `/${encodeURIComponent(school)}`; };
 const creds = JSON.parse(sessionStorage.getItem(KEY) || "null");
 
 async function load() {

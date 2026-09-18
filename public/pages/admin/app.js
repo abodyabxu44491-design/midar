@@ -1,7 +1,8 @@
-// لوحة إدارة المدرسة — نقطة البداية. كل تبويب في ملف داخل views/
+// لوحة إدارة المدرسة. كل تبويب في ملف داخل views/
+// تُشغَّل من باب المدرسة الموحّد بعد التعرف على دور الحساب.
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { topbar, footer, tabs, loginScreen } from "/shared/js/ui.js";
+import { topbar, footer, tabs } from "/shared/js/ui.js";
 import dashboard from "./views/dashboard.js";
 import students from "./views/students.js";
 import teachers from "./views/teachers.js";
@@ -15,11 +16,8 @@ import audit from "./views/audit.js";
 
 const app = $("#app");
 
-async function start() {
-  let me;
-  try { me = await api("/api/admin/me"); }
-  catch { return mount(app, loginScreen({ role: "لوحة إدارة المدرسة", endpoint: "/api/admin/login", onSuccess: start })); }
-
+export async function startAdmin() {
+  const me = await api("/api/admin/me");
   const t = tabs([
     ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"],
     ["attendance", "الحضور"], ["exams", "الاختبارات"], ["finance", "الرسوم"], ["announcements", "الإعلانات"],
@@ -32,4 +30,3 @@ async function start() {
     h("main", {}, t.el), footer());
   t.show("dashboard");
 }
-start();

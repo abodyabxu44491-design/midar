@@ -2,7 +2,7 @@ import { api } from "/shared/js/api.js";
 import { stats, panel, notice, line, keyText, sub } from "/shared/js/ui.js";
 import { h } from "/shared/js/dom.js";
 import { money } from "/shared/js/format.js";
-import { A, directoryLink } from "./common.js";
+import { A, directoryLink, staffLink } from "./common.js";
 
 export default async function dashboard({ me }) {
   const d = await api(`${A}/dashboard`);
@@ -19,7 +19,7 @@ export default async function dashboard({ me }) {
     panel("روابط مدرستك", null,
       line(h("span", {}, "صفحة الطلاب وأولياء الأمور"), keyText(directoryLink(me))),
       line(h("span", {}, "رمز فتح صفحة الطلاب"), keyText(me.school.directory_code)),
-      line(h("span", {}, "بوابة المعلمين"), keyText(`${location.origin}/teacher`)),
+      line(h("span", {}, "دخول المدير والمعلمين"), keyText(staffLink(me))),
       sub("وزّع رابط صفحة الطلاب ورمزها على الأهالي. كل طالب يفتح ملفه بمعرّفه الخاص (من تبويب الطلاب).")),
   ];
 }

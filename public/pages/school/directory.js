@@ -5,7 +5,7 @@ import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub } f
 import { fmtDate } from "/shared/js/format.js";
 
 const app = $("#app");
-const school = decodeURIComponent(location.pathname.split("/")[2] || "").toLowerCase();
+const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
 const ACCESS = `midar_access_${school}`;
 
@@ -59,7 +59,7 @@ function show(data) {
   q.addEventListener("input", draw);
   document.title = `مِدار — ${data.school.name}`;
   mount(app,
-    topbar({ school: data.school.name, subtitle: "الفصول والطلاب", onLogout: () => { sessionStorage.removeItem(ACCESS); location.href = "/"; } }),
+    topbar({ school: data.school.name, subtitle: "الفصول والطلاب", onLogout: () => { sessionStorage.removeItem(ACCESS); location.href = `/${encodeURIComponent(school)}`; } }),
     h("main", {},
       data.announcements.length ? h("section", { class: "panel" }, h("h2", {}, "إعلانات المدرسة"),
         data.announcements.map((a) => line(h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at)))))) : null,
@@ -77,7 +77,7 @@ function askKey(student) {
     try {
       await api(`${P}/student`, { student_id: student.id, key: key.value });
       sessionStorage.setItem(`midar_student_${school}`, JSON.stringify({ id: student.id, key: key.value.trim().toUpperCase() }));
-      location.href = `/s/${encodeURIComponent(school)}/student`;
+      location.href = `/${encodeURIComponent(school)}/student`;
     } catch (e) { mount(msg, notice(e.message, "err")); }
   });
   key.addEventListener("keydown", (e) => e.key === "Enter" && open.click());

@@ -14,7 +14,7 @@ async function makeSchool(name) {
   const admin = client(srv.base);
   const login = await admin.post("/api/admin/login", { school: id, username: "admin", password: r.data.credentials.password });
   assert.equal(login.status, 200);
-  return { id, admin, directory: r.data.credentials.directory_code };
+  return { id, admin, directory: r.data.credentials.directory_code, password: r.data.credentials.password };
 }
 
 before(async () => {
@@ -24,7 +24,9 @@ before(async () => {
   const r = await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   A = await makeSchool("مدرسة اختبار أ");
+  s.adminPw = null;
   B = await makeSchool("مدرسة اختبار ب");
+  s.adminPw = A.password;
 
   // تجهيز مدرسة أ
   const c = await A.admin.post("/api/admin/structure/classes", { name: "الأول" });
@@ -39,6 +41,40 @@ before(async () => {
 });
 
 after(async () => { await srv.close(); await endPool(); });
+
+test("الرابط الرئيسي صفحة فاضية بلا روابط، ولكل مدرسة رابطها", async () => {
+  const home = await fetch(srv.base).then((r) => r.text());
+  assert.ok(!/\/admin|\/teacher|idara/.test(home), "الصفحة الرئيسية لا تكشف أي روابط");
+  assert.equal((await fetch(`${srv.base}/${A.id}`)).status, 200);
+  assert.equal((await fetch(`${srv.base}/${A.id}/idara`)).status, 200);
+  assert.equal((await fetch(`${srv.base}/${A.id}/student`)).status, 200);
+  assert.equal((await fetch(`${srv.base}/لا-يوجد`)).status, 404);
+});
+
+test("الرموز المحجوزة لا تُستخدم كرمز مدرسة", async () => {
+  for (const id of ["admin", "api", "idara"]) {
+    const r = await owner.post("/api/owner/tenants", { id, name: "محجوز" });
+    assert.equal(r.status, 400, id);
+  }
+});
+
+test("باب المدرسة الموحّد يوجّه كل حساب للوحته", async () => {
+  const adminIn = client(srv.base);
+  const r1 = await adminIn.post("/api/staff/login", { school: A.id, username: "admin", password: s.adminPw });
+  assert.equal(r1.data.role, "admin");
+  assert.equal((await adminIn.get("/api/admin/me")).status, 200);
+  assert.equal((await adminIn.get("/api/teacher/me")).status, 401, "حساب المدير لا يفتح بوابة المعلم");
+
+  const teacherIn = client(srv.base);
+  const r2 = await teacherIn.post("/api/staff/login", { school: A.id, username: "tester", password: s.teacherPw });
+  assert.equal(r2.data.role, "teacher");
+  assert.equal((await teacherIn.get("/api/admin/me")).status, 401, "حساب المعلم لا يفتح لوحة الإدارة");
+  assert.equal((await teacherIn.get("/api/teacher/me")).status, 200);
+
+  // حساب مدرسة أ لا يدخل من باب مدرسة ب
+  const cross = client(srv.base);
+  assert.equal((await cross.post("/api/staff/login", { school: B.id, username: "tester", password: s.teacherPw })).status, 401);
+});
 
 test("لوحة المالك مخفية ولا تُفتح بدون دخول", async () => {
   const anon = client(srv.base);

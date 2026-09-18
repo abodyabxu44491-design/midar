@@ -1,5 +1,5 @@
 import { api } from "/shared/js/api.js";
-import { panel, field, input, select, btn, showCredentials } from "/shared/js/ui.js";
+import { panel, field, input, select, btn, dialog, line, sub, keyText, notice, toast, brandLogo } from "/shared/js/ui.js";
 import { h } from "/shared/js/dom.js";
 
 export default function create({ refresh }) {
@@ -18,7 +18,32 @@ export default function create({ refresh }) {
         name: f.name.value, id: f.id.value, admin_name: f.admin.value, plan: f.plan.value,
         max_students: Number(f.max.value), subscription_end: f.end.value || null,
       });
-      showCredentials("تم إنشاء المدرسة", r.credentials, `سلّم هذه البيانات لمدير المدرسة. يدخل من: ${location.origin}/admin`);
+      handoverCard(r);
       refresh();
     }));
+}
+
+// بطاقة تسليم: كل ما تحتاجه المدرسة في صفحة واحدة قابلة للطباعة
+export function handoverCard(r) {
+  const site = location.origin;
+  const publicLink = `${site}/${r.credentials.school}`;
+  const staffLink = `${publicLink}/idara`;
+  const rows = [
+    ["اسم المدرسة", r.school.name],
+    ["رابط الطلاب وأولياء الأمور", publicLink],
+    ["رمز صفحة الطلاب", r.credentials.directory_code],
+    ["رابط دخول المدير والمعلمين", staffLink],
+    ["اسم المستخدم", r.credentials.username],
+    ["كلمة المرور المؤقتة", r.credentials.password],
+  ];
+  const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
+  dialog("بطاقة تسليم المدرسة", h("div", { class: "handover" },
+    h("div", { class: "print-only" }, brandLogo("print-logo", false)),
+    notice("كلمة المرور لن تظهر مرة أخرى. انسخها أو اطبع البطاقة وسلّمها للمدرسة الآن.", "warn"),
+    rows.map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
+    sub("يغيّر المدير كلمة المرور بعد أول دخول من: الإعدادات ← تغيير كلمة المرور.")),
+  [
+    btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }),
+    btn("طباعة", () => window.print(), "ghost"),
+  ]);
 }
