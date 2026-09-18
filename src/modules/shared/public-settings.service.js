@@ -3,8 +3,8 @@ import { z } from "../../core/http/validate.js";
 
 export const FIELDS = [
   "access_mode", "show_classes", "show_student_names", "show_search", "show_teachers",
-  "show_class_counts", "show_announcements", "public_fee_badges", "show_timetable",
-  "profile_show_grades", "profile_show_attendance", "profile_show_teachers", "profile_show_timetable",
+  "show_class_counts", "show_announcements", "public_fee_badges", "show_timetable", "show_admissions",
+  "profile_show_grades", "profile_show_attendance", "profile_show_teachers", "profile_show_timetable", "profile_show_homework",
 ];
 
 export const settingsSchema = z.object({
@@ -17,10 +17,12 @@ export const settingsSchema = z.object({
   show_announcements: z.boolean(),
   public_fee_badges: z.boolean(),
   show_timetable: z.boolean(),
+  show_admissions: z.boolean(),
   profile_show_grades: z.boolean(),
   profile_show_attendance: z.boolean(),
   profile_show_teachers: z.boolean(),
   profile_show_timetable: z.boolean(),
+  profile_show_homework: z.boolean(),
 }).partial();
 
 // تُنشأ تلقائيًا عند أول قراءة (بالقيم الافتراضية المتحفظة)

@@ -6,6 +6,7 @@ import profile from "./profile.js";
 import attendance from "./attendance.js";
 import exams from "./exams.js";
 import timetable from "./timetable.js";
+import homework from "./homework.js";
 
 const r = Router();
 r.use(logoutRouter("teacher"));
@@ -15,4 +16,5 @@ r.use(profile);
 r.use("/attendance", attendance);
 r.use("/exams", exams);
 r.use("/timetable", timetable);
+r.use("/homework", homework);
 export default r;

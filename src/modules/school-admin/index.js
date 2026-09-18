@@ -17,6 +17,8 @@ import timetable from "./timetable.js";
 import reports from "./reports.js";
 import messaging from "./messaging.js";
 import exportData from "./export.js";
+import homework from "./homework.js";
+import admissions from "./admissions.js";
 
 const r = Router();
 r.use(logoutRouter("admin"));            // /logout (بدون حارس)
@@ -34,6 +36,8 @@ r.use("/settings", settings);
 r.use("/timetable", timetable);
 r.use("/reports", reports);
 r.use("/messaging", messaging);
+r.use("/homework", homework);
+r.use("/admissions", admissions);
 r.use("/export", exportData);
 r.use("/audit", audit);
 export default r;

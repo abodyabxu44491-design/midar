@@ -7,6 +7,7 @@ import { studentSummary, listInvoices, listPayments } from "../shared/finance.se
 import { listAccounts, claimsForStudent } from "../shared/payments.service.js";
 import { getSettings } from "../shared/public-settings.service.js";
 import { forClass } from "../shared/timetable.service.js";
+import { listForStudent } from "../shared/homework.service.js";
 
 const r = Router({ mergeParams: true });
 const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, "•") : null);
@@ -46,6 +47,7 @@ r.post("/student", limits.studentKey, handle(async (req, res) => {
         guardian_phone: mask(s.guardian_phone), since: s.created_at },
       settings, attendance, grades, teachers, announcements: news, fees,
       timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],
+      homework: settings.profile_show_homework && s.class_id ? await listForStudent(q, s) : [],
     };
   }));
 }));

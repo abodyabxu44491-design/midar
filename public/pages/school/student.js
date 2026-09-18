@@ -56,6 +56,11 @@ function render(d) {
           ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
           : h("span", { class: "muted" }, "—")) })) : null,
 
+      d.homework?.length ? section("الواجبات", d.homework.map((w) => line(
+        h("div", {}, h("b", {}, w.title), " ", w.submitted ? badge("سُلّم") : badge("لم يُسلّم", "amber"),
+          sub(`${w.subject}${w.teacher ? ` — ${w.teacher}` : ""}${w.due_date ? ` — التسليم ${fmtDate(w.due_date)}` : ""}`),
+          w.details ? sub(w.details) : null))) ) : null,
+
       d.settings.profile_show_grades ? section("الدرجات", d.grades.length ? d.grades.map((g) => {
         const p = Math.round((g.score / g.max_score) * 100);
         const color = p >= 65 ? "var(--teal)" : p >= 50 ? "var(--amber)" : "var(--red)";

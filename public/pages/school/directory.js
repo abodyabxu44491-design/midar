@@ -3,7 +3,7 @@
 // أي ملف طالب لا يُفتح إلا بمعرّفه السري.
 import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub, badge, brandLogo , showInstallBar} from "/shared/js/ui.js";
+import { topbar, footer, field, input, textarea, btn, empty, notice, dialog, line, sub, badge, brandLogo , showInstallBar} from "/shared/js/ui.js";
 import { fmtDate } from "/shared/js/format.js";
 import { icons } from "/shared/js/icons.js";
 import { timetableGrid } from "/shared/js/timetable.js";
@@ -122,11 +122,36 @@ function render(data) {
         : null,
       notice("اضغط على اسم الطالب ثم أدخل معرّفه لفتح صفحته الكاملة والرسوم."),
       st.show_search ? h("div", { style: "margin-bottom:12px" }, query) : null,
+      data.admissions ? h("div", { class: "toolbar" }, btn("طلب تسجيل طالب جديد", () => admissionForm(), "soft")) : null,
       results,
       classesBox),
     footer());
   drawClasses();
   startAnalytics("school-page");
+}
+
+// نموذج طلب الالتحاق
+function admissionForm() {
+  const f = {
+    student_name: input(), grade_wanted: input({ placeholder: "مثال: الصف الأول" }), birth_date: input({ type: "date" }),
+    guardian_name: input(), guardian_phone: input({ class: "ltr", inputMode: "tel" }), note: textarea({ rows: 2 }),
+  };
+  const msg = h("div");
+  const send = btn("إرسال الطلب", async () => {
+    mount(msg);
+    try {
+      await api(`${P}/admissions`, { access: access(), ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])) });
+      mount(msg, notice("وصل طلبك. ستتواصل معك المدرسة قريبًا.", ""));
+      for (const el of Object.values(f)) el.value = "";
+    } catch (e) { mount(msg, notice(e.message, "err")); }
+  });
+  dialog("طلب تسجيل طالب جديد", h("div", {},
+    field("اسم الطالب", f.student_name),
+    h("div", { class: "row" }, field("الصف المطلوب", f.grade_wanted), field("تاريخ الميلاد", f.birth_date)),
+    field("اسم ولي الأمر", f.guardian_name),
+    field("رقم الجوال", f.guardian_phone),
+    field("ملاحظات", f.note),
+    sub("بياناتك تصل لإدارة المدرسة فقط."), msg), [send]);
 }
 
 const feeBadge = (s) => (s.fees === "paid" ? badge("مسدد") : s.fees === "unpaid" ? badge("لم يسدد", "red") : null);

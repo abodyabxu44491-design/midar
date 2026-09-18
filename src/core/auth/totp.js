@@ -24,6 +24,9 @@ function codeAt(secret, counter) {
   return String(n % 1_000_000).padStart(6, "0");
 }
 
+// الرمز الحالي (يُستخدم في الاختبارات وفي أدوات الإعداد)
+export const currentTotp = (secret) => codeAt(secret, Math.floor(Date.now() / 30000));
+
 // يقبل الرمز الحالي والذي قبله وبعده (فرق توقيت 30 ثانية)
 export function verifyTotp(secret, code) {
   if (!/^\d{6}$/.test(String(code || ""))) return false;

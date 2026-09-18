@@ -3,6 +3,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, ownerPath, endPool } from "./helpers.js";
+import { currentTotp } from "../src/core/auth/totp.js";
 
 let srv, owner, A, B;           // A و B مدرستان منفصلتان
 const s = {};                   // بيانات مشتركة بين الاختبارات
@@ -21,7 +22,8 @@ before(async () => {
   assert.ok(ownerPassword, "عيّن TEST_OWNER_PASSWORD في .env");
   srv = await startServer();
   owner = client(srv.base);
-  const r = await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword });
+  const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
+  const r = await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   A = await makeSchool("مدرسة اختبار أ");
   s.adminPw = null;
@@ -404,6 +406,63 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   await admin2.post("/api/staff/login", { school: A.id, username: "admin", password: s.adminPw });
   assert.equal((await admin2.get("/api/owner/billing")).status, 401);
   A.admin = admin2;
+});
+
+test("الواجبات: المعلم ينشئ ويرصد، وولي الأمر يتابع", async () => {
+  // جلسة المعلم انتهت في الاختبارات السابقة (إيقاف المدرسة وقفل الحساب)، فنعيد تفعيلها من الإدارة
+  const teacherId = (await A.admin.get("/api/admin/teachers")).data[0].id;
+  const fresh = await A.admin.post(`/api/admin/teachers/${teacherId}/reset-password`, {});
+  s.teacherPw = fresh.data.credentials.password;
+  s.teacher = client(srv.base);
+  assert.equal((await s.teacher.post("/api/staff/login", { school: A.id, username: "tester", password: s.teacherPw })).data.role, "teacher");
+  const hw = await s.teacher.post("/api/teacher/homework", {
+    class_id: s.classId, subject_id: s.subjectId, title: "حل تمارين الوحدة", due_date: new Date().toISOString().slice(0, 10) });
+  assert.equal(hw.status, 201, JSON.stringify(hw.data));
+
+  // مادة غير مسندة تُرفض
+  const other = (await A.admin.get("/api/admin/structure/classes")).data.find((c) => c.id !== s.classId);
+  assert.equal((await s.teacher.post("/api/teacher/homework", { class_id: other.id, subject_id: s.subjectId, title: "ممنوع" })).status, 403);
+
+  const sheet = await s.teacher.get(`/api/teacher/homework/${hw.data.id}/submissions`);
+  assert.ok(sheet.data.length >= 1);
+  assert.equal(sheet.data[0].submitted, false);
+
+  assert.equal((await s.teacher.put(`/api/teacher/homework/${hw.data.id}/submissions`,
+    { entries: [{ student_id: s.student.id, submitted: true, note: null }] })).status, 200);
+
+  const anon = client(srv.base);
+  const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
+  assert.equal(prof.data.homework[0].title, "حل تمارين الوحدة");
+  assert.equal(prof.data.homework[0].submitted, true);
+
+  // مدرسة ب لا ترى واجبات مدرسة أ
+  assert.equal((await B.admin.get("/api/admin/homework")).data.length, 0);
+});
+
+test("طلبات التسجيل: تُرسل من صفحة المدرسة وتُقبل فيصبح الطالب مسجلًا", async () => {
+  const anon = client(srv.base);
+  const body = { access: A.directory, student_name: "طالب جديد", guardian_name: "ولي أمر جديد", guardian_phone: "0500000077", grade_wanted: "الأول" };
+
+  // موقوف افتراضيًا
+  assert.equal((await anon.post(`/api/public/${A.id}/admissions`, body)).status, 403);
+  assert.equal((await A.admin.put("/api/admin/settings/public-page", { show_admissions: true })).status, 200);
+  assert.equal((await anon.post(`/api/public/${A.id}/admissions`, body)).status, 201);
+  assert.equal((await anon.post(`/api/public/${A.id}/admissions`, { ...body, access: "WRONG" })).status, 401, "الرمز مطلوب في وضع الرمز");
+
+  const list = await A.admin.get("/api/admin/admissions");
+  const req = list.data.find((x) => x.student_name === "طالب جديد");
+  assert.equal(req.status, "new");
+  assert.equal((await B.admin.get("/api/admin/admissions")).data.length, 0, "لا تراها مدرسة أخرى");
+
+  const accepted = await A.admin.post(`/api/admin/admissions/${req.id}/review`, { decision: "accepted", class_id: s.classId });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.data));
+  assert.match(accepted.data.student.access_key, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  assert.equal((await A.admin.post(`/api/admin/admissions/${req.id}/review`, { decision: "accepted" })).status, 400, "لا يُقبل مرتين");
+
+  // الطالب الجديد يفتح ملفه بمعرّفه
+  const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: accepted.data.student.id, key: accepted.data.student.access_key });
+  assert.equal(prof.status, 200);
+  assert.equal(prof.data.student.name, "طالب جديد");
 });
 
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {

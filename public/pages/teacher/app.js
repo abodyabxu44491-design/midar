@@ -9,14 +9,15 @@ import exams from "./views/exams.js";
 import announcements from "./views/announcements.js";
 import account from "./views/account.js";
 import timetable from "./views/timetable.js";
+import homework from "./views/homework.js";
 
 const app = $("#app");
 
 export async function startTeacher() {
   const me = await api("/api/teacher/me");
-  const t = tabs([["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"],
+  const t = tabs([["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"], ["homework", "الواجبات"],
     ["announcements", "الإعلانات"], ["account", "حسابي"]],
-    { home, timetable, attendance, exams, announcements, account }, { me });
+    { home, timetable, attendance, exams, homework, announcements, account }, { me });
   mount(app,
     topbar({ school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`,
       onLogout: async () => { await api("/api/teacher/logout", {}); location.reload(); } }),

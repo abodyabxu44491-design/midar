@@ -88,10 +88,12 @@ const OPTIONS = [
   ["show_class_counts", "عدد الطلاب في كل صف", null],
   ["show_announcements", "إعلانات المدرسة", null],
   ["show_timetable", "جدول حصص الصف", "يظهر داخل الصف في الصفحة العامة"],
+  ["show_admissions", "طلب التحاق طالب جديد", "نموذج يرسله ولي الأمر وتراجعه من تبويب «طلبات التسجيل»"],
   ["profile_show_grades", "الدرجات داخل ملف الطالب", "الدرجات المعتمدة فقط، ولصاحب المعرّف فقط"],
   ["profile_show_attendance", "الحضور والغياب داخل ملف الطالب", null],
   ["profile_show_teachers", "المعلمون داخل ملف الطالب", null],
   ["profile_show_timetable", "الجدول الدراسي داخل ملف الطالب", null],
+  ["profile_show_homework", "الواجبات داخل ملف الطالب", null],
 ];
 
 function publicPagePanel(pub, me, refresh) {
