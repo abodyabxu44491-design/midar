@@ -39,6 +39,21 @@ export const keyText = (text) => h("span", { class: "key" }, text);
 export const stats = (items) => h("div", { class: "stats" },
   items.filter(Boolean).map(([label, value, hint]) => h("div", { class: "stat" }, h("b", {}, value), label, hint && sub(hint))));
 
+// مفتاح تشغيل/إيقاف: onToggle يعيد false لإلغاء التغيير
+export function switchBtn(on, label, onToggle) {
+  const el = h("button", { class: "switch", type: "button", role: "switch", "aria-checked": String(!!on), "aria-label": label });
+  el.addEventListener("click", async () => {
+    const next = el.getAttribute("aria-checked") !== "true";
+    el.disabled = true;
+    try {
+      const ok = await onToggle(next);
+      if (ok !== false) el.setAttribute("aria-checked", String(next));
+    } catch (e) { toast(e.message, true); }
+    finally { el.disabled = false; }
+  });
+  return el;
+}
+
 // يمنع الضغط المزدوج أثناء تنفيذ العملية ويعرض الأخطاء
 function guardClick(fn) {
   if (!fn) return undefined;

@@ -102,6 +102,14 @@ dialog .d-in { padding: 18px; }
 /* صفحة الطلاب */
 .class-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
 .class-card > h3 { margin: 0; padding: 12px 16px; background: var(--navy); color: #fff; font-size: 17px; display: flex; justify-content: space-between; }
+.class-head { width: 100%; font: inherit; font-size: 17px; font-weight: 700; text-align: right; color: #fff; background: var(--navy);
+  border: none; padding: 13px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.class-head:hover { filter: brightness(1.12); }
+.class-head .chev { font-size: 13px; opacity: .8; }
+.teachers { padding: 10px 14px 4px; border-bottom: 1px solid var(--line); }
+.teachers h4 { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
+.names button { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.linkish { font: inherit; background: none; border: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: 0; }
 .names { list-style: none; margin: 0; padding: 6px 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .names button { font: inherit; width: 100%; text-align: right; padding: 10px; background: none; border: none; border-radius: 8px; cursor: pointer; color: var(--ink); }
 .names button:hover { background: var(--teal-soft); }

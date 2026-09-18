@@ -141,11 +141,12 @@ test("المعلم لا يتجاوز فصوله، والدرجات تُقفل ب
 
 test("صفحة الطلاب: الأسماء فقط، والملف بالمعرّف فقط، والدرجات بعد النشر فقط", async () => {
   const anon = client(srv.base);
-  assert.equal((await anon.post(`/api/public/${A.id}/directory`, { access: "WRONGCODE" })).status, 401);
-  const dir = await anon.post(`/api/public/${A.id}/directory`, { access: A.directory });
+  assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: "WRONGCODE" })).status, 401);
+  const dir = await anon.post(`/api/public/${A.id}/page`, { access: A.directory });
   assert.equal(dir.status, 200);
   const listed = dir.data.classes.flatMap((c) => c.students);
   assert.deepEqual(Object.keys(listed[0]).sort(), ["id", "name"], "لا تظهر أي بيانات غير الاسم");
+  assert.equal(dir.data.settings.public_fee_badges, false, "حالة السداد موقوفة افتراضيًا");
 
   assert.equal((await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: "AAAA-BBBB" })).status, 401);
   const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
@@ -158,6 +159,55 @@ test("صفحة الطلاب: الأسماء فقط، والملف بالمعرّ
 
   // معرّف مدرسة أ لا يعمل على مدرسة ب
   assert.equal((await anon.post(`/api/public/${B.id}/student`, { student_id: s.student.id, key: s.student.access_key })).status, 401);
+});
+
+test("إعدادات الصفحة العامة: كل عنصر اختياري", async () => {
+  const anon = client(srv.base);
+  const page = () => anon.post(`/api/public/${A.id}/page`, { access: A.directory });
+  const set = (patch) => A.admin.put("/api/admin/settings/public-page", patch);
+
+  // الوضع المفتوح: بلا رمز
+  assert.equal((await anon.post(`/api/public/${A.id}/page`, {})).status, 401);
+  assert.equal((await set({ access_mode: "open" })).status, 200);
+  const open = await anon.post(`/api/public/${A.id}/page`, {});
+  assert.equal(open.status, 200);
+  assert.ok(open.data.classes.length);
+  await set({ access_mode: "code" });
+
+  // إخفاء الصفوف والأسماء يبقي البحث فقط
+  assert.equal((await set({ show_classes: false, show_student_names: false })).status, 200);
+  const hidden = await page();
+  assert.equal(hidden.data.classes.length, 0);
+  const found = await anon.post(`/api/public/${A.id}/search`, { access: A.directory, q: "الاختبار" });
+  assert.ok(found.data.results.length, "البحث يعمل رغم إخفاء القوائم");
+  assert.equal(found.data.results[0].fees, undefined, "لا تظهر حالة السداد افتراضيًا");
+
+  // لا يمكن إيقاف كل شيء معًا
+  assert.equal((await set({ show_search: false })).status, 400);
+  await set({ show_classes: true, show_student_names: true });
+
+  // معلمو الصف
+  const withTeachers = await page();
+  assert.ok(Array.isArray(withTeachers.data.classes[0].teachers));
+  await set({ show_teachers: false });
+  assert.equal((await page()).data.classes[0].teachers, null);
+  await set({ show_teachers: true });
+
+  // شارات السداد عند تفعيلها فقط
+  await set({ public_fee_badges: true });
+  const badged = await anon.post(`/api/public/${A.id}/search`, { access: A.directory, q: "الاختبار" });
+  assert.ok("fees" in badged.data.results[0]);
+  await set({ public_fee_badges: false });
+
+  // إخفاء الدرجات من ملف الطالب
+  await set({ profile_show_grades: false });
+  const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
+  assert.equal(prof.data.grades.length, 0);
+  await set({ profile_show_grades: true });
+
+  // مدرسة ب لا تتأثر بإعدادات مدرسة أ
+  const bSettings = await B.admin.get("/api/admin/settings/public-page");
+  assert.equal(bSettings.data.access_mode, "code");
 });
 
 test("المالية: لا دفع زائد، لا تكرار، لا إلغاء مع دفعات، والاسترداد صحيح", async () => {

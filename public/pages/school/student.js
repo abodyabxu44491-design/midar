@@ -37,9 +37,9 @@ function render(d) {
         h("h1", {}, s.name),
         h("div", { style: "opacity:.85" }, s.class_name),
         h("div", { class: "kpis" },
-          h("div", {}, h("b", {}, avg === null ? "—" : `${avg}%`), "متوسط الدرجات"),
-          h("div", {}, h("b", {}, count("absent")), "أيام الغياب"),
-          h("div", {}, h("b", {}, count("late")), "مرات التأخر"),
+          d.settings.profile_show_grades ? h("div", {}, h("b", {}, avg === null ? "—" : `${avg}%`), "متوسط الدرجات") : null,
+          d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("absent")), "أيام الغياب") : null,
+          d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("late")), "مرات التأخر") : null,
           f && h("div", {}, h("b", {}, f.status === "paid" ? "مسدد" : f.status === "unpaid" ? money(f.remaining) : "—"),
             f.status === "unpaid" ? "رسوم متبقية" : "حالة الرسوم"))),
 
@@ -49,19 +49,19 @@ function render(d) {
 
       f && feesSection(f),
 
-      section("الدرجات", d.grades.length ? d.grades.map((g) => {
+      d.settings.profile_show_grades ? section("الدرجات", d.grades.length ? d.grades.map((g) => {
         const p = Math.round((g.score / g.max_score) * 100);
         const color = p >= 65 ? "var(--teal)" : p >= 50 ? "var(--amber)" : "var(--red)";
         return h("div", { style: "padding:8px 0;border-top:1px solid var(--line)" },
           h("div", { class: "row", style: "justify-content:space-between" }, h("b", {}, `${g.subject} — ${g.title}`), h("span", { style: "flex:none" }, `${g.score} / ${g.max_score}`)),
           h("div", { class: "bar" }, h("i", { style: `width:${p}%;background:${color}` })),
           sub(fmtDate(g.exam_date)));
-      }) : empty("لا توجد درجات منشورة بعد.")),
+      }) : empty("لا توجد درجات منشورة بعد.")) : null,
 
-      section("الحضور والغياب", d.attendance.length ? d.attendance.map((a) => line(
-        h("span", {}, fmtDay(a.day)), h("b", { style: `color:${ATTENDANCE[a.status][1]}` }, ATTENDANCE[a.status][0]))) : empty("لا يوجد سجل حضور بعد.")),
+      d.settings.profile_show_attendance ? section("الحضور والغياب", d.attendance.length ? d.attendance.map((a) => line(
+        h("span", {}, fmtDay(a.day)), h("b", { style: `color:${ATTENDANCE[a.status][1]}` }, ATTENDANCE[a.status][0]))) : empty("لا يوجد سجل حضور بعد.")) : null,
 
-      section("المعلمون والمواد", d.teachers.length ? d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher))) : empty("لا يوجد.")),
+      d.settings.profile_show_teachers ? section("المعلمون والمواد", d.teachers.length ? d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher))) : empty("لا يوجد.")) : null,
 
       section("الإعلانات", d.announcements.length ? d.announcements.map((a) => line(
         h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))) : empty("لا توجد إعلانات."))),

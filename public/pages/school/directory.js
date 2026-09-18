@@ -1,75 +1,133 @@
-// صفحة طلاب المدرسة: الفصول والأسماء. الضغط على الاسم يطلب معرّف الطالب.
+// صفحة المدرسة العامة
+// تعرض ما فعّلته الإدارة فقط: الصفوف، أسماء الطلاب، البحث، معلمو الصف، الأعداد، الإعلانات، حالة السداد.
+// أي ملف طالب لا يُفتح إلا بمعرّفه السري.
 import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub } from "/shared/js/ui.js";
+import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub, badge, brandLogo } from "/shared/js/ui.js";
 import { fmtDate } from "/shared/js/format.js";
+import { startAnalytics } from "/shared/js/analytics.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
 const ACCESS = `midar_access_${school}`;
+const access = () => sessionStorage.getItem(ACCESS) || undefined;
 
 async function start() {
-  const access = sessionStorage.getItem(ACCESS);
-  if (!access) return askAccess();
-  try { show(await api(`${P}/directory`, { access })); }
-  catch (e) {
+  try {
+    render(await api(`${P}/page`, { access: access() }));
+  } catch (e) {
+    if (e.status === 404) return mount(app, topbar({}), h("main", {}, notice("المدرسة غير موجودة أو غير متاحة حاليًا.", "err")), footer());
     sessionStorage.removeItem(ACCESS);
-    if (e.status === 404) return mount(app, topbar({}), h("main", {}, notice("المدرسة غير موجودة أو غير متاحة حاليًا.", "err"), h("a", { href: "/" }, "الرجوع")), footer());
-    askAccess(e.message);
+    askAccess(e.status === 401 && access() ? e.message : null);
   }
 }
 
+/* ---------- شاشة رمز الصفحة (عندما تختار المدرسة وضع الرمز) ---------- */
 function askAccess(error) {
   const code = input({ class: "ltr", placeholder: "رمز الصفحة", autocomplete: "off" });
   const msg = h("div", {}, error ? notice(error, "err") : null);
   const go = btn("دخول", async () => {
     try {
-      const r = await api(`${P}/open`, { access: code.value });
+      await api(`${P}/open`, { access: code.value });
       sessionStorage.setItem(ACCESS, code.value.trim().toUpperCase());
-      localStorage.setItem("midar_school", school);
-      document.title = `مِدار — ${r.school}`;
       start();
     } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "wide");
   code.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
-  mount(app, topbar({ subtitle: "صفحة الطلاب وأولياء الأمور" }),
-    h("main", {}, h("div", { class: "auth-card", style: "margin-top:24px" },
+  mount(app,
+    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo"), h("p", { class: "role" }, "صفحة الطلاب وأولياء الأمور"))),
+    h("main", {}, h("div", { class: "auth-card" },
       h("h2", {}, "أدخل رمز صفحة المدرسة"),
       sub("الرمز تعطيه إدارة المدرسة لأولياء الأمور والطلاب."),
       field("رمز الصفحة", code), msg, go)),
     footer());
   code.focus();
+  startAnalytics("school-gate");
 }
 
-function show(data) {
-  const q = input({ placeholder: "ابحث عن اسم طالب", type: "search" });
-  const list = h("div");
-  const draw = () => {
-    const term = q.value.trim();
-    const groups = [...data.classes, ...(data.unassigned.length ? [{ id: 0, name: "طلاب بدون فصل", students: data.unassigned }] : [])]
-      .map((c) => ({ ...c, students: c.students.filter((s) => s.name.includes(term)) }))
-      .filter((c) => !term || c.students.length);
-    mount(list, groups.length ? groups.map((c) => h("section", { class: "class-card" },
-      h("h3", {}, h("span", {}, c.name), h("span", { class: "small" }, `${c.students.length} طالب`)),
-      c.students.length
-        ? h("ul", { class: "names" }, c.students.map((s) => h("li", {}, h("button", { type: "button", onclick: () => askKey(s) }, s.name))))
-        : h("p", { class: "empty", style: "padding:0 16px" }, "لا يوجد طلاب."))) : empty("لا توجد نتائج."));
-  };
-  q.addEventListener("input", draw);
+/* ---------- الصفحة ---------- */
+function render(data) {
+  const st = data.settings;
   document.title = `مِدار — ${data.school.name}`;
+  const results = h("div");
+  const classesBox = h("div");
+
+  /* البحث */
+  const query = input({ type: "search", placeholder: "ابحث باسم الطالب", "aria-label": "ابحث باسم الطالب" });
+  let timer;
+  const search = async () => {
+    const q = query.value.trim();
+    if (q.length < 2) return mount(results);
+    mount(results, h("p", { class: "empty" }, "جارٍ البحث…"));
+    try {
+      const r = await api(`${P}/search`, { access: access(), q });
+      mount(results, r.results.length
+        ? h("section", { class: "panel" }, h("h2", {}, `نتائج البحث (${r.results.length})`),
+            r.results.map((s) => line(
+              h("button", { class: "linkish", type: "button", onclick: () => askKey(s) }, s.name),
+              h("span", { class: "pill" }, s.class_name ? sub(s.class_name) : null, feeBadge(s)))))
+        : h("section", { class: "panel" }, empty("لا يوجد طالب بهذا الاسم.")));
+    } catch (e) { mount(results, notice(e.message, "err")); }
+  };
+  query.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
+
+  /* الصفوف: مطوية، وتُفتح بالضغط */
+  const drawClasses = () => {
+    const list = [...data.classes];
+    if (data.unassigned?.length) list.push({ id: 0, name: "طلاب بدون فصل", students: data.unassigned, count: data.unassigned.length, teachers: null });
+    mount(classesBox, list.length ? list.map(classCard) : empty("لم تُضف الصفوف بعد."));
+  };
+
+  const classCard = (c) => {
+    const body = h("div", { class: "hidden" });
+    let loaded = false;
+    const head = h("button", { class: "class-head", type: "button", "aria-expanded": "false", onclick: () => {
+      const open = body.classList.toggle("hidden") === false;
+      head.setAttribute("aria-expanded", String(open));
+      head.querySelector(".chev").textContent = open ? "▾" : "▸";
+      if (open && !loaded) { loaded = true; mount(body, classBody(c)); }
+    } },
+      h("span", {}, h("span", { class: "chev" }, "▸"), " ", c.name),
+      c.count !== null && c.count !== undefined ? h("span", { class: "small" }, `${c.count} طالب`) : null);
+    return h("section", { class: "class-card" }, head, body);
+  };
+
+  const classBody = (c) => [
+    c.teachers?.length
+      ? h("div", { class: "teachers" }, h("h4", {}, "معلمو الصف"),
+          h("table", { class: "grid" },
+            h("thead", {}, h("tr", {}, h("th", {}, "المادة"), h("th", {}, "المعلم"))),
+            h("tbody", {}, c.teachers.map((t) => h("tr", {}, h("td", {}, t.subject), h("td", {}, t.teacher))))))
+      : null,
+    c.students === null
+      ? h("p", { class: "empty", style: "padding:0 14px" }, "أسماء الطلاب غير معروضة. استخدم البحث بالاسم.")
+      : c.students.length
+        ? h("ul", { class: "names" }, c.students.map((s) => h("li", {}, h("button", { type: "button", onclick: () => askKey(s) },
+            h("span", {}, s.name), feeBadge(s)))))
+        : h("p", { class: "empty", style: "padding:0 14px" }, "لا يوجد طلاب في هذا الصف."),
+  ];
+
   mount(app,
-    topbar({ school: data.school.name, subtitle: "الفصول والطلاب", onLogout: () => { sessionStorage.removeItem(ACCESS); location.href = `/${encodeURIComponent(school)}`; } }),
+    topbar({ school: data.school.name, subtitle: "الطلاب وأولياء الأمور",
+      onLogout: st.access_mode === "code" ? () => { sessionStorage.removeItem(ACCESS); location.reload(); } : null }),
     h("main", {},
-      data.announcements.length ? h("section", { class: "panel" }, h("h2", {}, "إعلانات المدرسة"),
-        data.announcements.map((a) => line(h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at)))))) : null,
-      notice("اضغط على اسم الطالب ثم أدخل معرّفه لفتح صفحته الكاملة ودفع الرسوم."),
-      h("div", { style: "margin-bottom:12px" }, q),
-      list),
+      data.announcements.length
+        ? h("section", { class: "panel" }, h("h2", {}, "إعلانات المدرسة"),
+            data.announcements.map((a) => line(h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))))
+        : null,
+      notice("اضغط على اسم الطالب ثم أدخل معرّفه لفتح صفحته الكاملة والرسوم."),
+      st.show_search ? h("div", { style: "margin-bottom:12px" }, query) : null,
+      results,
+      classesBox),
     footer());
-  draw();
+  drawClasses();
+  startAnalytics("school-page");
 }
 
+const feeBadge = (s) => (s.fees === "paid" ? badge("مسدد") : s.fees === "unpaid" ? badge("لم يسدد", "red") : null);
+
+/* ---------- فتح ملف الطالب بالمعرّف ---------- */
 function askKey(student) {
   const key = input({ class: "ltr", placeholder: "XXXX-XXXX", autocomplete: "off", maxLength: 9 });
   const msg = h("div");
