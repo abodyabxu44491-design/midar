@@ -17,6 +17,7 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
 const DISMISS_KEY = "midar_install_dismissed";
+const INSTALLED_KEY = "midar_installed";
 const dismissed = () => Number(localStorage.getItem(DISMISS_KEY) || 0) > Date.now();
 const dismiss = () => {
   localStorage.setItem(DISMISS_KEY, String(Date.now() + 30 * 24 * 3600 * 1000));
@@ -34,7 +35,7 @@ function iosSteps() {
 
 // الشريط الموحّد: يظهر مرة واحدة، ويمكن إخفاؤه لمدة شهر
 export function showInstallBar() {
-  if (isStandalone() || dismissed() || document.querySelector(".install-bar")) return;
+  if (isStandalone() || localStorage.getItem(INSTALLED_KEY) || dismissed() || document.querySelector(".install-bar")) return;
   if (!installEvent && !isIOS()) return;                 // متصفح لا يدعم التثبيت
   const action = btn(installEvent ? "تثبيت" : "طريقة التثبيت", async () => {
     if (!installEvent) return iosSteps();
@@ -42,7 +43,10 @@ export function showInstallBar() {
     installEvent = null;
     e.prompt();
     const { outcome } = await e.userChoice;
-    if (outcome === "accepted") document.querySelector(".install-bar")?.remove();
+    if (outcome === "accepted") {
+      localStorage.setItem(INSTALLED_KEY, "1");
+      document.querySelector(".install-bar")?.remove();
+    }
   }, "sm");
   const close = h("button", { class: "install-close", type: "button", "aria-label": "إخفاء", onclick: dismiss }, icons.close({ size: 16 }));
   const bar = h("div", { class: "install-bar", role: "complementary", "aria-label": "تثبيت التطبيق" },
@@ -53,11 +57,24 @@ export function showInstallBar() {
   document.body.append(bar);
 }
 
-window.addEventListener("appinstalled", () => document.querySelector(".install-bar")?.remove());
+// بعد التثبيت لا يظهر الشريط مرة أخرى على هذا الجهاز
+window.addEventListener("appinstalled", () => {
+  localStorage.setItem(INSTALLED_KEY, "1");
+  document.querySelector(".install-bar")?.remove();
+});
 
 /* ---------- الهوية ---------- */
-export const brandLogo = (cls = "brand-logo", light = true) =>
-  h("img", { src: light ? "/brand/logo-light.svg" : "/brand/logo.svg", alt: "مِدار", class: cls, width: 150, height: 38 });
+/**
+ * شعار المنصة.
+ * variant: "row" (أفقي، للشريط العلوي) أو "stacked" (عمودي: العلامة ثم الاسم، للصفحات الرئيسية)
+ */
+export function brandLogo(cls = "brand-logo", light = true, variant = "row") {
+  const file = variant === "stacked"
+    ? (light ? "/brand/logo-stacked-light.svg" : "/brand/logo-stacked.svg")
+    : (light ? "/brand/logo-light.svg" : "/brand/logo.svg");
+  const size = variant === "stacked" ? { width: 184, height: 160 } : { width: 150, height: 38 };
+  return h("img", { src: file, alt: "مِدار", class: cls, ...size });
+}
 
 export function topbar({ subtitle, school, onLogout }) {
   return h("header", { class: "topbar" }, h("div", { class: "in" },
@@ -195,7 +212,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
   for (const el of [school, user, pass, code]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
   if (withSchool) startAnalytics(`login:${role}`);   // لا تحليلات على دخول المالك
   return [
-    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo"), h("p", { class: "role" }, role))),
+    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo", true, "stacked"), h("p", { class: "role" }, role))),
     h("main", {}, h("div", { class: "auth-card" },
       withSchool && field("رمز المدرسة", school), field("اسم المستخدم", user), field("كلمة المرور", pass),
       withCode && field("رمز التحقق (6 أرقام)", code), msg, submit)),

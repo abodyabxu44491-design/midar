@@ -26,7 +26,8 @@ a { color: var(--accent); }
 .brand-logo { height: 38px; width: auto; display: block; flex: none; }
 .topbar .school { border-inline-start: 1px solid rgba(255,255,255,.35); padding-inline-start: 12px; min-width: 0; }
 .topbar .school b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hero-logo { height: 84px; width: auto; display: block; }
+.hero-logo { height: 150px; width: auto; display: block; margin: 0 auto; }
+@media (max-width: 719px) { .hero-logo { height: 126px; } }
 .print-logo { height: 48px; }
 
 /* عناصر */
@@ -90,9 +91,12 @@ table.grid th { color: var(--muted); font-weight: 600; }
 
 /* تسجيل الدخول */
 .auth-hero { background: var(--navy); color: #fff; padding: 36px 20px 70px; }
-.auth-hero .in { max-width: 420px; margin: 0 auto; }
+.auth-hero .in { max-width: 420px; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .auth-hero .brand { font-size: 36px; }
-.auth-card { max-width: 420px; width: calc(100% - 32px); margin: -40px auto 20px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.auth-card { max-width: 420px; width: calc(100% - 32px); margin: -40px auto 20px; background: #fff; border: 1px solid var(--line);
+  border-radius: 14px; padding: 20px 18px; box-shadow: 0 12px 30px rgba(22, 36, 74, .08); }
+.auth-card > h2 { text-align: center; margin-bottom: 6px; }
+.auth-card > .sub { text-align: center; margin-bottom: 16px; }
 
 /* النوافذ */
 dialog { border: none; border-radius: 14px; padding: 0; width: min(440px, calc(100% - 32px)); }
@@ -134,7 +138,7 @@ footer.dev { text-align: center; padding: 14px; font-size: 12px; color: var(--mu
 .loading { text-align: center; padding: 40px; }
 .notfound { text-align: center; padding-top: 80px; }
 
-.auth-hero .role { font-size: 18px; margin: 14px 0 0; }
+.auth-hero .role { font-size: 17px; margin: 10px 0 0; opacity: .92; letter-spacing: .3px; }
 .version-conflict { outline: 2px solid var(--red); }
 .muted-row { opacity: .6; }
 .pill { display: inline-flex; align-items: center; gap: 6px; }
@@ -153,7 +157,8 @@ footer.dev { text-align: center; padding: 14px; font-size: 12px; color: var(--mu
 .key.plain { font-family: inherit; letter-spacing: 0; direction: rtl; }
 .pill { flex-wrap: wrap; justify-content: flex-end; }
 
-.blank-home { display: flex; align-items: center; justify-content: center; min-height: 70vh; }
+.blank-home { display: flex; align-items: center; justify-content: center; min-height: 72vh; }
+.blank-home .hero-logo { height: 190px; }
 .handover { line-height: 2; }
 .handover .line { border-top: 1px dashed var(--line); }
 
@@ -176,7 +181,7 @@ table.timetable select { padding: 4px; font-size: 12px; }
 }
 /* الصفحة التسويقية */
 .mk-hero { background: var(--navy); color: #fff; padding: 46px 20px 54px; text-align: center; }
-.mk-hero h1 { font-size: 30px; margin: 16px 0 6px; }
+.mk-hero h1 { font-size: 30px; margin: 18px 0 6px; }
 .mk-hero p { opacity: .9; margin: 0 auto; max-width: 560px; }
 .mk-cta { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
 .mk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }

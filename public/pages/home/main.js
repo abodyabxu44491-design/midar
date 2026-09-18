@@ -27,7 +27,7 @@ async function start() {
   let site = { landing_mode: "blank" };
   try { site = await api("/api/site"); } catch { /* الوضع الافتراضي */ }
   if (site.landing_mode === "marketing") marketing(site);
-  else mount(app, h("main", { class: "blank-home" }, brandLogo("hero-logo", false)), footer());
+  else mount(app, h("main", { class: "blank-home" }, brandLogo("hero-logo", false, "stacked")), footer());
   startAnalytics(site.landing_mode === "marketing" ? "landing" : "home");
 }
 
@@ -35,7 +35,7 @@ function marketing(site) {
   const form = leadForm();
   mount(app,
     h("div", { class: "mk-hero" },
-      h("div", {}, brandLogo("hero-logo")),
+      h("div", {}, brandLogo("hero-logo", true, "stacked")),
       h("h1", {}, "إدارة مدرستك كاملة في مكان واحد"),
       h("p", {}, "الطلاب والحضور والدرجات والرسوم وأولياء الأمور، في منصة عربية واحدة سهلة تعمل من الجوال."),
       h("div", { class: "mk-cta" },

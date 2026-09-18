@@ -37,7 +37,7 @@ function showLogin(error) {
   for (const el of [user, pass]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
 
   mount(app,
-    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo"), h("p", { class: "role" }, "دخول منسوبي المدرسة"))),
+    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo", true, "stacked"), h("p", { class: "role" }, "دخول منسوبي المدرسة"))),
     h("main", {}, h("div", { class: "auth-card" },
       sub("للمدير والمعلمين. كل حساب يفتح لوحته الخاصة."),
       field("اسم المستخدم", user), field("كلمة المرور", pass), msg, submit)),

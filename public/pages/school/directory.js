@@ -38,7 +38,7 @@ function askAccess(error) {
   }, "wide");
   code.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
   mount(app,
-    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo"), h("p", { class: "role" }, "صفحة الطلاب وأولياء الأمور"))),
+    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo", true, "stacked"), h("p", { class: "role" }, "صفحة الطلاب وأولياء الأمور"))),
     h("main", {}, h("div", { class: "auth-card" },
       h("h2", {}, "أدخل رمز صفحة المدرسة"),
       sub("الرمز تعطيه إدارة المدرسة لأولياء الأمور والطلاب."),

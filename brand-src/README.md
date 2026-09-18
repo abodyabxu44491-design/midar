@@ -6,7 +6,8 @@
 |---|---|
 | `public/brand/logo.svg` | الشعار الكامل على الخلفيات الفاتحة |
 | `public/brand/logo-light.svg` | الشعار الكامل على الخلفيات الداكنة (الشريط العلوي) |
-| `public/brand/mark.svg` و `mark-light.svg` | الرمز فقط |
+| `public/brand/logo-stacked.svg` و `logo-stacked-light.svg` | الشعار العمودي: العلامة ثم الاسم (صفحات الدخول والرئيسية) |
+| `public/brand/mark.svg` و `mark-light.svg` | الرمز فقط (شريط التثبيت) |
 | `public/brand/icon*.png` و `favicon*` | أيقونات المتصفح والجوال |
 | `public/brand/og-image.png` | صورة المشاركة في الروابط |
 
