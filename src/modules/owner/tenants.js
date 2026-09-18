@@ -20,6 +20,8 @@ const createSchema = z.object({
   plan: z.enum(["basic", "pro", "enterprise"]).default("basic"),
   max_students: z.coerce.number().int().min(1).max(100000).default(200),
   subscription_end: t.optDate,
+  subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
+  grace_days: z.coerce.number().int().min(0).max(120).optional(),
 });
 const updateSchema = z.object({
   name: t.shortText("اسم المدرسة", 150).optional(),
@@ -27,11 +29,14 @@ const updateSchema = z.object({
   plan: z.enum(["basic", "pro", "enterprise"]).optional(),
   max_students: z.coerce.number().int().min(1).max(100000).optional(),
   subscription_end: t.optDate,
+  subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
+  grace_days: z.coerce.number().int().min(0).max(120).optional(),
 });
 
 r.get("/", handle(async (req, res) => {
   res.json(await platform(req, (q) => q(
-    `SELECT t.id, t.name, t.status, t.plan, t.max_students, t.subscription_end, t.created_at,
+    `SELECT t.id, t.name, t.status, t.plan, t.max_students, t.subscription_end, t.subscription_price, t.grace_days,
+            t.auto_suspended_at, t.created_at,
             u.students, u.teachers, u.open_sessions
        FROM tenants t JOIN platform_tenant_usage() u ON u.tenant_id = t.id
       ORDER BY t.created_at DESC`)));
@@ -56,8 +61,9 @@ r.post("/", handle(async (req, res) => {
   await inSchool(req, b.id, async (q) => {
     const [exists] = await q("SELECT 1 FROM tenants WHERE id = $1", [b.id]);
     if (exists) throw conflict("هذا الرمز مستخدم لمدرسة أخرى");
-    await q(`INSERT INTO tenants (id, name, plan, max_students, subscription_end, directory_code) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [b.id, b.name, b.plan, b.max_students, b.subscription_end, directory]);
+    await q(`INSERT INTO tenants (id, name, plan, max_students, subscription_end, directory_code, subscription_price, grace_days)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [b.id, b.name, b.plan, b.max_students, b.subscription_end, directory, b.subscription_price ?? 0, b.grace_days ?? 14]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash) VALUES ($1, 'admin', $2, 'admin', $3)`,
       [b.id, b.admin_name, hash]);
   });
@@ -73,9 +79,12 @@ r.patch("/:id", handle(async (req, res) => {
   await inSchool(req, id, async (q) => {
     const [cur] = await q("SELECT * FROM tenants WHERE id = $1 FOR UPDATE", [id]);
     if (!cur) throw notFound("المدرسة غير موجودة");
-    await q(`UPDATE tenants SET name = $2, status = $3, plan = $4, max_students = $5, subscription_end = $6 WHERE id = $1`,
+    await q(`UPDATE tenants SET name = $2, status = $3, plan = $4, max_students = $5, subscription_end = $6,
+               subscription_price = $7, grace_days = $8, auto_suspended_at = CASE WHEN $3 = 'active' THEN NULL ELSE auto_suspended_at END
+              WHERE id = $1`,
       [id, b.name ?? cur.name, b.status ?? cur.status, b.plan ?? cur.plan, b.max_students ?? cur.max_students,
-       b.subscription_end !== undefined ? b.subscription_end : cur.subscription_end]);
+       b.subscription_end !== undefined ? b.subscription_end : cur.subscription_end,
+       b.subscription_price ?? cur.subscription_price, b.grace_days ?? cur.grace_days]);
     if (b.status && b.status !== "active") await q("DELETE FROM sessions WHERE tenant_id = $1", [id]); // إخراج الجميع فورًا
   });
   res.json({ ok: true });

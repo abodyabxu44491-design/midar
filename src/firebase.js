@@ -34,6 +34,6 @@ export const app = onRequest(options, async (req, res) => {
 
 // تنظيف الجلسات المنتهية كل ساعة
 export const purgeSessions = onSchedule({ schedule: "every 60 minutes", region: REGION, secrets, timeZone: "Asia/Riyadh" }, async () => {
-  const { purgeExpiredSessions } = await import("./core/auth/sessions.js");
-  await purgeExpiredSessions();
+  const { runMaintenance } = await import("./core/auth/sessions.js");
+  await runMaintenance();
 });

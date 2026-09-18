@@ -187,3 +187,11 @@ table.timetable select { padding: 4px; font-size: 12px; }
 .mk-price ul { list-style: none; padding: 0; margin: 10px 0 0; font-size: 14px; line-height: 2; }
 .mk-section { max-width: 960px; margin: 0 auto; padding: 26px 16px; }
 .mk-section > h2 { text-align: center; margin-bottom: 16px; }
+
+.quick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+.quick-name { font: inherit; font-size: 15px; font-weight: 600; padding: 14px 10px; border-radius: 10px; cursor: pointer;
+  border: 2px solid var(--line); background: #fff; color: var(--ink); text-align: center; }
+.quick-name[data-state="present"] { border-color: var(--teal); background: var(--teal-soft); color: var(--teal); }
+.quick-name[data-state="absent"] { border-color: var(--red); background: var(--red-soft); color: var(--red); }
+.quick-name[data-state="late"] { border-color: var(--amber); background: var(--amber-soft); color: #8A5A00; }
+.quick-name[data-state="excused"] { border-color: #6B5B95; background: #EFEBF7; color: #6B5B95; }

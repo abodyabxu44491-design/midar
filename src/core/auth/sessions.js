@@ -85,3 +85,11 @@ export async function purgeExpiredSessions() {
     await q("DELETE FROM security_events WHERE created_at < now() - interval '90 days'");
   });
 }
+
+// إيقاف المدارس التي انتهى اشتراكها ومدة سماحها (يعمل مع مهمة الصيانة الدورية)
+export async function runMaintenance() {
+  await purgeExpiredSessions();
+  const suspended = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT * FROM suspend_expired_tenants()"));
+  if (suspended.length) console.log("[صيانة] أُوقفت مدارس منتهية الاشتراك:", suspended.map((t) => t.tenant_id).join(", "));
+  return suspended;
+}

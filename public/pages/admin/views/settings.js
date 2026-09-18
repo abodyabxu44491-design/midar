@@ -1,7 +1,8 @@
 // تبويب الإعدادات
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, empty, badge, notice, switchBtn } from "/shared/js/ui.js";
+import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, empty, badge, notice, switchBtn, installButton } from "/shared/js/ui.js";
+import { csv } from "/shared/js/format.js";
 import { fmtDate } from "/shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 
@@ -57,6 +58,22 @@ export default async function settings({ me, refresh }) {
         if (!confirmAction("إنهاء جلسات جميع المستخدمين الآخرين؟")) return;
         await api(`${A}/settings/sign-out-all`, {}); toast("تم");
       }, "danger"))),
+    panel("نسخة من بياناتك", null,
+      sub("تصدير كل بيانات المدرسة: الطلاب، الحضور، الدرجات، الجدول، الفواتير، المدفوعات. احفظها عندك بشكل دوري."),
+      h("div", { class: "row" },
+        btn("تصدير Excel (ملفات CSV)", async () => {
+          const d = await api(`${A}/export`);
+          const table = (name, rows) => rows.length && csv(`${name}.csv`, [Object.keys(rows[0]), ...rows.map((r) => Object.values(r))]);
+          for (const [name, rows] of Object.entries(d)) if (Array.isArray(rows)) table(name, rows);
+          toast("تم تنزيل الملفات");
+        }, "soft"),
+        btn("تصدير نسخة كاملة (JSON)", async () => {
+          const d = await api(`${A}/export`);
+          const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(d, null, 2)], { type: "application/json" })),
+            download: `midar-${d.school}-${new Date().toISOString().slice(0, 10)}.json` });
+          a.click();
+        }, "ghost"),
+        installButton("تثبيت مِدار كتطبيق"))),
     panel("الاشتراك", null, sub(`حد الطلاب: ${me.school.max_students} — ينتهي: ${me.school.subscription_end ? fmtDate(me.school.subscription_end) : "غير محدد"}`)),
   ];
 }

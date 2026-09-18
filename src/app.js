@@ -56,6 +56,8 @@ export function createApp() {
   app.use("/brand", express.static(path.join(WEB, "brand"), assets));
   app.use("/shared", express.static(path.join(WEB, "shared"), assets));
   app.get("/favicon.ico", (req, res) => res.sendFile(path.join(WEB, "brand", "favicon.ico")));
+  // عامل الخدمة يجب أن يُقدَّم من الجذر ليغطي كل الصفحات
+  app.get("/sw.js", (req, res) => res.set("Cache-Control", "no-cache").type("application/javascript").sendFile(path.join(WEB, "sw.js")));
 
   /* ---------- الصفحات ----------
      الرابط الرئيسي صفحة فاضية بلا روابط.

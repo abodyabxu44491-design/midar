@@ -2,7 +2,7 @@
 import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { getPool, closePool, healthCheck } from "./core/db/pool.js";
-import { purgeExpiredSessions } from "./core/auth/sessions.js";
+import { runMaintenance } from "./core/auth/sessions.js";
 
 try {
   await healthCheck();
@@ -21,7 +21,7 @@ const server = createApp().listen(env.PORT, () => {
 server.headersTimeout = 20_000;
 server.requestTimeout = 30_000;
 
-const timer = setInterval(() => purgeExpiredSessions().catch((e) => console.error("[purge]", e.message)), 60 * 60 * 1000);
+const timer = setInterval(() => runMaintenance().catch((e) => console.error("[purge]", e.message)), 60 * 60 * 1000);
 timer.unref();
 
 let closing = false;

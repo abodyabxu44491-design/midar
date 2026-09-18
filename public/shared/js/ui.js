@@ -5,6 +5,22 @@ import { startAnalytics } from "./analytics.js";
 
 export const DEV = "مِدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
 
+// تثبيت المنصة كتطبيق على الجوال (PWA)
+let installEvent = null;
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; });
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+export function installButton(label = "تثبيت التطبيق") {
+  if (!installEvent) return null;
+  return btn(label, async () => {
+    const e = installEvent;
+    installEvent = null;
+    e.prompt();
+    await e.userChoice;
+  }, "ghost sm");
+}
+
 /* ---------- الهوية ---------- */
 export const brandLogo = (cls = "brand-logo", light = true) =>
   h("img", { src: light ? "/brand/logo-light.svg" : "/brand/logo.svg", alt: "مِدار", class: cls, width: 150, height: 38 });

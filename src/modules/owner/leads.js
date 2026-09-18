@@ -32,4 +32,12 @@ r.patch("/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// حذف طلب مزعج
+r.delete("/:id", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const rows = await platform(req, (q) => q("DELETE FROM leads WHERE id = $1 RETURNING id", [id]));
+  if (!rows.length) throw notFound("الطلب غير موجود");
+  res.json({ ok: true });
+}));
+
 export default r;

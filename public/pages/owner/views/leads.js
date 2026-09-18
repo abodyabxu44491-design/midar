@@ -30,7 +30,12 @@ function row(l, refresh) {
       l.status === "new" ? btn("تم التواصل", set({ status: "contacted" }), "soft sm") : null,
       l.status !== "converted" ? btn("اشترك", () => convert(l, refresh), "sm") : null,
       l.status !== "rejected" ? btn("رفض", () => reject(l, refresh), "danger sm") : null,
-      btn("ملاحظة", () => noteDialog(l, refresh), "ghost sm")));
+      btn("ملاحظة", () => noteDialog(l, refresh), "ghost sm"),
+      btn("حذف", async () => {
+        if (!confirm("حذف الطلب نهائيًا؟")) return;
+        await api(`/api/owner/leads/${l.id}`, undefined, "DELETE");
+        toast("حُذف الطلب"); refresh();
+      }, "danger sm")));
 }
 
 function convert(l, refresh) {

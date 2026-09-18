@@ -267,6 +267,8 @@ test("قوالب واتساب تُحفظ لكل مدرسة على حدة", async
 
 test("طلبات التجربة: تصل للمالك فقط", async () => {
   const anon = client(srv.base);
+  // تنظيف طلبات تشغيل سابق (حد 5 طلبات لكل جهاز يوميًا)
+  for (const old of (await owner.get("/api/owner/leads")).data) await owner.del(`/api/owner/leads/${old.id}`);
   const bad = await anon.post("/api/public/leads", { school_name: "م", contact_name: "ا", phone: "x" });
   assert.equal(bad.status, 400);
   const ok = await anon.post("/api/public/leads", { school_name: "مدرسة الطلب", contact_name: "أبو محمد", phone: "0500000009", students_count: 120 });
@@ -274,6 +276,8 @@ test("طلبات التجربة: تصل للمالك فقط", async () => {
   assert.equal((await A.admin.get("/api/owner/leads")).status, 401, "الإدارة لا ترى الطلبات");
   const list = await owner.get("/api/owner/leads");
   assert.ok(list.data.some((l) => l.school_name === "مدرسة الطلب"));
+  const spam = list.data.find((l) => l.school_name === "مدرسة الطلب");
+  assert.equal((await owner.del(`/api/owner/leads/${spam.id}`)).status, 200);
 });
 
 test("شكل الصفحة الرئيسية يتحكم به المالك", async () => {
@@ -364,6 +368,53 @@ test("قفل الحساب بعد 5 محاولات خاطئة", async () => {
   const r = await x.post("/api/teacher/login", { school: A.id, username: "tester", password: s.teacherPw });
   assert.equal(r.status, 401);
   assert.match(r.data.error, /مقفل/);
+});
+
+test("اشتراكات المدارس: فاتورة، سداد، تمديد، وإيقاف تلقائي", async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const past = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const nextYear = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+
+  // اشتراك منتهٍ منذ 60 يومًا ومدة سماح 14 يومًا
+  assert.equal((await owner.patch(`/api/owner/tenants/${A.id}`, { subscription_end: past, subscription_price: 4000, grace_days: 14 })).status, 200);
+
+  const inv = await owner.post("/api/owner/billing/invoices", {
+    tenant_id: A.id, period_start: today, period_end: nextYear, amount: 4000 });
+  assert.equal(inv.status, 201, JSON.stringify(inv.data));
+
+  const before = await owner.get("/api/owner/billing");
+  assert.ok(before.data.summary.due >= 4000);
+  assert.ok(before.data.renewals.some((t) => t.id === A.id));
+
+  // الإيقاف التلقائي بعد مدة السماح
+  const suspended = await owner.post("/api/owner/billing/suspend-expired", {});
+  assert.ok(suspended.data.suspended.some((t) => t.tenant_id === A.id), "المدرسة المنتهية تُوقف");
+  assert.equal((await A.admin.get("/api/admin/me")).status, 401, "مستخدموها خرجوا");
+
+  // السداد يعيد التفعيل ويمدد الاشتراك
+  assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "transfer" })).status, 200);
+  const tenants = await owner.get("/api/owner/tenants");
+  const A2 = tenants.data.find((t) => t.id === A.id);
+  assert.equal(A2.status, "active");
+  assert.equal(A2.subscription_end, nextYear);
+  assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "cash" })).status, 400, "لا تُسدد مرتين");
+
+  // المدرسة لا ترى فواتير الاشتراك
+  const admin2 = client(srv.base);
+  await admin2.post("/api/staff/login", { school: A.id, username: "admin", password: s.adminPw });
+  assert.equal((await admin2.get("/api/owner/billing")).status, 401);
+  A.admin = admin2;
+});
+
+test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {
+  const r = await A.admin.get("/api/admin/export");
+  assert.equal(r.status, 200);
+  for (const k of ["students", "classes", "attendance", "exams", "invoices", "payments", "timetable"]) {
+    assert.ok(Array.isArray(r.data[k]), k);
+  }
+  assert.ok(r.data.students.every((x) => x.name), "بيانات الطلاب موجودة");
+  const b = await B.admin.get("/api/admin/export");
+  assert.equal(b.data.students.length, 0, "تصدير مدرسة ب لا يحوي طلاب مدرسة أ");
 });
 
 test("إيقاف المدرسة يُخرج مستخدميها فورًا", async () => {
