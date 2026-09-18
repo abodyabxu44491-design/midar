@@ -3,9 +3,9 @@
 // أي ملف طالب لا يُفتح إلا بمعرّفه السري.
 import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub, badge, brandLogo } from "/shared/js/ui.js";
-import { installPrompt } from "/shared/js/ui.js";
+import { topbar, footer, field, input, btn, empty, notice, dialog, line, sub, badge, brandLogo , showInstallBar} from "/shared/js/ui.js";
 import { fmtDate } from "/shared/js/format.js";
+import { icons } from "/shared/js/icons.js";
 import { timetableGrid } from "/shared/js/timetable.js";
 import { startAnalytics } from "/shared/js/analytics.js";
 
@@ -87,10 +87,10 @@ function render(data) {
     const head = h("button", { class: "class-head", type: "button", "aria-expanded": "false", onclick: () => {
       const open = body.classList.toggle("hidden") === false;
       head.setAttribute("aria-expanded", String(open));
-      head.querySelector(".chev").textContent = open ? "▾" : "▸";
+      head.classList.toggle("open", open);
       if (open && !loaded) { loaded = true; mount(body, classBody(c)); }
     } },
-      h("span", {}, h("span", { class: "chev" }, "▸"), " ", c.name),
+      h("span", { class: "pill" }, icons.chevronDown({ size: 16 }), c.name),
       c.count !== null && c.count !== undefined ? h("span", { class: "small" }, `${c.count} طالب`) : null);
     return h("section", { class: "class-card" }, head, body);
   };
@@ -150,4 +150,4 @@ function askKey(student) {
 }
 
 start();
-installPrompt();
+showInstallBar();

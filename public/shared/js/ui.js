@@ -2,45 +2,58 @@
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { startAnalytics } from "./analytics.js";
+import { icons } from "./icons.js";
 
 export const DEV = "مِدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
 
-// تثبيت المنصة كتطبيق على الجوال (PWA)
+// ===================== تثبيت التطبيق =====================
+// مكان واحد ثابت في كل الصفحات: شريط سفلي بهوية المنصة.
 let installEvent = null;
-window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; });
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; showInstallBar(); });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
-export function installButton(label = "تثبيت التطبيق", cls = "ghost sm") {
-  if (!installEvent) return null;
-  return btn(label, async () => {
+
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
+const DISMISS_KEY = "midar_install_dismissed";
+const dismissed = () => Number(localStorage.getItem(DISMISS_KEY) || 0) > Date.now();
+const dismiss = () => {
+  localStorage.setItem(DISMISS_KEY, String(Date.now() + 30 * 24 * 3600 * 1000));
+  document.querySelector(".install-bar")?.remove();
+};
+
+function iosSteps() {
+  dialog("تثبيت مِدار على جهازك", h("div", { class: "install-steps" },
+    h("p", {}, "من متصفح Safari:"),
+    h("ol", {},
+      h("li", {}, h("span", { class: "pill" }, "اضغط زر المشاركة", icons.share({ size: 16 }))),
+      h("li", {}, "اختر «إضافة إلى الشاشة الرئيسية»"),
+      h("li", {}, "اضغط «إضافة»، وستظهر أيقونة مِدار على شاشتك"))));
+}
+
+// الشريط الموحّد: يظهر مرة واحدة، ويمكن إخفاؤه لمدة شهر
+export function showInstallBar() {
+  if (isStandalone() || dismissed() || document.querySelector(".install-bar")) return;
+  if (!installEvent && !isIOS()) return;                 // متصفح لا يدعم التثبيت
+  const action = btn(installEvent ? "تثبيت" : "طريقة التثبيت", async () => {
+    if (!installEvent) return iosSteps();
     const e = installEvent;
     installEvent = null;
     e.prompt();
-    await e.userChoice;
-    document.querySelector(".install-fab")?.remove();
-  }, cls);
+    const { outcome } = await e.userChoice;
+    if (outcome === "accepted") document.querySelector(".install-bar")?.remove();
+  }, "sm");
+  const close = h("button", { class: "install-close", type: "button", "aria-label": "إخفاء", onclick: dismiss }, icons.close({ size: 16 }));
+  const bar = h("div", { class: "install-bar", role: "complementary", "aria-label": "تثبيت التطبيق" },
+    h("img", { src: "/brand/mark.svg", alt: "", class: "install-mark", width: 34, height: 26 }),
+    h("div", { class: "install-text" }, h("b", {}, "ثبّت مِدار كتطبيق"),
+      h("span", {}, isIOS() ? "على شاشة جهازك، بخطوتين" : "على جوالك أو جهازك، بضغطة")),
+    action, close);
+  document.body.append(bar);
 }
 
-// زر تثبيت عائم يظهر تلقائيًا عندما يسمح المتصفح، ويُخفى بعد التثبيت
-const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-export function installPrompt() {
-  if (isStandalone()) return;
-  const show = () => {
-    if (document.querySelector(".install-fab")) return;
-    const b = installButton("تثبيت مِدار", "install-fab");
-    if (b) document.body.append(b);
-  };
-  if (installEvent) show();
-  window.addEventListener("beforeinstallprompt", () => setTimeout(show, 1200));
-  window.addEventListener("appinstalled", () => document.querySelector(".install-fab")?.remove());
-  // أجهزة آيفون لا تدعم زر التثبيت التلقائي
-  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if (iOS && !sessionStorage.getItem("midar_ios_hint")) {
-    sessionStorage.setItem("midar_ios_hint", "1");
-    setTimeout(() => toast("لتثبيت مِدار على الآيفون: زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»"), 2500);
-  }
-}
+window.addEventListener("appinstalled", () => document.querySelector(".install-bar")?.remove());
 
 /* ---------- الهوية ---------- */
 export const brandLogo = (cls = "brand-logo", light = true) =>

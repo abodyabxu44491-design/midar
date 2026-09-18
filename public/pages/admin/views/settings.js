@@ -1,7 +1,7 @@
 // تبويب الإعدادات
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, empty, badge, notice, switchBtn, installButton } from "/shared/js/ui.js";
+import { showInstallBar, panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, empty, badge, notice, switchBtn } from "/shared/js/ui.js";
 import { csv } from "/shared/js/format.js";
 import { fmtDate } from "/shared/js/format.js";
 import { A, directoryLink } from "./common.js";
@@ -73,7 +73,7 @@ export default async function settings({ me, refresh }) {
             download: `midar-${d.school}-${new Date().toISOString().slice(0, 10)}.json` });
           a.click();
         }, "ghost"),
-        installButton("تثبيت مِدار كتطبيق"))),
+        btn("تثبيت مِدار كتطبيق", () => showInstallBar(), "ghost"))),
     panel("الاشتراك", null, sub(`حد الطلاب: ${me.school.max_students} — ينتهي: ${me.school.subscription_end ? fmtDate(me.school.subscription_end) : "غير محدد"}`)),
   ];
 }
