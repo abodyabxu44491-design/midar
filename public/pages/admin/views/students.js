@@ -13,16 +13,45 @@ export default async function students({ me, refresh }) {
     loadClasses(), api(`${A}/students`), api(`${A}/students?status=inactive`), api(`${A}/messaging/templates`)]);
 
   /* ---- إضافة طالب ---- */
-  const f = { name: input(), cls: select(classOptions(classes, "بدون فصل")), gname: input(), gphone: input({ class: "ltr", inputMode: "tel" }),
+  const lastClass = localStorage.getItem("midar_last_class") || "";
+  const f = { name: input(), cls: select(classOptions(classes, "بدون فصل"), { value: lastClass }),
+    gname: input({ placeholder: "يُملأ تلقائيًا من اسم الطالب" }), gphone: input({ class: "ltr", inputMode: "tel" }),
     fees: input({ type: "checkbox" }) };
+  const hint = h("div");
+
+  // اسم ولي الأمر من اسم الطالب، ما لم يكتبه المستخدم بنفسه
+  let guardianTouched = false;
+  f.gname.addEventListener("input", () => { guardianTouched = f.gname.value.trim().length > 0; });
+  f.name.addEventListener("input", () => {
+    if (guardianTouched) return;
+    const parts = f.name.value.trim().split(/\s+/).filter(Boolean);
+    f.gname.value = parts.length >= 3 ? parts.slice(1).join(" ") : "";
+  });
+
+  // جوال ولي الأمر: توحيد الصيغة + كشف الإخوة المسجلين
+  f.gphone.addEventListener("blur", async () => {
+    const raw = f.gphone.value.trim();
+    if (!raw) return mount(hint);
+    try {
+      const r = await api(`${A}/students/guardian?phone=${encodeURIComponent(raw)}`);
+      if (r.phone) f.gphone.value = r.phone;
+      if (r.guardian_name && !guardianTouched) f.gname.value = r.guardian_name;
+      mount(hint, r.siblings.length
+        ? notice(`ولي الأمر مسجل مسبقًا: ${r.guardian_name || "—"} — إخوة: ${r.siblings.map((x) => x.name).join("، ")}`, "")
+        : null);
+    } catch { mount(hint); }
+  });
   const addPanel = panel("إضافة طالب", null,
     h("div", { class: "row" }, field("اسم الطالب", f.name), field("الفصل", f.cls)),
     h("div", { class: "row" }, field("اسم ولي الأمر", f.gname), field("جوال ولي الأمر", f.gphone)),
+    hint,
     h("label", { class: "f pill" }, f.fees, "تفعيل الرسوم لهذا الطالب"),
     btn("إضافة الطالب", async () => {
       const r = await api(`${A}/students`, { name: f.name.value, class_id: f.cls.value || null, guardian_name: f.gname.value,
         guardian_phone: f.gphone.value, fees_enabled: f.fees.checked });
-      showCredentials(`تمت إضافة ${r.name}`, { access_key: r.access_key }, "المعرّف أُنشئ تلقائيًا. سلّمه لولي الأمر.");
+      localStorage.setItem("midar_last_class", f.cls.value || "");   // الفصل يبقى مختارًا للطالب التالي
+      showCredentials(`تمت إضافة ${r.name}`, { access_key: r.access_key },
+        `ولي الأمر: ${r.guardian_name || "—"} — سلّم المعرّف له.`);
       refresh();
     }));
 
@@ -82,6 +111,10 @@ export default async function students({ me, refresh }) {
 
   const exportBtn = btn("تصدير المعرّفات", () => csv("معرفات_الطلاب.csv",
     [["الطالب", "الفصل", "ولي الأمر", "الجوال", "المعرّف"], ...list.map((s) => [s.name, s.class_name, s.guardian_name, s.guardian_phone, s.access_key])]), "ghost sm");
+
+  for (const el of [f.name, f.gname, f.gphone]) {
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") addPanel.querySelector("button.btn").click(); });
+  }
 
   return [
     addPanel, importPanel,

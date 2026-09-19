@@ -22,6 +22,12 @@ r.get("/", handle(async (req, res) => {
   }));
 }));
 
+// بحث بجوال ولي الأمر: يملأ الاسم ويكشف الإخوة المسجلين
+r.get("/guardian", handle(async (req, res) => {
+  const phone = parse(z.string().max(20), req.query.phone || "");
+  res.json(await inTenant(req, (q) => students.guardianByPhone(q, phone)));
+}));
+
 r.post("/", handle(async (req, res) => {
   const b = parse(students.studentSchema, req.body);
   const [created] = await inTenant(req, (q) => students.create(q, req.tenant, [b]));

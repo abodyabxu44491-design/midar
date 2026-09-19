@@ -111,6 +111,30 @@ test("عزل المدارس: مدير مدرسة ب لا يصل لطالب مد�
   assert.equal(bad.status, 409);
 });
 
+test("تسهيلات الإدخال: اسم ولي الأمر وتوحيد الجوال وربط الإخوة", async () => {
+  // اسم ولي الأمر يُشتق من اسم الطالب، والجوال يُوحَّد إلى صيغة 05
+  const a = await A.admin.post("/api/admin/students", { name: "  سالم   عبدالله ناصر ", guardian_phone: "+966 55 123 4567" });
+  assert.equal(a.status, 201, JSON.stringify(a.data));
+  assert.equal(a.data.name, "سالم عبدالله ناصر", "تنظيف المسافات");
+  assert.equal(a.data.guardian_name, "عبدالله ناصر", "اسم ولي الأمر من اسم الطالب");
+  assert.equal(a.data.guardian_phone, "0551234567", "توحيد صيغة الجوال");
+
+  // أخ بنفس الجوال يأخذ اسم ولي الأمر نفسه
+  const b = await A.admin.post("/api/admin/students", { name: "ريم", guardian_phone: "0551234567" });
+  assert.equal(b.data.guardian_name, "عبدالله ناصر", "الأخ يرث اسم ولي الأمر");
+
+  const g = await A.admin.get("/api/admin/students/guardian?phone=966551234567");
+  assert.equal(g.data.phone, "0551234567");
+  assert.equal(g.data.guardian_name, "عبدالله ناصر");
+  assert.equal(g.data.siblings.length, 2, "يظهر الإخوة المسجلون");
+
+  // مدرسة أخرى لا ترى أولياء أمور مدرستنا
+  assert.equal((await B.admin.get("/api/admin/students/guardian?phone=0551234567")).data.siblings.length, 0);
+
+  // تنظيف بعد الاختبار حتى لا يتأثر حد الباقة
+  for (const id of [a.data.id, b.data.id]) await A.admin.post(`/api/admin/students/${id}/status`, { status: "withdrawn" });
+});
+
 test("حد الباقة لا يُتجاوز", async () => {
   const r = await A.admin.post("/api/admin/students/import", { students: [{ name: "طالب ثان" }, { name: "طالب ثالث" }, { name: "طالب رابع" }] });
   assert.equal(r.status, 400);

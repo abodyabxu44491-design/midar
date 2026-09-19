@@ -20,6 +20,28 @@ export const updateSchema = z.object({
   fees_enabled: z.boolean().optional(),
 });
 
+/* ---------- تسهيلات الإدخال ---------- */
+// تنظيف الاسم: مسافات زائدة وتطويل وحروف غير عربية/لاتينية
+export const cleanName = (v) => String(v || "").replace(/\u0640/g, "").replace(/\s+/g, " ").trim();
+
+// اسم ولي الأمر من اسم الطالب: يوسف محمد علي ← محمد علي
+export function guardianFromStudent(fullName) {
+  const parts = cleanName(fullName).split(" ").filter(Boolean);
+  if (parts.length < 2) return null;
+  const rest = parts.slice(1).filter((w) => !["بن", "بنت", "ابن", "ال"].includes(w));
+  return rest.length >= 2 ? rest.join(" ") : null;
+}
+
+// توحيد صيغة الجوال: +966 5x / 9665x / 5x ← 05x
+export function normalizePhone(v) {
+  let d = String(v || "").replace(/[^\d+]/g, "").replace(/^\+/, "");
+  if (!d) return null;
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("966")) d = "0" + d.slice(3);
+  else if (d.length === 9 && d.startsWith("5")) d = "0" + d;
+  return d.slice(0, 20);
+}
+
 export async function get(q, id, { includeArchived = false } = {}) {
   const [s] = await q(`SELECT * FROM students WHERE id = $1 ${includeArchived ? "" : "AND archived_at IS NULL"}`, [id]);
   if (!s) throw notFound("الطالب غير موجود");
@@ -33,17 +55,39 @@ async function ensureCapacity(q, tenant, adding) {
 
 // إنشاء طالب مع معرّف فريد (يُعاد التوليد تلقائيًا في حالة التصادم النادر)
 async function insertOne(q, s) {
+  const name = cleanName(s.name);
+  const phone = normalizePhone(s.guardian_phone);
+  // اسم ولي الأمر: المكتوب، أو من سجل أخ له بنفس الجوال، أو من اسم الطالب
+  let guardian = cleanName(s.guardian_name) || null;
+  if (!guardian && phone) {
+    const [sibling] = await q(
+      "SELECT guardian_name FROM students WHERE guardian_phone = $1 AND guardian_name IS NOT NULL ORDER BY id DESC LIMIT 1", [phone]);
+    guardian = sibling?.guardian_name || null;
+  }
+  if (!guardian) guardian = guardianFromStudent(name);
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const key = newStudentKey();
     const rows = await q(
       `INSERT INTO students (tenant_id, class_id, full_name, guardian_name, guardian_phone, access_key, fees_enabled)
        VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)
        ON CONFLICT (tenant_id, access_key) DO NOTHING
-       RETURNING id, full_name AS name, access_key`,
-      [s.class_id, s.name, s.guardian_name, s.guardian_phone, key, s.fees_enabled]);
+       RETURNING id, full_name AS name, guardian_name, guardian_phone, access_key`,
+      [s.class_id, name, guardian, phone, key, s.fees_enabled]);
     if (rows.length) return rows[0];
   }
   throw conflict("تعذر إنشاء معرّف فريد، أعد المحاولة");
+}
+
+// بيانات ولي أمر مسجّل مسبقًا بنفس الجوال (لربط الإخوة)
+export async function guardianByPhone(q, phone) {
+  const p = normalizePhone(phone);
+  if (!p) return { phone: null, guardian_name: null, siblings: [] };
+  const rows = await q(
+    `SELECT s.id, s.full_name AS name, s.guardian_name, c.name AS class_name
+       FROM students s LEFT JOIN classes c ON c.id = s.class_id
+      WHERE s.guardian_phone = $1 AND s.status = 'active' ORDER BY s.full_name LIMIT 10`, [p]);
+  return { phone: p, guardian_name: rows[0]?.guardian_name || null, siblings: rows.map(({ id, name, class_name }) => ({ id, name, class_name })) };
 }
 
 export async function create(q, tenant, list) {
@@ -59,10 +103,10 @@ export async function update(q, id, b) {
   const s = await get(q, id);
   if (s.version !== b.version) throw conflict("تم تعديل بيانات هذا الطالب من شخص آخر. حدّث الصفحة ثم أعد المحاولة.");
   const next = {
-    full_name: b.name ?? s.full_name,
+    full_name: b.name ? cleanName(b.name) : s.full_name,
     class_id: b.class_id !== undefined ? b.class_id : s.class_id,
     guardian_name: b.guardian_name !== undefined ? b.guardian_name : s.guardian_name,
-    guardian_phone: b.guardian_phone !== undefined ? b.guardian_phone : s.guardian_phone,
+    guardian_phone: b.guardian_phone !== undefined ? normalizePhone(b.guardian_phone) : s.guardian_phone,
     fees_enabled: b.fees_enabled ?? s.fees_enabled,
   };
   const [row] = await q(
