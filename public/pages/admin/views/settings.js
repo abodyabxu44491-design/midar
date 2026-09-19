@@ -2,7 +2,7 @@
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { showInstallBar, panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, empty, badge, notice, switchBtn, dialog, showCredentials } from "/shared/js/ui.js";
-import { csv } from "/shared/js/format.js";
+import { csv, CURRENCIES, setCurrency } from "/shared/js/format.js";
 import { fmtDate } from "/shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 
@@ -11,11 +11,13 @@ export default async function settings({ me, refresh }) {
   const acc = { bank: input({ placeholder: "اسم البنك" }), holder: input(), iban: input({ class: "ltr", placeholder: "SA00 0000 0000 0000 0000 0000" }), number: input({ class: "ltr" }) };
   const note = textarea({ rows: 2, value: pay.payment_note || "", placeholder: "مواعيد استلام الدفع النقدي ومكانه" });
   const pub = await api(`${A}/settings/public-page`);
+  const currencyInfo = await api(`${A}/settings/currency`);
   const accountants = await api(`${A}/users`);
   const tpl = await api(`${A}/messaging/templates`);
   const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
   const nxt = input({ type: "password", class: "ltr", autocomplete: "new-password" });
   return [
+    currencyPanel(currencyInfo, refresh),
     accountantsPanel(accountants, refresh),
     publicPagePanel(pub, me, refresh),
     messagesPanel(tpl),
@@ -80,6 +82,23 @@ export default async function settings({ me, refresh }) {
   ];
 }
 
+
+/* ---------- عملة المدرسة ---------- */
+function currencyPanel(cur, refresh) {
+  const pick = select(Object.entries(CURRENCIES).map(([k, v]) => [k, v.name]), { value: cur.currency });
+  const msg = h("div");
+  return panel("عملة المدرسة", null,
+    sub("تظهر بها الرسوم والتقارير وكشوف الحسابات. يمكن إنشاء حسابات بعملات أخرى من تبويب المالية."),
+    h("div", { class: "row" }, field("العملة الأساسية", pick),
+      btn("حفظ", async () => {
+        mount(msg);
+        try {
+          await api(`${A}/settings/currency`, { currency: pick.value }, "PUT");
+          setCurrency(pick.value); toast("تم حفظ العملة"); refresh();
+        } catch (e) { mount(msg, notice(e.message, "err")); }
+      }, "soft")),
+    msg);
+}
 
 /* ---------- حسابات المحاسبين ---------- */
 function accountantsPanel(list, refresh) {

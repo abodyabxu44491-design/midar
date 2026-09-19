@@ -11,7 +11,7 @@ r.get("/me", handle(async (req, res) => {
   const t = req.tenant;
   res.json({
     name: req.user.full_name,
-    school: { id: t.id, name: t.name, max_students: t.max_students, subscription_end: t.subscription_end, directory_code: t.directory_code },
+    school: { id: t.id, name: t.name, max_students: t.max_students, subscription_end: t.subscription_end, directory_code: t.directory_code, currency: t.currency },
   });
 }));
 

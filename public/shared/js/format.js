@@ -1,5 +1,21 @@
 // التنسيقات المشتركة
-export const money = (n) => `${Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ر.س`;
+export const CURRENCIES = {
+  SAR: { name: "ريال سعودي", symbol: "ر.س" },
+  YER: { name: "ريال يمني", symbol: "ر.ي" },
+  USD: { name: "دولار أمريكي", symbol: "$" },
+};
+
+// عملة المدرسة الحالية (تُضبط عند فتح اللوحة)
+let currentCurrency = "SAR";
+export const setCurrency = (code) => { if (CURRENCIES[code]) currentCurrency = code; };
+export const getCurrency = () => currentCurrency;
+
+/** تنسيق مبلغ. يمكن تمرير عملة مختلفة للحسابات ذات العملة الخاصة. */
+export const money = (n, code) => {
+  const c = CURRENCIES[code || currentCurrency] || CURRENCIES.SAR;
+  const value = Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return `${value} ${c.symbol}`;
+};
 export const fmtDate = (d) => (d ? new Date(String(d).length === 10 ? `${d}T12:00:00` : d)
   .toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric" }) : "");
 export const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("ar-SA-u-ca-gregory-nu-latn", { dateStyle: "medium", timeStyle: "short" }) : "");

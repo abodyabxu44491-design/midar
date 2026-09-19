@@ -21,6 +21,7 @@ const createSchema = z.object({
   plan: z.enum(["basic", "pro", "enterprise"]).default("basic"),
   max_students: z.coerce.number().int().min(1).max(100000).default(200),
   subscription_end: t.optDate,
+  currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
   subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
 });
@@ -62,9 +63,11 @@ r.post("/", handle(async (req, res) => {
   await inSchool(req, b.id, async (q) => {
     const [exists] = await q("SELECT 1 FROM tenants WHERE id = $1", [b.id]);
     if (exists) throw conflict("هذا الرمز مستخدم لمدرسة أخرى");
-    await q(`INSERT INTO tenants (id, name, plan, max_students, subscription_end, directory_code, subscription_price, grace_days)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [b.id, b.name, b.plan, b.max_students, b.subscription_end, directory, b.subscription_price ?? 0, b.grace_days ?? 14]);
+    await q(`INSERT INTO tenants (id, name, plan, max_students, subscription_end, directory_code,
+               subscription_price, grace_days, currency)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [b.id, b.name, b.plan, b.max_students, b.subscription_end, directory,
+       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "SAR"]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash) VALUES ($1, 'admin', $2, 'admin', $3)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);          // سنة دراسية وفصولها جاهزة من اليوم الأول

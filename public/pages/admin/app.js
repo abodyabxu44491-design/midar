@@ -2,6 +2,7 @@
 // تُشغَّل من باب المدرسة الموحّد بعد التعرف على دور الحساب.
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
+import { setCurrency } from "/shared/js/format.js";
 import { topbar, footer, tabs } from "/shared/js/ui.js";
 import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
@@ -26,6 +27,7 @@ const app = $("#app");
 export async function startAdmin() {
   setApiBase("admin");
   const me = await api("/api/admin/me");
+  setCurrency(me.school.currency);
   const t = tabs([
     ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"], ["academic", "السنة الدراسية"],
     ["attendance", "الحضور"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["reports", "كشف الدرجات"], ["analytics", "التحليلات"],

@@ -1,7 +1,7 @@
 // إعدادات المدرسة
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle } from "../../core/http/errors.js";
+import { handle, badRequest } from "../../core/http/errors.js";
 import { newDirectoryCode } from "../../core/auth/codes.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as payments from "../shared/payments.service.js";
@@ -19,6 +19,23 @@ r.post("/directory-code", handle(async (req, res) => {
 // إنهاء كل جلسات المدرسة (عند الاشتباه بتسريب)
 r.post("/sign-out-all", handle(async (req, res) => {
   await inTenant(req, (q) => q("DELETE FROM sessions WHERE tenant_id = app_tenant() AND user_id <> $1", [req.user.id]));
+  res.json({ ok: true });
+}));
+
+/* ---------- عملة المدرسة ---------- */
+r.get("/currency", handle(async (req, res) => {
+  const [row] = await inTenant(req, (q) => q("SELECT currency FROM tenants WHERE id = app_tenant()"));
+  res.json(row);
+}));
+
+r.put("/currency", handle(async (req, res) => {
+  const { currency } = parse(z.object({ currency: z.enum(["SAR", "YER", "USD"]) }), req.body);
+  await inTenant(req, async (q) => {
+    const [used] = await q("SELECT 1 FROM finance_entries LIMIT 1");
+    if (used) throw badRequest("لا يمكن تغيير عملة المدرسة بعد تسجيل حركات مالية. أنشئ حسابًا بعملة أخرى بدلًا من ذلك.");
+    await q("UPDATE tenants SET currency = $1 WHERE id = app_tenant()", [currency]);
+    await q("UPDATE finance_accounts SET currency = $1", [currency]);
+  });
   res.json({ ok: true });
 }));
 

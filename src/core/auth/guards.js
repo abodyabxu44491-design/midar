@@ -44,7 +44,7 @@ export const requireStaff = (role) => async (req, res, next) => {
     const s = await readSession(req, role);
     if (!s) throw unauthorized();
     const ctx = await transaction({ tenantId: s.tenant_id }, async (q) => {
-      const [tenant] = await q("SELECT id, name, status, max_students, subscription_end, directory_code FROM tenants WHERE id = $1", [s.tenant_id]);
+      const [tenant] = await q("SELECT id, name, status, max_students, subscription_end, directory_code, currency FROM tenants WHERE id = $1", [s.tenant_id]);
       const [user] = await q(
         `SELECT id, full_name, role, teacher_id, is_active, can_approve_finance, can_manage_payroll, can_manage_accounts
            FROM users WHERE id = $1 AND role = $2`,

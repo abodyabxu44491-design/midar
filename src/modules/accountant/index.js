@@ -18,6 +18,7 @@ r.get("/me", handle(async (req, res) => {
     name: req.user.full_name,
     role: "accountant",
     school: { id: req.tenant.id, name: req.tenant.name },
+    currency: req.tenant.currency,
     permissions: { approve: req.user.can_approve_finance, payroll: req.user.can_manage_payroll, accounts: req.user.can_manage_accounts },
   });
 }));

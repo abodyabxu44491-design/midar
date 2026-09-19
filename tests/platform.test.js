@@ -651,6 +651,52 @@ test("دور المحاسب: يرى المالية فقط، والصلاحيات
   assert.equal((await B.admin.get("/api/admin/users")).data.length, 0);
 });
 
+test("العملات: عملة المدرسة وحساب بعملة أخرى وسعر التحويل", async () => {
+  // مدرسة عملتها الريال اليمني
+  const tenantC = client(srv.base);
+  const created = await owner.post("/api/owner/tenants", { id: `t-${uid()}`, name: "مدرسة بالريال اليمني", currency: "YER", max_students: 10 });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const school = created.data.credentials;
+  await tenantC.post("/api/staff/login", { school: school.school, username: "admin", password: school.password });
+
+  const accs = await tenantC.get("/api/admin/ledger/accounts");
+  assert.ok(accs.data.length >= 2);
+  assert.ok(accs.data.every((a) => a.currency === "YER"), "الحسابات الافتراضية بعملة المدرسة");
+
+  // حساب بالدولار داخل نفس المدرسة
+  const usd = await tenantC.post("/api/admin/ledger/accounts", {
+    name: "صندوق الدولار", kind: "cash", currency: "USD", opening_balance: 0, methods: [] });
+  assert.equal(usd.status, 201, JSON.stringify(usd.data));
+  const incomeCat = (await tenantC.get("/api/admin/ledger/categories")).data.find((c) => c.direction === "income");
+
+  // بدون سعر تحويل تُرفض الحركة
+  const noRate = await tenantC.post("/api/admin/ledger/entries", {
+    direction: "income", amount: 100, account_id: usd.data.id, category_id: incomeCat.id,
+    occurred_on: "2026-09-05", reason: "تبرع بالدولار", method: "cash" });
+  assert.equal(noRate.status, 400);
+  assert.match(noRate.data.error, /سعر تحويل/);
+
+  // مع سعر التحويل: الرصيد بعملة الحساب والتقارير بالعملة الأساسية
+  const ok = await tenantC.post("/api/admin/ledger/entries", {
+    direction: "income", amount: 100, account_id: usd.data.id, category_id: incomeCat.id,
+    occurred_on: "2026-09-05", reason: "تبرع بالدولار", method: "cash", rate: 530 });
+  assert.equal(ok.status, 201, JSON.stringify(ok.data));
+
+  const summary = await tenantC.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+  assert.equal(summary.data.currency, "YER");
+  assert.equal(summary.data.income, 53000, "يُحتسب بالعملة الأساسية");
+  const usdAccount = summary.data.accounts.find((a) => a.id === usd.data.id);
+  assert.equal(Number(usdAccount.balance), 100, "رصيد الحساب يبقى بعملته");
+  assert.equal(summary.data.balance, 0, "الرصيد الإجمالي يجمع العملة الأساسية فقط");
+
+  const entry = (await tenantC.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01")).data[0];
+  assert.equal(entry.currency, "USD");
+  assert.equal(Number(entry.amount_base), 53000);
+
+  // تغيير عملة المدرسة ممنوع بعد وجود حركات
+  assert.equal((await tenantC.put("/api/admin/settings/currency", { currency: "USD" })).status, 400);
+});
+
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {
   const r = await A.admin.get("/api/admin/export");
   assert.equal(r.status, 200);

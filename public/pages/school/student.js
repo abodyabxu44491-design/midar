@@ -2,7 +2,7 @@
 import { h, $, mount } from "/shared/js/dom.js";
 import { api, idempotencyKey } from "/shared/js/api.js";
 import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select , showInstallBar} from "/shared/js/ui.js";
-import { money, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "/shared/js/format.js";
+import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "/shared/js/format.js";
 import { timetableGrid } from "/shared/js/timetable.js";
 
 const app = $("#app");
@@ -25,6 +25,7 @@ const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {},
 const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
 
 function render(d) {
+  if (d.currency) setCurrency(d.currency);
   const s = d.student, f = d.fees;
   const avg = d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
   const count = (st) => d.attendance.filter((a) => a.status === st).length;

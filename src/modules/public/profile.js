@@ -45,6 +45,7 @@ r.post("/student", limits.studentKey, handle(async (req, res) => {
     }
     return {
       school: tenant.name,
+      currency: tenant.currency,
       student: { id: s.id, name: s.full_name, class_name: cls?.name || "غير محدد", guardian_name: s.guardian_name,
         guardian_phone: mask(s.guardian_phone), since: s.created_at },
       settings, academic: term, attendance, grades, teachers, announcements: news, fees,

@@ -2,6 +2,7 @@
 // تُشغَّل من باب المدرسة الموحّد بعد التعرف على دور الحساب.
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
+import { setCurrency } from "/shared/js/format.js";
 import { topbar, footer, tabs, panel, field, input, btn, toast, sub } from "/shared/js/ui.js";
 import { setApiBase } from "/admin/views/common.js";
 import ledger from "/admin/views/ledger.js";
@@ -12,6 +13,7 @@ const app = $("#app");
 export async function startAccountant() {
   setApiBase("accountant");
   const me = await api("/api/accountant/me");
+  setCurrency(me.currency);
   const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
   const t = tabs([["ledger", "المالية"], ["fees", "الرسوم"], ["account", "حسابي"]],
     { ledger, fees, account }, { me });
