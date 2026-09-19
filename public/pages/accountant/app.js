@@ -12,6 +12,7 @@ const app = $("#app");
 export async function startAccountant() {
   setApiBase("accountant");
   const me = await api("/api/accountant/me");
+  const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
   const t = tabs([["ledger", "المالية"], ["fees", "الرسوم"], ["account", "حسابي"]],
     { ledger, fees, account }, { me });
   mount(app,
@@ -28,6 +29,7 @@ function account({ me }) {
     panel("صلاحياتي", null,
       sub(`اعتماد الحركات المالية: ${me.permissions.approve ? "نعم" : "لا"}`),
       sub(`إدارة الرواتب: ${me.permissions.payroll ? "نعم" : "لا"}`),
+      sub(`إدارة الحسابات والتصنيفات: ${me.permissions.accounts ? "نعم" : "لا"}`),
       sub("الصلاحيات يحددها مدير المدرسة.")),
     panel("تغيير كلمة المرور", null,
       field("كلمة المرور الحالية", cur),

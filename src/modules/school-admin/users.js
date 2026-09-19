@@ -12,15 +12,17 @@ const createSchema = z.object({
   username: t.username,
   can_approve_finance: z.boolean().default(false),
   can_manage_payroll: z.boolean().default(false),
+  can_manage_accounts: z.boolean().default(false),
 });
 const permsSchema = z.object({
   can_approve_finance: z.boolean(),
   can_manage_payroll: z.boolean(),
+  can_manage_accounts: z.boolean(),
 });
 
 r.get("/", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => q(
-    `SELECT id, full_name AS name, username, is_active, can_approve_finance, can_manage_payroll, last_login_at
+    `SELECT id, full_name AS name, username, is_active, can_approve_finance, can_manage_payroll, can_manage_accounts, last_login_at
        FROM users WHERE role = 'accountant' ORDER BY id`)));
 }));
 
@@ -31,9 +33,10 @@ r.post("/", handle(async (req, res) => {
   await inTenant(req, async (q) => {
     const [taken] = await q("SELECT 1 FROM users WHERE username = $1", [b.username]);
     if (taken) throw conflict("اسم المستخدم مستخدم داخل المدرسة");
-    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, can_approve_finance, can_manage_payroll)
-             VALUES (app_tenant(), 'accountant', $1, $2, $3, $4, $5)`,
-      [b.name, b.username, hash, b.can_approve_finance, b.can_manage_payroll]);
+    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash,
+               can_approve_finance, can_manage_payroll, can_manage_accounts)
+             VALUES (app_tenant(), 'accountant', $1, $2, $3, $4, $5, $6)`,
+      [b.name, b.username, hash, b.can_approve_finance, b.can_manage_payroll, b.can_manage_accounts]);
   });
   res.status(201).json({ credentials: { school: req.tenantId, username: b.username, password } });
 }));
@@ -43,8 +46,9 @@ r.patch("/:id/permissions", handle(async (req, res) => {
   const b = parse(permsSchema, req.body);
   await inTenant(req, async (q) => {
     const rows = await q(
-      `UPDATE users SET can_approve_finance = $2, can_manage_payroll = $3
-        WHERE id = $1 AND role = 'accountant' RETURNING id`, [id, b.can_approve_finance, b.can_manage_payroll]);
+      `UPDATE users SET can_approve_finance = $2, can_manage_payroll = $3, can_manage_accounts = $4
+        WHERE id = $1 AND role = 'accountant' RETURNING id`,
+      [id, b.can_approve_finance, b.can_manage_payroll, b.can_manage_accounts]);
     if (!rows.length) throw notFound("الحساب غير موجود");
   });
   res.json({ ok: true });

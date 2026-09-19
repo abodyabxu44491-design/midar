@@ -590,7 +590,7 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
 test("دور المحاسب: يرى المالية فقط، والصلاحيات تُطبَّق", async () => {
   // إنشاء حساب محاسب بلا صلاحية اعتماد
   const created = await A.admin.post("/api/admin/users", {
-    name: "محاسب المدرسة", username: "acc1", can_approve_finance: false, can_manage_payroll: false });
+    name: "محاسب المدرسة", username: "acc1", can_approve_finance: false, can_manage_payroll: false, can_manage_accounts: false });
   assert.equal(created.status, 201, JSON.stringify(created.data));
 
   const acc = client(srv.base);
@@ -621,11 +621,27 @@ test("دور المحاسب: يرى المالية فقط، والصلاحيات
   // منح الصلاحيات ثم إعادة المحاولة
   const listed = (await A.admin.get("/api/admin/users")).data.find((u) => u.username === "acc1");
   assert.equal((await A.admin.patch(`/api/admin/users/${listed.id}/permissions`,
-    { can_approve_finance: true, can_manage_payroll: true })).status, 200);
+    { can_approve_finance: true, can_manage_payroll: true, can_manage_accounts: true })).status, 200);
   const entry2 = await acc.post("/api/accountant/ledger/entries", {
     direction: "expense", amount: 120, account_id: cash.id, category_id: cat.id,
     occurred_on: "2026-09-04", reason: "مستلزمات", method: "cash", needs_approval: true });
   assert.equal((await acc.post(`/api/accountant/ledger/entries/${entry2.data.id}/review`, { decision: "approve" })).status, 200);
+
+  // المرفقات: صورة فاتورة مع الحركة
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const up = await acc.post(`/api/accountant/ledger/entries/${entry2.data.id}/attachments`,
+    { filename: "فاتورة.png", mime: "image/png", data: png });
+  assert.equal(up.status, 201, JSON.stringify(up.data));
+  assert.ok(up.data.size_bytes > 0);
+  assert.equal((await acc.post(`/api/accountant/ledger/entries/${entry2.data.id}/attachments`,
+    { filename: "ملف.txt", mime: "text/plain", data: png })).status, 400, "نوع ملف غير مسموح");
+
+  const withFiles = (await acc.get("/api/accountant/ledger/entries?from=2000-01-01&to=2100-01-01")).data
+    .find((e) => e.id === entry2.data.id);
+  assert.equal(withFiles.attachments.length, 1, "المرفق يظهر مع الحركة");
+
+  // مدرسة أخرى لا تفتح مرفقاتنا
+  assert.equal((await B.admin.get(`/api/admin/ledger/attachments/${up.data.id}`)).status, 404);
 
   // إيقاف الحساب يُخرجه فورًا
   assert.equal((await A.admin.patch(`/api/admin/users/${listed.id}/active`, { active: false })).status, 200);

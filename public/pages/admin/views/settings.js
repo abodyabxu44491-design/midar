@@ -84,13 +84,23 @@ export default async function settings({ me, refresh }) {
 /* ---------- حسابات المحاسبين ---------- */
 function accountantsPanel(list, refresh) {
   const f = { name: input(), username: input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" }),
-    approve: input({ type: "checkbox" }), payroll: input({ type: "checkbox" }) };
+    approve: input({ type: "checkbox" }), payroll: input({ type: "checkbox" }), accounts: input({ type: "checkbox" }),
+    manager: input({ type: "checkbox" }) };
+  // «مدير مالي» = كل الصلاحيات بضغطة واحدة
+  f.manager.addEventListener("change", () => {
+    for (const el of [f.approve, f.payroll, f.accounts]) {
+      el.checked = f.manager.checked;
+      el.disabled = f.manager.checked;
+    }
+  });
 
   const row = (u) => line(
     h("div", { class: u.is_active ? "" : "muted-row" },
       h("b", {}, u.name), " ", u.is_active ? null : badge("موقوف", "gray"),
       sub(`اسم المستخدم: ${u.username}`),
-      sub(`اعتماد الحركات: ${u.can_approve_finance ? "نعم" : "لا"} — إدارة الرواتب: ${u.can_manage_payroll ? "نعم" : "لا"}`)),
+      sub(u.can_approve_finance && u.can_manage_payroll && u.can_manage_accounts
+        ? "مدير مالي — كل صلاحيات المالية"
+        : `اعتماد الحركات: ${u.can_approve_finance ? "نعم" : "لا"} — الرواتب: ${u.can_manage_payroll ? "نعم" : "لا"} — الحسابات: ${u.can_manage_accounts ? "نعم" : "لا"}`)),
     h("div", { class: "row", style: "flex:none" },
       btn("الصلاحيات", () => permsDialog(u, refresh), "ghost sm"),
       btn("كلمة مرور جديدة", async () => {
@@ -106,11 +116,15 @@ function accountantsPanel(list, refresh) {
     list.length ? list.map(row) : empty("لا توجد حسابات محاسبين."),
     h("h3", { class: "sec-title" }, "إضافة محاسب"),
     h("div", { class: "row" }, field("الاسم", f.name), field("اسم المستخدم", f.username)),
+    h("label", { class: "f pill" }, f.manager, h("b", {}, "مدير مالي (كل صلاحيات المالية)")),
     h("label", { class: "f pill" }, f.approve, "يعتمد الحركات المالية"),
     h("label", { class: "f pill" }, f.payroll, "يدير الرواتب"),
+    h("label", { class: "f pill" }, f.accounts, "يدير الحسابات والتصنيفات"),
     btn("إضافة الحساب", async () => {
+      const all = f.manager.checked;
       const r = await api(`${A}/users`, { name: f.name.value, username: f.username.value,
-        can_approve_finance: f.approve.checked, can_manage_payroll: f.payroll.checked });
+        can_approve_finance: all || f.approve.checked, can_manage_payroll: all || f.payroll.checked,
+        can_manage_accounts: all || f.accounts.checked });
       showCredentials("تمت إضافة المحاسب", r.credentials, `يدخل من نفس رابط دخول المنسوبين.`);
       refresh();
     }));
@@ -119,11 +133,17 @@ function accountantsPanel(list, refresh) {
 function permsDialog(u, refresh) {
   const approve = input({ type: "checkbox", checked: u.can_approve_finance });
   const payroll = input({ type: "checkbox", checked: u.can_manage_payroll });
+  const accounts = input({ type: "checkbox", checked: u.can_manage_accounts });
   const d = dialog(`صلاحيات ${u.name}`, h("div", {},
     h("label", { class: "f pill" }, approve, "اعتماد ورفض وإلغاء الحركات المالية"),
-    h("label", { class: "f pill" }, payroll, "إنشاء مسير الرواتب واعتماده وصرفه")),
+    h("label", { class: "f pill" }, payroll, "إنشاء مسير الرواتب واعتماده وصرفه"),
+    h("label", { class: "f pill" }, accounts, "إدارة الحسابات والصناديق والتصنيفات"),
+    h("div", { class: "spaced" }, btn("منحه كل الصلاحيات (مدير مالي)", () => {
+      for (const el of [approve, payroll, accounts]) el.checked = true;
+    }, "ghost sm"))),
   [btn("حفظ", async () => {
-    await api(`${A}/users/${u.id}/permissions`, { can_approve_finance: approve.checked, can_manage_payroll: payroll.checked }, "PATCH");
+    await api(`${A}/users/${u.id}/permissions`, { can_approve_finance: approve.checked,
+      can_manage_payroll: payroll.checked, can_manage_accounts: accounts.checked }, "PATCH");
     d.close(); toast("حُفظت الصلاحيات"); refresh();
   })]);
 }

@@ -1,12 +1,14 @@
 // المالية: الحسابات، التصنيفات، الحركات، التبرعات، الرواتب، التقارير
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle } from "../../core/http/errors.js";
+import { handle, notFound } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as ledger from "../shared/ledger.service.js";
 import * as donations from "../shared/donations.service.js";
 import * as payroll from "../shared/payroll.service.js";
 import { requirePermission } from "../../core/auth/guards.js";
+import express from "express";
+import * as files from "../shared/attachments.service.js";
 
 const r = Router();
 const period = z.object({
@@ -16,6 +18,10 @@ const period = z.object({
   status: z.enum(["pending", "approved", "rejected", "void"]).optional(),
   source_type: z.enum(["manual", "fee", "refund", "donation", "salary", "expense", "withdrawal"]).optional(),
 });
+const canApprove = requirePermission("can_approve_finance", "ليس لديك صلاحية اعتماد الحركات المالية");
+const canPayroll = requirePermission("can_manage_payroll", "ليس لديك صلاحية إدارة الرواتب");
+const canAccounts = requirePermission("can_manage_accounts", "ليس لديك صلاحية إدارة الحسابات والتصنيفات");
+const uploadBody = express.json({ limit: "4mb" });   // المرفقات تصل بصيغة base64
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
 
@@ -32,17 +38,17 @@ r.get("/summary", handle(async (req, res) => {
 r.get("/accounts", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return ledger.listAccounts(q); }));
 }));
-r.post("/accounts", handle(async (req, res) => {
+r.post("/accounts", canAccounts, handle(async (req, res) => {
   const b = parse(ledger.accountSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => ledger.addAccount(q, b)));
 }));
-r.patch("/accounts/:id", handle(async (req, res) => {
+r.patch("/accounts/:id", canAccounts, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(ledger.accountSchema, req.body);
   await inTenant(req, (q) => ledger.updateAccount(q, id, b));
   res.json({ ok: true });
 }));
-r.patch("/accounts/:id/active", handle(async (req, res) => {
+r.patch("/accounts/:id/active", canAccounts, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const { active } = parse(z.object({ active: z.boolean() }), req.body);
   await inTenant(req, (q) => ledger.setAccountActive(q, id, active));
@@ -53,7 +59,7 @@ r.patch("/accounts/:id/active", handle(async (req, res) => {
 r.get("/categories", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return ledger.listCategories(q); }));
 }));
-r.post("/categories", handle(async (req, res) => {
+r.post("/categories", canAccounts, handle(async (req, res) => {
   const b = parse(ledger.categorySchema, req.body);
   res.status(201).json(await inTenant(req, (q) => ledger.addCategory(q, b)));
 }));
@@ -72,8 +78,7 @@ r.post("/entries", handle(async (req, res) => {
   })));
 }));
 
-const canApprove = requirePermission("can_approve_finance", "ليس لديك صلاحية اعتماد الحركات المالية");
-const canPayroll = requirePermission("can_manage_payroll", "ليس لديك صلاحية إدارة الرواتب");
+
 
 r.post("/entries/:id/review", canApprove, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
@@ -144,6 +149,32 @@ r.post("/payroll/:id/pay", canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(payroll.paySchema, req.body);
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return payroll.payRun(q, id, b.method, req.actor); }));
+}));
+
+/* ---------- المرفقات ---------- */
+r.post("/entries/:id/attachments", uploadBody, handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const file = parse(files.uploadSchema, req.body);
+  res.status(201).json(await inTenant(req, async (q) => {
+    const [e] = await q("SELECT id FROM finance_entries WHERE id = $1", [id]);
+    if (!e) throw notFound("الحركة غير موجودة");
+    return files.upload(q, { entityType: "finance_entry", entityId: id, file, actor: req.actor });
+  }));
+}));
+
+r.get("/entries/:id/attachments", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  res.json(await inTenant(req, (q) => files.list(q, "finance_entry", id)));
+}));
+
+// تنزيل المرفق (داخل جلسة المدرسة فقط)
+r.get("/attachments/:id", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const file = await inTenant(req, (q) => files.download(q, id));
+  res.setHeader("Content-Type", file.mime);
+  res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(file.filename)}`);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.send(file.data);
 }));
 
 export default r;

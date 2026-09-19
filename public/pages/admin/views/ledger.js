@@ -23,9 +23,14 @@ function periodRange(key) {
   return { from: monthStart(), to: today() };
 }
 
-export default async function ledgerView({ refresh }) {
-  const section = select([["dashboard", "لوحة التحكم"], ["entries", "سجل الحركات"], ["expenses", "مصروف أو سحب"],
-    ["donations", "التبرعات"], ["payroll", "الرواتب"], ["accounts", "الحسابات والتصنيفات"]]);
+export default async function ledgerView({ refresh, me }) {
+  // المحاسب يرى الأقسام المسموح له بها فقط (المدير يرى الكل)
+  const perms = me?.permissions || { approve: true, payroll: true, accounts: true };
+  const sections = [["dashboard", "لوحة التحكم"], ["entries", "سجل الحركات"], ["expenses", "مصروف أو سحب"],
+    ["donations", "التبرعات"]];
+  if (perms.payroll) sections.push(["payroll", "الرواتب"]);
+  if (perms.accounts) sections.push(["accounts", "الحسابات والتصنيفات"]);
+  const section = select(sections);
   const body = h("div");
   const views = { dashboard, entries, expenses, donationsView, payroll, accounts };
   const show = async () => {
@@ -147,7 +152,9 @@ function entryRow(e, reload) {
       sub(e.reason),
       e.beneficiary ? sub(`المستفيد: ${e.beneficiary}`) : null,
       sub(`أنشأها ${e.created_by}${e.approved_by ? ` — اعتمدها ${e.approved_by}` : ""}${e.reference ? ` — مرجع ${e.reference}` : ""}`),
-      e.void_reason ? sub(`سبب الإلغاء: ${e.void_reason}`) : null),
+      e.void_reason ? sub(`سبب الإلغاء: ${e.void_reason}`) : null,
+      e.attachments?.length ? h("div", { class: "sub pill" }, "المرفقات: ",
+        ...e.attachments.map((f) => h("a", { class: "btn ghost sm", href: `${A}/ledger/attachments/${f.id}`, target: "_blank", rel: "noopener" }, f.filename))) : null),
     h("div", { class: "row", style: "flex:none" },
       e.status === "pending" ? btn("اعتماد", async () => {
         await api(`${A}/ledger/entries/${e.id}/review`, { decision: "approve" }); toast("اعتُمدت الحركة"); reload();
@@ -183,7 +190,8 @@ async function expenses({ show }) {
       reason: input(),
       beneficiary: input(),
       reference: input({ class: "ltr" }),
-      attachment: input({ placeholder: "رقم الفاتورة أو رابطها" }),
+      attachment: input({ placeholder: "رقم الفاتورة (اختياري)" }),
+      file: input({ type: "file", accept: "image/jpeg,image/png,image/webp,application/pdf" }),
       note: textarea({ rows: 2 }),
       approval: input({ type: "checkbox", checked: direction === "expense" }),
     };
@@ -192,7 +200,8 @@ async function expenses({ show }) {
       h("div", { class: "row" }, field("الحساب", f.account), field("التصنيف", f.category)),
       field("سبب الحركة", f.reason),
       h("div", { class: "row" }, field(direction === "expense" ? "الجهة المستفيدة" : "المصدر", f.beneficiary), field("رقم العملية / المرجع", f.reference)),
-      field("المرفق أو الفاتورة", f.attachment),
+      h("div", { class: "row" }, field("رقم الفاتورة", f.attachment), field("إرفاق صورة الفاتورة أو PDF", f.file)),
+      sub("الحد 2 ميجابايت للملف. يُحفظ داخل النظام ويظهر مع الحركة."),
       field("ملاحظات", f.note),
       direction === "expense" ? h("label", { class: "f pill" }, f.approval, "تحتاج اعتمادًا قبل احتسابها") : null,
       btn(direction === "expense" ? "تسجيل المصروف" : "تسجيل الإيراد", async () => {
@@ -202,8 +211,9 @@ async function expenses({ show }) {
           method: f.method.value, reference: f.reference.value || null, attachment: f.attachment.value || null,
           note: f.note.value || null, needs_approval: direction === "expense" ? f.approval.checked : false,
         });
+        await uploadFile(f.file, r.id);
         toast(r.status === "pending" ? `سُجلت برقم ${r.entry_no} بانتظار الاعتماد` : `سُجلت برقم ${r.entry_no}`);
-        for (const el of [f.amount, f.reason, f.beneficiary, f.reference, f.attachment, f.note]) el.value = "";
+        for (const el of [f.amount, f.reason, f.beneficiary, f.reference, f.attachment, f.note, f.file]) el.value = "";
       }));
   };
 
@@ -212,6 +222,20 @@ async function expenses({ show }) {
     form("expense"),
     form("income"),
   ];
+}
+
+// رفع المرفق بعد إنشاء الحركة
+async function uploadFile(fileInput, entryId) {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) return toast("حجم الملف أكبر من 2 ميجابايت", true);
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = () => reject(new Error("تعذر قراءة الملف"));
+    reader.readAsDataURL(file);
+  });
+  await api(`${A}/ledger/entries/${entryId}/attachments`, { filename: file.name, mime: file.type, data });
 }
 
 /* ---------------- التبرعات ---------------- */

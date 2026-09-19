@@ -172,7 +172,7 @@ const ENTRY_SELECT = `SELECT e.id, e.entry_no, e.direction, e.amount, e.occurred
   JOIN finance_categories c ON c.id = e.category_id
   LEFT JOIN terms tr ON tr.id = e.term_id`;
 
-export const listEntries = (q, f = {}) => q(
+export const listEntriesRaw = (q, f = {}) => q(
   `${ENTRY_SELECT}
     WHERE ($1::date IS NULL OR e.occurred_on >= $1)
       AND ($2::date IS NULL OR e.occurred_on <= $2)
@@ -184,6 +184,17 @@ export const listEntries = (q, f = {}) => q(
     ORDER BY e.occurred_on DESC, e.id DESC LIMIT 1000`,
   [f.from ?? null, f.to ?? null, f.direction ?? null, f.account_id ?? null, f.category_id ?? null,
    f.status ?? null, f.source_type ?? null]);
+
+// الحركات مع عدد مرفقات كل حركة
+export async function listEntries(q, f = {}) {
+  const rows = await listEntriesRaw(q, f);
+  if (!rows.length) return rows;
+  const files = await q(
+    `SELECT id, entity_id, filename, mime FROM attachments
+      WHERE entity_type = 'finance_entry' AND entity_id = ANY($1::bigint[])`,
+    [rows.map((r) => r.id)]);
+  return rows.map((r) => ({ ...r, attachments: files.filter((f2) => Number(f2.entity_id) === Number(r.id)) }));
+}
 
 export async function reviewEntry(q, id, b, actor) {
   const [e] = await q("SELECT id, status FROM finance_entries WHERE id = $1 FOR UPDATE", [id]);
