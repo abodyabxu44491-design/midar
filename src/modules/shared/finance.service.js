@@ -2,6 +2,7 @@
 // القواعد الحساسة (منع الدفع الزائد، ثبات المدفوعات) مطبقة داخل قاعدة البيانات نفسها
 import { z, t } from "../../core/http/validate.js";
 import { notFound, badRequest } from "../../core/http/errors.js";
+import { addSystemEntry } from "./ledger.service.js";
 
 export const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };
 
@@ -83,10 +84,26 @@ export async function recordPayment(q, { invoiceId, kind = "payment", amount, me
   const [inv] = await q("SELECT id FROM invoices WHERE id = $1", [invoiceId]);
   if (!inv) throw notFound("الفاتورة غير موجودة");
   const receipt = await nextReceipt(q);
-  await q(
+  const [payment] = await q(
     `INSERT INTO payments (tenant_id, invoice_id, kind, amount, method, receipt_no, idempotency_key, provider_ref, note, created_by)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
     [invoiceId, kind, amount, method, receipt, idempotencyKey, providerRef, note, actor]);
+
+  // كل دفعة أو استرداد يظهر تلقائيًا في سجل الحركات المالية
+  const [info] = await q(
+    `SELECT s.full_name AS student, c.name AS class_name, i.title
+       FROM invoices i JOIN students s ON s.id = i.student_id LEFT JOIN classes c ON c.id = s.class_id
+      WHERE i.id = $1`, [invoiceId]);
+  await addSystemEntry(q, {
+    direction: kind === "refund" ? "expense" : "income",
+    amount, method, occurredOn: new Date().toISOString().slice(0, 10),
+    reason: `${kind === "refund" ? "استرداد" : "سداد"} ${info?.title || "رسوم"} — إيصال ${receipt}`,
+    beneficiary: info ? `${info.student}${info.class_name ? ` (${info.class_name})` : ""}` : null,
+    reference: receipt,
+    categoryCode: kind === "refund" ? "other_expense" : "tuition",
+    sourceType: kind === "refund" ? "refund" : "fee",
+    sourceId: payment.id, actor,
+  });
   return { receipt, amount };
 }
 

@@ -497,6 +497,96 @@ test("طلبات التسجيل: تُرسل من صفحة المدرسة وتُ�
   assert.equal(prof.data.student.name, "طالب جديد");
 });
 
+test("النظام المالي: حسابات وحركات واعتماد وتبرعات ورواتب", async () => {
+  // الحسابات والتصنيفات تُجهَّز تلقائيًا لكل مدرسة
+  const accounts = await A.admin.get("/api/admin/ledger/accounts");
+  assert.equal(accounts.status, 200, JSON.stringify(accounts.data));
+  assert.ok(accounts.data.length >= 2, "صندوق نقدي وحساب بنكي افتراضيان");
+  const cash = accounts.data.find((a) => a.kind === "cash");
+  const categories = (await A.admin.get("/api/admin/ledger/categories")).data;
+  const expenseCat = categories.find((c) => c.direction === "expense");
+  const incomeCat = categories.find((c) => c.direction === "income");
+
+  // دفعة رسوم جديدة تدخل سجل الحركات تلقائيًا
+  await A.admin.post("/api/admin/finance/invoices", { target: "student", target_id: s.student.id, title: "رسوم نشاط", amount: 200 });
+  const inv = (await A.admin.get("/api/admin/finance/invoices")).data.invoices.find((i) => i.title === "رسوم نشاط");
+  assert.equal((await A.admin.post(`/api/admin/finance/invoices/${inv.id}/payments`,
+    { amount: 200, method: "cash", idempotency_key: `k-${uid()}-ledger` })).status, 201);
+
+  const entriesAfterFees = await A.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01");
+  assert.ok(entriesAfterFees.data.some((e) => e.source_type === "fee"), "دفعة الرسوم أنشأت حركة");
+  assert.ok(entriesAfterFees.data.every((e) => e.reason && e.account_name && e.category_name), "لا حركة مجهولة السبب");
+
+  // مصروف يحتاج اعتمادًا: لا يُحتسب قبل الاعتماد
+  const before = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+  const pending = await A.admin.post("/api/admin/ledger/entries", {
+    direction: "expense", amount: 500, account_id: cash.id, category_id: expenseCat.id,
+    occurred_on: "2026-09-01", reason: "شراء مستلزمات", beneficiary: "مورد", method: "cash", needs_approval: true });
+  assert.equal(pending.status, 201, JSON.stringify(pending.data));
+  assert.equal(pending.data.status, "pending");
+  assert.match(pending.data.entry_no, /^F-\d{6}$/);
+
+  const mid = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+  assert.equal(mid.data.expense, before.data.expense, "المعلّق لا يُحتسب");
+  assert.equal(mid.data.pending, 1);
+
+  assert.equal((await A.admin.post(`/api/admin/ledger/entries/${pending.data.id}/review`, { decision: "approve" })).status, 200);
+  const after = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+  assert.equal(after.data.expense, before.data.expense + 500, "بعد الاعتماد يُحتسب");
+  assert.equal(after.data.balance, before.data.balance - 500, "الرصيد ينقص");
+  assert.equal((await A.admin.post(`/api/admin/ledger/entries/${pending.data.id}/review`, { decision: "approve" })).status, 400, "لا يُعتمد مرتين");
+
+  // الإلغاء يحتاج سببًا ولا يُحذف
+  assert.equal((await A.admin.post(`/api/admin/ledger/entries/${pending.data.id}/void`, { reason: "خط" })).status, 400);
+  assert.equal((await A.admin.post(`/api/admin/ledger/entries/${pending.data.id}/void`, { reason: "خطأ في الإدخال" })).status, 200);
+  const voided = (await A.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01")).data
+    .find((e) => e.id === pending.data.id);
+  assert.equal(voided.status, "void", "الحركة تبقى في السجل ملغاة");
+  const afterVoid = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+  assert.equal(afterVoid.data.expense, before.data.expense, "الملغاة لا تُحتسب");
+
+  // حركة الرسوم لا تُلغى من السجل المالي
+  const feeEntry = entriesAfterFees.data.find((e) => e.source_type === "fee");
+  assert.equal((await A.admin.post(`/api/admin/ledger/entries/${feeEntry.id}/void`, { reason: "محاولة" })).status, 400);
+
+  // تبرع: يُسجَّل كإيراد مستقل
+  const donation = await A.admin.post("/api/admin/ledger/donations", {
+    anonymous: true, amount: 1000, method: "transfer", received_on: "2026-09-02", purpose: "دعم الأنشطة" });
+  assert.equal(donation.status, 201, JSON.stringify(donation.data));
+  assert.ok(donation.data.entry_no);
+  const withDonation = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+  assert.equal(withDonation.data.donations, 1000);
+  assert.equal((await A.admin.post("/api/admin/ledger/donations", { anonymous: false, amount: 50, method: "cash", received_on: "2026-09-02" })).status, 400, "اسم المتبرع مطلوب");
+
+  // الرواتب: مسير ← اعتماد ← صرف ينشئ حركات
+  assert.ok((await A.admin.post("/api/admin/ledger/staff/import-teachers", {})).data.added >= 1);
+  await A.admin.post("/api/admin/ledger/staff", { full_name: "موظف إداري", category: "admin", base_salary: 3000 });
+  const run = await A.admin.post("/api/admin/ledger/payroll", { period: "2026-09-01" });
+  assert.equal(run.status, 201, JSON.stringify(run.data));
+  assert.ok(run.data.employees >= 2);
+  assert.equal((await A.admin.post("/api/admin/ledger/payroll", { period: "2026-09-15" })).status, 409, "مسير واحد للشهر");
+
+  const items = (await A.admin.get(`/api/admin/ledger/payroll/${run.data.id}/items`)).data;
+  const item = items.find((i) => Number(i.base) > 0) || items[0];
+  const updated = await A.admin.patch(`/api/admin/ledger/payroll/${run.data.id}/items/${item.id}`,
+    { allowances: 500, bonus: 0, deductions: 100, advances: 0 });
+  assert.equal(Number(updated.data.net), Number(item.base) + 400, "صافي الراتب يُحسب آليًا");
+
+  assert.equal((await A.admin.post(`/api/admin/ledger/payroll/${run.data.id}/pay`, { method: "transfer" })).status, 400, "الصرف بعد الاعتماد");
+  assert.equal((await A.admin.post(`/api/admin/ledger/payroll/${run.data.id}/approve`, {})).status, 200);
+  assert.equal((await A.admin.patch(`/api/admin/ledger/payroll/${run.data.id}/items/${item.id}`, { allowances: 0, bonus: 0, deductions: 0, advances: 0 })).status, 400, "لا تعديل بعد الاعتماد");
+  const paid = await A.admin.post(`/api/admin/ledger/payroll/${run.data.id}/pay`, { method: "transfer" });
+  assert.equal(paid.status, 200, JSON.stringify(paid.data));
+  assert.ok(paid.data.paid >= 1);
+  const salaryEntries = (await A.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01&source_type=salary")).data;
+  assert.equal(salaryEntries.length, paid.data.paid, "حركة مصروف لكل موظف");
+  assert.ok(salaryEntries.every((e) => e.beneficiary), "كل راتب مربوط باسم موظفه");
+
+  // عزل المدارس
+  assert.equal((await B.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01")).data.length, 0);
+  assert.equal((await B.admin.get("/api/admin/ledger/donations")).data.length, 0);
+});
+
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {
   const r = await A.admin.get("/api/admin/export");
   assert.equal(r.status, 200);

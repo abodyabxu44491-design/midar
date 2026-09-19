@@ -11,6 +11,7 @@ import academic from "./views/academic.js";
 import attendance from "./views/attendance.js";
 import exams from "./views/exams.js";
 import finance from "./views/finance.js";
+import ledger from "./views/ledger.js";
 import announcements from "./views/announcements.js";
 import settings from "./views/settings.js";
 import audit from "./views/audit.js";
@@ -26,8 +27,8 @@ export async function startAdmin() {
   const t = tabs([
     ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"], ["academic", "السنة الدراسية"],
     ["attendance", "الحضور"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["reports", "كشف الدرجات"], ["analytics", "التحليلات"],
-    ["finance", "الرسوم"], ["admissions", "طلبات التسجيل"], ["announcements", "التعاميم"], ["settings", "الإعدادات"], ["audit", "السجل"],
-  ], { dashboard, students, teachers, structure, academic, attendance, timetable, exams, reports, analytics, finance, admissions, announcements, settings, audit }, { me });
+    ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"], ["announcements", "التعاميم"], ["settings", "الإعدادات"], ["audit", "السجل"],
+  ], { dashboard, students, teachers, structure, academic, attendance, timetable, exams, reports, analytics, finance, ledger, admissions, announcements, settings, audit }, { me });
 
   mount(app,
     topbar({ school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
