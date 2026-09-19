@@ -13,7 +13,7 @@ export default async function exams({ refresh }) {
     toast(msg); refresh();
   };
   return panel("الاختبارات", null,
-    sub("المعلم ينشئ الاختبار ويدخل الدرجات ثم يرسلها. أنت تراجعها وتعتمدها. لا تظهر في صفحة الطالب إلا بعد النشر."),
+    sub("الدرجات لا تظهر لأولياء الأمور قبل اعتمادها."),
     list.length ? list.map((e) => line(
       h("div", {}, h("b", {}, e.title), " ", badge(...EXAM[e.status]),
         sub(`${e.class_name} — ${e.subject_name} — ${fmtDate(e.exam_date)} — من ${e.max_score} — أُدخلت ${e.graded} درجة — ${e.created_by}`)),

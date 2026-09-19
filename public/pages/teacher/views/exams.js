@@ -10,7 +10,7 @@ export default async function exams({ me, refresh }) {
   if (!me.load.length) return empty("لا توجد مواد مسندة لك.");
   const list = await api(T);
   const pair = select(me.load.map((l) => [`${l.class_id}:${l.subject_id}`, `${l.class_name} — ${l.subject_name}`]));
-  const title = input({ placeholder: "اختبار الفترة الأولى" });
+  const title = input({ placeholder: "عنوان الاختبار" });
   const date = input({ type: "date", value: today() });
   const max = input({ type: "number", value: 20, min: 0.25, step: "0.25" });
   return [
@@ -44,7 +44,7 @@ function examRow(e, refresh) {
       return out;
     };
     mount(box,
-      locked ? notice("الدرجات مقفلة بعد الإرسال. تُفتح إذا أرجعتها الإدارة.", "warn") : null,
+      locked ? notice("الدرجات مقفلة بعد الإرسال حتى تُرجعها الإدارة.", "warn") : null,
       rows.length ? rows.map((r, i) => line(h("span", {}, r.name), inputs[i][1])) : empty("لا يوجد طلاب في الفصل."),
       !locked && h("div", { class: "row spaced", style: "justify-content:flex-start" },
         btn("حفظ مسودة", async () => { const r = await api(`${T}/${e.id}/scores`, { scores: collect() }, "PUT"); toast(`تم حفظ ${r.saved} درجة`); }, "soft sm"),

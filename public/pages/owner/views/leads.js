@@ -39,10 +39,10 @@ function row(l, refresh) {
 }
 
 function convert(l, refresh) {
-  const code = input({ class: "ltr", placeholder: "رمز المدرسة بالإنجليزية" });
+  const code = input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" });
   const msg = h("div");
   const d = dialog(`تحويل ${l.school_name} إلى مدرسة مشتركة`, h("div", {},
-    sub("سيُنشأ الاشتراك مباشرة، وتظهر لك بطاقة التسليم."), h("div", {}, code), msg), [
+    sub("يُنشأ الاشتراك وتظهر بطاقة التسليم."), h("div", {}, code), msg), [
     btn("إنشاء المدرسة", async () => {
       mount(msg);
       try {

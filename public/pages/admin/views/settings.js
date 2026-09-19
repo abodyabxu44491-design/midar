@@ -8,8 +8,8 @@ import { A, directoryLink } from "./common.js";
 
 export default async function settings({ me, refresh }) {
   const pay = await api(`${A}/settings/payment`);
-  const acc = { bank: input({ placeholder: "مثال: مصرف الراجحي" }), holder: input(), iban: input({ class: "ltr", placeholder: "SA00 0000 0000 0000 0000 0000" }), number: input({ class: "ltr" }) };
-  const note = textarea({ rows: 2, value: pay.payment_note || "", placeholder: "مثال: الدفع النقدي في مكتب المحاسب من الأحد إلى الخميس، 8 صباحًا – 12 ظهرًا" });
+  const acc = { bank: input({ placeholder: "اسم البنك" }), holder: input(), iban: input({ class: "ltr", placeholder: "SA00 0000 0000 0000 0000 0000" }), number: input({ class: "ltr" }) };
+  const note = textarea({ rows: 2, value: pay.payment_note || "", placeholder: "مواعيد استلام الدفع النقدي ومكانه" });
   const pub = await api(`${A}/settings/public-page`);
   const tpl = await api(`${A}/messaging/templates`);
   const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
@@ -18,7 +18,7 @@ export default async function settings({ me, refresh }) {
     publicPagePanel(pub, me, refresh),
     messagesPanel(tpl),
     panel("طرق السداد", null,
-      sub("الحسابات المفعّلة تظهر لولي الأمر عند الضغط على «ادفع» في صفحة الطالب."),
+      sub("تظهر لولي الأمر عند الضغط على «ادفع»."),
       pay.accounts.length ? pay.accounts.map((a) => line(
         h("div", { class: a.is_active ? "" : "muted-row" }, h("b", {}, a.bank_name), " ", a.is_active ? null : badge("موقوف", "gray"),
           sub(`${a.account_holder} — `, keyText(a.iban), a.account_number ? ` — ${a.account_number}` : "")),
@@ -39,7 +39,7 @@ export default async function settings({ me, refresh }) {
       }, "soft"))),
     panel("رمز صفحة الطلاب", null,
       line(h("span", {}, "الرمز الحالي"), keyText(me.school.directory_code)),
-      sub("غيّر الرمز إذا انتشر خارج أولياء أمور المدرسة. الرمز القديم يتوقف فورًا."),
+      sub("إنشاء رمز جديد يوقف الرمز الحالي فورًا."),
       h("div", { class: "spaced" }, btn("إنشاء رمز جديد", async () => {
         if (!confirmAction("سيتوقف الرمز الحالي. متابعة؟")) return;
         const r = await api(`${A}/settings/directory-code`, {});
@@ -53,13 +53,13 @@ export default async function settings({ me, refresh }) {
         cur.value = nxt.value = ""; toast("تم تغيير كلمة المرور");
       })),
     panel("الأمان", null,
-      sub("إذا اشتبهت أن أحدًا دخل بحساب معلم، أنهِ كل الجلسات. سيحتاج الجميع لتسجيل الدخول من جديد."),
+      sub("ينهي جلسات بقية المستخدمين ويطلب دخولهم من جديد."),
       h("div", { class: "spaced" }, btn("إنهاء جميع الجلسات الأخرى", async () => {
         if (!confirmAction("إنهاء جلسات جميع المستخدمين الآخرين؟")) return;
         await api(`${A}/settings/sign-out-all`, {}); toast("تم");
       }, "danger"))),
     panel("نسخة من بياناتك", null,
-      sub("تصدير كل بيانات المدرسة: الطلاب، الحضور، الدرجات، الجدول، الفواتير، المدفوعات. احفظها عندك بشكل دوري."),
+      sub("نسخة كاملة من بيانات مدرستك. احفظها عندك بشكل دوري."),
       h("div", { class: "row" },
         btn("تصدير Excel (ملفات CSV)", async () => {
           const d = await api(`${A}/export`);
@@ -125,12 +125,12 @@ function publicPagePanel(pub, me, refresh) {
     }));
 
   return panel("صفحة المدرسة العامة", btn("معاينة", () => window.open(directoryLink(me), "_blank"), "ghost sm"),
-    sub("كل عنصر اختياري. ما توقفه هنا يختفي فورًا عن الزوار."),
+    sub("ما توقفه هنا يختفي فورًا عن الزوار."),
     field("طريقة الدخول للصفحة", mode),
     msg,
     ...rows,
     feeRow,
-    notice("حالة السداد بيانات مالية عن أسرة الطالب. إظهارها للجميع قد يُحرج الطالب أمام زملائه، وقد يخالف نظام حماية البيانات الشخصية. الأفضل إبقاؤها موقوفة، فولي الأمر يرى رسومه داخل ملف ابنه على أي حال.", "warn"));
+    notice("إظهارها للجميع يكشف وضع الأسرة المالي وقد يُحرج الطالب. ولي الأمر يرى رسومه داخل ملف ابنه على أي حال.", "warn"));
 }
 
 
@@ -146,8 +146,8 @@ function messagesPanel(tpl) {
   const code = input({ class: "ltr", value: tpl.country_code, style: "max-width:120px" });
   const fields = Object.fromEntries(TPL.map(([k, label]) => [k, textarea({ rows: 2, value: tpl[k], "aria-label": label })]));
   return panel("رسائل واتساب", null,
-    sub("المنصة تجهّز الرسالة وتفتح واتساب من جوالك، بدون أي اشتراك في مزود رسائل."),
-    sub("المتغيرات المتاحة: {الطالب} {المدرسة} {الفصل} {التاريخ} {المبلغ} {الرابط}"),
+    sub("تُفتح الرسالة جاهزة في واتساب من جهازك."),
+    sub("المتغيرات: {الطالب} {المدرسة} {الفصل} {التاريخ} {المبلغ} {الرابط}"),
     field("رمز الدولة", code),
     TPL.map(([k, label]) => field(label, fields[k])),
     btn("حفظ القوالب", async () => {

@@ -28,7 +28,7 @@ export default async function reports({ me }) {
 
   return [
     panel("كشف الدرجات", null,
-      sub("يُبنى من الاختبارات المعتمدة والمنشورة فقط. للحفظ كملف PDF اضغط طباعة ثم اختر «حفظ كـ PDF»."),
+      sub("من الاختبارات المنشورة فقط. للحفظ PDF: اضغط طباعة ثم «حفظ كـ PDF»."),
       field("الفصل الدراسي", termPicker),
       h("div", { class: "row" },
         field("طالب واحد", studentPicker),

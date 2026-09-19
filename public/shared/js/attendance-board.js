@@ -43,7 +43,7 @@ export function attendanceBoard(endpoint, classes, wa = null) {
     };
     refreshCounter();
     return h("div", {},
-      notice("اضغط على اسم الطالب لتغيير حالته: حاضر ← غائب ← متأخر ← بعذر. ثم احفظ.", ""),
+      notice("اضغط على الاسم لتغيير الحالة، ثم احفظ.", ""),
       h("div", { class: "quick-grid" }, rows.map(chip)),
       h("div", { class: "toolbar spaced" }, counter,
         btn("حفظ الحضور", async () => {

@@ -188,7 +188,7 @@ const CRED_LABELS = { school: "رمز المدرسة", username: "اسم الم�
 export function showCredentials(title, creds, note) {
   const text = Object.entries(creds).map(([k, v]) => `${CRED_LABELS[k] || k}: ${v}`).join("\n");
   dialog(title, h("div", {},
-    notice(note || "انسخ هذه البيانات الآن وسلّمها لصاحبها بطريقة آمنة. كلمة المرور لن تظهر مرة أخرى.", "warn"),
+    notice(note || "انسخها الآن وسلّمها لصاحبها. كلمة المرور لن تظهر مرة أخرى.", "warn"),
     Object.entries(creds).map(([k, v]) => line(h("span", {}, CRED_LABELS[k] || k), keyText(v)))),
     [btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); })]);
 }

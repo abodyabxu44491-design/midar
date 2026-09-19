@@ -14,7 +14,7 @@ export default async function finance({ refresh }) {
   const pending = claims.filter((c) => c.status === "pending");
   const target = select([["", "اختر"], ...classes.map((c) => [`class:${c.id}`, `فصل كامل: ${c.name}`]),
     ...students.map((s) => [`student:${s.id}`, `طالب: ${s.name}`])]);
-  const title = input({ placeholder: "رسوم الفصل الدراسي الأول" });
+  const title = input({ placeholder: "بند الرسوم" });
   const amount = input({ type: "number", min: 0.01, step: "0.01" });
   const due = input({ type: "date" });
 
@@ -22,12 +22,12 @@ export default async function finance({ refresh }) {
     stats([["إجمالي الفواتير", money(totals.fees_total)], ["المحصّل", money(totals.fees_paid)], ["المتبقي", money(totals.fees_remaining)],
       ["تحويلات بانتظار التأكيد", pending.length]]),
     panel(`إشعارات التحويل البنكي (${pending.length} بانتظار المراجعة)`, null,
-      sub("قارن الإشعار بكشف حساب البنك قبل التأكيد. التأكيد يسجل الدفعة ويصدر إيصالًا تلقائيًا."),
+      sub("تأكد من وصول المبلغ قبل التأكيد. التأكيد يصدر إيصالًا."),
       claims.length ? claims.slice(0, 50).map((c) => claimRow(c, refresh)) : empty("لا توجد إشعارات تحويل.")),
     panel("إصدار فاتورة", null,
       h("div", { class: "row" }, field("لـ", target), field("البند", title)),
       h("div", { class: "row" }, field("المبلغ (ر.س)", amount), field("تاريخ الاستحقاق", due)),
-      sub("إصدار فاتورة يفعّل الرسوم تلقائيًا في صفحة الطالب."),
+      sub("إصدار الفاتورة يفعّل الرسوم للطالب."),
       btn("إصدار الفاتورة", async () => {
         const [kind, id] = target.value.split(":");
         if (!id) return toast("اختر الطالب أو الفصل", true);
@@ -63,8 +63,8 @@ function claimRow(c, refresh) {
         })]);
       }, "sm"),
       btn("رفض", () => {
-        const note = input({ placeholder: "مثال: لم يصل المبلغ إلى الحساب" });
-        const d = dialog("رفض الإشعار", h("div", {}, sub("السبب يظهر لولي الأمر في صفحة الطالب."), field("سبب الرفض", note)),
+        const note = input({ placeholder: "سبب الرفض" });
+        const d = dialog("رفض الإشعار", h("div", {}, sub("السبب يظهر لولي الأمر."), field("سبب الرفض", note)),
           [btn("رفض الإشعار", async () => {
             await api(`${A}/finance/claims/${c.id}/review`, { decision: "reject", note: note.value });
             d.close(); toast("تم الرفض"); refresh();
@@ -107,7 +107,7 @@ function refundDialog(i, refresh) {
   const note = input({ placeholder: "سبب الاسترداد (مطلوب)" });
   const key = idempotencyKey();
   const d = dialog(`استرداد — ${i.student_name}`, h("div", {},
-    sub(`المدفوع ${money(i.paid)}. الدفعات لا تُحذف؛ التصحيح يكون بقيد استرداد.`), field("المبلغ", amount), field("السبب", note)),
+    sub(`المدفوع ${money(i.paid)}. التصحيح يكون بقيد استرداد.`), field("المبلغ", amount), field("السبب", note)),
   [btn("تسجيل الاسترداد", async () => {
     const r = await api(`${A}/finance/invoices/${i.id}/refunds`, { amount: amount.value, note: note.value, idempotency_key: key });
     d.close(); toast(`تم. رقم القيد ${r.receipt}`); refresh();
@@ -116,7 +116,7 @@ function refundDialog(i, refresh) {
 
 function voidDialog(i, refresh) {
   const reason = input({ placeholder: "سبب الإلغاء (مطلوب)" });
-  const d = dialog(`إلغاء الفاتورة #${i.id}`, h("div", {}, sub("الفاتورة الملغاة تبقى في السجل ولا يمكن إعادة فتحها."), field("السبب", reason)),
+  const d = dialog(`إلغاء الفاتورة #${i.id}`, h("div", {}, sub("الإلغاء نهائي، والفاتورة تبقى في السجل."), field("السبب", reason)),
     [btn("إلغاء الفاتورة", async () => {
       await api(`${A}/finance/invoices/${i.id}/void`, { reason: reason.value }); d.close(); toast("تم الإلغاء"); refresh();
     }, "danger")]);

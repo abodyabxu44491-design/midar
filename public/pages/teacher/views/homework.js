@@ -10,7 +10,7 @@ export default async function homework({ me, refresh }) {
   if (!me.load.length) return empty("لا توجد مواد مسندة لك.");
   const list = await api(T);
   const pair = select(me.load.map((l) => [`${l.class_id}:${l.subject_id}`, `${l.class_name} — ${l.subject_name}`]));
-  const title = input({ placeholder: "حل تمارين الوحدة الثالثة" });
+  const title = input({ placeholder: "عنوان الواجب" });
   const details = textarea({ rows: 2, placeholder: "التفاصيل (اختياري)" });
   const due = input({ type: "date", value: today() });
 
@@ -43,7 +43,7 @@ function row(a, refresh) {
       return el;
     };
     mount(box,
-      sub("اضغط على اسم الطالب للتبديل بين «سلّم» و«لم يسلّم»، ثم احفظ."),
+      sub("اضغط على الاسم للتبديل بين «سلّم» و«لم يسلّم»."),
       rows.length ? h("div", { class: "quick-grid" }, rows.map(chip)) : empty("لا يوجد طلاب في الفصل."),
       rows.length ? h("div", { class: "toolbar spaced" }, btn("حفظ", async () => {
         await api(`${T}/${a.id}/submissions`, { entries: rows.map((r) => ({ student_id: r.id, submitted: !!marks.get(r.id), note: null })) }, "PUT");

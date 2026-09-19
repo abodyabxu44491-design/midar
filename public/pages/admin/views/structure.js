@@ -14,7 +14,7 @@ function block(title, list, path, placeholder, refresh) {
         if (!confirmAction(`حذف «${x.name}»؟`)) return;
         await api(`${A}/structure/${path}/${x.id}`, undefined, "DELETE"); toast("تم الحذف"); refresh();
       }, "danger sm"))) : empty("لا يوجد."),
-    path === "classes" ? sub("لا يمكن حذف فصل فيه طلاب أو اختبارات. انقلهم أولًا.") : null);
+    path === "classes" ? sub("الفصل الذي فيه طلاب أو اختبارات لا يُحذف.") : null);
 }
 
 export default async function structure({ refresh }) {
@@ -24,7 +24,7 @@ export default async function structure({ refresh }) {
     block("الفصول", classes, "classes", "مثال: الرابع - أ", refresh),
     block("المواد", subjects, "subjects", "مثال: الرياضيات", refresh),
     panel("ترحيل الطلاب لسنة جديدة", null,
-      sub("ينقل كل طلاب فصل إلى فصل آخر في عملية واحدة، وتُسجَّل في السجل."),
+      sub("نقل طلاب فصل كامل إلى فصل آخر."),
       h("div", { class: "row spaced" }, from, to, btn("ترحيل", async () => {
         if (!confirmAction("تأكيد ترحيل جميع طلاب الفصل؟")) return;
         const r = await api(`${A}/structure/promote`, { from: from.value, to: to.value });

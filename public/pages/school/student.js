@@ -131,7 +131,7 @@ function payDialog(f, inv, available) {
     const key = idempotencyKey();
     const amount = input({ type: "number", min: 0.01, max: available, step: "0.01", value: available });
     const date = input({ type: "date", value: today(), max: today() });
-    const sender = input({ placeholder: "الاسم كما يظهر في البنك" });
+    const sender = input({ placeholder: "الاسم كما في حساب التحويل" });
     const ref = input({ class: "ltr", placeholder: "اختياري" });
     const account = select(f.accounts.map((a) => [a.id, `${a.bank_name} — ${a.iban.slice(-4)}`]));
     const msg = h("div");
@@ -161,7 +161,7 @@ function payDialog(f, inv, available) {
     accounts,
     f.accounts.length ? line(h("span", { class: "sub" }, "اكتب في ملاحظة التحويل"), h("span", { class: "pill" }, h("span", { class: "key plain" }, reference), copy(reference))) : null,
     f.accounts.length && available > 0 ? h("div", { class: "spaced" },
-      sub("بعد التحويل من تطبيق البنك، أرسل إشعار التحويل حتى تؤكده المدرسة."),
+      sub("بعد التحويل، أرسل الإشعار لتؤكده المدرسة."),
       btn("حوّلت المبلغ — إرسال إشعار", (ev) => { form.classList.remove("hidden"); ev.currentTarget.remove(); }, "soft")) : null,
     form,
 

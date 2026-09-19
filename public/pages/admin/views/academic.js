@@ -22,7 +22,7 @@ export default async function academic({ refresh }) {
       ["السنوات المؤرشفة", years.filter((y) => y.status === "archived").length],
     ]),
 
-    notice("الاختبارات والفواتير والواجبات تُربط تلقائيًا بالفصل الحالي، وكشوف الدرجات تُحسب لكل فصل على حدة.", ""),
+    notice("كل ما يُضاف الآن يُسجَّل في الفصل الحالي.", ""),
 
     panel("فصول السنة الحالية", null,
       currentYearTerms.length ? currentYearTerms.map((t) => line(
@@ -35,7 +35,7 @@ export default async function academic({ refresh }) {
           }, "soft sm"),
           btn("تعديل التواريخ", () => editTerm(t, refresh), "ghost sm"))))
         : empty("لا توجد فصول. أنشئ سنة دراسية أولًا."),
-      sub("تغيير الفصل الحالي يحدد أين تُسجَّل الاختبارات والفواتير الجديدة. البيانات القديمة تبقى في فصلها.")),
+      sub("الجديد يُسجَّل في الفصل الحالي، والقديم يبقى في فصله.")),
 
     passMarkPanel(current, years, refresh),
 
@@ -44,7 +44,7 @@ export default async function academic({ refresh }) {
         h("div", { class: y.is_current ? "" : "muted-row" },
           h("b", {}, y.name), " ", y.is_current ? badge("الحالية") : badge("مؤرشفة", "gray"),
           sub(`${fmtDate(y.start_date)} إلى ${fmtDate(y.end_date)}${y.archived_students ? ` — ${y.archived_students} طالب في سجلها` : ""}`)))),
-      sub("«بدء سنة جديدة» يحفظ سجل كل طالب في السنة المنتهية، ثم ينقل الطلاب للصفوف التالية.")),
+      sub("يحفظ سجل السنة المنتهية، ثم ينقل الطلاب.")),
   ];
 }
 
@@ -54,7 +54,7 @@ function passMarkPanel(current, years, refresh) {
   if (!year) return null;
   const mark = input({ type: "number", min: 0, max: 100, step: "0.5", value: year.pass_mark });
   return panel("درجة النجاح", null,
-    sub("النسبة التي يُعتبر الطالب ناجحًا عندها أو فوقها. تُستخدم في حساب نتيجة السنة تلقائيًا."),
+    sub("يُعتبر الطالب ناجحًا عند بلوغها."),
     h("div", { class: "row" }, field("النسبة المئوية", mark),
       btn("حفظ", async () => {
         await api(`${A}/academic/years/${year.id}/pass-mark`, { pass_mark: mark.value }, "PATCH");
@@ -77,7 +77,7 @@ function editTerm(t, refresh) {
 function startYear(classes, current, refresh) {
   const nextName = current?.year_name?.includes("/")
     ? current.year_name.split("/").map((n) => Number(n) + 1).join("/") : "";
-  const name = input({ value: nextName, placeholder: "مثال: 2027/2028" });
+  const name = input({ value: nextName, placeholder: "اسم السنة" });
   const start = input({ type: "date", value: current ? addYear(current.year_end) : "" });
   const end = input({ type: "date", value: current ? addYear(current.year_end, 366) : "" });
   const count = select([[2, "فصلان"], [3, "ثلاثة فصول"]], { value: 2 });
@@ -108,7 +108,7 @@ function startYear(classes, current, refresh) {
       const counts = data.students.reduce((a, s) => ({ ...a, [s.outcome]: (a[s.outcome] || 0) + 1 }), {});
       overrides = new Map();
       mount(review,
-        notice(`درجة النجاح ${data.year.pass_mark}% — ناجح: ${counts.passed || 0}، راسب: ${counts.failed || 0}، غير مكتمل: ${counts.incomplete || 0}. الراسب يُعاد تلقائيًا، ويمكنك تعديل أي طالب.`, ""),
+        notice(`درجة النجاح ${data.year.pass_mark}% — ناجح ${counts.passed || 0}، راسب ${counts.failed || 0}، غير مكتمل ${counts.incomplete || 0}. الراسب يُعاد تلقائيًا، ويمكنك تعديل أي طالب.`, ""),
         data.students.map((st) => {
           const action = select(ACTIONS, { value: st.suggested_action });
           action.addEventListener("change", () => overrides.set(st.id, { student_id: st.id, action: action.value, to_class_id: st.to_class_id }));
@@ -123,7 +123,7 @@ function startYear(classes, current, refresh) {
   for (const r of rows) r.to.addEventListener("change", loadReview);
 
   const d = dialog("بدء سنة دراسية جديدة", h("div", {},
-    notice("تُحفظ نتيجة كل طالب (ناجح/راسب) ومعدله ونسبة حضوره في سجل السنة المنتهية، ثم يُنفَّذ الإجراء. لا تُحذف أي درجة أو فاتورة.", "warn"),
+    notice("تُحفظ نتيجة كل طالب ومعدله وحضوره، ثم يُنفَّذ الإجراء. لا يُحذف شيء.", "warn"),
     field("اسم السنة الجديدة", name),
     h("div", { class: "row" }, field("تبدأ في", start), field("تنتهي في", end)),
     field("عدد الفصول الدراسية", count),

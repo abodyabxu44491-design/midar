@@ -41,7 +41,7 @@ function askAccess(error) {
     h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo", true, "stacked"), h("p", { class: "role" }, "صفحة الطلاب وأولياء الأمور"))),
     h("main", {}, h("div", { class: "auth-card" },
       h("h2", {}, "أدخل رمز صفحة المدرسة"),
-      sub("الرمز تعطيه إدارة المدرسة لأولياء الأمور والطلاب."),
+      sub("الرمز من إدارة المدرسة."),
       field("رمز الصفحة", code), msg, go)),
     footer());
   code.focus();
@@ -120,7 +120,7 @@ function render(data) {
         ? h("section", { class: "panel" }, h("h2", {}, "تعاميم المدرسة"),
             data.announcements.map((a) => line(h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))))
         : null,
-      notice("اضغط على اسم الطالب ثم أدخل معرّفه لفتح صفحته الكاملة والرسوم."),
+      notice("اضغط على اسم الطالب وأدخل معرّفه لفتح ملفه."),
       st.show_search ? h("div", { style: "margin-bottom:12px" }, query) : null,
       data.admissions ? h("div", { class: "toolbar" }, btn("طلب تسجيل طالب جديد", () => admissionForm(), "soft")) : null,
       results,
@@ -133,7 +133,7 @@ function render(data) {
 // نموذج طلب الالتحاق
 function admissionForm() {
   const f = {
-    student_name: input(), grade_wanted: input({ placeholder: "مثال: الصف الأول" }), birth_date: input({ type: "date" }),
+    student_name: input(), grade_wanted: input({ placeholder: "الصف المطلوب" }), birth_date: input({ type: "date" }),
     guardian_name: input(), guardian_phone: input({ class: "ltr", inputMode: "tel" }), note: textarea({ rows: 2 }),
   };
   const msg = h("div");
@@ -151,7 +151,7 @@ function admissionForm() {
     field("اسم ولي الأمر", f.guardian_name),
     field("رقم الجوال", f.guardian_phone),
     field("ملاحظات", f.note),
-    sub("بياناتك تصل لإدارة المدرسة فقط."), msg), [send]);
+    sub("بياناتك تصل لإدارة المدرسة."), msg), [send]);
 }
 
 const feeBadge = (s) => (s.fees === "paid" ? badge("مسدد") : s.fees === "unpaid" ? badge("لم يسدد", "red") : null);
@@ -169,7 +169,7 @@ function askKey(student) {
   });
   key.addEventListener("keydown", (e) => e.key === "Enter" && open.click());
   dialog(student.name, h("div", {},
-    sub("أدخل معرّف الطالب. تجده في البطاقة التي سلّمتها لك إدارة المدرسة."),
+    sub("المعرّف في البطاقة التي سلّمتها لك المدرسة."),
     field("معرّف الطالب", key), msg), [open]);
   key.focus();
 }

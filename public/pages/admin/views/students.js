@@ -22,15 +22,15 @@ export default async function students({ me, refresh }) {
     btn("إضافة الطالب", async () => {
       const r = await api(`${A}/students`, { name: f.name.value, class_id: f.cls.value || null, guardian_name: f.gname.value,
         guardian_phone: f.gphone.value, fees_enabled: f.fees.checked });
-      showCredentials(`تمت إضافة ${r.name}`, { access_key: r.access_key }, "هذا المعرّف أُنشئ تلقائيًا. سلّمه لولي الأمر ليفتح صفحة ابنه ويدفع الرسوم.");
+      showCredentials(`تمت إضافة ${r.name}`, { access_key: r.access_key }, "المعرّف أُنشئ تلقائيًا. سلّمه لولي الأمر.");
       refresh();
     }));
 
   /* ---- استيراد ---- */
-  const bulk = textarea({ rows: 4, placeholder: "عبدالرحمن سالم، سالم أحمد، 0550000010\nرغد سالم، سالم أحمد، 0550000010" });
+  const bulk = textarea({ rows: 4, placeholder: "اسم الطالب، اسم ولي الأمر، رقم الجوال\nاسم الطالب، اسم ولي الأمر، رقم الجوال" });
   const bulkCls = select(classOptions(classes, "بدون فصل"));
   const importPanel = panel("استيراد من Excel", null,
-    sub("انسخ الأعمدة من Excel بهذا الترتيب: اسم الطالب، اسم ولي الأمر، الجوال. كل طالب في سطر. الاستيراد يتم كاملًا أو لا يتم."),
+    sub("انسخ من Excel: اسم الطالب، اسم ولي الأمر، الجوال — كل طالب في سطر."),
     field("الفصل", bulkCls), bulk,
     h("div", { class: "spaced" }, btn("استيراد", async () => {
       const rows = bulk.value.split(/\r?\n/).map((l) => l.split(/[,،\t]/).map((x) => x.trim())).filter((p) => p[0]);
@@ -71,18 +71,10 @@ export default async function students({ me, refresh }) {
         sub(`${s.class_name || "بدون فصل"} — ولي الأمر: ${s.guardian_name || "—"} ${s.guardian_phone || ""}`),
         sub("المعرّف: ", keyText(s.access_key))),
       h("div", { class: "row", style: "flex:none;align-items:center" },
-        btn("الحالة", () => statusDialog(s, refresh), "ghost sm"),
         h("span", { class: "sub", style: "flex:none;min-width:0" }, "الرسوم"), sw,
         waButton({ phone: s.guardian_phone, template: templates.general, countryCode: templates.country_code,
           vars: messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) }), label: "واتساب" }),
-        btn("بطاقة", () => card(me, s), "ghost sm"),
-        btn("تعديل", () => edit(s, classes, refresh), "ghost sm"),
-        btn("معرّف جديد", async () => {
-          if (!confirmAction(`إنشاء معرّف جديد لـ ${s.name}؟ المعرّف القديم سيتوقف فورًا.`)) return;
-          const r = await api(`${A}/students/${s.id}/regenerate-key`, {});
-          showCredentials("المعرّف الجديد", { access_key: r.access_key });
-          refresh();
-        }, "ghost sm")));
+        btn("إدارة", () => manage(s, classes, me, refresh), "ghost sm")));
   };
   q.addEventListener("input", draw);
   filter.addEventListener("change", draw);
@@ -95,10 +87,10 @@ export default async function students({ me, refresh }) {
     addPanel, importPanel,
     panel(`الطلاب (${list.length} / ${me.school.max_students})`, exportBtn,
       h("div", { class: "toolbar" }, q, filter),
-      sub("زر «الرسوم» يُظهر الفواتير وحالة السداد وزر الدفع في صفحة الطالب. حالة السداد تظهر لصاحب المعرّف فقط."),
+      sub("تفعيل الرسوم يُظهر الفواتير والسداد في ملف الطالب."),
       box),
     inactive.length ? panel(`طلاب خارج القيد (${inactive.length})`, null,
-      sub("سجلاتهم ودرجاتهم محفوظة، ولا يظهرون في القوائم ولا يُفتح ملفهم."),
+      sub("سجلاتهم محفوظة، ولا يظهرون في القوائم."),
       inactive.map((s) => line(
         h("div", { class: "muted-row" }, h("b", {}, s.name), " ", statusBadge(s.status),
           sub(`${s.class_name || "بدون فصل"}${s.status_changed_at ? ` — منذ ${fmtDate(s.status_changed_at)}` : ""}`),
@@ -110,18 +102,29 @@ export default async function students({ me, refresh }) {
   ];
 }
 
-function edit(s, classes, refresh) {
+// نافذة واحدة لكل ما يخص الطالب: البيانات، البطاقة، المعرّف، الحالة
+function manage(s, classes, me, refresh) {
   const f = { name: input({ value: s.name }), cls: select(classOptions(classes, "بدون فصل"), { value: s.class_id ?? "" }),
     gname: input({ value: s.guardian_name || "" }), gphone: input({ class: "ltr", value: s.guardian_phone || "" }) };
-  const d = dialog(`تعديل ${s.name}`, h("div", {},
-    field("الاسم", f.name), field("الفصل", f.cls), field("ولي الأمر", f.gname), field("الجوال", f.gphone)), [
-    btn("حفظ", async () => {
-      await api(`${A}/students/${s.id}`, { version: s.version, name: f.name.value, class_id: f.cls.value || null,
-        guardian_name: f.gname.value, guardian_phone: f.gphone.value }, "PATCH");
-      d.close(); toast("تم الحفظ"); refresh();
-    }),
-    btn("تغيير الحالة", () => { d.close(); statusDialog(s, refresh); }, "danger"),
-  ]);
+  const d = dialog(s.name, h("div", {},
+    field("الاسم", f.name), field("الفصل", f.cls), field("ولي الأمر", f.gname), field("الجوال", f.gphone),
+    line(h("span", { class: "sub" }, "معرّف الطالب"), keyText(s.access_key)),
+    h("h3", { class: "sec-title" }, "إجراءات"),
+    h("div", { class: "row", style: "justify-content:flex-start" },
+      btn("بطاقة ولي الأمر", () => { d.close(); card(me, s); }, "ghost sm"),
+      btn("معرّف جديد", async () => {
+        if (!confirmAction("المعرّف القديم سيتوقف فورًا. متابعة؟")) return;
+        const r = await api(`${A}/students/${s.id}/regenerate-key`, {});
+        d.close();
+        showCredentials("المعرّف الجديد", { access_key: r.access_key });
+        refresh();
+      }, "ghost sm"),
+      btn("تغيير الحالة", () => { d.close(); statusDialog(s, refresh); }, "danger sm"))),
+  [btn("حفظ", async () => {
+    await api(`${A}/students/${s.id}`, { version: s.version, name: f.name.value, class_id: f.cls.value || null,
+      guardian_name: f.gname.value, guardian_phone: f.gphone.value }, "PATCH");
+    d.close(); toast("تم الحفظ"); refresh();
+  })]);
 }
 
 export const STATUS_LABEL = {
@@ -135,7 +138,7 @@ function statusDialog(s, refresh) {
   const status = select(Object.entries(STATUS_LABEL), { value: s.status || "active" });
   const note = input({ placeholder: "السبب أو الملاحظة (اختياري)", value: s.status_note || "" });
   const d = dialog(`حالة الطالب: ${s.name}`, h("div", {},
-    sub("الطالب خارج القيد لا يظهر في القوائم ولا يُفتح ملفه، وتبقى درجاته وفواتيره محفوظة."),
+    sub("خارج القيد: لا يظهر في القوائم ولا يُفتح ملفه، وتبقى سجلاته."),
     field("الحالة", status), field("ملاحظة", note)),
   [btn("حفظ الحالة", async () => {
     await api(`${A}/students/${s.id}/status`, { status: status.value, note: note.value || null });
@@ -151,6 +154,6 @@ function card(me, s) {
     line(h("span", {}, "رابط الصفحة"), keyText(directoryLink(me))),
     line(h("span", {}, "رمز الصفحة"), keyText(me.school.directory_code)),
     line(h("span", {}, "معرّف الطالب"), keyText(s.access_key)),
-    notice("افتح الرابط، أدخل رمز الصفحة، اضغط على اسم ابنك ثم أدخل المعرّف. لا تشارك المعرّف مع أحد.", "warn")),
+    notice("افتح الرابط، أدخل رمز الصفحة، ثم اسم ابنك ومعرّفه. لا تشارك المعرّف.", "warn")),
     [btn("طباعة", () => window.print())]);
 }

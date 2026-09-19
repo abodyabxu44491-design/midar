@@ -15,8 +15,8 @@ export default async function admissions({ me, refresh }) {
 
   return [
     settings.show_admissions
-      ? notice("نموذج طلب الالتحاق ظاهر في صفحة المدرسة. لإيقافه: الإعدادات ← صفحة المدرسة العامة.", "")
-      : notice("نموذج طلب الالتحاق موقوف. لتفعيله: الإعدادات ← صفحة المدرسة العامة ← «طلب التحاق طالب جديد».", "warn"),
+      ? notice("النموذج ظاهر في صفحة المدرسة. لإيقافه: الإعدادات.", "")
+      : notice("النموذج موقوف. لتفعيله: الإعدادات ← صفحة المدرسة العامة.", "warn"),
     panel(`طلبات الالتحاق${waiting ? ` (${waiting} جديد)` : ""}`, null,
       list.length ? list.map((x) => row(x, classes, refresh, me)) : empty("لا توجد طلبات بعد.")),
   ];
@@ -53,13 +53,13 @@ function accept(x, classes, refresh) {
   const note = input({ placeholder: "ملاحظة (اختياري)" });
   const msg = h("div");
   const d = dialog(`قبول ${x.student_name}`, h("div", {},
-    sub("سيُنشأ ملف الطالب مباشرة بمعرّفه الخاص."),
+    sub("يُنشأ ملف الطالب مع معرّفه."),
     h("label", { class: "f" }, h("span", {}, "الفصل"), cls), note, msg),
   [btn("قبول وإنشاء الملف", async () => {
     try {
       const r = await api(`${A}/admissions/${x.id}/review`, { decision: "accepted", class_id: cls.value || null, note: note.value || null });
       d.close();
-      showCredentials(`تم تسجيل ${r.student.name}`, { access_key: r.student.access_key }, "سلّم المعرّف لولي الأمر ليتابع ابنه ويدفع الرسوم.");
+      showCredentials(`تم تسجيل ${r.student.name}`, { access_key: r.student.access_key }, "سلّم المعرّف لولي الأمر.");
       refresh();
     } catch (e) { mount(msg, notice(e.message, "err")); }
   })]);

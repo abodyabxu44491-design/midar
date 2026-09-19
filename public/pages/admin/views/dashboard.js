@@ -56,7 +56,7 @@ export default async function dashboard({ me }) {
       line(h("span", {}, "صفحة الطلاب وأولياء الأمور"), keyText(directoryLink(me))),
       line(h("span", {}, "رمز فتح صفحة الطلاب"), keyText(me.school.directory_code)),
       line(h("span", {}, "دخول المدير والمعلمين"), keyText(staffLink(me))),
-      sub("وزّع رابط صفحة الطلاب ورمزها على الأهالي. كل طالب يفتح ملفه بمعرّفه الخاص (من تبويب الطلاب).")),
+      sub("وزّع الرابط والرمز على الأهالي، ومعرّف كل طالب من تبويب الطلاب.")),
   ];
 }
 

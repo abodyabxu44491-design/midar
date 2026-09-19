@@ -19,13 +19,13 @@ function loadPicker(classes, subjects, current = []) {
 
 export default async function teachers({ me, refresh }) {
   const [classes, subjects, list] = await Promise.all([loadClasses(), loadSubjects(), api(`${A}/teachers`)]);
-  const f = { name: input(), user: input({ class: "ltr", placeholder: "mona.saeed" }), phone: input({ class: "ltr" }) };
+  const f = { name: input(), user: input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" }), phone: input({ class: "ltr" }) };
   const picker = loadPicker(classes, subjects);
 
   return [
     panel("إضافة معلم", null,
       h("div", { class: "row" }, field("الاسم", f.name), field("اسم المستخدم", f.user), field("الجوال", f.phone)),
-      sub("الفصول والمواد المسندة (المعلم يرى هذه فقط)"), picker.el,
+      sub("الفصول والمواد التي يراها هذا المعلم"), picker.el,
       btn("إضافة المعلم", async () => {
         const r = await api(`${A}/teachers`, { name: f.name.value, username: f.user.value, phone: f.phone.value || null, load: picker.value() });
         showCredentials("تمت إضافة المعلم", r.credentials, `يدخل المعلم من: ${staffLink(me)} — ويُنصح بتغيير كلمة المرور بعد أول دخول.`);

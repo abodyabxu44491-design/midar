@@ -4,7 +4,7 @@ import { h } from "/shared/js/dom.js";
 
 export default function create({ refresh }) {
   const f = {
-    name: input(), id: input({ class: "ltr", placeholder: "alnoor" }), admin: input({ value: "مدير المدرسة" }),
+    name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }),
     plan: select([["basic", "الأساسية"], ["pro", "الاحترافية"], ["enterprise", "المؤسسات"]]),
     max: input({ type: "number", value: 200, min: 1 }), end: input({ type: "date" }),
   };
@@ -39,7 +39,7 @@ export function handoverCard(r) {
   const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
   dialog("بطاقة تسليم المدرسة", h("div", { class: "handover" },
     h("div", { class: "print-only" }, brandLogo("print-logo", false)),
-    notice("كلمة المرور لن تظهر مرة أخرى. انسخها أو اطبع البطاقة وسلّمها للمدرسة الآن.", "warn"),
+    notice("انسخ البطاقة أو اطبعها الآن. كلمة المرور لن تظهر مرة أخرى.", "warn"),
     rows.map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
     sub("يغيّر المدير كلمة المرور بعد أول دخول من: الإعدادات ← تغيير كلمة المرور.")),
   [

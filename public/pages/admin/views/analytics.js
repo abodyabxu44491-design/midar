@@ -27,7 +27,7 @@ export default async function analytics() {
 
       panel("نسبة الحضور شهريًا", null,
         barChart(d.attendance_by_month.map((m) => ({ label: monthName(m.month), value: m.rate ?? 0 })), { max: 100, suffix: "%" }),
-        sub("النسبة تشمل الحاضرين والمتأخرين من إجمالي السجلات.")),
+        sub("الحاضرون والمتأخرون من إجمالي السجلات.")),
 
       panel("الغياب شهريًا", null,
         barChart(d.attendance_by_month.map((m) => ({ label: monthName(m.month), value: m.absent, color: "var(--red)" })))),

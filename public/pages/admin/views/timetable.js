@@ -55,6 +55,6 @@ export default async function timetable({ refresh }) {
     load();
   }, "danger sm"),
     field("الصف", picker),
-    sub("اختر المادة والمعلم في كل خانة. النظام يمنع وضع المعلم في فصلين بنفس الوقت."),
+    sub("اختر المادة والمعلم لكل حصة. التعارض مرفوض تلقائيًا."),
     msg, box);
 }

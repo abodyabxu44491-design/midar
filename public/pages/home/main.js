@@ -81,7 +81,7 @@ function leadForm() {
     field("رقم الجوال", f.phone),
     h("div", { class: "row" }, field("المدينة", f.city), field("عدد الطلاب تقريبًا", f.students_count)),
     field("ملاحظات", f.note),
-    sub("بياناتك تصل لإدارة المنصة فقط."),
+    sub("بياناتك تصل لإدارة المنصة."),
     msg, send);
 }
 
