@@ -20,7 +20,25 @@ export async function requireOwner(req, res, next) {
   } catch (e) { next(e); }
 }
 
-// requireStaff("admin") | requireStaff("teacher")
+// requireStaff("admin") | requireStaff("teacher") | requireStaff("accountant")
+/**
+ * صلاحيات المالية: مدير المدرسة أو المحاسب.
+ * يُجرَّب كلا النوعين من الجلسات حتى تفتح نفس الصفحات لكليهما.
+ */
+export const requireFinanceUser = async (req, res, next) => {
+  for (const role of ["admin", "accountant"]) {
+    const done = await new Promise((resolve) => {
+      requireStaff(role)(req, res, (err) => resolve(!err));
+    });
+    if (done) return next();
+  }
+  next(unauthorized());
+};
+
+// صلاحية دقيقة داخل المالية (اعتماد، رواتب)
+export const requirePermission = (flag, message) => (req, res, next) =>
+  (req.user?.[flag] ? next() : next(forbidden(message)));
+
 export const requireStaff = (role) => async (req, res, next) => {
   try {
     const s = await readSession(req, role);
@@ -28,7 +46,8 @@ export const requireStaff = (role) => async (req, res, next) => {
     const ctx = await transaction({ tenantId: s.tenant_id }, async (q) => {
       const [tenant] = await q("SELECT id, name, status, max_students, subscription_end, directory_code FROM tenants WHERE id = $1", [s.tenant_id]);
       const [user] = await q(
-        "SELECT id, full_name, role, teacher_id, is_active FROM users WHERE id = $1 AND role = $2",
+        `SELECT id, full_name, role, teacher_id, is_active, can_approve_finance, can_manage_payroll
+           FROM users WHERE id = $1 AND role = $2`,
         [s.user_id, role],
       );
       return { tenant, user };
@@ -38,7 +57,8 @@ export const requireStaff = (role) => async (req, res, next) => {
     req.tenant = ctx.tenant;
     req.tenantId = ctx.tenant.id;   // كل الاستعلامات بعد هذا تعمل داخل هذه المدرسة فقط
     req.user = ctx.user;
-    req.actor = `${ctx.user.full_name} (${role === "admin" ? "إدارة" : "معلم"})`;
+    const label = { admin: "إدارة", teacher: "معلم", accountant: "محاسب" }[role];
+    req.actor = `${ctx.user.full_name} (${label})`;
     next();
   } catch (e) { next(e); }
 };

@@ -6,16 +6,17 @@ import { newToken, sha256 } from "./codes.js";
 
 const prefix = () => (env.COOKIE_SECURE ? "__Secure-" : "");
 export const SESSION = {
-  owner:   { cookie: "midar_o", path: "/api/owner",   idleMin: 30,  maxHours: 8 },
-  admin:   { cookie: "midar_a", path: "/api/admin",   idleMin: 120, maxHours: 12 },
-  teacher: { cookie: "midar_t", path: "/api/teacher", idleMin: 180, maxHours: 12 },
+  owner:      { cookie: "midar_o", path: "/api/owner",      idleMin: 30,  maxHours: 8 },
+  admin:      { cookie: "midar_a", path: "/api/admin",      idleMin: 120, maxHours: 12 },
+  teacher:    { cookie: "midar_t", path: "/api/teacher",    idleMin: 180, maxHours: 12 },
+  accountant: { cookie: "midar_f", path: "/api/accountant", idleMin: 120, maxHours: 12 },
 };
 
 // Firebase Hosting لا يمرر إلا كوكي واحد اسمه __session، فنخزن فيه رموز الأدوار مفصولة:
 //   o.<رمز>|a.<رمز>|t.<رمز>
 // الفصل بين الأدوار يبقى مضمونًا لأن كل رمز مربوط بنوعه في قاعدة البيانات.
 const SINGLE = "__session";
-const TAG = { owner: "o", admin: "a", teacher: "t" };
+const TAG = { owner: "o", admin: "a", teacher: "t", accountant: "f" };
 const single = () => env.SESSION_COOKIE_MODE === "single";
 
 function readSingle(req) {

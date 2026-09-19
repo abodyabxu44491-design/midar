@@ -1,7 +1,7 @@
 // تبويب الإعدادات
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { showInstallBar, panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, empty, badge, notice, switchBtn } from "/shared/js/ui.js";
+import { showInstallBar, panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, empty, badge, notice, switchBtn, dialog, showCredentials } from "/shared/js/ui.js";
 import { csv } from "/shared/js/format.js";
 import { fmtDate } from "/shared/js/format.js";
 import { A, directoryLink } from "./common.js";
@@ -11,10 +11,12 @@ export default async function settings({ me, refresh }) {
   const acc = { bank: input({ placeholder: "اسم البنك" }), holder: input(), iban: input({ class: "ltr", placeholder: "SA00 0000 0000 0000 0000 0000" }), number: input({ class: "ltr" }) };
   const note = textarea({ rows: 2, value: pay.payment_note || "", placeholder: "مواعيد استلام الدفع النقدي ومكانه" });
   const pub = await api(`${A}/settings/public-page`);
+  const accountants = await api(`${A}/users`);
   const tpl = await api(`${A}/messaging/templates`);
   const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
   const nxt = input({ type: "password", class: "ltr", autocomplete: "new-password" });
   return [
+    accountantsPanel(accountants, refresh),
     publicPagePanel(pub, me, refresh),
     messagesPanel(tpl),
     panel("طرق السداد", null,
@@ -78,6 +80,53 @@ export default async function settings({ me, refresh }) {
   ];
 }
 
+
+/* ---------- حسابات المحاسبين ---------- */
+function accountantsPanel(list, refresh) {
+  const f = { name: input(), username: input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" }),
+    approve: input({ type: "checkbox" }), payroll: input({ type: "checkbox" }) };
+
+  const row = (u) => line(
+    h("div", { class: u.is_active ? "" : "muted-row" },
+      h("b", {}, u.name), " ", u.is_active ? null : badge("موقوف", "gray"),
+      sub(`اسم المستخدم: ${u.username}`),
+      sub(`اعتماد الحركات: ${u.can_approve_finance ? "نعم" : "لا"} — إدارة الرواتب: ${u.can_manage_payroll ? "نعم" : "لا"}`)),
+    h("div", { class: "row", style: "flex:none" },
+      btn("الصلاحيات", () => permsDialog(u, refresh), "ghost sm"),
+      btn("كلمة مرور جديدة", async () => {
+        if (!confirmAction(`إنشاء كلمة مرور جديدة لـ ${u.name}؟`)) return;
+        showCredentials("كلمة مرور جديدة", (await api(`${A}/users/${u.id}/reset-password`, {})).credentials);
+      }, "ghost sm"),
+      btn(u.is_active ? "إيقاف" : "تفعيل", async () => {
+        await api(`${A}/users/${u.id}/active`, { active: !u.is_active }, "PATCH"); refresh();
+      }, "ghost sm")));
+
+  return panel("حسابات المحاسبين", null,
+    sub("المحاسب يرى المالية والرسوم فقط، ولا يرى الطلاب ولا الدرجات ولا الإعدادات."),
+    list.length ? list.map(row) : empty("لا توجد حسابات محاسبين."),
+    h("h3", { class: "sec-title" }, "إضافة محاسب"),
+    h("div", { class: "row" }, field("الاسم", f.name), field("اسم المستخدم", f.username)),
+    h("label", { class: "f pill" }, f.approve, "يعتمد الحركات المالية"),
+    h("label", { class: "f pill" }, f.payroll, "يدير الرواتب"),
+    btn("إضافة الحساب", async () => {
+      const r = await api(`${A}/users`, { name: f.name.value, username: f.username.value,
+        can_approve_finance: f.approve.checked, can_manage_payroll: f.payroll.checked });
+      showCredentials("تمت إضافة المحاسب", r.credentials, `يدخل من نفس رابط دخول المنسوبين.`);
+      refresh();
+    }));
+}
+
+function permsDialog(u, refresh) {
+  const approve = input({ type: "checkbox", checked: u.can_approve_finance });
+  const payroll = input({ type: "checkbox", checked: u.can_manage_payroll });
+  const d = dialog(`صلاحيات ${u.name}`, h("div", {},
+    h("label", { class: "f pill" }, approve, "اعتماد ورفض وإلغاء الحركات المالية"),
+    h("label", { class: "f pill" }, payroll, "إنشاء مسير الرواتب واعتماده وصرفه")),
+  [btn("حفظ", async () => {
+    await api(`${A}/users/${u.id}/permissions`, { can_approve_finance: approve.checked, can_manage_payroll: payroll.checked }, "PATCH");
+    d.close(); toast("حُفظت الصلاحيات"); refresh();
+  })]);
+}
 
 /* ---------- التحكم في صفحة المدرسة العامة ---------- */
 const OPTIONS = [

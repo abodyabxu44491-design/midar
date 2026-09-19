@@ -587,6 +587,54 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   assert.equal((await B.admin.get("/api/admin/ledger/donations")).data.length, 0);
 });
 
+test("دور المحاسب: يرى المالية فقط، والصلاحيات تُطبَّق", async () => {
+  // إنشاء حساب محاسب بلا صلاحية اعتماد
+  const created = await A.admin.post("/api/admin/users", {
+    name: "محاسب المدرسة", username: "acc1", can_approve_finance: false, can_manage_payroll: false });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+
+  const acc = client(srv.base);
+  const login = await acc.post("/api/staff/login", { school: A.id, username: "acc1", password: created.data.credentials.password });
+  assert.equal(login.data.role, "accountant");
+
+  // يرى المالية
+  assert.equal((await acc.get("/api/accountant/ledger/accounts")).status, 200);
+  assert.equal((await acc.get("/api/accountant/finance/invoices")).status, 200);
+  // لا يرى بقية أقسام المدرسة
+  assert.equal((await acc.get("/api/admin/students")).status, 401, "لا يفتح لوحة الإدارة");
+  assert.equal((await acc.get("/api/admin/exams")).status, 401);
+  assert.equal((await acc.get("/api/teacher/me")).status, 401);
+
+  // يسجل حركة، لكن لا يعتمدها بلا صلاحية
+  const cash = (await acc.get("/api/accountant/ledger/accounts")).data.find((a) => a.kind === "cash");
+  const cat = (await acc.get("/api/accountant/ledger/categories")).data.find((c) => c.direction === "expense");
+  const entry = await acc.post("/api/accountant/ledger/entries", {
+    direction: "expense", amount: 300, account_id: cash.id, category_id: cat.id,
+    occurred_on: "2026-09-03", reason: "قرطاسية", method: "cash", needs_approval: true });
+  assert.equal(entry.status, 201);
+  assert.equal((await acc.post(`/api/accountant/ledger/entries/${entry.data.id}/review`, { decision: "approve" })).status, 403);
+  assert.equal((await acc.post("/api/accountant/ledger/payroll", { period: "2026-10-01" })).status, 403, "الرواتب تحتاج صلاحية");
+
+  // المدير يعتمدها
+  assert.equal((await A.admin.post(`/api/admin/ledger/entries/${entry.data.id}/review`, { decision: "approve" })).status, 200);
+
+  // منح الصلاحيات ثم إعادة المحاولة
+  const listed = (await A.admin.get("/api/admin/users")).data.find((u) => u.username === "acc1");
+  assert.equal((await A.admin.patch(`/api/admin/users/${listed.id}/permissions`,
+    { can_approve_finance: true, can_manage_payroll: true })).status, 200);
+  const entry2 = await acc.post("/api/accountant/ledger/entries", {
+    direction: "expense", amount: 120, account_id: cash.id, category_id: cat.id,
+    occurred_on: "2026-09-04", reason: "مستلزمات", method: "cash", needs_approval: true });
+  assert.equal((await acc.post(`/api/accountant/ledger/entries/${entry2.data.id}/review`, { decision: "approve" })).status, 200);
+
+  // إيقاف الحساب يُخرجه فورًا
+  assert.equal((await A.admin.patch(`/api/admin/users/${listed.id}/active`, { active: false })).status, 200);
+  assert.equal((await acc.get("/api/accountant/me")).status, 401);
+
+  // مدرسة أخرى لا ترى حسابات محاسبينا
+  assert.equal((await B.admin.get("/api/admin/users")).data.length, 0);
+});
+
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {
   const r = await A.admin.get("/api/admin/export");
   assert.equal(r.status, 200);

@@ -15,6 +15,7 @@ import { isSchoolCode } from "./core/reserved.js";
 import ownerApi from "./modules/owner/index.js";
 import adminApi from "./modules/school-admin/index.js";
 import teacherApi from "./modules/teacher/index.js";
+import accountantApi from "./modules/accountant/index.js";
 import publicApi from "./modules/public/index.js";
 import { staffLoginRouter } from "./modules/shared/staff-auth.js";
 
@@ -46,6 +47,7 @@ export function createApp() {
   api.use("/owner", ownerApi);
   api.use("/admin", adminApi);
   api.use("/teacher", teacherApi);
+  api.use("/accountant", accountantApi);
   api.use("/public", publicApi);
   api.use("/staff", staffLoginRouter());     // باب موحّد: يوجّه الحساب إلى لوحته
   api.use((req, res, next) => next(notFound("المسار غير موجود")));
@@ -74,6 +76,7 @@ export function createApp() {
   // ملفات لوحتي الإدارة والمعلم تُحمّل من باب المدرسة الموحّد
   app.use("/admin", express.static(file("admin"), { index: false }));
   app.use("/teacher", express.static(file("teacher"), { index: false }));
+  app.use("/accountant", express.static(file("accountant"), { index: false }));
   app.use("/staff-page", express.static(file("staff"), { index: false }));
   app.use("/home-page", express.static(file("home"), { index: false }));
   app.get("/", send("home", "index.html"));

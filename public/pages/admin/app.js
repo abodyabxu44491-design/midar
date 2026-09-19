@@ -3,6 +3,7 @@
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { topbar, footer, tabs } from "/shared/js/ui.js";
+import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
 import students from "./views/students.js";
 import teachers from "./views/teachers.js";
@@ -23,6 +24,7 @@ import admissions from "./views/admissions.js";
 const app = $("#app");
 
 export async function startAdmin() {
+  setApiBase("admin");
   const me = await api("/api/admin/me");
   const t = tabs([
     ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"], ["academic", "السنة الدراسية"],

@@ -7,7 +7,6 @@ import { barChart } from "/shared/js/charts.js";
 import { money, fmtDate, fmtDateTime, today } from "/shared/js/format.js";
 import { A } from "./common.js";
 
-const L = `${A}/ledger`;
 const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };
 const KINDS = { bank: "حساب بنكي", cash: "صندوق نقدي", online: "محفظة إلكترونية", other: "أخرى" };
 const SOURCES = { manual: "قيد يدوي", fee: "رسوم", refund: "استرداد", donation: "تبرع", salary: "رواتب", expense: "مصروف", withdrawal: "سحب" };
@@ -48,7 +47,7 @@ async function dashboard({ show }) {
 
   const load = async () => {
     mount(box, empty("جارٍ الحساب…"));
-    const d = await api(`${L}/summary?from=${from.value}&to=${to.value}`);
+    const d = await api(`${A}/ledger/summary?from=${from.value}&to=${to.value}`);
     const low = d.accounts.filter((a) => a.is_active && a.low_balance !== null && Number(a.balance) < Number(a.low_balance));
     mount(box,
       stats([
@@ -101,7 +100,7 @@ async function dashboard({ show }) {
 
 /* ---------------- سجل الحركات ---------------- */
 async function entries({ show }) {
-  const [accounts, categories] = await Promise.all([api(`${L}/accounts`), api(`${L}/categories`)]);
+  const [accounts, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
   const from = input({ type: "date", value: monthStart() });
   const to = input({ type: "date", value: today() });
   const direction = select([["", "الكل"], ["income", "إيرادات"], ["expense", "مصروفات"]]);
@@ -115,7 +114,7 @@ async function entries({ show }) {
     if (direction.value) qs.set("direction", direction.value);
     if (status.value) qs.set("status", status.value);
     if (account.value) qs.set("account_id", account.value);
-    const rows = await api(`${L}/entries?${qs}`);
+    const rows = await api(`${A}/ledger/entries?${qs}`);
     mount(box,
       h("div", { class: "toolbar" },
         btn("تصدير Excel", () => exportRows("الحركات_المالية", rows,
@@ -151,17 +150,17 @@ function entryRow(e, reload) {
       e.void_reason ? sub(`سبب الإلغاء: ${e.void_reason}`) : null),
     h("div", { class: "row", style: "flex:none" },
       e.status === "pending" ? btn("اعتماد", async () => {
-        await api(`${L}/entries/${e.id}/review`, { decision: "approve" }); toast("اعتُمدت الحركة"); reload();
+        await api(`${A}/ledger/entries/${e.id}/review`, { decision: "approve" }); toast("اعتُمدت الحركة"); reload();
       }, "sm") : null,
       e.status === "pending" ? btn("رفض", async () => {
-        await api(`${L}/entries/${e.id}/review`, { decision: "reject" }); toast("رُفضت الحركة"); reload();
+        await api(`${A}/ledger/entries/${e.id}/review`, { decision: "reject" }); toast("رُفضت الحركة"); reload();
       }, "danger sm") : null,
       e.status === "approved" && !["fee", "refund"].includes(e.source_type) ? btn("إلغاء", () => {
         const reason = input({ placeholder: "سبب الإلغاء" });
         const d = dialog(`إلغاء الحركة ${e.entry_no}`, h("div", {},
           sub("الحركة الملغاة تبقى في السجل ولا تُحتسب في الأرصدة."), field("السبب", reason)),
         [btn("إلغاء الحركة", async () => {
-          await api(`${L}/entries/${e.id}/void`, { reason: reason.value });
+          await api(`${A}/ledger/entries/${e.id}/void`, { reason: reason.value });
           d.close(); toast("أُلغيت الحركة"); reload();
         }, "danger")]);
       }, "ghost sm") : null));
@@ -169,7 +168,7 @@ function entryRow(e, reload) {
 
 /* ---------------- مصروف أو سحب ---------------- */
 async function expenses({ show }) {
-  const [accounts, categories] = await Promise.all([api(`${L}/accounts`), api(`${L}/categories`)]);
+  const [accounts, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
   const expenseCats = categories.filter((c) => c.direction === "expense");
   const incomeCats = categories.filter((c) => c.direction === "income");
 
@@ -197,7 +196,7 @@ async function expenses({ show }) {
       field("ملاحظات", f.note),
       direction === "expense" ? h("label", { class: "f pill" }, f.approval, "تحتاج اعتمادًا قبل احتسابها") : null,
       btn(direction === "expense" ? "تسجيل المصروف" : "تسجيل الإيراد", async () => {
-        const r = await api(`${L}/entries`, {
+        const r = await api(`${A}/ledger/entries`, {
           direction, amount: f.amount.value, account_id: f.account.value, category_id: f.category.value,
           occurred_on: f.date.value, reason: f.reason.value, beneficiary: f.beneficiary.value || null,
           method: f.method.value, reference: f.reference.value || null, attachment: f.attachment.value || null,
@@ -217,7 +216,7 @@ async function expenses({ show }) {
 
 /* ---------------- التبرعات ---------------- */
 async function donationsView({ show }) {
-  const list = await api(`${L}/donations`);
+  const list = await api(`${A}/ledger/donations`);
   const f = {
     donor: input(), anonymous: input({ type: "checkbox" }), phone: input({ class: "ltr", inputMode: "tel" }),
     amount: input({ type: "number", min: 0.01, step: "0.01" }), purpose: input(),
@@ -235,7 +234,7 @@ async function donationsView({ show }) {
       h("div", { class: "row" }, field("الغرض من التبرع", f.purpose), field("رقم العملية", f.reference)),
       field("ملاحظات", f.note),
       btn("تسجيل التبرع", async () => {
-        const r = await api(`${L}/donations`, {
+        const r = await api(`${A}/ledger/donations`, {
           donor_name: f.donor.value || null, anonymous: f.anonymous.checked, phone: f.phone.value || null,
           amount: f.amount.value, purpose: f.purpose.value || null, method: f.method.value,
           reference: f.reference.value || null, received_on: f.date.value, note: f.note.value || null,
@@ -256,7 +255,7 @@ async function donationsView({ show }) {
 
 /* ---------------- الرواتب ---------------- */
 async function payroll({ show }) {
-  const [staff, runs] = await Promise.all([api(`${L}/staff`), api(`${L}/payroll`)]);
+  const [staff, runs] = await Promise.all([api(`${A}/ledger/staff`), api(`${A}/ledger/payroll`)]);
   const f = { name: input(), title: input(), category: select([["teacher", "معلم"], ["admin", "إداري"], ["worker", "عامل"], ["other", "أخرى"]]),
     phone: input({ class: "ltr" }), iban: input({ class: "ltr" }), salary: input({ type: "number", min: 0, step: "0.01", value: 0 }) };
   const period = input({ type: "month", value: today().slice(0, 7) });
@@ -267,13 +266,13 @@ async function payroll({ show }) {
       ["مسيرات هذا العام", runs.length]]),
 
     panel("إضافة موظف", btn("استيراد المعلمين", async () => {
-      const r = await api(`${L}/staff/import-teachers`, {});
+      const r = await api(`${A}/ledger/staff/import-teachers`, {});
       toast(r.added ? `أُضيف ${r.added} معلمًا` : "كل المعلمين مضافون"); show();
     }, "ghost sm"),
       h("div", { class: "row" }, field("الاسم", f.name), field("المسمى الوظيفي", f.title), field("النوع", f.category)),
       h("div", { class: "row" }, field("الجوال", f.phone), field("الآيبان", f.iban), field("الراتب الأساسي", f.salary)),
       btn("إضافة", async () => {
-        await api(`${L}/staff`, { full_name: f.name.value, job_title: f.title.value || null, category: f.category.value,
+        await api(`${A}/ledger/staff`, { full_name: f.name.value, job_title: f.title.value || null, category: f.category.value,
           phone: f.phone.value || null, iban: f.iban.value || "", base_salary: f.salary.value });
         toast("أُضيف الموظف"); show();
       })),
@@ -284,13 +283,13 @@ async function payroll({ show }) {
         sub(`${s.job_title || ""}${s.phone ? ` — ${s.phone}` : ""}`)),
       h("div", { class: "row", style: "flex:none" }, h("b", {}, money(s.base_salary)),
         btn(s.is_active ? "إيقاف" : "تفعيل", async () => {
-          await api(`${L}/staff/${s.id}/active`, { active: !s.is_active }, "PATCH"); show();
+          await api(`${A}/ledger/staff/${s.id}/active`, { active: !s.is_active }, "PATCH"); show();
         }, "ghost sm")))) : empty("لا يوجد موظفون. أضفهم أو استورد المعلمين.")),
 
     panel("مسير الرواتب", null,
       h("div", { class: "row" }, field("الشهر", period),
         btn("إنشاء مسير الشهر", async () => {
-          const r = await api(`${L}/payroll`, { period: `${period.value}-01` });
+          const r = await api(`${A}/ledger/payroll`, { period: `${period.value}-01` });
           toast(`أُنشئ المسير لـ ${r.employees} موظفًا`); show();
         }, "soft")),
       runs.length ? runs.map((r) => runRow(r, show)) : empty("لا توجد مسيرات بعد.")),
@@ -306,20 +305,20 @@ function runRow(run, show) {
     h("div", { class: "row", style: "flex:none" },
       btn("التفاصيل", async () => {
         if (!box.classList.contains("hidden")) return box.classList.add("hidden");
-        const items = await api(`${L}/payroll/${run.id}/items`);
+        const items = await api(`${A}/ledger/payroll/${run.id}/items`);
         mount(box, items.map((i) => itemRow(run, i, show)));
         box.classList.remove("hidden");
       }, "ghost sm"),
       run.status === "draft" ? btn("اعتماد", async () => {
         if (!confirmAction("اعتماد المسير؟ لن يمكن تعديله بعدها.")) return;
-        await api(`${L}/payroll/${run.id}/approve`, {}); toast("اعتُمد المسير"); show();
+        await api(`${A}/ledger/payroll/${run.id}/approve`, {}); toast("اعتُمد المسير"); show();
       }, "sm") : null,
       run.status === "approved" ? btn("صرف الرواتب", () => {
         const method = select(Object.entries(METHODS), { value: "transfer" });
         const d = dialog("صرف الرواتب", h("div", {},
           sub(`سيُسجَّل مصروف لكل موظف بإجمالي ${money(run.total)}.`), field("طريقة الصرف", method)),
         [btn("تأكيد الصرف", async () => {
-          const r = await api(`${L}/payroll/${run.id}/pay`, { method: method.value });
+          const r = await api(`${A}/ledger/payroll/${run.id}/pay`, { method: method.value });
           d.close(); toast(`صُرفت رواتب ${r.paid} موظفًا`); show();
         })]);
       }, "sm") : null),
@@ -344,7 +343,7 @@ function itemRow(run, i, show) {
       h("span", { class: "sub" }, "سلف"), f.advances,
       h("b", {}, money(i.net)),
       editable ? btn("حفظ", async () => {
-        const r = await api(`${L}/payroll/${run.id}/items/${i.id}`, {
+        const r = await api(`${A}/ledger/payroll/${run.id}/items/${i.id}`, {
           allowances: f.allowances.value, bonus: f.bonus.value, deductions: f.deductions.value, advances: f.advances.value,
         }, "PATCH");
         toast(`الصافي ${money(r.net)}`); show();
@@ -353,7 +352,7 @@ function itemRow(run, i, show) {
 
 /* ---------------- الحسابات والتصنيفات ---------------- */
 async function accounts({ show }) {
-  const [list, categories] = await Promise.all([api(`${L}/accounts`), api(`${L}/categories`)]);
+  const [list, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
   const f = { name: input(), kind: select(Object.entries(KINDS)), opening: input({ type: "number", step: "0.01", value: 0 }),
     low: input({ type: "number", min: 0, step: "0.01" }), note: input() };
   const methodBoxes = Object.entries(METHODS).map(([k, label]) => {
@@ -370,7 +369,7 @@ async function accounts({ show }) {
       sub("طرق الدفع التي تدخل لهذا الحساب تلقائيًا"),
       h("div", { class: "spaced" }, methodBoxes.map((m) => m.el)),
       btn("إضافة الحساب", async () => {
-        await api(`${L}/accounts`, { name: f.name.value, kind: f.kind.value, opening_balance: f.opening.value || 0,
+        await api(`${A}/ledger/accounts`, { name: f.name.value, kind: f.kind.value, opening_balance: f.opening.value || 0,
           low_balance: f.low.value || "", note: f.note.value || null,
           methods: methodBoxes.filter((m) => m.cb.checked).map((m) => m.k) });
         toast("أُضيف الحساب"); show();
@@ -384,13 +383,13 @@ async function accounts({ show }) {
       h("div", { class: "row", style: "flex:none;align-items:center" },
         h("b", { class: Number(a.balance) < 0 ? "danger-text" : "" }, money(a.balance)),
         btn(a.is_active ? "إيقاف" : "تفعيل", async () => {
-          await api(`${L}/accounts/${a.id}/active`, { active: !a.is_active }, "PATCH"); show();
+          await api(`${A}/ledger/accounts/${a.id}/active`, { active: !a.is_active }, "PATCH"); show();
         }, "ghost sm"))))),
 
     panel("التصنيفات", null,
       h("div", { class: "row" }, field("النوع", cat.direction), field("اسم التصنيف", cat.name),
         btn("إضافة", async () => {
-          await api(`${L}/categories`, { direction: cat.direction.value, name: cat.name.value });
+          await api(`${A}/ledger/categories`, { direction: cat.direction.value, name: cat.name.value });
           toast("أُضيف التصنيف"); show();
         }, "soft")),
       h("div", { class: "cols-2" },

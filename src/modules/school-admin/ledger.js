@@ -6,6 +6,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 import * as ledger from "../shared/ledger.service.js";
 import * as donations from "../shared/donations.service.js";
 import * as payroll from "../shared/payroll.service.js";
+import { requirePermission } from "../../core/auth/guards.js";
 
 const r = Router();
 const period = z.object({
@@ -71,13 +72,16 @@ r.post("/entries", handle(async (req, res) => {
   })));
 }));
 
-r.post("/entries/:id/review", handle(async (req, res) => {
+const canApprove = requirePermission("can_approve_finance", "ليس لديك صلاحية اعتماد الحركات المالية");
+const canPayroll = requirePermission("can_manage_payroll", "ليس لديك صلاحية إدارة الرواتب");
+
+r.post("/entries/:id/review", canApprove, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(ledger.reviewSchema, req.body);
   res.json(await inTenant(req, (q) => ledger.reviewEntry(q, id, b, req.actor)));
 }));
 
-r.post("/entries/:id/void", handle(async (req, res) => {
+r.post("/entries/:id/void", canApprove, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(ledger.voidSchema, req.body);
   await inTenant(req, (q) => ledger.voidEntry(q, id, b.reason, req.actor));
@@ -96,29 +100,29 @@ r.post("/donations", handle(async (req, res) => {
 
 /* ---------- الموظفون ---------- */
 r.get("/staff", handle(async (req, res) => res.json(await inTenant(req, payroll.listStaff))));
-r.post("/staff", handle(async (req, res) => {
+r.post("/staff", canPayroll, handle(async (req, res) => {
   const b = parse(payroll.staffSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => payroll.addStaff(q, b)));
 }));
-r.patch("/staff/:id", handle(async (req, res) => {
+r.patch("/staff/:id", canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(payroll.staffSchema, req.body);
   await inTenant(req, (q) => payroll.updateStaff(q, id, b));
   res.json({ ok: true });
 }));
-r.patch("/staff/:id/active", handle(async (req, res) => {
+r.patch("/staff/:id/active", canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const { active } = parse(z.object({ active: z.boolean() }), req.body);
   await inTenant(req, (q) => payroll.setStaffActive(q, id, active));
   res.json({ ok: true });
 }));
-r.post("/staff/import-teachers", handle(async (req, res) => {
+r.post("/staff/import-teachers", canPayroll, handle(async (req, res) => {
   res.json({ added: await inTenant(req, payroll.importTeachers) });
 }));
 
 /* ---------- مسير الرواتب ---------- */
 r.get("/payroll", handle(async (req, res) => res.json(await inTenant(req, payroll.listRuns))));
-r.post("/payroll", handle(async (req, res) => {
+r.post("/payroll", canPayroll, handle(async (req, res) => {
   const b = parse(payroll.runSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => payroll.createRun(q, b, req.actor)));
 }));
@@ -126,17 +130,17 @@ r.get("/payroll/:id/items", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   res.json(await inTenant(req, (q) => payroll.runItems(q, id)));
 }));
-r.patch("/payroll/:id/items/:itemId", handle(async (req, res) => {
+r.patch("/payroll/:id/items/:itemId", canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id), itemId = parse(t.id, req.params.itemId);
   const b = parse(payroll.itemSchema, req.body);
   res.json(await inTenant(req, (q) => payroll.updateItem(q, id, itemId, b)));
 }));
-r.post("/payroll/:id/approve", handle(async (req, res) => {
+r.post("/payroll/:id/approve", canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   await inTenant(req, (q) => payroll.approveRun(q, id, req.actor));
   res.json({ ok: true });
 }));
-r.post("/payroll/:id/pay", handle(async (req, res) => {
+r.post("/payroll/:id/pay", canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(payroll.paySchema, req.body);
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return payroll.payRun(q, id, b.method, req.actor); }));

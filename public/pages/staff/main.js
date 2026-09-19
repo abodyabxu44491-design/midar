@@ -6,16 +6,17 @@ import { brandLogo, footer, field, input, btn, notice, sub , showInstallBar} fro
 import { startAnalytics } from "/shared/js/analytics.js";
 import { startAdmin } from "/admin/app.js";
 import { startTeacher } from "/teacher/app.js";
+import { startAccountant } from "/accountant/app.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 
-const open = { admin: startAdmin, teacher: startTeacher };
+const open = { admin: startAdmin, teacher: startTeacher, accountant: startAccountant };
 
 async function start() {
   // لو كانت هناك جلسة سارية نفتح لوحتها مباشرة
-  for (const role of ["admin", "teacher"]) {
-    try { await api(`/api/${role}/me`); return open[role](); } catch { /* لا جلسة */ }
+  for (const role of ["admin", "teacher", "accountant"]) {
+    try { await api(`/api/${role}/me`); sessionStorage.setItem("midar_role", role); return open[role](); } catch { /* لا جلسة */ }
   }
   showLogin();
 }
@@ -29,6 +30,7 @@ function showLogin(error) {
     try {
       const r = await api("/api/staff/login", { school, username: user.value, password: pass.value });
       pass.value = "";
+      sessionStorage.setItem("midar_role", r.role);
       localStorage.setItem("midar_school", school);
       mount(app, h("p", { class: "empty loading" }, "جارٍ فتح لوحتك…"));
       await open[r.role]();
