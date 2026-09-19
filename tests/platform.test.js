@@ -697,6 +697,51 @@ test("العملات: عملة المدرسة وحساب بعملة أخرى و�
   assert.equal((await tenantC.put("/api/admin/settings/currency", { currency: "USD" })).status, 400);
 });
 
+test("التحويل بين الحسابات: حركتان مرتبطتان ولا يُحتسب إيرادًا", async () => {
+  const accounts = (await A.admin.get("/api/admin/ledger/accounts")).data.filter((a) => a.is_active);
+  const cash = accounts.find((a) => a.kind === "cash");
+  const bank = accounts.find((a) => a.kind === "bank");
+  // إيداع مبلغ في الصندوق أولًا حتى يكون فيه رصيد
+  const incomeCat = (await A.admin.get("/api/admin/ledger/categories")).data.find((c) => c.direction === "income");
+  await A.admin.post("/api/admin/ledger/entries", {
+    direction: "income", amount: 2000, account_id: cash.id, category_id: incomeCat.id,
+    occurred_on: "2026-09-06", reason: "إيراد نشاط", method: "cash" });
+
+  const fresh = (await A.admin.get("/api/admin/ledger/accounts")).data;
+  const cashBalance = Number(fresh.find((a) => a.id === cash.id).balance);
+  const bankBalance = Number(fresh.find((a) => a.id === bank.id).balance);
+  const before = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+
+  // لا تحويل بأكثر من الرصيد
+  const tooMuch = await A.admin.post("/api/admin/ledger/transfers", {
+    from_account_id: bank.id, to_account_id: cash.id, amount: 999999,
+    occurred_on: "2026-09-06", reason: "تجربة" });
+  assert.equal(tooMuch.status, 400);
+  assert.match(tooMuch.data.error, /لا يكفي/);
+
+  const amount = 500;
+  const r = await A.admin.post("/api/admin/ledger/transfers", {
+    from_account_id: cash.id, to_account_id: bank.id, amount,
+    occurred_on: "2026-09-06", reason: "إيداع نقدية في البنك" });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.match(r.data.sent.entry_no, /^F-/);
+  assert.match(r.data.received.entry_no, /^F-/);
+
+  const after = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
+  assert.equal(after.data.income, before.data.income, "التحويل ليس إيرادًا");
+  assert.equal(after.data.expense, before.data.expense, "التحويل ليس مصروفًا");
+  assert.equal(after.data.balance, before.data.balance, "الرصيد الإجمالي لا يتغير");
+
+  const cashAfter = after.data.accounts.find((a) => a.id === cash.id);
+  const bankAfter = after.data.accounts.find((a) => a.id === bank.id);
+  assert.equal(Number(cashAfter.balance), cashBalance - amount);
+  assert.equal(Number(bankAfter.balance), bankBalance + amount);
+
+  assert.equal((await A.admin.post("/api/admin/ledger/transfers", {
+    from_account_id: cash.id, to_account_id: cash.id, amount: 10,
+    occurred_on: "2026-09-06", reason: "نفس الحساب" })).status, 400);
+});
+
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {
   const r = await A.admin.get("/api/admin/export");
   assert.equal(r.status, 200);

@@ -20,6 +20,13 @@ r.get("/alerts", handle(async (req, res) => {
       (SELECT count(*) FROM classes c WHERE NOT EXISTS
          (SELECT 1 FROM timetable_slots s WHERE s.class_id = c.id))::int AS classes_without_timetable,
       (SELECT count(*) FROM students s WHERE s.archived_at IS NULL AND s.class_id IS NULL)::int AS students_without_class,
+      (SELECT count(*) FROM finance_entries WHERE status = 'pending')::int AS pending_finance,
+      (SELECT count(*) FROM finance_accounts a WHERE a.is_active AND a.low_balance IS NOT NULL
+         AND account_balance(a.id) < a.low_balance)::int AS low_balance_accounts,
+      (SELECT CASE WHEN EXISTS (SELECT 1 FROM staff WHERE is_active)
+                    AND NOT EXISTS (SELECT 1 FROM payroll_runs
+                                     WHERE period = date_trunc('month', CURRENT_DATE)::date AND status <> 'void')
+              THEN 1 ELSE 0 END)::int AS payroll_due,
       (SELECT count(*) FROM (SELECT student_id FROM attendance
           WHERE status = 'absent' AND day > CURRENT_DATE - 30 GROUP BY student_id HAVING count(*) >= 3) x)::int AS frequent_absentees`);
 

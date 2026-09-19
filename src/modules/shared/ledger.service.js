@@ -42,6 +42,16 @@ export const entrySchema = z.object({
   rate: z.coerce.number().positive("سعر التحويل غير صحيح").max(1_000_000).optional(),
   needs_approval: z.boolean().default(false),
 });
+export const transferSchema = z.object({
+  from_account_id: t.id,
+  to_account_id: t.id,
+  amount: money,
+  occurred_on: t.date,
+  reason: t.shortText("سبب التحويل", 300),
+  rate: z.coerce.number().positive().max(1_000_000).optional(),   // عند اختلاف العملتين
+  reference: t.optText(80),
+}).refine((b) => b.from_account_id !== b.to_account_id, { message: "اختر حسابين مختلفين", path: ["to_account_id"] });
+
 export const voidSchema = z.object({ reason: t.shortText("سبب الإلغاء", 300) });
 export const reviewSchema = z.object({ decision: z.enum(["approve", "reject"]), note: t.optText(300) });
 
@@ -235,12 +245,58 @@ export async function voidEntry(q, id, reason, actor) {
     [id, reason, actor]);
 }
 
+/**
+ * تحويل بين حسابين: حركة صادرة من الأول وواردة للثاني، مرتبطتان برقم واحد.
+ * عند اختلاف العملتين يُطلب سعر التحويل بين الحسابين.
+ */
+export async function transfer(q, b, actor) {
+  const [from] = await q("SELECT id, name, currency, is_active FROM finance_accounts WHERE id = $1", [b.from_account_id]);
+  const [to] = await q("SELECT id, name, currency, is_active FROM finance_accounts WHERE id = $1", [b.to_account_id]);
+  if (!from || !to) throw notFound("أحد الحسابين غير موجود");
+  if (!from.is_active || !to.is_active) throw badRequest("أحد الحسابين موقوف");
+
+  const balance = Number((await q("SELECT account_balance($1) AS b", [from.id]))[0].b);
+  if (balance < b.amount) throw badRequest(`رصيد ${from.name} لا يكفي (${balance})`);
+
+  const cross = from.currency !== to.currency;
+  const fx = cross ? Number(b.rate || 0) : 1;
+  if (cross && !(fx > 0)) throw badRequest(`اكتب سعر تحويل ${from.currency} إلى ${to.currency}`);
+  const received = Math.round(b.amount * fx * 100) / 100;
+
+  const [{ out_id, in_id }] = await q("SELECT * FROM transfer_categories()");
+  const base = await baseCurrency(q);
+  const rateOf = async (account) => {
+    if (account.currency === base) return 1;
+    const [prev] = await q(
+      `SELECT rate FROM finance_entries e JOIN finance_accounts a ON a.id = e.account_id
+        WHERE a.currency = $1 ORDER BY e.id DESC LIMIT 1`, [account.currency]);
+    return prev ? Number(prev.rate) : 1;
+  };
+
+  const group = Date.now();
+  const outEntry = await addEntry(q, {
+    direction: "expense", amount: b.amount, account_id: from.id, category_id: out_id,
+    occurred_on: b.occurred_on, reason: `${b.reason} — إلى ${to.name}`, beneficiary: to.name,
+    method: "transfer", reference: b.reference ?? null, attachment: null, note: null, rate: await rateOf(from),
+  }, { actor, sourceType: "transfer", status: "approved" });
+
+  const inEntry = await addEntry(q, {
+    direction: "income", amount: received, account_id: to.id, category_id: in_id,
+    occurred_on: b.occurred_on, reason: `${b.reason} — من ${from.name}`, beneficiary: from.name,
+    method: "transfer", reference: b.reference ?? null, attachment: null, note: null, rate: await rateOf(to),
+  }, { actor, sourceType: "transfer", status: "approved" });
+
+  await q("UPDATE finance_entries SET transfer_group = $1 WHERE id = ANY($2::bigint[])", [group, [outEntry.id, inEntry.id]]);
+  return { sent: { entry_no: outEntry.entry_no, amount: b.amount, currency: from.currency },
+           received: { entry_no: inEntry.entry_no, amount: received, currency: to.currency } };
+}
+
 /* ---------- الملخص والتقارير ---------- */
 export async function summary(q, { from, to }) {
   const [totals] = await q(
     `SELECT
-       COALESCE(SUM(amount_base) FILTER (WHERE direction = 'income'  AND status = 'approved'), 0) AS income,
-       COALESCE(SUM(amount_base) FILTER (WHERE direction = 'expense' AND status = 'approved'), 0) AS expense,
+       COALESCE(SUM(amount_base) FILTER (WHERE direction = 'income'  AND status = 'approved' AND source_type <> 'transfer'), 0) AS income,
+       COALESCE(SUM(amount_base) FILTER (WHERE direction = 'expense' AND status = 'approved' AND source_type <> 'transfer'), 0) AS expense,
        COALESCE(SUM(amount_base) FILTER (WHERE status = 'approved' AND source_type = 'fee'), 0) AS fees,
        COALESCE(SUM(amount_base) FILTER (WHERE status = 'approved' AND source_type = 'donation'), 0) AS donations,
        COALESCE(SUM(amount_base) FILTER (WHERE status = 'approved' AND source_type = 'salary'), 0) AS salaries,
@@ -252,14 +308,15 @@ export async function summary(q, { from, to }) {
   const byCategory = await q(
     `SELECT c.direction, c.name, COALESCE(SUM(e.amount_base), 0) AS total
        FROM finance_entries e JOIN finance_categories c ON c.id = e.category_id
-      WHERE e.status = 'approved' AND e.occurred_on BETWEEN $1 AND $2
+      WHERE e.status = 'approved' AND e.source_type <> 'transfer' AND e.occurred_on BETWEEN $1 AND $2
       GROUP BY c.direction, c.name ORDER BY 3 DESC`, [from, to]);
 
   const byMonth = await q(
     `SELECT to_char(occurred_on, 'YYYY-MM') AS month,
             COALESCE(SUM(amount_base) FILTER (WHERE direction = 'income'), 0) AS income,
             COALESCE(SUM(amount_base) FILTER (WHERE direction = 'expense'), 0) AS expense
-       FROM finance_entries WHERE status = 'approved' AND occurred_on > CURRENT_DATE - interval '12 months'
+       FROM finance_entries WHERE status = 'approved' AND source_type <> 'transfer'
+        AND occurred_on > CURRENT_DATE - interval '12 months'
       GROUP BY 1 ORDER BY 1`);
 
   const accounts = await listAccounts(q);

@@ -21,6 +21,9 @@ export default async function dashboard({ me }) {
     alert("معلمون بدون إسناد", c.teachers_without_load),
     alert("صفوف بدون جدول", c.classes_without_timetable),
     alert("طلاب بدون فصل", c.students_without_class),
+    alert("حركات مالية تنتظر الاعتماد", c.pending_finance, "warn"),
+    alert("حسابات رصيدها منخفض", c.low_balance_accounts, "bad"),
+    alert("مسير رواتب هذا الشهر لم يُنشأ", c.payroll_due, "warn"),
   ].filter(Boolean);
 
   return [

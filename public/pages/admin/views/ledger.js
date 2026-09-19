@@ -2,7 +2,7 @@
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast,
-  dialog, notice, confirmAction } from "/shared/js/ui.js";
+  dialog, notice, confirmAction, brandLogo } from "/shared/js/ui.js";
 import { barChart } from "/shared/js/charts.js";
 import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "/shared/js/format.js";
 import { A } from "./common.js";
@@ -29,10 +29,11 @@ export default async function ledgerView({ refresh, me }) {
   const sections = [["dashboard", "لوحة التحكم"], ["entries", "سجل الحركات"], ["expenses", "مصروف أو سحب"],
     ["donations", "التبرعات"]];
   if (perms.payroll) sections.push(["payroll", "الرواتب"]);
+  if (perms.accounts) sections.push(["transfer", "تحويل بين الحسابات"]);
   if (perms.accounts) sections.push(["accounts", "الحسابات والتصنيفات"]);
   const section = select(sections);
   const body = h("div");
-  const views = { dashboard, entries, expenses, donationsView, payroll, accounts };
+  const views = { dashboard, entries, expenses, donationsView, payroll, accounts, transfer };
   const show = async () => {
     mount(body, empty("جارٍ التحميل…"));
     try { mount(body, await views[section.value === "donations" ? "donationsView" : section.value]({ refresh, show })); }
@@ -87,6 +88,8 @@ async function dashboard({ show }) {
         barChart(d.by_month.map((m) => ({ label: monthName(m.month), value: Math.round(m.expense), color: "var(--red)" }))),
         sub("المصروفات")),
 
+      printReport(d),
+
       panel("التوزيع حسب التصنيف", btn("تصدير", () => exportRows("التصنيفات", d.by_category,
         [["التصنيف", "name"], ["النوع", (r) => (r.direction === "income" ? "إيراد" : "مصروف")], ["المبلغ", "total"]]), "ghost sm"),
         d.by_category.length ? d.by_category.map((c) => line(
@@ -106,6 +109,26 @@ async function dashboard({ show }) {
   await load();
 
   return [panel("الفترة", null, h("div", { class: "row" }, field("المدة", range), field("من", from), field("إلى", to))), box];
+}
+
+// تقرير مالي مختصر جاهز للطباعة أو الحفظ PDF
+function printReport(d) {
+  const row = (label, value, cls = "") => line(h("span", {}, label), h("b", { class: cls }, value));
+  return panel("تقرير الفترة", btn("طباعة / حفظ PDF", () => window.print(), "ghost sm"),
+    h("div", { class: "report" },
+      h("header", {}, h("div", {}, h("h2", {}, "التقرير المالي"),
+        sub(`من ${fmtDate(d.period.from)} إلى ${fmtDate(d.period.to)}`)), brandLogo("print-logo", false)),
+      row("إجمالي المداخيل", money(d.income)),
+      row("إجمالي المصروفات", money(d.expense), "danger-text"),
+      row("صافي الحركة", money(d.net)),
+      row("الرسوم المسددة", money(d.fees)),
+      row("الرسوم غير المسددة", money(d.unpaid_fees)),
+      row("التبرعات", money(d.donations)),
+      row("الرواتب", money(d.salaries)),
+      row("المصروفات التشغيلية", money(d.operating)),
+      row("السحوبات", money(d.withdrawals)),
+      row("الرصيد الحالي", money(d.balance)),
+      h("div", { class: "sign" }, h("span", {}, "المحاسب: ......................"), h("span", {}, "مدير المدرسة: ......................"))));
 }
 
 /* ---------------- سجل الحركات ---------------- */
@@ -264,6 +287,51 @@ async function uploadFile(fileInput, entryId) {
     reader.readAsDataURL(file);
   });
   await api(`${A}/ledger/entries/${entryId}/attachments`, { filename: file.name, mime: file.type, data });
+}
+
+/* ---------------- تحويل بين الحسابات ---------------- */
+async function transfer({ show }) {
+  const list = (await api(`${A}/ledger/accounts`)).filter((a) => a.is_active);
+  if (list.length < 2) return panel("تحويل بين الحسابات", null, empty("تحتاج حسابين نشطين على الأقل."));
+  const label = (a) => `${a.name} — ${money(a.balance, a.currency)}`;
+  const from = select(list.map((a) => [a.id, label(a)]));
+  const to = select(list.map((a) => [a.id, label(a)]), { value: list[1].id });
+  const amount = input({ type: "number", min: 0.01, step: "0.01" });
+  const date = input({ type: "date", value: today() });
+  const reason = input({ placeholder: "سبب التحويل" });
+  const reference = input({ class: "ltr" });
+  const rate = input({ type: "number", min: 0.000001, step: "0.000001" });
+  const rateWrap = h("div", { class: "hidden" });
+  const msg = h("div");
+
+  const sync = () => {
+    const a = list.find((x) => String(x.id) === from.value);
+    const b = list.find((x) => String(x.id) === to.value);
+    const cross = a && b && a.currency !== b.currency;
+    rateWrap.classList.toggle("hidden", !cross);
+    if (cross) mount(rateWrap, field(`سعر تحويل ${CURRENCIES[a.currency].name} إلى ${CURRENCIES[b.currency].name}`, rate));
+  };
+  from.addEventListener("change", sync);
+  to.addEventListener("change", sync);
+  sync();
+
+  return panel("تحويل بين الحسابات", null,
+    sub("إيداع نقدية في البنك أو نقل مبلغ بين صندوقين. يُسجَّل حركتين مرتبطتين، ولا يُحتسب إيرادًا ولا مصروفًا."),
+    h("div", { class: "row" }, field("من حساب", from), field("إلى حساب", to)),
+    h("div", { class: "row" }, field("المبلغ", amount), field("التاريخ", date)),
+    rateWrap,
+    h("div", { class: "row" }, field("السبب", reason), field("المرجع", reference)),
+    msg,
+    btn("تنفيذ التحويل", async () => {
+      mount(msg);
+      try {
+        const r = await api(`${A}/ledger/transfers`, { from_account_id: from.value, to_account_id: to.value,
+          amount: amount.value, occurred_on: date.value, reason: reason.value,
+          reference: reference.value || null, rate: rate.value || undefined });
+        toast(`تم التحويل: ${money(r.sent.amount, r.sent.currency)} ← ${money(r.received.amount, r.received.currency)}`);
+        show();
+      } catch (e) { mount(msg, notice(e.message, "err")); }
+    }));
 }
 
 /* ---------------- التبرعات ---------------- */

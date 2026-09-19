@@ -93,6 +93,12 @@ r.post("/entries/:id/void", canApprove, handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ---------- التحويل بين الحسابات ---------- */
+r.post("/transfers", canAccounts, handle(async (req, res) => {
+  const b = parse(ledger.transferSchema, req.body);
+  res.status(201).json(await inTenant(req, (q) => ledger.transfer(q, b, req.actor)));
+}));
+
 /* ---------- التبرعات ---------- */
 r.get("/donations", handle(async (req, res) => {
   const f = parse(period, req.query);
