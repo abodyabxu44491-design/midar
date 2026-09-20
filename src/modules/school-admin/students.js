@@ -4,7 +4,7 @@ import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as students from "../shared/students.service.js";
-import { studentSummary } from "../shared/finance.service.js";
+import { studentSummaries } from "../shared/finance.service.js";
 
 const r = Router();
 
@@ -17,7 +17,8 @@ r.get("/", handle(async (req, res) => {
          FROM students s LEFT JOIN classes c ON c.id = s.class_id
         WHERE ($1 = 'all' OR ($1 = 'active') = (s.status = 'active'))
         ORDER BY c.id NULLS LAST, s.full_name`, [scope]);
-    for (const s of rows) s.fees = s.fees_enabled ? await studentSummary(q, s.id) : null;
+    const summaries = await studentSummaries(q, rows.filter((s) => s.fees_enabled).map((s) => s.id));
+    for (const s of rows) s.fees = s.fees_enabled ? summaries.get(Number(s.id)) : null;
     return rows;
   }));
 }));

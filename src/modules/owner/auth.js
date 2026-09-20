@@ -20,7 +20,12 @@ r.get("/config", (req, res) => res.json({ totp: Boolean(env.OWNER_TOTP_SECRET) }
 r.post("/login", limits.login, handle(async (req, res) => {
   const b = parse(schema, req.body);
   const ctx = { actor: "مالك المنصة", ip: req.ip, platform: true };
-  const locked = await transaction(ctx, async (q) => (await recentFailures(q, "owner_login_failed", "owner", 15)) >= 5);
+  // القفل لكل عنوان IP (5 محاولات)، مع سقف أعلى عام يقاوم التخمين الموزّع.
+  // لو كان القفل عامًا فقط لاستطاع أي شخص إبقاء المالك خارج لوحته بإرسال 5 محاولات كل 15 دقيقة.
+  const ip = req.ip || "unknown";
+  const locked = await transaction(ctx, async (q) =>
+    (await recentFailures(q, "owner_login_failed", `owner:${ip}`, 15)) >= 5
+    || (await recentFailures(q, "owner_login_failed", "owner", 15)) >= 40);
   if (locked) throw unauthorized("تم قفل الدخول مؤقتًا بسبب محاولات خاطئة. حاول بعد 15 دقيقة.");
 
   const passOk = await verifyPassword(b.password, env.OWNER_PASSWORD_HASH);
@@ -29,10 +34,11 @@ r.post("/login", limits.login, handle(async (req, res) => {
 
   if (!(passOk && userOk && codeOk)) {
     await transaction(ctx, async (q) => {
+      await securityEvent(q, { kind: "owner_login_failed", subject: `owner:${ip}`, ip: req.ip });
       await securityEvent(q, { kind: "owner_login_failed", subject: "owner", ip: req.ip });
       await logEvent(q, { actor: "مجهول", action: "محاولة دخول فاشلة للوحة المالك" });
     });
-    throw unauthorized(passOk && userOk ? "رمز التحقق غير صحيح" : "بيانات الدخول غير صحيحة");
+    throw unauthorized("بيانات الدخول غير صحيحة");   // رسالة واحدة: لا نكشف أن كلمة المرور صحيحة وأن الرمز وحده الخاطئ
   }
   await transaction(ctx, async (q) => {
     await createSession(res, "owner", { ip: req.ip, userAgent: req.get("user-agent") }, q);

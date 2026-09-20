@@ -5,6 +5,7 @@ import { handle, notFound, conflict } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword } from "../../core/auth/codes.js";
+import { clearLoginFailures } from "../../core/audit.js";
 
 const r = Router();
 const createSchema = z.object({
@@ -33,9 +34,9 @@ r.post("/", handle(async (req, res) => {
   await inTenant(req, async (q) => {
     const [taken] = await q("SELECT 1 FROM users WHERE username = $1", [b.username]);
     if (taken) throw conflict("اسم المستخدم مستخدم داخل المدرسة");
-    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash,
+    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password,
                can_approve_finance, can_manage_payroll, can_manage_accounts)
-             VALUES (app_tenant(), 'accountant', $1, $2, $3, $4, $5, $6)`,
+             VALUES (app_tenant(), 'accountant', $1, $2, $3, true, $4, $5, $6)`,
       [b.name, b.username, hash, b.can_approve_finance, b.can_manage_payroll, b.can_manage_accounts]);
   });
   res.status(201).json({ credentials: { school: req.tenantId, username: b.username, password } });
@@ -71,10 +72,11 @@ r.post("/:id/reset-password", handle(async (req, res) => {
   const hash = await hashPassword(password);
   const username = await inTenant(req, async (q) => {
     const [u] = await q(
-      `UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, password_changed_at = now()
+      `UPDATE users SET password_hash = $2, must_change_password = true, failed_logins = 0, locked_until = NULL, password_changed_at = now()
         WHERE id = $1 AND role = 'accountant' RETURNING username`, [id, hash]);
     if (!u) throw notFound("الحساب غير موجود");
     await q("DELETE FROM sessions WHERE user_id = $1", [id]);
+    await clearLoginFailures(q, req.tenantId, u.username);
     return u.username;
   });
   res.json({ credentials: { school: req.tenantId, username, password } });

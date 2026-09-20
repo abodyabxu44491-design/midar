@@ -146,7 +146,9 @@ async function nextEntryNo(q) {
  * والحركات اليدوية الحساسة (سحب/مصروف) يمكن أن تبدأ بانتظار الاعتماد.
  */
 export async function addEntry(q, b, { actor, sourceType = "manual", sourceId = null, status = "approved" }) {
-  const [account] = await q("SELECT id, is_active, currency FROM finance_accounts WHERE id = $1", [b.account_id]);
+  // المصروف يقفل صف الحساب حتى لا يتجاوزه تحويل متزامن يفحص الرصيد في اللحظة نفسها
+  const [account] = await q(
+    `SELECT id, is_active, currency FROM finance_accounts WHERE id = $1 ${b.direction === "expense" ? "FOR UPDATE" : ""}`, [b.account_id]);
   if (!account) throw notFound("الحساب غير موجود");
   if (!account.is_active) throw badRequest("هذا الحساب موقوف");
   const [category] = await q("SELECT id, direction FROM finance_categories WHERE id = $1", [b.category_id]);
@@ -181,7 +183,10 @@ export async function addSystemEntry(q, { direction, amount, method, occurredOn,
     categoryId = await categoryByCode(q, categoryCode);
     accountId = await accountForMethod(q, method || "cash");
   }
-  if (!categoryId || !accountId) return null;
+  if (!categoryId || !accountId) {
+    // لا نبتلع الخطأ: تسجيل دفعة أو راتب بدون قيد مالي يجعل الدفتر لا يطابق الواقع
+    throw badRequest(`لا يوجد حساب نشط بعملة المدرسة (${await baseCurrency(q)}) أو تصنيف مناسب. فعّل حسابًا أو أنشئ حسابًا من الحسابات المالية ثم أعد المحاولة.`);
+  }
   return addEntry(q, {
     direction, amount, account_id: accountId, category_id: categoryId,
     occurred_on: occurredOn || new Date().toISOString().slice(0, 10),
@@ -235,14 +240,29 @@ export async function reviewEntry(q, id, b, actor) {
 }
 
 export async function voidEntry(q, id, reason, actor) {
-  const [e] = await q("SELECT id, status, source_type FROM finance_entries WHERE id = $1 FOR UPDATE", [id]);
+  const [e] = await q("SELECT id, status, source_type, transfer_group FROM finance_entries WHERE id = $1 FOR UPDATE", [id]);
   if (!e) throw notFound("الحركة غير موجودة");
   if (["void", "rejected"].includes(e.status)) throw badRequest("الحركة ملغاة مسبقًا");
   if (["fee", "refund"].includes(e.source_type)) {
     throw badRequest("حركة الرسوم تُصحَّح من تبويب الرسوم (استرداد)، وليس من السجل المالي");
   }
+  if (e.source_type === "salary") {
+    throw badRequest("حركة الراتب مرتبطة بمسير الرواتب ولا تُلغى منفردة. صحّحها بحركة إيراد عكسية مع ذكر السبب.");
+  }
+
+  // التحويل حركتان: يُلغيان معًا أو لا يُلغى أي منهما، وإلا اختل رصيد الحسابين
+  if (e.source_type === "transfer") {
+    if (!e.transfer_group) throw badRequest("هذه الحركة جزء من تحويل غير مكتمل الربط. تواصل مع الدعم.");
+    const legs = await q(
+      `UPDATE finance_entries SET status = 'void', void_reason = $2, approved_by = COALESCE(approved_by, $3)
+        WHERE transfer_group = $1 AND status NOT IN ('void', 'rejected') RETURNING id`,
+      [e.transfer_group, reason, actor]);
+    return { voided: legs.length, transfer: true };
+  }
+
   await q("UPDATE finance_entries SET status = 'void', void_reason = $2, approved_by = COALESCE(approved_by, $3) WHERE id = $1",
     [id, reason, actor]);
+  return { voided: 1 };
 }
 
 /**
@@ -250,8 +270,12 @@ export async function voidEntry(q, id, reason, actor) {
  * عند اختلاف العملتين يُطلب سعر التحويل بين الحسابين.
  */
 export async function transfer(q, b, actor) {
-  const [from] = await q("SELECT id, name, currency, is_active FROM finance_accounts WHERE id = $1", [b.from_account_id]);
-  const [to] = await q("SELECT id, name, currency, is_active FROM finance_accounts WHERE id = $1", [b.to_account_id]);
+  // قفل الحسابين بترتيب ثابت (يمنع الجمود) قبل فحص الرصيد، فلا يتجاوز تحويلان متزامنان الرصيد معًا
+  const locked = await q(
+    "SELECT id, name, currency, is_active FROM finance_accounts WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE",
+    [[b.from_account_id, b.to_account_id]]);
+  const from = locked.find((a) => Number(a.id) === Number(b.from_account_id));
+  const to = locked.find((a) => Number(a.id) === Number(b.to_account_id));
   if (!from || !to) throw notFound("أحد الحسابين غير موجود");
   if (!from.is_active || !to.is_active) throw badRequest("أحد الحسابين موقوف");
 
@@ -273,7 +297,7 @@ export async function transfer(q, b, actor) {
     return prev ? Number(prev.rate) : 1;
   };
 
-  const group = Date.now();
+  const [{ n: group }] = await q("SELECT next_counter('transfer_group') AS n");   // معرّف فريد لكل تحويل (بدل الوقت الذي قد يتكرر)
   const outEntry = await addEntry(q, {
     direction: "expense", amount: b.amount, account_id: from.id, category_id: out_id,
     occurred_on: b.occurred_on, reason: `${b.reason} — إلى ${to.name}`, beneficiary: to.name,

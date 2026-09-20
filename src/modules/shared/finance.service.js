@@ -36,6 +36,21 @@ export async function studentSummary(q, studentId) {
   return { total, paid, remaining, status: total === 0 ? "none" : remaining > 0 ? "unpaid" : "paid" };
 }
 
+// ملخص الرسوم لعدة طلاب باستعلام واحد (بدل استعلام لكل طالب). يرجع Map من رقم الطالب إلى الملخص.
+export async function studentSummaries(q, ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const rows = await q(
+    `SELECT i.student_id, COALESCE(SUM(i.amount), 0) AS total, COALESCE(SUM(invoice_net_paid(i.id)), 0) AS paid
+       FROM invoices i WHERE i.status = 'open' AND i.student_id = ANY($1::bigint[]) GROUP BY i.student_id`, [ids]);
+  for (const r of rows) {
+    const total = round2(r.total), paid = round2(r.paid), remaining = round2(total - paid);
+    out.set(Number(r.student_id), { total, paid, remaining, status: total === 0 ? "none" : remaining > 0 ? "unpaid" : "paid" });
+  }
+  for (const id of ids) if (!out.has(Number(id))) out.set(Number(id), { total: 0, paid: 0, remaining: 0, status: "none" });
+  return out;
+}
+
 export async function schoolTotals(q) {
   const [r] = await q(
     `SELECT COALESCE(SUM(amount), 0) AS total, COALESCE(SUM(invoice_net_paid(id)), 0) AS paid

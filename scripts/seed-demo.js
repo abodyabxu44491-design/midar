@@ -5,6 +5,12 @@ import { hashPassword } from "../src/core/auth/password.js";
 import * as students from "../src/modules/shared/students.service.js";
 import * as finance from "../src/modules/shared/finance.service.js";
 
+// حماية: هذا السكربت ينشئ مدرسة بكلمات مرور معروفة للجميع، فلا يعمل على الإنتاج إلا بطلب صريح
+if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
+  console.error("رُفض التنفيذ: بيئة الإنتاج. هذا السكربت ينشئ حسابات بكلمات مرور معروفة (للعرض فقط).");
+  process.exit(1);
+}
+
 const ID = "demo";
 const ctx = { tenantId: ID, actor: "إعداد تجريبي" };
 const ADMIN_PW = "Demo-Admin-2026", TEACHER_PW = "Demo-Teacher-2026";

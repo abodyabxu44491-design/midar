@@ -1,6 +1,7 @@
 // الحسابات البنكية وإشعارات التحويل
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
+import { currencySymbol } from "../../core/currency.js";
 import { recordPayment } from "./finance.service.js";
 
 const iban = z.string().transform((v) => v.replace(/[\s-]/g, "").toUpperCase())
@@ -79,7 +80,10 @@ export async function createClaim(q, student, b) {
   const remaining = Math.round((inv.amount - inv.paid - pending.total) * 100) / 100;
   if (pending.n >= 3) throw badRequest("يوجد إشعارات بانتظار مراجعة المدرسة لهذه الفاتورة. انتظر حتى تتم مراجعتها.");
   if (remaining <= 0) throw badRequest("لا يوجد مبلغ متبقٍ على هذه الفاتورة (أو يوجد إشعار بانتظار المراجعة يغطيه)");
-  if (b.amount > remaining) throw badRequest(`المبلغ أكبر من المتبقي (${remaining} ر.س)`);
+  if (b.amount > remaining) {
+    const [{ currency }] = await q("SELECT currency FROM tenants WHERE id = app_tenant()");
+    throw badRequest(`المبلغ أكبر من المتبقي (${remaining} ${currencySymbol(currency)})`);
+  }
   const today = new Date().toISOString().slice(0, 10);
   if (b.transfer_date > today) throw badRequest("تاريخ التحويل لا يكون في المستقبل");
   if (b.account_id) {
@@ -109,7 +113,8 @@ export async function reviewClaim(q, id, b, actor) {
     note: [`تحويل من ${c.sender_name}`, c.bank_reference && `مرجع ${c.bank_reference}`, `بتاريخ ${c.transfer_date}`, b.note].filter(Boolean).join(" — ").slice(0, 300),
   });
   const [p] = await q("SELECT id FROM payments WHERE receipt_no = $1", [paid.receipt]);
+  const [{ currency }] = await q("SELECT currency FROM tenants WHERE id = app_tenant()");
   await q("UPDATE payment_claims SET status = 'confirmed', payment_id = $2, reviewed_by = $3, review_note = $4 WHERE id = $1",
-    [id, p.id, actor, amount !== c.amount ? `تم تأكيد ${amount} ر.س${b.note ? ` — ${b.note}` : ""}` : b.note]);
+    [id, p.id, actor, amount !== c.amount ? `تم تأكيد ${amount} ${currencySymbol(currency)}${b.note ? ` — ${b.note}` : ""}` : b.note]);
   return { status: "confirmed", receipt: paid.receipt, amount };
 }

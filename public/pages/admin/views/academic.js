@@ -140,6 +140,7 @@ function startYear(classes, current, refresh) {
         moves: moves(),
         overrides: [...overrides.values()],
         repeat_failed: true,
+        expected_year_id: current?.year_id ?? null,
       });
       d.close();
       toast(`تمت السنة الجديدة: رُفّع ${r.promoted}، أعاد ${r.repeated}، تخرّج ${r.graduated}, نُقل ${r.transferred}, انسحب ${r.withdrawn}`);

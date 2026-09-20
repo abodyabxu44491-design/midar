@@ -6,7 +6,9 @@ import { securityEvent, recentFailures, logEvent } from "../../core/audit.js";
 import { parse, t, z } from "../../core/http/validate.js";
 
 const schoolParam = z.string().toLowerCase().regex(/^[a-z0-9-]{3,30}$/);
-const MAX_KEY_FAILS = 10;   // لكل طالب خلال 30 دقيقة (يمنع التخمين حتى من عناوين مختلفة)
+// 10 محاولات خاطئة من العنوان الواحد لكل طالب خلال 30 دقيقة، وسقف 100 لكل طالب من كل العناوين.
+// (مساحة المعرّف 31^8 فالتخمين مستحيل عمليًا، والسقف العام لا يُستخدم لحرمان ولي الأمر من ملف ابنه)
+const MAX_KEY_FAILS_IP = 10, MAX_KEY_FAILS_ALL = 100;
 
 // تنفيذ داخل سياق المدرسة بعد التأكد أنها مفعّلة
 export async function inSchool(req, actor, fn) {
@@ -35,13 +37,16 @@ export const studentAuthSchema = z.object({ student_id: t.id, key: t.studentKey 
 export async function verifyStudent(req, tenant, q, body) {
   const b = parse(studentAuthSchema, body);
   const subject = `${tenant.id}:${b.student_id}`;
-  if ((await recentFailures(q, "student_key_failed", subject, 30)) >= MAX_KEY_FAILS) {
+  const ipSubject = `${subject}:${req.ip || "unknown"}`;
+  if ((await recentFailures(q, "student_key_failed_ip", ipSubject, 30)) >= MAX_KEY_FAILS_IP
+      || (await recentFailures(q, "student_key_failed", subject, 30)) >= MAX_KEY_FAILS_ALL) {
     throw unauthorized("تم إيقاف المحاولة مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد 30 دقيقة أو تواصل مع المدرسة.");
   }
   const [s] = await q("SELECT * FROM students WHERE id = $1 AND status = 'active'", [b.student_id]);
   if (!s || !safeEqual(b.key, s.access_key)) {
     await transaction({ tenantId: tenant.id, actor: "زائر", ip: req.ip }, async (q2) => {
       await securityEvent(q2, { kind: "student_key_failed", subject, tenantId: tenant.id, ip: req.ip });
+      await securityEvent(q2, { kind: "student_key_failed_ip", subject: ipSubject, tenantId: tenant.id, ip: req.ip });
       await logEvent(q2, { tenantId: tenant.id, actor: "زائر", action: `محاولة فتح ملف الطالب #${b.student_id} بمعرّف خاطئ` });
     });
     throw unauthorized("معرّف الطالب غير صحيح");

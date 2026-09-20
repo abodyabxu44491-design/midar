@@ -15,7 +15,7 @@ try {
 
 const server = createApp().listen(env.PORT, () => {
   console.log(`✓ مِدار يعمل على المنفذ ${env.PORT}`);
-  console.log("  /admin  إدارة المدرسة   |  /teacher  المعلمون   |  /s/<رمز>  صفحة الطلاب");
+  console.log("  /admin  إدارة المدرسة   |  /teacher  المعلمون   |  /<رمز-المدرسة>  صفحة الطلاب");
   console.log(`  ${env.OWNER_PATH}  لوحة المالك (سرّي)`);
 });
 server.headersTimeout = 20_000;

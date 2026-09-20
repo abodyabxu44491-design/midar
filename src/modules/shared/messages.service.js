@@ -12,11 +12,11 @@ export const templateSchema = z.object({
 const FIELDS = ["country_code", "absence", "late", "fees", "general"];
 
 export async function getTemplates(q) {
-  const [row] = await q(
-    `INSERT INTO school_messages (tenant_id) VALUES (app_tenant())
-     ON CONFLICT (tenant_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id
-     RETURNING ${FIELDS.join(", ")}`);
-  return row;
+  const read = () => q(`SELECT ${FIELDS.join(", ")} FROM school_messages WHERE tenant_id = app_tenant()`);
+  const [row] = await read();
+  if (row) return row;
+  await q("INSERT INTO school_messages (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+  return (await read())[0];
 }
 
 export async function updateTemplates(q, patch) {

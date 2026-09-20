@@ -6,6 +6,7 @@ import { parse, t } from "../../core/http/validate.js";
 import * as finance from "../shared/finance.service.js";
 import * as payments from "../shared/payments.service.js";
 import { z } from "../../core/http/validate.js";
+import { requirePermission } from "../../core/auth/guards.js";
 
 const r = Router();
 
@@ -26,7 +27,9 @@ r.post("/invoices/:id/payments", handle(async (req, res) => {
   })));
 }));
 
-r.post("/invoices/:id/refunds", handle(async (req, res) => {
+// الاسترداد يُخرج مبلغًا من الصندوق، فيحتاج صلاحية الاعتماد المالي
+const canRefund = requirePermission("can_approve_finance", "الاسترداد يحتاج صلاحية اعتماد الحركات المالية");
+r.post("/invoices/:id/refunds", canRefund, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(finance.refundSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => finance.recordPayment(q, {

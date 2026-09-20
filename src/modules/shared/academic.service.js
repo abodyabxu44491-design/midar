@@ -40,6 +40,8 @@ export const rolloverSchema = z.object({
   })).max(2000).default([]),
   // الراسب يعيد السنة تلقائيًا ولا يُرفَّع
   repeat_failed: z.boolean().default(true),
+  // السنة التي رآها المدير عند فتح النافذة: إن تغيرت (بدأ مدير آخر سنة جديدة) يُرفض الطلب
+  expected_year_id: t.optId,
 });
 
 export const passMarkSchema = z.object({ pass_mark: z.coerce.number().min(0).max(100) });
@@ -187,7 +189,12 @@ export async function promotionPreview(q, moves = []) {
  * كل ذلك في معاملة واحدة: إما تتم كاملة أو لا تتم.
  */
 export async function startNewYear(q, b) {
+  // عملية واحدة في المرة لكل مدرسة (نفس قفل إضافة الطلاب)، ثم نتأكد أن السنة الحالية هي التي رآها المدير
+  await q("SELECT id FROM tenants WHERE id = app_tenant() FOR UPDATE");
   const old = await current(q);
+  if (b.expected_year_id && Number(old?.year_id) !== Number(b.expected_year_id)) {
+    throw conflict("تغيّرت السنة الدراسية الحالية (ربما بدأ مدير آخر سنة جديدة قبل قليل). حدّث الصفحة وراجع الوضع قبل المتابعة.");
+  }
   const summary = { promoted: 0, repeated: 0, graduated: 0, transferred: 0, withdrawn: 0, passed: 0, failed: 0, incomplete: 0, year: null };
 
   if (old) {

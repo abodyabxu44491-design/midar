@@ -2,7 +2,7 @@
 import { env } from "../../config/env.js";
 import { transaction } from "../db/pool.js";
 import { readSession } from "./sessions.js";
-import { unauthorized, forbidden, notFound } from "../http/errors.js";
+import { AppError, unauthorized, forbidden, notFound } from "../http/errors.js";
 
 export function ownerIpAllowed(req) {
   if (!env.ownerIps.length) return true;
@@ -39,6 +39,15 @@ export const requireFinanceUser = async (req, res, next) => {
 export const requirePermission = (flag, message) => (req, res, next) =>
   (req.user?.[flag] ? next() : next(forbidden(message)));
 
+// الإلزام مفعّل دائمًا في الإنتاج. في بيئة الاختبار يُطفأ افتراضيًا (الاختبارات تنشئ حسابات مؤقتة وتستعملها فورًا)
+// ويُفعَّل صراحة باختبار مخصص عبر FORCE_PASSWORD_CHANGE=true
+const forcePasswordChange = () => {
+  const v = process.env.FORCE_PASSWORD_CHANGE;
+  return v ? v === "true" : process.env.NODE_ENV !== "test";
+};
+const passwordGateOpen = (req) =>
+  (req.method === "GET" && req.path === "/me") || (req.method === "POST" && req.path === "/password");
+
 export const requireStaff = (role) => async (req, res, next) => {
   try {
     const s = await readSession(req, role);
@@ -46,7 +55,8 @@ export const requireStaff = (role) => async (req, res, next) => {
     const ctx = await transaction({ tenantId: s.tenant_id }, async (q) => {
       const [tenant] = await q("SELECT id, name, status, max_students, subscription_end, directory_code, currency FROM tenants WHERE id = $1", [s.tenant_id]);
       const [user] = await q(
-        `SELECT id, full_name, role, teacher_id, is_active, can_approve_finance, can_manage_payroll, can_manage_accounts
+        `SELECT id, full_name, role, teacher_id, is_active, must_change_password,
+                can_approve_finance, can_manage_payroll, can_manage_accounts
            FROM users WHERE id = $1 AND role = $2`,
         [s.user_id, role],
       );
@@ -57,6 +67,10 @@ export const requireStaff = (role) => async (req, res, next) => {
     req.tenant = ctx.tenant;
     req.tenantId = ctx.tenant.id;   // كل الاستعلامات بعد هذا تعمل داخل هذه المدرسة فقط
     req.user = ctx.user;
+    // كلمة مرور مؤقتة: لا يعمل شيء قبل تغييرها (عدا قراءة /me وتغيير كلمة المرور نفسه)
+    if (ctx.user.must_change_password && forcePasswordChange() && !passwordGateOpen(req)) {
+      throw new AppError(403, "يجب تغيير كلمة المرور المؤقتة أولًا قبل المتابعة", "password_change_required");
+    }
     const label = { admin: "إدارة", teacher: "معلم", accountant: "محاسب" }[role];
     req.actor = `${ctx.user.full_name} (${label})`;
     next();

@@ -3,7 +3,7 @@
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { setCurrency } from "/shared/js/format.js";
-import { topbar, footer, tabs, panel, field, input, btn, toast, sub } from "/shared/js/ui.js";
+import { topbar, footer, tabs, panel, field, input, btn, toast, sub, passwordChangeScreen } from "/shared/js/ui.js";
 import { setApiBase } from "/admin/views/common.js";
 import ledger from "/admin/views/ledger.js";
 import fees from "/admin/views/finance.js";
@@ -13,6 +13,9 @@ const app = $("#app");
 export async function startAccountant() {
   setApiBase("accountant");
   const me = await api("/api/accountant/me");
+  if (me.must_change_password) {
+    return passwordChangeScreen({ endpoint: "/api/accountant/password", logoutEndpoint: "/api/accountant/logout", school: me.school.name, name: me.name });
+  }
   setCurrency(me.currency);
   const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
   const t = tabs([["ledger", "المالية"], ["fees", "الرسوم"], ["account", "حسابي"]],

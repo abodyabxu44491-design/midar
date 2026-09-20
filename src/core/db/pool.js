@@ -55,7 +55,7 @@ export async function closePool() {
 
 /**
  * تنفيذ دالة داخل معاملة مع سياق محدد.
- * @param {{tenantId?: string|null, actor?: string, ip?: string|null, platform?: boolean}} ctx
+ * @param {{tenantId?: string|null, actor?: string, ip?: string|null, platform?: boolean, sessionHash?: string}} ctx
  * @param {(q: (sql: string, params?: any[]) => Promise<any[]>, client: pg.PoolClient) => Promise<T>} fn
  * @template T
  */
@@ -66,8 +66,9 @@ export async function transaction(ctx, fn) {
     // إعدادات محلية للمعاملة فقط (تُمسح تلقائيًا عند الانتهاء)
     await client.query(
       `SELECT set_config('app.tenant_id', $1, true), set_config('app.actor', $2, true),
-              set_config('app.ip', $3, true), set_config('app.platform', $4, true)`,
-      [ctx.tenantId || "", ctx.actor || "system", ctx.ip || "", ctx.platform ? "on" : "off"],
+              set_config('app.ip', $3, true), set_config('app.platform', $4, true),
+              set_config('app.session_hash', $5, true)`,
+      [ctx.tenantId || "", ctx.actor || "system", ctx.ip || "", ctx.platform ? "on" : "off", ctx.sessionHash || ""],
     );
     const q = async (sql, params = []) => (await client.query(sql, params)).rows;
     const result = await fn(q, client);

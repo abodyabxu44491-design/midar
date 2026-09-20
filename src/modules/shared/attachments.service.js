@@ -20,10 +20,20 @@ export const listForEntities = (q, entityType, ids) => (ids.length ? q(
   `SELECT id, entity_id, filename, mime, size_bytes FROM attachments
     WHERE entity_type = $1 AND entity_id = ANY($2::bigint[]) ORDER BY id`, [entityType, ids]) : []);
 
+// نوع الملف يُتحقق منه من محتواه وليس مما يعلنه المرسل، حتى لا يُخزَّن ملف آخر بصفة صورة
+const SIGNATURES = {
+  "image/jpeg": (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  "image/png": (b) => b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  "image/webp": (b) => b.length > 12 && b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP",
+  "application/pdf": (b) => b.length > 5 && b.subarray(0, 5).toString("latin1") === "%PDF-",
+};
+export const matchesMime = (buffer, mime) => Boolean(SIGNATURES[mime]?.(buffer));
+
 export async function upload(q, { entityType, entityId, file, actor }) {
   const buffer = Buffer.from(file.data, "base64");
   if (!buffer.length) throw badRequest("الملف فارغ");
   if (buffer.length > MAX_BYTES) throw badRequest("حجم الملف أكبر من 2 ميجابايت");
+  if (!matchesMime(buffer, file.mime)) throw badRequest("محتوى الملف لا يطابق نوعه. ارفع صورة JPG أو PNG أو WEBP أو ملف PDF سليمًا");
   const [row] = await q(
     `INSERT INTO attachments (tenant_id, entity_type, entity_id, filename, mime, size_bytes, data, uploaded_by)
      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id, filename, mime, size_bytes`,

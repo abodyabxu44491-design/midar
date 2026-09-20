@@ -7,6 +7,7 @@ import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword, newDirectoryCode } from "../../core/auth/codes.js";
 import { RESERVED_CODES } from "../../core/reserved.js";
 import { ensureDefaults } from "../shared/academic.service.js";
+import { clearLoginFailures } from "../../core/audit.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -68,7 +69,7 @@ r.post("/", handle(async (req, res) => {
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [b.id, b.name, b.plan, b.max_students, b.subscription_end, directory,
        b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "SAR"]);
-    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash) VALUES ($1, 'admin', $2, 'admin', $3)`,
+    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password) VALUES ($1, 'admin', $2, 'admin', $3, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);          // سنة دراسية وفصولها جاهزة من اليوم الأول
   });
@@ -100,10 +101,11 @@ r.post("/:id/reset-admin", handle(async (req, res) => {
   const password = newTempPassword();
   const hash = await hashPassword(password);
   const username = await inSchool(req, id, async (q) => {
-    const [u] = await q(`UPDATE users SET password_hash = $1, failed_logins = 0, locked_until = NULL, is_active = true, password_changed_at = now()
+    const [u] = await q(`UPDATE users SET password_hash = $1, must_change_password = true, failed_logins = 0, locked_until = NULL, is_active = true, password_changed_at = now()
       WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) RETURNING id, username`, [hash]);
     if (!u) throw notFound("لا يوجد مدير لهذه المدرسة");
     await q("DELETE FROM sessions WHERE user_id = $1", [u.id]);
+    await clearLoginFailures(q, id, u.username);
     return u.username;
   });
   res.json({ credentials: { school: id, username, password } });

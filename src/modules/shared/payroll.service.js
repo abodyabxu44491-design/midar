@@ -130,7 +130,7 @@ export async function payRun(q, runId, method, actor) {
       reason: `راتب شهر ${month}`, beneficiary: item.full_name, reference: null,
       categoryCode: "salaries", sourceType: "salary", sourceId: item.id, actor,
     });
-    if (entry) await q("UPDATE payroll_items SET entry_id = $2 WHERE id = $1", [item.id, entry.id]);
+    await q("UPDATE payroll_items SET entry_id = $2 WHERE id = $1", [item.id, entry.id]);
   }
   await q("UPDATE payroll_runs SET status = 'paid', paid_at = now() WHERE id = $1", [runId]);
   return { paid: items.length };

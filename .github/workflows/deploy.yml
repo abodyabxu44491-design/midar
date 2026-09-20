@@ -24,6 +24,8 @@ jobs:
       CLOUD_SQL_INSTANCE: midar-714c1:me-central2:midar-db
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}   # نشر الـ commit الذي نجح اختباره بالضبط، لا آخر main
       - uses: actions/setup-node@v4
         with:
           node-version: 22

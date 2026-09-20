@@ -8,7 +8,7 @@ import { parse, z } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
 import { inSchool, accessSchema, checkAccess } from "./context.js";
 import { getSettings } from "../shared/public-settings.service.js";
-import { studentSummary } from "../shared/finance.service.js";
+import { studentSummaries } from "../shared/finance.service.js";
 import { forAllClasses } from "../shared/timetable.service.js";
 
 const r = Router({ mergeParams: true });
@@ -20,15 +20,14 @@ function gate(settings, tenant, access) {
   if (settings.access_mode === "code") checkAccess(tenant, access);
 }
 
-// حالة السداد تُحسب فقط إذا فعّلت المدرسة إظهارها للجميع
+// حالة السداد تُحسب فقط إذا فعّلت المدرسة إظهارها للجميع، وباستعلام واحد لكل الطلاب
 async function withBadges(q, students, settings) {
   if (!settings.public_fee_badges) return students.map(({ id, name }) => ({ id, name }));
-  const out = [];
-  for (const s of students) {
-    const fees = s.fees_enabled ? await studentSummary(q, s.id) : null;
-    out.push({ id: s.id, name: s.name, fees: fees && fees.status !== "none" ? fees.status : null });
-  }
-  return out;
+  const summaries = await studentSummaries(q, students.filter((s) => s.fees_enabled).map((s) => s.id));
+  return students.map((s) => {
+    const fees = s.fees_enabled ? summaries.get(Number(s.id)) : null;
+    return { id: s.id, name: s.name, fees: fees && fees.status !== "none" ? fees.status : null };
+  });
 }
 
 const classTeachers = (q) => q(
@@ -64,13 +63,17 @@ r.post("/page", limits.api, handle(async (req, res) => {
       const students = settings.show_student_names
         ? await q("SELECT id, full_name AS name, class_id, fees_enabled FROM students WHERE archived_at IS NULL ORDER BY full_name") : [];
 
+      const badged = settings.show_student_names ? await withBadges(q, students, settings) : [];
+      const badgedById = new Map(badged.map((b) => [Number(b.id), b]));
+      const withBadge = (list) => list.map((s) => badgedById.get(Number(s.id)));
+
       for (const c of classes) {
         const mine = students.filter((s) => s.class_id === c.id);
         payload.classes.push({
           id: c.id,
           name: c.name,
           count: settings.show_class_counts ? (counts.find((x) => x.class_id === c.id)?.n ?? 0) : null,
-          students: settings.show_student_names ? await withBadges(q, mine, settings) : null,
+          students: settings.show_student_names ? withBadge(mine) : null,
           teachers: settings.show_teachers ? teachers.filter((t) => t.class_id === c.id).map(({ teacher, subject }) => ({ teacher, subject })) : null,
           timetable: settings.show_timetable
             ? slots.filter((x) => x.class_id === c.id).map(({ day, period, subject, teacher, room }) => ({ day, period, subject, teacher, room }))
@@ -78,7 +81,7 @@ r.post("/page", limits.api, handle(async (req, res) => {
         });
       }
       if (settings.show_student_names) {
-        payload.unassigned = await withBadges(q, students.filter((s) => !s.class_id), settings);
+        payload.unassigned = withBadge(students.filter((s) => !s.class_id));
       }
     }
 

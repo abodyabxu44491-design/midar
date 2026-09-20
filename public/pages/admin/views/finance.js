@@ -2,7 +2,7 @@
 import { h } from "/shared/js/dom.js";
 import { api, idempotencyKey } from "/shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, confirmAction } from "/shared/js/ui.js";
-import { money, csv, fmtDate, fmtDateTime, METHODS } from "/shared/js/format.js";
+import { money, csv, fmtDate, fmtDateTime, METHODS, CURRENCIES, getCurrency } from "/shared/js/format.js";
 import { waButton, messageVars } from "/shared/js/whatsapp.js";
 import { receiptDialog, statementDialog } from "/shared/js/receipt.js";
 import { A, loadClasses } from "./common.js";
@@ -27,7 +27,7 @@ export default async function finance({ refresh }) {
       claims.length ? claims.slice(0, 50).map((c) => claimRow(c, refresh)) : empty("لا توجد إشعارات تحويل.")),
     panel("إصدار فاتورة", null,
       h("div", { class: "row" }, field("لـ", target), field("البند", title)),
-      h("div", { class: "row" }, field("المبلغ (ر.س)", amount), field("تاريخ الاستحقاق", due)),
+      h("div", { class: "row" }, field(`المبلغ (${CURRENCIES[getCurrency()].symbol})`, amount), field("تاريخ الاستحقاق", due)),
       sub("إصدار الفاتورة يفعّل الرسوم للطالب."),
       btn("إصدار الفاتورة", async () => {
         const [kind, id] = target.value.split(":");

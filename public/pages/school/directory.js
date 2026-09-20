@@ -7,7 +7,6 @@ import { topbar, footer, field, input, textarea, btn, empty, notice, dialog, lin
 import { fmtDate } from "/shared/js/format.js";
 import { icons } from "/shared/js/icons.js";
 import { timetableGrid } from "/shared/js/timetable.js";
-import { startAnalytics } from "/shared/js/analytics.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -45,7 +44,6 @@ function askAccess(error) {
       field("رمز الصفحة", code), msg, go)),
     footer());
   code.focus();
-  startAnalytics("school-gate");
 }
 
 /* ---------- الصفحة ---------- */
@@ -127,7 +125,6 @@ function render(data) {
       classesBox),
     footer());
   drawClasses();
-  startAnalytics("school-page");
 }
 
 // نموذج طلب الالتحاق

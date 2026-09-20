@@ -25,13 +25,14 @@ export const settingsSchema = z.object({
   profile_show_homework: z.boolean(),
 }).partial();
 
-// تُنشأ تلقائيًا عند أول قراءة (بالقيم الافتراضية المتحفظة)
+// تُنشأ تلقائيًا عند أول قراءة (بالقيم الافتراضية المتحفظة).
+// القراءة العادية SELECT فقط: الكتابة عند كل زيارة كانت تقفل الصف وتُنشئ نسخة جديدة منه في كل طلب عام.
 export async function getSettings(q) {
-  const [row] = await q(
-    `INSERT INTO school_public_settings (tenant_id) VALUES (app_tenant())
-     ON CONFLICT (tenant_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id
-     RETURNING ${FIELDS.join(", ")}`);
-  return row;
+  const read = () => q(`SELECT ${FIELDS.join(", ")} FROM school_public_settings WHERE tenant_id = app_tenant()`);
+  const [row] = await read();
+  if (row) return row;
+  await q("INSERT INTO school_public_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+  return (await read())[0];
 }
 
 export async function updateSettings(q, patch) {

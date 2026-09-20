@@ -4,7 +4,7 @@ import { requireStaff } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
 import { handle } from "../../core/http/errors.js";
 import { inTenant } from "../../core/db/pool.js";
-import { studentSummary } from "../shared/finance.service.js";
+import { studentSummaries } from "../shared/finance.service.js";
 import { getTemplates } from "../shared/messages.service.js";
 import ledger from "../school-admin/ledger.js";
 import fees from "../school-admin/finance.js";
@@ -17,6 +17,7 @@ r.get("/me", handle(async (req, res) => {
   res.json({
     name: req.user.full_name,
     role: "accountant",
+    must_change_password: req.user.must_change_password,
     school: { id: req.tenant.id, name: req.tenant.name },
     currency: req.tenant.currency,
     permissions: { approve: req.user.can_approve_finance, payroll: req.user.can_manage_payroll, accounts: req.user.can_manage_accounts },
@@ -34,7 +35,8 @@ r.get("/students", handle(async (req, res) => {
       `SELECT s.id, s.full_name AS name, s.class_id, c.name AS class_name, s.guardian_name, s.guardian_phone, s.fees_enabled
          FROM students s LEFT JOIN classes c ON c.id = s.class_id
         WHERE s.status = 'active' ORDER BY c.id NULLS LAST, s.full_name`);
-    for (const st of rows) st.fees = st.fees_enabled ? await studentSummary(q, st.id) : null;
+    const summaries = await studentSummaries(q, rows.filter((st) => st.fees_enabled).map((st) => st.id));
+    for (const st of rows) st.fees = st.fees_enabled ? summaries.get(Number(st.id)) : null;
     return rows;
   }));
 }));

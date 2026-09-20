@@ -7,7 +7,6 @@ import * as ledger from "../shared/ledger.service.js";
 import * as donations from "../shared/donations.service.js";
 import * as payroll from "../shared/payroll.service.js";
 import { requirePermission } from "../../core/auth/guards.js";
-import express from "express";
 import * as files from "../shared/attachments.service.js";
 
 const r = Router();
@@ -16,12 +15,11 @@ const period = z.object({
   direction: z.enum(["income", "expense"]).optional(),
   account_id: t.optId, category_id: t.optId,
   status: z.enum(["pending", "approved", "rejected", "void"]).optional(),
-  source_type: z.enum(["manual", "fee", "refund", "donation", "salary", "expense", "withdrawal"]).optional(),
+  source_type: z.enum(["manual", "fee", "refund", "donation", "salary", "expense", "withdrawal", "transfer"]).optional(),
 });
 const canApprove = requirePermission("can_approve_finance", "ليس لديك صلاحية اعتماد الحركات المالية");
 const canPayroll = requirePermission("can_manage_payroll", "ليس لديك صلاحية إدارة الرواتب");
 const canAccounts = requirePermission("can_manage_accounts", "ليس لديك صلاحية إدارة الحسابات والتصنيفات");
-const uploadBody = express.json({ limit: "4mb" });   // المرفقات تصل بصيغة base64
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
 
@@ -72,9 +70,12 @@ r.get("/entries", handle(async (req, res) => {
 
 r.post("/entries", handle(async (req, res) => {
   const b = parse(ledger.entrySchema, req.body);
-  const source = b.direction === "expense" ? (b.needs_approval ? "withdrawal" : "expense") : "manual";
+  // الاعتماد يُفرض من الخادم: من لا يملك صلاحية الاعتماد لا يصرف مبلغًا بدون مراجعة،
+  // فأي مصروف يُنشئه يبقى بانتظار الاعتماد مهما أرسل العميل في needs_approval.
+  const pending = b.needs_approval || (b.direction === "expense" && !req.user.can_approve_finance);
+  const source = b.direction === "expense" ? (pending ? "withdrawal" : "expense") : "manual";
   res.status(201).json(await inTenant(req, (q) => ledger.addEntry(q, b, {
-    actor: req.actor, sourceType: source, status: b.needs_approval ? "pending" : "approved",
+    actor: req.actor, sourceType: source, status: pending ? "pending" : "approved",
   })));
 }));
 
@@ -89,8 +90,7 @@ r.post("/entries/:id/review", canApprove, handle(async (req, res) => {
 r.post("/entries/:id/void", canApprove, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(ledger.voidSchema, req.body);
-  await inTenant(req, (q) => ledger.voidEntry(q, id, b.reason, req.actor));
-  res.json({ ok: true });
+  res.json({ ok: true, ...(await inTenant(req, (q) => ledger.voidEntry(q, id, b.reason, req.actor))) });
 }));
 
 /* ---------- التحويل بين الحسابات ---------- */
@@ -158,7 +158,7 @@ r.post("/payroll/:id/pay", canPayroll, handle(async (req, res) => {
 }));
 
 /* ---------- المرفقات ---------- */
-r.post("/entries/:id/attachments", uploadBody, handle(async (req, res) => {
+r.post("/entries/:id/attachments", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const file = parse(files.uploadSchema, req.body);
   res.status(201).json(await inTenant(req, async (q) => {

@@ -4,6 +4,8 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, ownerPath, endPool } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
+import { transaction } from "../src/core/db/pool.js";
+import { PgStore } from "../src/core/rate-limit.js";
 
 let srv, owner, A, B;           // A و B مدرستان منفصلتان
 const s = {};                   // بيانات مشتركة بين الاختبارات
@@ -343,7 +345,9 @@ test("المالية: لا دفع زائد، لا تكرار، لا إلغاء �
   const base = { student_id: s.student.id, key: s.student.access_key, invoice_id: id, account_id: acc.data.id,
     transfer_date: new Date().toISOString().slice(0, 10), sender_name: "ولي أمر الاختبار" };
 
-  assert.equal((await anon.post(`/api/public/${A.id}/transfer-claims`, { ...base, amount: 5000, idempotency_key: `k-${uid()}-c0` })).status, 400, "أكبر من المتبقي");
+  const tooMuch = await anon.post(`/api/public/${A.id}/transfer-claims`, { ...base, amount: 5000, idempotency_key: `k-${uid()}-c0` });
+  assert.equal(tooMuch.status, 400, "أكبر من المتبقي");
+  assert.match(tooMuch.data.error, /ر\.س/, "رمز عملة المدرسة (ريال سعودي) يظهر في الرسالة");
   const claimKey = `k-${uid()}-c1`;
   const c1 = await anon.post(`/api/public/${A.id}/transfer-claims`, { ...base, amount: 1000.5, idempotency_key: claimKey });
   assert.equal(c1.status, 201, JSON.stringify(c1.data));
@@ -581,6 +585,9 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   const salaryEntries = (await A.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01&source_type=salary")).data;
   assert.equal(salaryEntries.length, paid.data.paid, "حركة مصروف لكل موظف");
   assert.ok(salaryEntries.every((e) => e.beneficiary), "كل راتب مربوط باسم موظفه");
+  const salaryVoid = await A.admin.post(`/api/admin/ledger/entries/${salaryEntries[0].id}/void`, { reason: "محاولة إلغاء" });
+  assert.equal(salaryVoid.status, 400, "قيد الراتب لا يُلغى منفردًا");
+  assert.match(salaryVoid.data.error, /عكسية/);
 
   // عزل المدارس
   assert.equal((await B.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01")).data.length, 0);
@@ -880,4 +887,281 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
 
   // الدرجات القديمة لم تُحذف
   assert.ok((await A.admin.get(`/api/admin/reports/report-card/${s.student.id}?term_id=${second.id}`)).data.subjects.length >= 1);
+});
+
+/* =====================================================================
+   إصلاحات المراجعة: المرفقات، فرض الاعتماد، اتساق التحويل، أقفال الدخول
+   ===================================================================== */
+
+const PNG_HEAD = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+async function financeSchool(name) {
+  const C = await makeSchool(name);
+  const accounts = (await C.admin.get("/api/admin/ledger/accounts")).data;
+  C.cash = accounts.find((a) => a.kind === "cash");
+  C.bank = accounts.find((a) => a.kind === "bank");
+  const cats = (await C.admin.get("/api/admin/ledger/categories")).data;
+  C.income = cats.find((c) => c.direction === "income");
+  C.expense = cats.find((c) => c.direction === "expense");
+  C.deposit = (amount) => C.admin.post("/api/admin/ledger/entries", {
+    direction: "income", amount, account_id: C.cash.id, category_id: C.income.id,
+    occurred_on: "2026-09-06", reason: "إيراد اختبار", method: "cash" });
+  C.balance = async (id) => Number((await C.admin.get("/api/admin/ledger/accounts")).data.find((a) => a.id === id).balance);
+  return C;
+}
+
+test("المرفقات: ملف أكبر من 512KB يُقبل، والمحتوى المزيّف والحجم الزائد يُرفضان", async () => {
+  const C = await financeSchool("مدرسة المرفقات");
+  const entry = await C.deposit(100);
+  assert.equal(entry.status, 201, JSON.stringify(entry.data));
+  const url = `/api/admin/ledger/entries/${entry.data.id}/attachments`;
+
+  const big = Buffer.concat([PNG_HEAD, Buffer.alloc(1_000_000)]).toString("base64");   // ~1.3MB بعد base64
+  const ok = await C.admin.post(url, { filename: "فاتورة.png", mime: "image/png", data: big });
+  assert.equal(ok.status, 201, JSON.stringify(ok.data));
+  assert.ok(ok.data.size_bytes > 900_000);
+
+  const fake = Buffer.from("<html><script>alert(1)</script></html>".padEnd(64, " ")).toString("base64");
+  assert.equal((await C.admin.post(url, { filename: "x.png", mime: "image/png", data: fake })).status, 400, "HTML بصفة صورة");
+
+  const tooBig = Buffer.concat([PNG_HEAD, Buffer.alloc(2_200_000)]).toString("base64");
+  assert.equal((await C.admin.post(url, { filename: "كبير.png", mime: "image/png", data: tooBig })).status, 400, "أكبر من 2MB");
+});
+
+test("الاعتماد المالي يُفرض من الخادم: مصروف من دون صلاحية يبقى معلّقًا، والاسترداد يحتاج صلاحية", async () => {
+  const C = await financeSchool("مدرسة الاعتماد");
+  await C.deposit(1000);
+  const created = await C.admin.post("/api/admin/users", { name: "محاسب بلا صلاحيات", username: "acc-plain" });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const acc = client(srv.base);
+  assert.equal((await acc.post("/api/staff/login", { school: C.id, username: "acc-plain", password: created.data.credentials.password })).status, 200);
+
+  // يرسل needs_approval: false ليتجاوز الاعتماد، والخادم يتجاهله
+  const before = await C.balance(C.cash.id);
+  const sneaky = await acc.post("/api/accountant/ledger/entries", {
+    direction: "expense", amount: 400, account_id: C.cash.id, category_id: C.expense.id,
+    occurred_on: "2026-09-07", reason: "سحب بلا اعتماد", method: "cash", needs_approval: false });
+  assert.equal(sneaky.status, 201, JSON.stringify(sneaky.data));
+  assert.equal(sneaky.data.status, "pending", "المصروف بانتظار الاعتماد رغم الطلب");
+  assert.equal(await C.balance(C.cash.id), before, "الرصيد لا يتأثر قبل الاعتماد");
+
+  // الإيراد لا يحتاج اعتمادًا
+  const inc = await acc.post("/api/accountant/ledger/entries", {
+    direction: "income", amount: 50, account_id: C.cash.id, category_id: C.income.id,
+    occurred_on: "2026-09-07", reason: "إيراد", method: "cash" });
+  assert.equal(inc.data.status, "approved");
+
+  // الاسترداد يُخرج نقدًا، فيحتاج الصلاحية (يُرفض قبل أي فحص آخر)
+  const refund = await acc.post("/api/accountant/finance/invoices/1/refunds", { amount: 10, note: "اختبار", idempotency_key: `k-${uid()}-r` });
+  assert.equal(refund.status, 403);
+});
+
+test("التحويل بين الحسابات: يُلغى بطرفيه معًا، ولا يتجاوز الرصيد تحويلان متزامنان", async () => {
+  const C = await financeSchool("مدرسة التحويل");
+  await C.deposit(1000);
+  const transfer = (amount) => C.admin.post("/api/admin/ledger/transfers", {
+    from_account_id: C.cash.id, to_account_id: C.bank.id, amount, occurred_on: "2026-09-08", reason: "إيداع" });
+
+  // تحويلان متزامنان بـ 700 من رصيد 1000: ينجح أحدهما فقط
+  const both = await Promise.all([transfer(700), transfer(700)]);
+  assert.deepEqual(both.map((r) => r.status).sort(), [201, 400], JSON.stringify(both.map((r) => r.data)));
+  assert.equal(await C.balance(C.cash.id), 300);
+  assert.equal(await C.balance(C.bank.id), 700);
+
+  const legs = (await C.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01&source_type=transfer")).data;
+  assert.equal(legs.length, 2);
+
+  // إلغاء طرف واحد يُلغي الطرفين، فيعود الرصيدان كما كانا
+  const voided = await C.admin.post(`/api/admin/ledger/entries/${legs[0].id}/void`, { reason: "تحويل بالخطأ" });
+  assert.equal(voided.status, 200, JSON.stringify(voided.data));
+  assert.equal(voided.data.voided, 2);
+  const after = (await C.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01&source_type=transfer")).data;
+  assert.ok(after.every((e) => e.status === "void"), "الطرفان ملغيان");
+  assert.equal(await C.balance(C.cash.id), 1000);
+  assert.equal(await C.balance(C.bank.id), 0);
+
+  // لا إلغاء ثانٍ
+  assert.equal((await C.admin.post(`/api/admin/ledger/entries/${legs[1].id}/void`, { reason: "مرة ثانية" })).status, 400);
+});
+
+test("أقفال الدخول: تبقى الحماية، ورسالة القفل لا تكشف وجود الحساب، وإعادة التعيين تفكّ القفل", async () => {
+  const C = await makeSchool("مدرسة الأقفال");
+  const created = await C.admin.post("/api/admin/users", { name: "محاسب القفل", username: "acc-lock" });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+
+  const x = client(srv.base);
+  for (let i = 0; i < 5; i++) await x.post("/api/staff/login", { school: C.id, username: "acc-lock", password: "wrong-pass-1" });
+  const locked = await x.post("/api/staff/login", { school: C.id, username: "acc-lock", password: created.data.credentials.password });
+  assert.equal(locked.status, 401);
+  assert.match(locked.data.error, /مقفل/, "كلمة المرور الصحيحة لا تفتح أثناء القفل");
+
+  // اسم غير موجود يُعامل بالطريقة نفسها: لا فرق ظاهر بين حساب موجود وغير موجود
+  const y = client(srv.base);
+  for (let i = 0; i < 5; i++) await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
+  const ghost = await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
+  assert.match(ghost.data.error, /مقفل/);
+
+  // المدير يعيد تعيين كلمة المرور فيُفك القفل فورًا
+  const id = (await C.admin.get("/api/admin/users")).data.find((u) => u.username === "acc-lock").id;
+  const reset = await C.admin.post(`/api/admin/users/${id}/reset-password`, {});
+  assert.equal(reset.status, 200, JSON.stringify(reset.data));
+  const back = await client(srv.base).post("/api/staff/login", { school: C.id, username: "acc-lock", password: reset.data.credentials.password });
+  assert.equal(back.status, 200, "الدخول بعد إعادة التعيين");
+});
+
+/* =====================================================================
+   الجولة الثانية: RLS على الجداول الأساسية، الحدود المشتركة، التصدير، السنة، القراءة العامة
+   ===================================================================== */
+
+test("RLS: جداول المدارس والجلسات والأحداث الأمنية معزولة في قاعدة البيانات نفسها", async () => {
+  // بلا سياق لا يظهر أي صف
+  for (const t of ["tenants", "sessions", "security_events"]) {
+    const [row] = await transaction({}, (q) => q(`SELECT count(*)::int AS n FROM ${t}`));
+    assert.equal(row.n, 0, `${t} بلا سياق`);
+  }
+  // سياق مدرسة يرى صفها فقط، ولا يستطيع تعديل مدرسة أخرى
+  const own = await transaction({ tenantId: A.id }, (q) => q("SELECT id FROM tenants"));
+  assert.deepEqual(own.map((r) => r.id), [A.id]);
+  const foreign = await transaction({ tenantId: A.id }, (q) => q("UPDATE tenants SET name = name WHERE id = $1 RETURNING id", [B.id]));
+  assert.equal(foreign.length, 0, "لا تعديل لمدرسة أخرى");
+  const sess = await transaction({ tenantId: A.id }, (q) => q("SELECT DISTINCT tenant_id FROM sessions"));
+  assert.ok(sess.length > 0 && sess.every((r) => r.tenant_id === A.id), "جلسات مدرسة أ فقط");
+  // سياق المنصة يرى الكل
+  const [all] = await transaction({ platform: true }, (q) => q("SELECT count(*)::int AS n FROM tenants"));
+  assert.ok(all.n >= 2);
+  // جلسة واحدة بصمتها فقط
+  const [one] = await transaction({ tenantId: A.id }, (q) => q("SELECT token_hash FROM sessions LIMIT 1"));
+  const byHash = await transaction({ sessionHash: one.token_hash }, (q) => q("SELECT token_hash FROM sessions"));
+  assert.deepEqual(byHash.map((r) => r.token_hash), [one.token_hash]);
+});
+
+test("مخزن الحدود المشترك: يعدّ، ويصفّر، وينتهي، ويتحمل التزامن", async () => {
+  const store = new PgStore(`t-${uid()}`);
+  store.init({ windowMs: 60_000 });
+  assert.equal((await store.increment("ip1")).totalHits, 1);
+  assert.equal((await store.increment("ip1")).totalHits, 2);
+  assert.equal((await store.increment("ip2")).totalHits, 1, "كل مفتاح مستقل");
+  await store.decrement("ip1");
+  assert.equal((await store.increment("ip1")).totalHits, 2);
+  await store.resetKey("ip1");
+  assert.equal((await store.increment("ip1")).totalHits, 1);
+
+  const short = new PgStore(`s-${uid()}`);
+  short.init({ windowMs: 1000 });
+  await short.increment("k"); await short.increment("k");
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.equal((await short.increment("k")).totalHits, 1, "النافذة تنتهي وتبدأ من جديد");
+
+  const conc = new PgStore(`c-${uid()}`);
+  conc.init({ windowMs: 60_000 });
+  const hits = (await Promise.all(Array.from({ length: 10 }, () => conc.increment("k")))).map((r) => r.totalHits).sort((a, b) => a - b);
+  assert.deepEqual(hits, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "10 طلبات متزامنة تُعدّ كلها");
+});
+
+test("التصدير: يشمل المالية والسنوات، وأكثر من دفعة، ويُسجَّل في التدقيق", async () => {
+  // أكثر من 5000 صف حضور لنتأكد من القراءة على دفعات دون فقدان أو تكرار
+  const [st] = await A.admin.get("/api/admin/students").then((r) => r.data);
+  await transaction({ tenantId: A.id, actor: "اختبار" }, (q) => q(
+    `INSERT INTO attendance (tenant_id, student_id, day, status, recorded_by)
+     SELECT app_tenant(), $1, DATE '2040-01-01' + g, 'present', 'اختبار' FROM generate_series(0, 5000) g
+     ON CONFLICT DO NOTHING`, [st.id]));
+
+  const r = await A.admin.get("/api/admin/export");
+  assert.equal(r.status, 200);
+  for (const k of ["finance_accounts", "finance_categories", "finance_entries", "donations", "staff", "payroll_runs", "payroll_items",
+    "academic_years", "terms", "student_years", "assignments", "assignment_submissions", "admissions", "attachments_meta",
+    "scores", "public_page_settings", "message_templates"]) {
+    assert.ok(Array.isArray(r.data[k]), k);
+  }
+  assert.ok(r.data.finance_entries.length > 0, "الحركات المالية مضمَّنة");
+  assert.ok(r.data.academic_years.length >= 1);
+  assert.ok(r.data.attendance.length >= 5001, "لا قصّ عند 20,000 ولا عند حد الدفعة");
+  assert.equal(new Set(r.data.attendance.map((x) => x.id)).size, r.data.attendance.length, "لا صف مكرر بين الدفعات");
+
+  const log = (await A.admin.get("/api/admin/audit")).data;
+  assert.ok(log.some((e) => /تصدير/.test(e.summary || "")), "التصدير مسجَّل في التدقيق");
+});
+
+test("بدء سنة جديدة يرفض الطلب إذا تغيّرت السنة الحالية عمّا رآه المدير", async () => {
+  const data = (await A.admin.get("/api/admin/academic")).data;
+  const stale = data.years.find((y) => y.id !== data.current.year_id).id;
+  const r = await A.admin.post("/api/admin/academic/start-year", {
+    year: { name: "2031/2032", start_date: "2031-08-01", end_date: "2032-06-30", terms: 2 }, moves: [], expected_year_id: stale });
+  assert.equal(r.status, 409, JSON.stringify(r.data));
+  assert.equal((await A.admin.get("/api/admin/academic")).data.current.year_name, "2030/2031", "لم تتغير السنة");
+});
+
+test("قراءة الصفحة العامة لا تكتب في قاعدة البيانات", async () => {
+  const anon = client(srv.base);
+  const stamp = async () => String((await transaction({ tenantId: A.id }, (q) =>
+    q("SELECT updated_at FROM school_public_settings WHERE tenant_id = app_tenant()")))[0].updated_at);
+  assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: A.directory })).status, 200);   // يضمن وجود الصف
+  const before = await stamp();
+  await new Promise((r) => setTimeout(r, 30));
+  for (let i = 0; i < 3; i++) assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: A.directory })).status, 200);
+  assert.equal(await stamp(), before, "الصف لم يُحدَّث أثناء القراءة");
+});
+
+test("أداة فحص الشبكة للمالك: تعرض عنوان IP الذي يراه الخادم", async () => {
+  const r = await owner.get("/api/owner/network");
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.ok(r.data.ip, "عنوان الطلب ظاهر");
+  assert.equal(typeof r.data.trust_proxy, "number");
+  assert.equal((await client(srv.base).get("/api/owner/network")).status, 401, "بلا دخول لا يُعرض شيء");
+});
+
+/* =====================================================================
+   الجولة الثالثة: كلمة المرور المؤقتة، إنهاء الجلسات، إلزام TOTP، وأخطاء صغيرة
+   ===================================================================== */
+
+test("كلمة المرور المؤقتة: لا يعمل شيء قبل تغييرها، والتغيير يُنهي جلسات الأجهزة الأخرى", async () => {
+  const C = await makeSchool("مدرسة كلمة المرور");    // الإلزام مطفأ افتراضيًا في الاختبارات
+  const other = client(srv.base);                    // جهاز آخر بالحساب نفسه
+  assert.equal((await other.post("/api/staff/login", { school: C.id, username: "admin", password: C.password })).status, 200);
+
+  process.env.FORCE_PASSWORD_CHANGE = "true";
+  try {
+    const me = await C.admin.get("/api/admin/me");
+    assert.equal(me.status, 200, "قراءة /me مسموحة لتعرف الواجهة أن التغيير لازم");
+    assert.equal(me.data.must_change_password, true);
+
+    const blocked = await C.admin.get("/api/admin/students");
+    assert.equal(blocked.status, 403);
+    assert.equal(blocked.data.code, "password_change_required");
+
+    const NEW = `Brand-New-${uid()}9`;
+    assert.equal((await C.admin.post("/api/admin/password", { current: C.password, next: C.password })).status, 400, "لا تُقبل نفس المؤقتة");
+    assert.equal((await C.admin.post("/api/admin/password", { current: "wrong-password-1", next: NEW })).status, 401);
+    assert.equal((await C.admin.post("/api/admin/password", { current: C.password, next: NEW })).status, 200);
+
+    assert.equal((await C.admin.get("/api/admin/students")).status, 200, "بعد التغيير يعمل كل شيء");
+    assert.equal((await C.admin.get("/api/admin/me")).data.must_change_password, false);
+    assert.equal((await other.get("/api/admin/me")).status, 401, "جلسة الجهاز الآخر أُنهيت (حتى لو كانت نشطة الآن)");
+
+    // إعادة تعيين كلمة مرور المحاسب من المدير تُعيد الإلزام
+    const created = await C.admin.post("/api/admin/users", { name: "محاسب مؤقت", username: "acc-temp" });
+    const acc = client(srv.base);
+    assert.equal((await acc.post("/api/staff/login", { school: C.id, username: "acc-temp", password: created.data.credentials.password })).status, 200);
+    assert.equal((await acc.get("/api/accountant/me")).data.must_change_password, true);
+    assert.equal((await acc.get("/api/accountant/ledger/accounts")).status, 403);
+  } finally {
+    delete process.env.FORCE_PASSWORD_CHANGE;
+  }
+});
+
+test("الإنتاج يرفض الإقلاع بدون OWNER_TOTP_SECRET إلا باستثناء صريح", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const base = {
+    PATH: process.env.PATH, NODE_ENV: "production", COOKIE_SECURE: "true",
+    DATABASE_URL: "postgres://x:y@localhost:5432/z", OWNER_PATH: "/abcdefghijk123", OWNER_USERNAME: "owner",
+    OWNER_PASSWORD_HASH: "scrypt$x$y", OWNER_TOTP_SECRET: "",
+  };
+  const run = (extra) => spawnSync(process.execPath, ["--input-type=module", "-e", 'await import("./src/config/env.js")'],
+    { env: { ...base, ...extra }, cwd: new URL("..", import.meta.url), encoding: "utf8" });
+
+  const refused = run({});
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.match(refused.stderr, /OWNER_TOTP_SECRET/);
+  assert.equal(run({ OWNER_ALLOW_NO_TOTP: "true" }).status, 0, "الاستثناء الصريح يعمل");
+  assert.equal(run({ OWNER_TOTP_SECRET: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" }).status, 0, "مع السر يعمل");
 });

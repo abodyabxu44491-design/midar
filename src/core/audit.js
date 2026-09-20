@@ -17,3 +17,9 @@ export async function recentFailures(q, kind, subject, minutes) {
   );
   return r.n;
 }
+
+// فك قفل الدخول لحساب (عند إعادة تعيين كلمة المرور): يمسح عدّادات المحاولات الخاطئة لكل العناوين
+export async function clearLoginFailures(q, tenantId, username) {
+  await q("DELETE FROM security_events WHERE kind = 'staff_login_failed' AND starts_with(subject, $1)", [`${tenantId}:${username}:`]);
+  await q("DELETE FROM security_events WHERE kind = 'staff_login_failed_all' AND subject = $1", [`${tenantId}:${username}`]);
+}

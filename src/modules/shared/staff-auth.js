@@ -2,14 +2,17 @@
 // قفل الحساب مؤقتًا بعد 5 محاولات خاطئة
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
-import { handle, unauthorized, forbidden } from "../../core/http/errors.js";
+import { handle, unauthorized, forbidden, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { verifyPassword, hashPassword } from "../../core/auth/password.js";
-import { createSession, destroySession } from "../../core/auth/sessions.js";
-import { logEvent } from "../../core/audit.js";
+import { createSession, destroySession, currentSessionHash } from "../../core/auth/sessions.js";
+import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
 
-const MAX_FAILS = 5, LOCK_MIN = 15;
+// القفل لكل (حساب + عنوان IP): من يخمّن كلمة المرور من عنوانه لا يحرم صاحب الحساب من الدخول من عنوان آخر.
+// وسقف أعلى للحساب كله من كل العناوين لمقاومة التخمين الموزّع.
+const MAX_FAILS = 5, MAX_FAILS_ACCOUNT = 30, LOCK_MIN = 15;
+const FAIL_IP = "staff_login_failed", FAIL_ACCOUNT = "staff_login_failed_all";
 const loginSchema = z.object({
   school: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,30}$/, "رمز المدرسة غير صحيح"),
   username: z.string().trim().toLowerCase().min(1, "اكتب اسم المستخدم").max(40),
@@ -26,23 +29,34 @@ export const staffLoginRouter = () => {
   r.post("/login", limits.login, handle(async (req, res) => {
     const b = parse(loginSchema, req.body);
     const outcome = await transaction({ tenantId: b.school, actor: b.username, ip: req.ip }, async (q) => {
+      const denied = { error: "بيانات الدخول غير صحيحة" };
       const [tenant] = await q("SELECT id, status FROM tenants WHERE id = $1", [b.school]);
       const [user] = tenant ? await q(
-        "SELECT id, full_name, role, password_hash, is_active, failed_logins, locked_until > now() AS locked FROM users WHERE username = $1",
+        "SELECT id, full_name, role, password_hash, is_active, locked_until > now() AS locked FROM users WHERE username = $1",
         [b.username]) : [];
-      const ok = await verifyPassword(b.password, user?.password_hash);
-      if (!tenant || !user || !user.is_active) return { error: "بيانات الدخول غير صحيحة" };
-      if (user.locked) return { error: `الحساب مقفل مؤقتًا بسبب محاولات خاطئة. حاول بعد ${LOCK_MIN} دقيقة.` };
-      if (!ok) {
-        const fails = user.failed_logins + 1;
-        const lock = fails >= MAX_FAILS;
-        await q(`UPDATE users SET failed_logins = $2::int,
-                   locked_until = CASE WHEN $3::boolean THEN now() + make_interval(mins => $4::int) ELSE NULL END
-                 WHERE id = $1`, [user.id, lock ? 0 : fails, lock, LOCK_MIN]);
-        await logEvent(q, { tenantId: tenant.id, actor: b.username, action: lock ? "قفل الحساب بعد محاولات خاطئة" : "محاولة دخول فاشلة" });
-        return { error: "بيانات الدخول غير صحيحة" };
+      const ok = await verifyPassword(b.password, user?.password_hash);    // يُنفَّذ دائمًا لتساوي أزمنة الاستجابة
+      if (!tenant) return denied;
+
+      const ipKey = `${tenant.id}:${b.username}:${req.ip || "unknown"}`;
+      const acctKey = `${tenant.id}:${b.username}`;
+      const ipFails = await recentFailures(q, FAIL_IP, ipKey, LOCK_MIN);
+      const acctFails = await recentFailures(q, FAIL_ACCOUNT, acctKey, LOCK_MIN);
+      // رسالة القفل تظهر بالطريقة نفسها سواء وُجد الحساب أو لم يوجد، فلا تكشف أسماء المستخدمين
+      if (user?.locked || ipFails >= MAX_FAILS || acctFails >= MAX_FAILS_ACCOUNT) {
+        return { error: `الحساب مقفل مؤقتًا بسبب محاولات خاطئة. حاول بعد ${LOCK_MIN} دقيقة.` };
+      }
+
+      if (!user || !user.is_active || !ok) {
+        await securityEvent(q, { kind: FAIL_IP, subject: ipKey, tenantId: tenant.id, ip: req.ip });
+        await securityEvent(q, { kind: FAIL_ACCOUNT, subject: acctKey, tenantId: tenant.id, ip: req.ip });
+        if (user) {
+          await logEvent(q, { tenantId: tenant.id, actor: b.username,
+            action: ipFails + 1 >= MAX_FAILS ? "قفل الدخول من عنوان بعد محاولات خاطئة" : "محاولة دخول فاشلة" });
+        }
+        return denied;
       }
       if (tenant.status !== "active") return { error: "حساب المدرسة موقوف. تواصل مع إدارة المنصة.", status: 403 };
+      await q("DELETE FROM security_events WHERE kind = $1 AND subject = $2", [FAIL_IP, ipKey]);   // نجاح الدخول يصفّر عدّاد هذا العنوان
       await q("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [user.id]);
       await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent") }, q);
       await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role]})` });
@@ -68,13 +82,15 @@ export function logoutRouter(role) {
 const pwSchema = z.object({ current: z.string().min(1).max(200), next: t.password });
 export const changePassword = handle(async (req, res) => {
   const b = parse(pwSchema, req.body);
+  if (b.next === b.current) throw badRequest("اختر كلمة مرور مختلفة عن الحالية");
   const hash = await hashPassword(b.next);
+  const keep = currentSessionHash(req, req.user.role);
   const done = await transaction({ tenantId: req.tenantId, actor: req.actor, ip: req.ip }, async (q) => {
     const [u] = await q("SELECT password_hash FROM users WHERE id = $1", [req.user.id]);
     if (!(await verifyPassword(b.current, u.password_hash))) return false;
-    await q("UPDATE users SET password_hash = $2, password_changed_at = now() WHERE id = $1", [req.user.id, hash]);
-    // إنهاء الجلسات الأخرى
-    await q("DELETE FROM sessions WHERE user_id = $1 AND last_seen_at < now() - interval '5 seconds'", [req.user.id]);
+    await q("UPDATE users SET password_hash = $2, must_change_password = false, password_changed_at = now() WHERE id = $1", [req.user.id, hash]);
+    // إنهاء كل الجلسات الأخرى لهذا الحساب (أي جهاز آخر) وإبقاء الجلسة الحالية فقط
+    await q("DELETE FROM sessions WHERE user_id = $1 AND ($2::text IS NULL OR token_hash <> $2)", [req.user.id, keep]);
     await logEvent(q, { tenantId: req.tenantId, actor: req.actor, action: "تغيير كلمة المرور" });
     return true;
   });

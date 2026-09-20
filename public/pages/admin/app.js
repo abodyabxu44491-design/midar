@@ -3,7 +3,7 @@
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { setCurrency } from "/shared/js/format.js";
-import { topbar, footer, tabs } from "/shared/js/ui.js";
+import { topbar, footer, tabs, passwordChangeScreen } from "/shared/js/ui.js";
 import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
 import students from "./views/students.js";
@@ -27,6 +27,9 @@ const app = $("#app");
 export async function startAdmin() {
   setApiBase("admin");
   const me = await api("/api/admin/me");
+  if (me.must_change_password) {
+    return passwordChangeScreen({ endpoint: "/api/admin/password", logoutEndpoint: "/api/admin/logout", school: me.school.name, name: me.name });
+  }
   setCurrency(me.school.currency);
   const t = tabs([
     ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"], ["academic", "السنة الدراسية"],

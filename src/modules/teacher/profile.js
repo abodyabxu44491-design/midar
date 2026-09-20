@@ -9,7 +9,7 @@ const r = Router();
 
 r.get("/me", handle(async (req, res) => {
   const data = await inTenant(req, async (q) => ({ load: await myLoad(q, req.user.teacher_id), academic: await current(q) }));
-  res.json({ name: req.user.full_name, school: { id: req.tenant.id, name: req.tenant.name }, ...data });
+  res.json({ name: req.user.full_name, must_change_password: req.user.must_change_password, school: { id: req.tenant.id, name: req.tenant.name }, ...data });
 }));
 
 r.get("/announcements", handle(async (req, res) => {

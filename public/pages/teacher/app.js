@@ -2,7 +2,7 @@
 // تُشغَّل من باب المدرسة الموحّد بعد التعرف على دور الحساب.
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { topbar, footer, tabs } from "/shared/js/ui.js";
+import { topbar, footer, tabs, passwordChangeScreen } from "/shared/js/ui.js";
 import home from "./views/home.js";
 import attendance from "./views/attendance.js";
 import exams from "./views/exams.js";
@@ -15,6 +15,9 @@ const app = $("#app");
 
 export async function startTeacher() {
   const me = await api("/api/teacher/me");
+  if (me.must_change_password) {
+    return passwordChangeScreen({ endpoint: "/api/teacher/password", logoutEndpoint: "/api/teacher/logout", school: me.school.name, name: me.name });
+  }
   const t = tabs([["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"], ["homework", "الواجبات"],
     ["announcements", "التعاميم"], ["account", "حسابي"]],
     { home, timetable, attendance, exams, homework, announcements, account }, { me });

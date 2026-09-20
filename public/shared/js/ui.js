@@ -1,5 +1,5 @@
 // مكونات الواجهة المشتركة — برمجة وتطوير: المبرمج عبدالله السكني
-import { h, mount } from "./dom.js";
+import { $, h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { startAnalytics } from "./analytics.js";
 import { icons } from "./icons.js";
@@ -185,6 +185,28 @@ export function dialog(title, content, actions = []) {
 
 const CRED_LABELS = { school: "رمز المدرسة", username: "اسم المستخدم", password: "كلمة المرور المؤقتة",
   directory_code: "رمز صفحة الطلاب", access_key: "معرّف الطالب" };
+// شاشة إلزامية عند الدخول بكلمة مرور مؤقتة: لا يُفتح شيء في اللوحة قبل اختيار كلمة مرور خاصة
+export function passwordChangeScreen({ endpoint, logoutEndpoint, school, name }) {
+  const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
+  const nxt = input({ type: "password", class: "ltr", autocomplete: "new-password" });
+  const rep = input({ type: "password", class: "ltr", autocomplete: "new-password" });
+  const msg = h("div");
+  mount($("#app"),
+    topbar({ school, subtitle: name, onLogout: async () => { await api(logoutEndpoint, {}); location.reload(); } }),
+    h("main", {}, panel("اختر كلمة مرور خاصة بك", null,
+      notice("كلمة المرور الحالية مؤقتة وصلتك من الإدارة. غيّرها للمتابعة.", "warn"),
+      field("كلمة المرور المؤقتة", cur),
+      field("كلمة المرور الجديدة", nxt, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),
+      field("أعد كتابة الجديدة", rep), msg,
+      btn("حفظ ومتابعة", async () => {
+        mount(msg);
+        if (nxt.value !== rep.value) return mount(msg, notice("كلمتا المرور الجديدتان غير متطابقتين", "err"));
+        try { await api(endpoint, { current: cur.value, next: nxt.value }); location.reload(); }
+        catch (e) { mount(msg, notice(e.message, "err")); }
+      }))),
+    footer());
+}
+
 export function showCredentials(title, creds, note) {
   const text = Object.entries(creds).map(([k, v]) => `${CRED_LABELS[k] || k}: ${v}`).join("\n");
   dialog(title, h("div", {},

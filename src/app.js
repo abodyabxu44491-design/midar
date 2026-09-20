@@ -32,18 +32,23 @@ export function createApp() {
   app.get("/healthz", (req, res) => res.json({ ok: true }));
 
   // فحص عميق يشمل قاعدة البيانات
-  app.get("/healthz/db", async (req, res) => {
+  app.get("/healthz/db", limits.health, async (req, res) => {
     try { await healthCheck(); res.json({ ok: true, db: true }); }
     catch { res.status(503).json({ ok: false, db: false }); }
   });
 
   /* ---------- الواجهات البرمجية ---------- */
-  app.get("/api/site", handle(async (req, res) => {
+  app.get("/api/site", limits.site, handle(async (req, res) => {
     const [s] = await transaction({}, (q) => q("SELECT landing_mode, brand_phone, brand_email FROM platform_settings WHERE id"));
     res.set("Cache-Control", "no-store").json({ analytics: env.FIREBASE_ANALYTICS, ...s });
   }));
   const api = express.Router();
-  api.use(limits.api, noStore, express.json({ limit: "512kb" }), cookieParser(), sameOrigin);
+  // حجم الطلب: 512KB لكل شيء، ما عدا رفع مرفقات الحركات المالية (صورة بصيغة base64 حتى ~2.8MB).
+  // يجب أن يُحسم الحد هنا لأن المحلل الأول هو الذي يرفض الطلب الكبير قبل أن يصل لأي محلل داخل المسار.
+  const smallJson = express.json({ limit: "512kb" });
+  const uploadJson = express.json({ limit: "4mb" });
+  const isUpload = (req) => req.method === "POST" && /^\/(admin|accountant)\/ledger\/entries\/\d+\/attachments$/.test(req.path);
+  api.use(limits.api, noStore, (req, res, next) => (isUpload(req) ? uploadJson : smallJson)(req, res, next), cookieParser(), sameOrigin);
   api.use("/owner", ownerApi);
   api.use("/admin", adminApi);
   api.use("/teacher", teacherApi);

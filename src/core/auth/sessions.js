@@ -56,17 +56,25 @@ export async function createSession(res, kind, { userId = null, tenantId = null,
   }
 }
 
+// بصمة جلسة الطلب الحالي (لاستثنائها عند إنهاء بقية الجلسات)
+export function currentSessionHash(req, kind) {
+  const token = tokenOf(req, kind);
+  return token && token.length <= 100 ? sha256(token) : null;
+}
+
 export async function readSession(req, kind) {
   const cfg = SESSION[kind];
   const token = tokenOf(req, kind);
   if (!token || token.length > 100) return null;
-  return transaction({}, async (q) => {
+  const hash = sha256(token);
+  // الجلسة تُقرأ برمز بصمتها فقط (app.session_hash)؛ سياسة RLS على الجدول لا تسمح بغير ذلك
+  return transaction({ sessionHash: hash }, async (q) => {
     const [s] = await q(
       `UPDATE sessions SET last_seen_at = now()
        WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
          AND last_seen_at > now() - make_interval(mins => $3)
        RETURNING user_id, tenant_id`,
-      [sha256(token), kind, cfg.idleMin],
+      [hash, kind, cfg.idleMin],
     );
     return s || null;
   });
@@ -75,15 +83,20 @@ export async function readSession(req, kind) {
 export async function destroySession(req, res, kind) {
   const cfg = SESSION[kind];
   const token = tokenOf(req, kind);
-  if (token) await transaction({}, (q) => q("DELETE FROM sessions WHERE token_hash = $1", [sha256(token)]));
+  if (token) {
+    const hash = sha256(token);
+    await transaction({ sessionHash: hash }, (q) => q("DELETE FROM sessions WHERE token_hash = $1", [hash]));
+  }
   if (single()) writeSingle(req, res, { ...readSingle(req), [TAG[kind]]: null });
   else res.clearCookie(prefix() + cfg.cookie, { path: cfg.path, secure: env.COOKIE_SECURE, httpOnly: true, sameSite: "strict" });
 }
 
 export async function purgeExpiredSessions() {
-  await transaction({}, async (q) => {
+  // تنظيف شامل عبر كل المدارس: يحتاج سياق المنصة (RLS)
+  await transaction({ platform: true, actor: "النظام" }, async (q) => {
     await q("DELETE FROM sessions WHERE expires_at < now() OR last_seen_at < now() - interval '1 day'");
     await q("DELETE FROM security_events WHERE created_at < now() - interval '90 days'");
+    await q("DELETE FROM rate_limits WHERE reset_at < now()");
   });
 }
 
