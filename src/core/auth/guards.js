@@ -3,6 +3,7 @@ import { env } from "../../config/env.js";
 import { transaction } from "../db/pool.js";
 import { readSession } from "./sessions.js";
 import { AppError, unauthorized, forbidden, notFound } from "../http/errors.js";
+import { getModules } from "../../modules/shared/modules.service.js";
 
 export function ownerIpAllowed(req) {
   if (!env.ownerIps.length) return true;
@@ -36,6 +37,12 @@ export const requireFinanceUser = async (req, res, next) => {
 };
 
 // صلاحية دقيقة داخل المالية (اعتماد، رواتب)
+/**
+ * قسم موقوف = غير موجود: يرفضه الخادم بـ 404 حتى لا يُفتح برابط مباشر.
+ */
+export const requireModule = (...names) => (req, res, next) =>
+  (names.every((n) => req.modules?.[n]) ? next() : next(notFound("هذا القسم غير مفعّل في هذه المدرسة")));
+
 export const requirePermission = (flag, message) => (req, res, next) =>
   (req.user?.[flag] ? next() : next(forbidden(message)));
 
@@ -60,13 +67,14 @@ export const requireStaff = (role) => async (req, res, next) => {
            FROM users WHERE id = $1 AND role = $2`,
         [s.user_id, role],
       );
-      return { tenant, user };
+      return { tenant, user, modules: await getModules(q) };
     });
     if (!ctx.user || !ctx.user.is_active || !ctx.tenant) throw unauthorized("انتهت الجلسة، سجّل الدخول مرة أخرى");
     if (ctx.tenant.status !== "active") throw forbidden("حساب المدرسة موقوف. تواصل مع إدارة المنصة.");
     req.tenant = ctx.tenant;
     req.tenantId = ctx.tenant.id;   // كل الاستعلامات بعد هذا تعمل داخل هذه المدرسة فقط
     req.user = ctx.user;
+    req.modules = ctx.modules;          // الأقسام المفعّلة في هذه المدرسة
     // كلمة مرور مؤقتة: لا يعمل شيء قبل تغييرها (عدا قراءة /me وتغيير كلمة المرور نفسه)
     if (ctx.user.must_change_password && forcePasswordChange() && !passwordGateOpen(req)) {
       throw new AppError(403, "يجب تغيير كلمة المرور المؤقتة أولًا قبل المتابعة", "password_change_required");

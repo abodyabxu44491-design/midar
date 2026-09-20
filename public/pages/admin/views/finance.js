@@ -5,12 +5,12 @@ import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialo
 import { money, csv, fmtDate, fmtDateTime, METHODS, CURRENCIES, getCurrency } from "/shared/js/format.js";
 import { waButton, messageVars } from "/shared/js/whatsapp.js";
 import { receiptDialog, statementDialog } from "/shared/js/receipt.js";
-import { A, loadClasses } from "./common.js";
+import { A, loadClasses, optional } from "./common.js";
 
 export default async function finance({ refresh }) {
   const [{ invoices, totals }, classes, students, claims, templates, me2] = await Promise.all([
-    api(`${A}/finance/invoices`), loadClasses(), api(`${A}/students`), api(`${A}/finance/claims`),
-    api(`${A}/messaging/templates`), api(`${A}/me`)]);
+    api(`${A}/finance/invoices`), loadClasses(), api(`${A}/students`), optional(api(`${A}/finance/claims`), []),
+    optional(api(`${A}/messaging/templates`), null), api(`${A}/me`)]);
   const byId = new Map(students.map((s) => [s.id, s]));
   const pending = claims.filter((c) => c.status === "pending");
   const target = select([["", "اختر"], ...classes.map((c) => [`class:${c.id}`, `فصل كامل: ${c.name}`]),
@@ -82,7 +82,7 @@ function invoiceRow(i, refresh, ctx = {}) {
       i.void_reason && sub(`سبب الإلغاء: ${i.void_reason}`)),
     i.status === "open" && h("div", { class: "row", style: "flex:none" },
       rem > 0 && btn("دفعة نقدية / تحويل", () => payDialog(i, rem, refresh), "soft sm"),
-      rem > 0 && ctx.student ? waButton({ phone: ctx.student.guardian_phone, template: ctx.templates.fees, countryCode: ctx.templates.country_code,
+      rem > 0 && ctx.student && ctx.templates ? waButton({ phone: ctx.student.guardian_phone, template: ctx.templates.fees, countryCode: ctx.templates.country_code,
         vars: messageVars({ student: ctx.student, school: ctx.me.school.name, fees: { remaining: rem },
           link: `${location.origin}/${ctx.me.school.id}` }), label: "تذكير واتساب" }) : null,
       i.paid > 0 && btn("استرداد", () => refundDialog(i, refresh), "ghost sm"),

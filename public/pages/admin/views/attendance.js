@@ -2,15 +2,15 @@
 import { attendanceBoard } from "/shared/js/attendance-board.js";
 import { api } from "/shared/js/api.js";
 import { waButton, messageVars } from "/shared/js/whatsapp.js";
-import { A, loadClasses } from "./common.js";
+import { A, loadClasses, optional } from "./common.js";
 
 export default async function attendance({ me }) {
   const [classes, templates, students] = await Promise.all([
-    loadClasses(), api(`${A}/messaging/templates`), api(`${A}/students`)]);
+    loadClasses(), optional(api(`${A}/messaging/templates`), null), api(`${A}/students`)]);
   const byId = new Map(students.map((s) => [s.id, s]));
   const wa = (row) => {
     const s = byId.get(row.id);
-    if (!s?.guardian_phone) return null;
+    if (!s?.guardian_phone || !templates) return null;
     return waButton({
       phone: s.guardian_phone, countryCode: templates.country_code,
       template: row.status === "late" ? templates.late : templates.absence,

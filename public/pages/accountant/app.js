@@ -18,8 +18,12 @@ export async function startAccountant() {
   }
   setCurrency(me.currency);
   const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
-  const t = tabs([["ledger", "المالية"], ["fees", "الرسوم"], ["account", "حسابي"]],
-    { ledger, fees, account }, { me });
+  const list = [
+    ...(me.modules?.finance ? [["ledger", "المالية"]] : []),
+    ...(me.modules?.fees ? [["fees", "الرسوم"]] : []),
+    ["account", "حسابي"],
+  ];
+  const t = tabs(list, { ledger, fees, account }, { me });
   mount(app,
     topbar({ school: me.school.name, subtitle: `المحاسب — ${me.name}`,
       onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } }),

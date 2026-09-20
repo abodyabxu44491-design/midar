@@ -18,9 +18,12 @@ export async function startTeacher() {
   if (me.must_change_password) {
     return passwordChangeScreen({ endpoint: "/api/teacher/password", logoutEndpoint: "/api/teacher/logout", school: me.school.name, name: me.name });
   }
-  const t = tabs([["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"], ["homework", "الواجبات"],
-    ["announcements", "التعاميم"], ["account", "حسابي"]],
-    { home, timetable, attendance, exams, homework, announcements, account }, { me });
+  const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
+    homework: "homework", announcements: "announcements" };
+  const list = [["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"],
+    ["homework", "الواجبات"], ["announcements", "التعاميم"], ["account", "حسابي"]]
+    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
+  const t = tabs(list, { home, timetable, attendance, exams, homework, announcements, account }, { me });
   mount(app,
     topbar({ school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`,
       onLogout: async () => { await api("/api/teacher/logout", {}); location.reload(); } }),

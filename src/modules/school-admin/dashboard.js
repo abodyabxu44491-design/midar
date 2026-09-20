@@ -10,6 +10,7 @@ const r = Router();
 r.get("/me", handle(async (req, res) => {
   const t = req.tenant;
   res.json({
+    modules: req.modules,
     name: req.user.full_name,
     must_change_password: req.user.must_change_password,
     school: { id: t.id, name: t.name, max_students: t.max_students, subscription_end: t.subscription_end, directory_code: t.directory_code, currency: t.currency },

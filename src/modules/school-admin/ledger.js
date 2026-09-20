@@ -6,7 +6,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 import * as ledger from "../shared/ledger.service.js";
 import * as donations from "../shared/donations.service.js";
 import * as payroll from "../shared/payroll.service.js";
-import { requirePermission } from "../../core/auth/guards.js";
+import { requirePermission, requireModule } from "../../core/auth/guards.js";
 import * as files from "../shared/attachments.service.js";
 
 const r = Router();
@@ -94,64 +94,64 @@ r.post("/entries/:id/void", canApprove, handle(async (req, res) => {
 }));
 
 /* ---------- التحويل بين الحسابات ---------- */
-r.post("/transfers", canAccounts, handle(async (req, res) => {
+r.post("/transfers", requireModule("transfers"), canAccounts, handle(async (req, res) => {
   const b = parse(ledger.transferSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => ledger.transfer(q, b, req.actor)));
 }));
 
 /* ---------- التبرعات ---------- */
-r.get("/donations", handle(async (req, res) => {
+r.get("/donations", requireModule("donations"), handle(async (req, res) => {
   const f = parse(period, req.query);
   res.json(await inTenant(req, (q) => donations.list(q, f)));
 }));
-r.post("/donations", handle(async (req, res) => {
+r.post("/donations", requireModule("donations"), handle(async (req, res) => {
   const b = parse(donations.donationSchema, req.body);
   res.status(201).json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return donations.add(q, b, req.actor); }));
 }));
 
 /* ---------- الموظفون ---------- */
-r.get("/staff", handle(async (req, res) => res.json(await inTenant(req, payroll.listStaff))));
-r.post("/staff", canPayroll, handle(async (req, res) => {
+r.get("/staff", requireModule("payroll"), handle(async (req, res) => res.json(await inTenant(req, payroll.listStaff))));
+r.post("/staff", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const b = parse(payroll.staffSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => payroll.addStaff(q, b)));
 }));
-r.patch("/staff/:id", canPayroll, handle(async (req, res) => {
+r.patch("/staff/:id", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(payroll.staffSchema, req.body);
   await inTenant(req, (q) => payroll.updateStaff(q, id, b));
   res.json({ ok: true });
 }));
-r.patch("/staff/:id/active", canPayroll, handle(async (req, res) => {
+r.patch("/staff/:id/active", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const { active } = parse(z.object({ active: z.boolean() }), req.body);
   await inTenant(req, (q) => payroll.setStaffActive(q, id, active));
   res.json({ ok: true });
 }));
-r.post("/staff/import-teachers", canPayroll, handle(async (req, res) => {
+r.post("/staff/import-teachers", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   res.json({ added: await inTenant(req, payroll.importTeachers) });
 }));
 
 /* ---------- مسير الرواتب ---------- */
-r.get("/payroll", handle(async (req, res) => res.json(await inTenant(req, payroll.listRuns))));
-r.post("/payroll", canPayroll, handle(async (req, res) => {
+r.get("/payroll", requireModule("payroll"), handle(async (req, res) => res.json(await inTenant(req, payroll.listRuns))));
+r.post("/payroll", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const b = parse(payroll.runSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => payroll.createRun(q, b, req.actor)));
 }));
-r.get("/payroll/:id/items", handle(async (req, res) => {
+r.get("/payroll/:id/items", requireModule("payroll"), handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   res.json(await inTenant(req, (q) => payroll.runItems(q, id)));
 }));
-r.patch("/payroll/:id/items/:itemId", canPayroll, handle(async (req, res) => {
+r.patch("/payroll/:id/items/:itemId", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id), itemId = parse(t.id, req.params.itemId);
   const b = parse(payroll.itemSchema, req.body);
   res.json(await inTenant(req, (q) => payroll.updateItem(q, id, itemId, b)));
 }));
-r.post("/payroll/:id/approve", canPayroll, handle(async (req, res) => {
+r.post("/payroll/:id/approve", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   await inTenant(req, (q) => payroll.approveRun(q, id, req.actor));
   res.json({ ok: true });
 }));
-r.post("/payroll/:id/pay", canPayroll, handle(async (req, res) => {
+r.post("/payroll/:id/pay", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(payroll.paySchema, req.body);
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return payroll.payRun(q, id, b.method, req.actor); }));

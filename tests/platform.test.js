@@ -502,6 +502,9 @@ test("طلبات التسجيل: تُرسل من صفحة المدرسة وتُ�
 });
 
 test("النظام المالي: حسابات وحركات واعتماد وتبرعات ورواتب", async () => {
+  // التبرعات والرواتب أقسام اختيارية موقوفة افتراضيًا
+  assert.equal((await A.admin.get("/api/admin/ledger/donations")).status, 404, "القسم الموقوف غير موجود");
+  assert.equal((await A.admin.put("/api/admin/settings/modules", { donations: true, payroll: true })).status, 200);
   // الحسابات والتصنيفات تُجهَّز تلقائيًا لكل مدرسة
   const accounts = await A.admin.get("/api/admin/ledger/accounts");
   assert.equal(accounts.status, 200, JSON.stringify(accounts.data));
@@ -591,10 +594,12 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
 
   // عزل المدارس
   assert.equal((await B.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01")).data.length, 0);
+  await B.admin.put("/api/admin/settings/modules", { donations: true });
   assert.equal((await B.admin.get("/api/admin/ledger/donations")).data.length, 0);
 });
 
 test("دور المحاسب: يرى المالية فقط، والصلاحيات تُطبَّق", async () => {
+  await A.admin.put("/api/admin/settings/modules", { donations: true, payroll: true });
   // إنشاء حساب محاسب بلا صلاحية اعتماد
   const created = await A.admin.post("/api/admin/users", {
     name: "محاسب المدرسة", username: "acc1", can_approve_finance: false, can_manage_payroll: false, can_manage_accounts: false });
@@ -747,6 +752,44 @@ test("التحويل بين الحسابات: حركتان مرتبطتان ول
   assert.equal((await A.admin.post("/api/admin/ledger/transfers", {
     from_account_id: cash.id, to_account_id: cash.id, amount: 10,
     occurred_on: "2026-09-06", reason: "نفس الحساب" })).status, 400);
+});
+
+test("أقسام المنصة: الإيقاف يخفي القسم ويرفضه الخادم، والبيانات تعود عند التشغيل", async () => {
+  const S = await makeSchool("مدرسة الأقسام");
+  const mods = await S.admin.get("/api/admin/settings/modules");
+  assert.equal(mods.status, 200, JSON.stringify(mods.data));
+  assert.equal(mods.data.attendance, true);
+  assert.equal(mods.data.donations, false, "التبرعات والرواتب اختيارية موقوفة افتراضيًا");
+
+  // القسم يعمل قبل الإيقاف
+  assert.equal((await S.admin.get("/api/admin/analytics/alerts")).status, 200);
+
+  // الإيقاف: الخادم يرفض بـ 404 (كأن القسم غير موجود)
+  assert.equal((await S.admin.put("/api/admin/settings/modules", { attendance: false, analytics: false })).status, 200);
+  assert.equal((await S.admin.get("/api/admin/analytics/alerts")).status, 404);
+  assert.equal((await S.admin.post("/api/admin/attendance", { date: "2026-09-10", entries: [] })).status, 404);
+
+  // الأقسام تظهر في /me فتُخفى التبويبات في الواجهة
+  const me = await S.admin.get("/api/admin/me");
+  assert.equal(me.data.modules.attendance, false);
+  assert.equal(me.data.modules.exams, true);
+
+  // المعلم أيضًا يُمنع من القسم الموقوف
+  const created = await S.admin.post("/api/admin/teachers", { name: "معلم الأقسام", username: "mod-teacher" });
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const tc = client(srv.base);
+  await tc.post("/api/staff/login", { school: S.id, username: "mod-teacher", password: created.data.credentials.password });
+  await tc.post("/api/teacher/password", { current: created.data.credentials.password, next: "Teacher-Pass-2026" });
+  assert.equal((await tc.get("/api/teacher/me")).data.modules.attendance, false);
+  assert.equal((await tc.get("/api/teacher/attendance/class/1?date=2026-09-10")).status, 404);
+
+  // قيود منطقية: كشوف الدرجات لا تعمل بدون الاختبارات، والتبرعات بدون المالية
+  assert.equal((await S.admin.put("/api/admin/settings/modules", { exams: false })).status, 400, "كشوف الدرجات تحتاج الاختبارات");
+  assert.equal((await S.admin.put("/api/admin/settings/modules", { finance: false, donations: true })).status, 400);
+
+  // التشغيل من جديد يعيد القسم كما كان
+  assert.equal((await S.admin.put("/api/admin/settings/modules", { attendance: true, analytics: true })).status, 200);
+  assert.equal((await S.admin.get("/api/admin/analytics/alerts")).status, 200);
 });
 
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {

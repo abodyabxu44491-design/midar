@@ -1,6 +1,6 @@
 // بوابة المحاسب: المالية والرسوم فقط. لا وصول للطلاب ولا الدرجات ولا الإعدادات.
 import { Router } from "express";
-import { requireStaff } from "../../core/auth/guards.js";
+import { requireStaff, requireModule } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
 import { handle } from "../../core/http/errors.js";
 import { inTenant } from "../../core/db/pool.js";
@@ -20,6 +20,7 @@ r.get("/me", handle(async (req, res) => {
     must_change_password: req.user.must_change_password,
     school: { id: req.tenant.id, name: req.tenant.name },
     currency: req.tenant.currency,
+    modules: req.modules,
     permissions: { approve: req.user.can_approve_finance, payroll: req.user.can_manage_payroll, accounts: req.user.can_manage_accounts },
   });
 }));
@@ -45,7 +46,7 @@ r.get("/messaging/templates", handle(async (req, res) => {
   res.json(await inTenant(req, getTemplates));
 }));
 
-r.use("/ledger", ledger);
-r.use("/finance", fees);
+r.use("/ledger", requireModule("finance"), ledger);
+r.use("/finance", requireModule("fees"), fees);
 
 export default r;

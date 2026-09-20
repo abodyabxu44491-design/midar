@@ -1,6 +1,6 @@
 // بوابة المعلم — منفصلة تمامًا عن الإدارة. كل قسم في ملف.
 import { Router } from "express";
-import { requireStaff } from "../../core/auth/guards.js";
+import { requireStaff, requireModule } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
 import profile from "./profile.js";
 import attendance from "./attendance.js";
@@ -13,8 +13,8 @@ r.use(logoutRouter("teacher"));
 r.use(requireStaff("teacher"));
 r.post("/password", changePassword);
 r.use(profile);
-r.use("/attendance", attendance);
-r.use("/exams", exams);
-r.use("/timetable", timetable);
-r.use("/homework", homework);
+r.use("/attendance", requireModule("attendance"), attendance);
+r.use("/exams", requireModule("exams"), exams);
+r.use("/timetable", requireModule("timetable"), timetable);
+r.use("/homework", requireModule("homework"), homework);
 export default r;

@@ -6,6 +6,7 @@ import { newDirectoryCode } from "../../core/auth/codes.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as payments from "../shared/payments.service.js";
 import { getSettings, updateSettings, settingsSchema } from "../shared/public-settings.service.js";
+import { getModules, updateModules, modulesSchema } from "../shared/modules.service.js";
 
 const r = Router();
 
@@ -20,6 +21,16 @@ r.post("/directory-code", handle(async (req, res) => {
 r.post("/sign-out-all", handle(async (req, res) => {
   await inTenant(req, (q) => q("DELETE FROM sessions WHERE tenant_id = app_tenant() AND user_id <> $1", [req.user.id]));
   res.json({ ok: true });
+}));
+
+/* ---------- أقسام المنصة ---------- */
+r.get("/modules", handle(async (req, res) => {
+  res.json(await inTenant(req, getModules));
+}));
+
+r.put("/modules", handle(async (req, res) => {
+  const b = parse(modulesSchema, req.body);
+  res.json(await inTenant(req, (q) => updateModules(q, b)));
 }));
 
 /* ---------- عملة المدرسة ---------- */

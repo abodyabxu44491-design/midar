@@ -4,11 +4,14 @@ import { api } from "/shared/js/api.js";
 import { stats, panel, notice, line, keyText, sub, input, empty, badge, btn } from "/shared/js/ui.js";
 import { money, fmtDate } from "/shared/js/format.js";
 import { waButton, messageVars } from "/shared/js/whatsapp.js";
-import { A, directoryLink, staffLink } from "./common.js";
+import { A, directoryLink, staffLink, optional } from "./common.js";
 
 export default async function dashboard({ me }) {
   const [d, alerts, templates] = await Promise.all([
-    api(`${A}/dashboard`), api(`${A}/analytics/alerts`), api(`${A}/messaging/templates`)]);
+    api(`${A}/dashboard`),
+    optional(api(`${A}/analytics/alerts`), { counts: {}, absentees: [], overdue: [] }),
+    optional(api(`${A}/messaging/templates`), null)]);
+  const canMessage = Boolean(templates);
   const c = alerts.counts;
 
   const alert = (label, value, tone = "") => (value ? h("div", { class: `alert-card ${tone}` }, h("span", {}, label), h("b", {}, value)) : null);
@@ -44,16 +47,16 @@ export default async function dashboard({ me }) {
     alerts.absentees.length ? panel("غياب متكرر (آخر 30 يومًا)", null,
       alerts.absentees.map((s) => line(
         h("div", {}, h("b", {}, s.name), sub(`${s.class_name || "—"} — ${s.absences} أيام غياب`)),
-        waButton({ phone: s.guardian_phone, template: templates.absence, countryCode: templates.country_code,
-          vars: messageVars({ student: s, school: me.school.name }), label: "تنبيه ولي الأمر" })))) : null,
+        canMessage ? waButton({ phone: s.guardian_phone, template: templates.absence, countryCode: templates.country_code,
+          vars: messageVars({ student: s, school: me.school.name }), label: "تنبيه ولي الأمر" }) : null))) : null,
 
     alerts.overdue.length ? panel("فواتير متأخرة", null,
       alerts.overdue.map((i) => line(
         h("div", {}, h("b", {}, `${i.student_name} — ${money(i.remaining)}`),
           sub(`${i.title} — استحقت ${fmtDate(i.due_date)}${i.class_name ? ` — ${i.class_name}` : ""}`)),
-        waButton({ phone: i.guardian_phone, template: templates.fees, countryCode: templates.country_code,
+        canMessage ? waButton({ phone: i.guardian_phone, template: templates.fees, countryCode: templates.country_code,
           vars: messageVars({ student: { name: i.student_name, class_name: i.class_name }, school: me.school.name,
-            fees: { remaining: i.remaining }, link: directoryLink(me) }), label: "تذكير واتساب" })))) : null,
+            fees: { remaining: i.remaining }, link: directoryLink(me) }), label: "تذكير واتساب" }) : null))) : null,
 
     panel("روابط مدرستك", null,
       line(h("span", {}, "صفحة الطلاب وأولياء الأمور"), keyText(directoryLink(me))),

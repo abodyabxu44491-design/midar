@@ -24,12 +24,13 @@ function periodRange(key) {
 }
 
 export default async function ledgerView({ refresh, me }) {
-  // المحاسب يرى الأقسام المسموح له بها فقط (المدير يرى الكل)
+  // يظهر القسم إذا كان مفعّلًا في المدرسة، وكان لدى المستخدم صلاحيته
   const perms = me?.permissions || { approve: true, payroll: true, accounts: true };
-  const sections = [["dashboard", "لوحة التحكم"], ["entries", "سجل الحركات"], ["expenses", "مصروف أو سحب"],
-    ["donations", "التبرعات"]];
-  if (perms.payroll) sections.push(["payroll", "الرواتب"]);
-  if (perms.accounts) sections.push(["transfer", "تحويل بين الحسابات"]);
+  const mods = me?.modules || {};
+  const sections = [["dashboard", "لوحة التحكم"], ["entries", "سجل الحركات"], ["expenses", "مصروف أو سحب"]];
+  if (mods.donations !== false) sections.push(["donations", "التبرعات"]);
+  if (perms.payroll && mods.payroll !== false) sections.push(["payroll", "الرواتب"]);
+  if (perms.accounts && mods.transfers !== false) sections.push(["transfer", "تحويل بين الحسابات"]);
   if (perms.accounts) sections.push(["accounts", "الحسابات والتصنيفات"]);
   const section = select(sections);
   const body = h("div");

@@ -31,11 +31,21 @@ export async function startAdmin() {
     return passwordChangeScreen({ endpoint: "/api/admin/password", logoutEndpoint: "/api/admin/logout", school: me.school.name, name: me.name });
   }
   setCurrency(me.school.currency);
-  const t = tabs([
+  const on = (key) => me.modules?.[key] !== false;
+  // التبويب يظهر فقط إذا كان قسمه مفعّلًا في هذه المدرسة
+  const MODULE_OF = {
+    attendance: "attendance", timetable: "timetable", exams: "exams", reports: "reports",
+    analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions",
+    announcements: "announcements",
+  };
+  const allTabs = [
     ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"], ["academic", "السنة الدراسية"],
     ["attendance", "الحضور"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["reports", "كشف الدرجات"], ["analytics", "التحليلات"],
     ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"], ["announcements", "التعاميم"], ["settings", "الإعدادات"], ["audit", "السجل"],
-  ], { dashboard, students, teachers, structure, academic, attendance, timetable, exams, reports, analytics, finance, ledger, admissions, announcements, settings, audit }, { me });
+  ].filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
+
+  const t = tabs(allTabs,
+    { dashboard, students, teachers, structure, academic, attendance, timetable, exams, reports, analytics, finance, ledger, admissions, announcements, settings, audit }, { me });
 
   mount(app,
     topbar({ school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
