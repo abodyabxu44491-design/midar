@@ -4,6 +4,7 @@ import { api, idempotencyKey } from "/shared/js/api.js";
 import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select , showInstallBar} from "/shared/js/ui.js";
 import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "/shared/js/format.js";
 import { timetableGrid } from "/shared/js/timetable.js";
+import { receiptDialog, statementDialog } from "/shared/js/receipt.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -27,6 +28,7 @@ const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label)
 function render(d) {
   if (d.currency) setCurrency(d.currency);
   const s = d.student, f = d.fees;
+  schoolName = d.school; studentName = s.name; className = s.class_name;
   const avg = d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
   const count = (st) => d.attendance.filter((a) => a.status === st).length;
   document.title = `مِدار — ${s.name}`;
@@ -83,6 +85,8 @@ function render(d) {
 
 const CLAIM = { pending: ["بانتظار تأكيد المدرسة", "amber"], confirmed: ["تم التأكيد", ""], rejected: ["مرفوض", "red"] };
 
+let schoolName = "", studentName = "", className = "";
+
 function feesSection(f) {
   const open = f.invoices.filter((i) => i.status === "open");
   const pendingFor = (id) => f.claims.filter((c) => c.invoice_id === id && c.status === "pending").reduce((a, c) => a + c.amount, 0);
@@ -109,10 +113,22 @@ function feesSection(f) {
           c.review_note ? sub(c.status === "rejected" ? `سبب الرفض: ${c.review_note}` : c.review_note) : null),
         c.receipt_no ? keyText(c.receipt_no) : null))] : null,
 
-    f.receipts.length ? [h("h3", { class: "sec-title" }, "الإيصالات"),
+    f.receipts.length ? [
+      h("div", { class: "toolbar" },
+        h("h3", { class: "sec-title", style: "margin:0" }, "الإيصالات"),
+        btn("كشف الحساب", () => statementDialog({
+          school: schoolName, student: studentName, class_name: className,
+          invoices: f.invoices, payments: f.receipts,
+        }), "ghost sm")),
       f.receipts.map((r) => line(
         h("div", {}, h("b", {}, `${r.kind === "refund" ? "استرداد — " : ""}${r.title}`), sub(`${METHODS[r.method]} — ${fmtDateTime(r.created_at)}`)),
-        h("div", {}, h("b", {}, money(r.amount)), " ", keyText(r.receipt_no))))] : null);
+        h("div", { class: "row", style: "flex:none;align-items:center" },
+          h("b", {}, money(r.amount)), keyText(r.receipt_no),
+          btn("إيصال", () => receiptDialog({
+            school: schoolName, student: studentName, class_name: className,
+            receipt_no: r.receipt_no, amount: r.amount, method: r.method,
+            created_at: r.created_at, title: r.title, kind: r.kind,
+          }), "ghost sm"))))] : null);
 }
 
 // نافذة السداد: الحساب البنكي + إشعار التحويل + الدفع النقدي

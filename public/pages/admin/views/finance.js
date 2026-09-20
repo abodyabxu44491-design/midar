@@ -4,6 +4,7 @@ import { api, idempotencyKey } from "/shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, confirmAction } from "/shared/js/ui.js";
 import { money, csv, fmtDate, fmtDateTime, METHODS } from "/shared/js/format.js";
 import { waButton, messageVars } from "/shared/js/whatsapp.js";
+import { receiptDialog, statementDialog } from "/shared/js/receipt.js";
 import { A, loadClasses } from "./common.js";
 
 export default async function finance({ refresh }) {
@@ -85,7 +86,8 @@ function invoiceRow(i, refresh, ctx = {}) {
         vars: messageVars({ student: ctx.student, school: ctx.me.school.name, fees: { remaining: rem },
           link: `${location.origin}/${ctx.me.school.id}` }), label: "تذكير واتساب" }) : null,
       i.paid > 0 && btn("استرداد", () => refundDialog(i, refresh), "ghost sm"),
-      btn("السجل", () => history(i), "ghost sm"),
+      btn("السجل والإيصالات", () => history(i, ctx), "ghost sm"),
+      ctx.student ? btn("كشف حساب", () => statement(i.student_id, ctx), "ghost sm") : null,
       i.paid <= 0 && btn("إلغاء", () => voidDialog(i, refresh), "danger sm")));
 }
 
@@ -122,10 +124,30 @@ function voidDialog(i, refresh) {
     }, "danger")]);
 }
 
-async function history(i) {
+async function history(i, ctx = {}) {
   const rows = (await api(`${A}/finance/students/${i.student_id}/payments`)).filter((p) => p.invoice_id === i.id);
   dialog(`سجل مدفوعات ${i.student_name}`, h("div", {}, rows.length ? rows.map((p) => line(
-    h("div", {}, h("b", {}, p.kind === "refund" ? "استرداد" : "دفعة"), sub(`${METHODS[p.method]} — ${fmtDateTime(p.created_at)}${p.note ? ` — ${p.note}` : ""}`)),
-    h("div", {}, h("b", { class: p.kind === "refund" ? "danger-text" : "" }, `${p.kind === "refund" ? "−" : ""}${money(p.amount)}`), " ", h("span", { class: "key" }, p.receipt_no))))
+    h("div", {}, h("b", {}, p.kind === "refund" ? "استرداد" : "دفعة"),
+      sub(`${METHODS[p.method]} — ${fmtDateTime(p.created_at)}${p.note ? ` — ${p.note}` : ""}`)),
+    h("div", { class: "row", style: "flex:none;align-items:center" },
+      h("b", { class: p.kind === "refund" ? "danger-text" : "" }, `${p.kind === "refund" ? "−" : ""}${money(p.amount)}`),
+      h("span", { class: "key" }, p.receipt_no),
+      btn("إيصال", () => receiptDialog({
+        school: ctx.me?.school?.name || "", student: i.student_name, class_name: i.class_name,
+        receipt_no: p.receipt_no, amount: p.amount, method: p.method, created_at: p.created_at,
+        title: i.title, kind: p.kind, remaining: Number(i.amount) - Number(i.paid),
+      }), "ghost sm"))))
     : empty("لا توجد دفعات.")));
+}
+
+// كشف حساب الطالب: كل فواتيره ودفعاته
+async function statement(studentId, ctx = {}) {
+  const [{ invoices }, payments] = await Promise.all([
+    api(`${A}/finance/invoices`), api(`${A}/finance/students/${studentId}/payments`)]);
+  const mine = invoices.filter((i) => i.student_id === studentId);
+  statementDialog({
+    school: ctx.me?.school?.name || "",
+    student: mine[0]?.student_name || "", class_name: mine[0]?.class_name,
+    invoices: mine, payments,
+  });
 }

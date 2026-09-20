@@ -291,3 +291,11 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .alert-card.warn { border-color: var(--amber); background: var(--amber-soft); }
 .alert-card.bad { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .search-result { padding: 10px 0; border-top: 1px solid var(--line); }
+
+.receipt { max-width: 520px; }
+@media print {
+  body > *:not(dialog) { display: none !important; }
+  dialog { position: static; display: block; border: none; width: 100%; max-width: none; }
+  dialog::backdrop { display: none; }
+  dialog .row, dialog .btn { display: none !important; }
+}
