@@ -1,4 +1,4 @@
-# تشغيل مِدار كخدمة دائمة على سيرفر Ubuntu
+# تشغيل مدار كخدمة دائمة على سيرفر Ubuntu
 # sudo cp deploy/midar.service /etc/systemd/system/ && sudo systemctl enable --now midar
 [Unit]
 Description=MIDAR school platform

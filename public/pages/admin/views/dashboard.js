@@ -40,7 +40,7 @@ export default async function dashboard({ me }) {
 
     cards.length
       ? panel("يحتاج انتباهك", null, h("div", { class: "alert-grid" }, cards))
-      : panel("يحتاج انتباهك", null, notice("لا يوجد شيء معلّق. كل شيء محدّث.", "")),
+      : null,
 
     quickSearch(),
 

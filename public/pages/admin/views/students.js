@@ -60,6 +60,7 @@ export default async function students({ me, refresh }) {
   const bulkCls = select(classOptions(classes, "بدون فصل"));
   const importPanel = panel("استيراد من Excel", null,
     sub("انسخ من Excel: اسم الطالب، اسم ولي الأمر، الجوال — كل طالب في سطر."),
+    sub("أو من الإعدادات ← استيراد البيانات: نزّل قالبًا جاهزًا وارفعه كملف."),
     field("الفصل", bulkCls), bulk,
     h("div", { class: "spaced" }, btn("استيراد", async () => {
       const rows = bulk.value.split(/\r?\n/).map((l) => l.split(/[,،\t]/).map((x) => x.trim())).filter((p) => p[0]);
@@ -95,12 +96,17 @@ export default async function students({ me, refresh }) {
           refresh();
         } catch (e) { toast(e.message, true); if (e.status === 409) refresh(); }
       } });
-    return line(
-      h("div", {}, h("b", {}, s.name), " ", feeBadge,
-        sub(`${s.class_name || "بدون فصل"} — ولي الأمر: ${s.guardian_name || "—"} ${s.guardian_phone || ""}`),
-        sub("المعرّف: ", keyText(s.access_key))),
-      h("div", { class: "row", style: "flex:none;align-items:center" },
-        h("span", { class: "sub", style: "flex:none;min-width:0" }, "الرسوم"), sw,
+    // صف الطالب: أعمدة ثابتة — الاسم، الفصل، ولي الأمر، المعرّف، الإجراءات
+    return h("div", { class: "student-row" },
+      h("div", { class: "s-name" }, h("b", {}, s.name), " ", feeBadge,
+        s.status !== "active" ? statusBadge(s.status) : null),
+      h("div", { class: "s-cell" }, h("span", { class: "s-label" }, "الفصل"), h("span", {}, s.class_name || "بدون فصل")),
+      h("div", { class: "s-cell" }, h("span", { class: "s-label" }, "ولي الأمر"),
+        h("span", {}, s.guardian_name || "—"),
+        s.guardian_phone ? h("span", { class: "ltr small muted" }, s.guardian_phone) : null),
+      h("div", { class: "s-cell" }, h("span", { class: "s-label" }, "المعرّف"), keyText(s.access_key)),
+      h("div", { class: "s-actions" },
+        h("span", { class: "s-label" }, "الرسوم"), sw,
         templates && waButton({ phone: s.guardian_phone, template: templates.general, countryCode: templates.country_code,
           vars: messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) }), label: "واتساب" }),
         btn("إدارة", () => manage(s, classes, me, refresh), "ghost sm")));

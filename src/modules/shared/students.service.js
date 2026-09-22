@@ -32,14 +32,20 @@ export function guardianFromStudent(fullName) {
   return rest.length >= 2 ? rest.join(" ") : null;
 }
 
-// توحيد صيغة الجوال: +966 5x / 9665x / 5x ← 05x
+/**
+ * توحيد صيغة الجوال لأي دولة:
+ *   +967 77 123 4567 / 00967771234567 → +967771234567
+ *   0501234567 (محلي) → يبقى كما هو، ويُكمَّل برمز الدولة عند إرسال واتساب
+ * تُحذف المسافات والرموز فقط، ولا يُفرض رمز دولة معيّن.
+ */
 export function normalizePhone(v) {
-  let d = String(v || "").replace(/[^\d+]/g, "").replace(/^\+/, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith("966")) d = "0" + d.slice(3);
-  else if (d.length === 9 && d.startsWith("5")) d = "0" + d;
-  return d.slice(0, 20);
+  const raw = String(v || "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/[^\d+]/g, "");
+  if (!digits.replace(/\+/g, "")) return null;
+  if (digits.startsWith("00")) return "+" + digits.slice(2).replace(/\+/g, "");
+  if (digits.startsWith("+")) return "+" + digits.slice(1).replace(/\+/g, "");
+  return digits.slice(0, 20);
 }
 
 export async function get(q, id, { includeArchived = false } = {}) {

@@ -3,12 +3,21 @@
 import { h } from "./dom.js";
 import { money, today, fmtDate } from "./format.js";
 
-// 0501234567 → 966501234567
+/**
+ * تحويل الرقم إلى صيغة واتساب الدولية:
+ *   +967771234567 → 967771234567 (أي دولة، كما كُتب)
+ *   0501234567 مع رمز دولة المدرسة 966 → 966501234567
+ */
 export function toIntl(phone, countryCode = "966") {
-  const digits = String(phone || "").replace(/[^\d+]/g, "").replace(/^\+/, "");
+  const raw = String(phone || "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("+")) return raw.slice(1).replace(/\D/g, "") || null;
+  const digits = raw.replace(/\D/g, "");
   if (!digits) return null;
-  if (digits.startsWith(countryCode)) return digits;
-  return countryCode + digits.replace(/^0+/, "");
+  if (digits.startsWith("00")) return digits.slice(2);
+  if (digits.startsWith("0")) return String(countryCode).replace(/\D/g, "") + digits.slice(1);
+  if (digits.startsWith(String(countryCode))) return digits;
+  return String(countryCode).replace(/\D/g, "") + digits;
 }
 
 export function fillTemplate(template, vars) {

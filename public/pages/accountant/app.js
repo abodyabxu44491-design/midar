@@ -3,7 +3,7 @@
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { setCurrency } from "/shared/js/format.js";
-import { topbar, footer, tabs, panel, field, input, btn, toast, sub, passwordChangeScreen } from "/shared/js/ui.js";
+import { topbar, footer, tabs, panel, field, input, btn, toast, sub, passwordChangeScreen , passwordInput} from "/shared/js/ui.js";
 import { setApiBase } from "/admin/views/common.js";
 import ledger from "/admin/views/ledger.js";
 import fees from "/admin/views/finance.js";
@@ -32,8 +32,8 @@ export async function startAccountant() {
 }
 
 function account({ me }) {
-  const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
-  const nxt = input({ type: "password", class: "ltr", autocomplete: "new-password" });
+  const cur = passwordInput({ autocomplete: "current-password" });
+  const nxt = passwordInput({ autocomplete: "new-password" });
   return [
     panel("صلاحياتي", null,
       sub(`اعتماد الحركات المالية: ${me.permissions.approve ? "نعم" : "لا"}`),

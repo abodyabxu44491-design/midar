@@ -85,7 +85,6 @@ function payDialog(i, refresh) {
   const msg = h("div");
   const d = dialog(`سداد اشتراك ${i.school_name}`, h("div", {},
     sub(`${money(i.amount)} — للمدة ${fmtDate(i.period_start)} إلى ${fmtDate(i.period_end)}`),
-    notice("السداد يمدد الاشتراك ويعيد تفعيل المدرسة إن كانت موقوفة.", ""),
     field("طريقة السداد", method), field("ملاحظة", note), msg),
   [btn("تأكيد السداد", async () => {
     try {

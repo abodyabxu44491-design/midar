@@ -9,6 +9,5 @@ export default async function overview() {
     panel("الاستخدام مقابل حد الباقة", null, list.length ? list.map((x) => h("div", { style: "padding:6px 0" },
       h("div", { class: "row", style: "justify-content:space-between" }, h("span", {}, x.name), h("span", { style: "flex:none" }, `${x.students} / ${x.max_students}`)),
       h("div", { class: "bar" }, h("i", { style: `width:${Math.min(100, (x.students / x.max_students) * 100)}%` })))) : empty("لا توجد مدارس بعد.")),
-    notice("هذه اللوحة تعرض المدارس والاشتراكات والأعداد فقط. قاعدة البيانات تمنعها من قراءة بيانات الطلاب."),
   ];
 }

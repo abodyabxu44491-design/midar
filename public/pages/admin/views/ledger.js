@@ -2,7 +2,7 @@
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast,
-  dialog, notice, confirmAction, brandLogo } from "/shared/js/ui.js";
+  dialog, notice, confirmAction, brandLogo, sectionMenu } from "/shared/js/ui.js";
 import { barChart } from "/shared/js/charts.js";
 import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "/shared/js/format.js";
 import { A } from "./common.js";
@@ -23,7 +23,7 @@ function periodRange(key) {
   return { from: monthStart(), to: today() };
 }
 
-export default async function ledgerView({ refresh, me }) {
+export default function ledgerView({ refresh, me }) {
   // يظهر القسم إذا كان مفعّلًا في المدرسة، وكان لدى المستخدم صلاحيته
   const perms = me?.permissions || { approve: true, payroll: true, accounts: true };
   const mods = me?.modules || {};
@@ -32,17 +32,21 @@ export default async function ledgerView({ refresh, me }) {
   if (perms.payroll && mods.payroll !== false) sections.push(["payroll", "الرواتب"]);
   if (perms.accounts && mods.transfers !== false) sections.push(["transfer", "تحويل بين الحسابات"]);
   if (perms.accounts) sections.push(["accounts", "الحسابات والتصنيفات"]);
-  const section = select(sections);
-  const body = h("div");
-  const views = { dashboard, entries, expenses, donationsView, payroll, accounts, transfer };
-  const show = async () => {
-    mount(body, empty("جارٍ التحميل…"));
-    try { mount(body, await views[section.value === "donations" ? "donationsView" : section.value]({ refresh, show })); }
-    catch (e) { mount(body, notice(e.message, "err")); }
+  const NOTES = {
+    dashboard: "الأرصدة والمداخيل والمصروفات",
+    entries: "كل العمليات مع تصفية وتصدير",
+    expenses: "تسجيل مصروف أو سحب أو إيراد",
+    donations: "تبرعات المدرسة",
+    payroll: "الموظفون ومسير الرواتب",
+    transfer: "نقل مبلغ بين صندوق وحساب",
+    accounts: "الصناديق والحسابات والتصنيفات",
   };
-  section.addEventListener("change", show);
-  await show();
-  return [panel("القسم المالي", null, field("اختر القسم", section)), body];
+  const views = { dashboard, entries, expenses, donations: donationsView, payroll, accounts, transfer };
+  return sectionMenu({
+    title: "المالية",
+    items: sections.map(([key, name]) => ({ key, name, note: NOTES[key] })),
+    render: (key, { reload }) => views[key]({ refresh, show: reload, me }),
+  });
 }
 
 /* ---------------- لوحة التحكم المالية ---------------- */
@@ -251,7 +255,6 @@ async function expenses({ show }) {
   };
 
   return [
-    notice("كل حركة تُسجَّل باسمك مع سببها والجهة المستفيدة، وتظهر في سجل الحركات ولا تُحذف.", ""),
     form("expense"),
     form("income"),
   ];

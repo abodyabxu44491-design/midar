@@ -1,6 +1,9 @@
 // الاتصال بالخادم
 export class ApiError extends Error {
-  constructor(message, status, code) { super(message); this.status = status; this.code = code; }
+  constructor(message, status, code, details) {
+    super(message); this.status = status; this.code = code;
+    if (details?.errors) this.errors = details.errors;   // أخطاء أسطر الاستيراد
+  }
 }
 
 export async function api(url, body, method) {
@@ -18,7 +21,7 @@ export async function api(url, body, method) {
   }
   let data = null;
   try { data = await res.json(); } catch { /* رد بدون محتوى */ }
-  if (!res.ok) throw new ApiError(data?.error || "حدث خطأ غير متوقع", res.status, data?.code);
+  if (!res.ok) throw new ApiError(data?.error || "حدث خطأ غير متوقع", res.status, data?.code, data);
   return data;
 }
 

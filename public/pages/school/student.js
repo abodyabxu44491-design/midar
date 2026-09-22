@@ -31,7 +31,7 @@ function render(d) {
   schoolName = d.school; studentName = s.name; className = s.class_name;
   const avg = d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
   const count = (st) => d.attendance.filter((a) => a.status === st).length;
-  document.title = `مِدار — ${s.name}`;
+  document.title = `مدار — ${s.name}`;
 
   mount(app,
     topbar({ school: d.school, subtitle: "ملف الطالب", onLogout: () => { sessionStorage.removeItem(KEY); back(); } }),
@@ -133,7 +133,7 @@ function feesSection(f) {
 
 // نافذة السداد: الحساب البنكي + إشعار التحويل + الدفع النقدي
 function payDialog(f, inv, available) {
-  const reference = `فاتورة ${inv.id} - ${document.title.replace("مِدار — ", "")}`;
+  const reference = `فاتورة ${inv.id} - ${document.title.replace("مدار — ", "")}`;
   const copy = (text) => btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }, "ghost sm");
 
   const accounts = f.accounts.length ? f.accounts.map((a) => h("div", { class: "bank-card" },

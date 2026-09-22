@@ -13,7 +13,12 @@ import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
 
 const r = Router();
-const schema = z.object({ username: z.string().max(100), password: z.string().max(200), code: z.string().max(10).optional() });
+const schema = z.object({
+  username: z.string().max(100),
+  password: z.string().max(200),
+  code: z.string().max(10).optional(),
+  remember: z.boolean().optional().default(false),
+});
 
 r.get("/config", (req, res) => res.json({ totp: Boolean(env.OWNER_TOTP_SECRET) }));
 
@@ -41,8 +46,8 @@ r.post("/login", limits.login, handle(async (req, res) => {
     throw unauthorized("بيانات الدخول غير صحيحة");   // رسالة واحدة: لا نكشف أن كلمة المرور صحيحة وأن الرمز وحده الخاطئ
   }
   await transaction(ctx, async (q) => {
-    await createSession(res, "owner", { ip: req.ip, userAgent: req.get("user-agent") }, q);
-    await logEvent(q, { actor: "مالك المنصة", action: "تسجيل دخول" });
+    await createSession(res, "owner", { ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);
+    await logEvent(q, { actor: "مالك المنصة", action: b.remember ? "تسجيل دخول (تذكرني)" : "تسجيل دخول" });
   });
   res.json({ ok: true });
 }));

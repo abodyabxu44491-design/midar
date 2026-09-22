@@ -24,8 +24,6 @@ const schema = z.object({
   OWNER_PASSWORD_HASH: z.string().startsWith("scrypt$", "أنشئ OWNER_PASSWORD_HASH بالأمر: npm run owner:password"),
   OWNER_TOTP_SECRET: z.string().regex(/^[A-Z2-7]{16,64}$/).optional().or(z.literal("")),
   OWNER_ALLOWED_IPS: z.string().default(""),
-  // في الإنتاج يلزم OWNER_TOTP_SECRET؛ هذا المتغير للاستثناء الصريح فقط (لا يُنصح به)
-  OWNER_ALLOW_NO_TOTP: bool.default("false"),
   COOKIE_SECURE: bool.default("true"),
   // separate = كوكي منفصل لكل دور (سيرفر خاص) | single = كوكي واحد باسم __session (مطلوب في Firebase Hosting)
   SESSION_COOKIE_MODE: z.enum(["separate", "single"]).default("separate"),
@@ -47,11 +45,8 @@ export const env = Object.freeze({
   ownerIps: parsed.data.OWNER_ALLOWED_IPS.split(",").map((s) => s.trim()).filter(Boolean),
 });
 
-if (env.isProd && !env.OWNER_TOTP_SECRET && !env.OWNER_ALLOW_NO_TOTP) {
-  console.error("✗ في وضع الإنتاج يجب ضبط OWNER_TOTP_SECRET (التحقق بخطوتين للوحة المالك). أنشئه بالأمر: npm run owner:totp");
-  console.error("  (للاستثناء المؤقت فقط: OWNER_ALLOW_NO_TOTP=true)");
-  process.exit(1);
-}
+// التحقق الثنائي لدخول المالك اختياري الآن: دخول باسم مستخدم وكلمة مرور فقط ما لم يُضبط OWNER_TOTP_SECRET.
+// لإعادة تفعيله لاحقًا: npm run owner:totp ثم ضع الناتج في OWNER_TOTP_SECRET.
 
 if (env.isProd && !env.COOKIE_SECURE) {
   console.error("✗ في وضع الإنتاج يجب أن تكون COOKIE_SECURE=true (مع HTTPS)");

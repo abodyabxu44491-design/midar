@@ -39,6 +39,9 @@ a { color: var(--accent); }
 .row > .btn, .row > .switch { flex: none; min-width: 0; }
 label.f { display: block; margin-bottom: 12px; }
 label.f > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+label.f.remember-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; }
+label.f.remember-row input { margin: 0; width: 16px; height: 16px; flex: none; }
+label.f.remember-row span { display: inline; margin-bottom: 0; font-size: 14px; color: var(--text, #1c1c1c); }
 input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 15px; background: #fff; color: var(--ink); }
 input[type=checkbox] { width: auto; }
 .ltr { direction: ltr; text-align: left; }
@@ -299,3 +302,41 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   dialog::backdrop { display: none; }
   dialog .row, dialog .btn { display: none !important; }
 }
+
+/* حقل كلمة المرور */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap input { width: 100%; padding-inline-start: 44px; }
+.pw-toggle { position: absolute; inset-inline-start: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; border-radius: 8px; display: flex; }
+.pw-toggle:hover { background: var(--bg); color: var(--ink); }
+input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display: none; }
+
+/* صف الطالب: أعمدة مرتبة على الكمبيوتر، وبطاقة مرتبة على الجوال */
+.student-row { display: grid; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); align-items: center; }
+.student-row:first-of-type { border-top: none; }
+.student-row .s-name { font-size: 15px; }
+.student-row .s-cell { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.student-row .s-label { color: var(--muted); font-size: 12px; }
+.student-row .s-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+@media (min-width: 900px) {
+  .student-row { grid-template-columns: minmax(190px, 1.4fr) 130px minmax(170px, 1.2fr) 130px auto; }
+  .student-row .s-label { display: none; }
+  .student-row .s-actions .s-label { display: inline; }
+}
+
+/* قائمة الأقسام */
+.menu-title { margin: 0 0 12px; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.menu-card { display: flex; align-items: center; gap: 10px; text-align: right; font: inherit; cursor: pointer;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-height: 64px; }
+.menu-card:hover { border-color: var(--accent); background: var(--teal-soft); }
+.menu-card .menu-text { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.menu-card .menu-name { font-weight: 700; color: var(--navy); font-size: 15px; }
+.menu-card .menu-note { color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.menu-card .icon { color: var(--muted); }
+.section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.section-head h2 { margin: 0; font-size: 19px; }
+
+/* ثبات العرض مثل التطبيق: بلا تكبير أو تصغير بالإصبع، وبلا تمرير أفقي */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
+body { overflow-x: hidden; overscroll-behavior-y: contain; }

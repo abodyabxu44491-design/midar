@@ -18,11 +18,13 @@ function loadPicker(classes, subjects, current = []) {
 }
 
 export default async function teachers({ me, refresh }) {
+  const importHint = sub("لإضافة عدة معلمين دفعة واحدة: الإعدادات ← استيراد البيانات.");
   const [classes, subjects, list] = await Promise.all([loadClasses(), loadSubjects(), api(`${A}/teachers`)]);
   const f = { name: input(), user: input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" }), phone: input({ class: "ltr" }) };
   const picker = loadPicker(classes, subjects);
 
   return [
+    importHint,
     panel("إضافة معلم", null,
       h("div", { class: "row" }, field("الاسم", f.name), field("اسم المستخدم", f.user), field("الجوال", f.phone)),
       sub("الفصول والمواد التي يراها هذا المعلم"), picker.el,

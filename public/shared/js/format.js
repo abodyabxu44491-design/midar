@@ -36,3 +36,29 @@ export function csv(filename, rows) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+/** قراءة ملف CSV بسيط (يدعم الاقتباس والفواصل داخل النص وسطور Windows) */
+export function parseCsv(text) {
+  const clean = String(text || "").replace(/^\uFEFF/, "");
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  for (let i = 0; i < clean.length; i++) {
+    const c = clean[i];
+    if (quoted) {
+      if (c === '"' && clean[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  const filtered = rows.filter((r) => r.some((v) => String(v).trim() !== ""));
+  if (!filtered.length) return { headers: [], rows: [] };
+  const headers = filtered[0].map((h) => h.trim());
+  return {
+    headers,
+    rows: filtered.slice(1).map((r) => Object.fromEntries(headers.map((h, i) => [h, (r[i] ?? "").trim()]))),
+  };
+}

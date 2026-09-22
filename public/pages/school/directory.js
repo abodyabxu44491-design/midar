@@ -49,7 +49,7 @@ function askAccess(error) {
 /* ---------- الصفحة ---------- */
 function render(data) {
   const st = data.settings;
-  document.title = `مِدار — ${data.school.name}`;
+  document.title = `مدار — ${data.school.name}`;
   const results = h("div");
   const classesBox = h("div");
 
@@ -118,7 +118,6 @@ function render(data) {
         ? h("section", { class: "panel" }, h("h2", {}, "تعاميم المدرسة"),
             data.announcements.map((a) => line(h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))))
         : null,
-      notice("اضغط على اسم الطالب وأدخل معرّفه لفتح ملفه."),
       st.show_search ? h("div", { style: "margin-bottom:12px" }, query) : null,
       data.admissions ? h("div", { class: "toolbar" }, btn("طلب تسجيل طالب جديد", () => admissionForm(), "soft")) : null,
       results,

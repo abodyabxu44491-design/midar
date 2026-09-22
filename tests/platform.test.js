@@ -119,19 +119,19 @@ test("تسهيلات الإدخال: اسم ولي الأمر وتوحيد ال�
   assert.equal(a.status, 201, JSON.stringify(a.data));
   assert.equal(a.data.name, "سالم عبدالله ناصر", "تنظيف المسافات");
   assert.equal(a.data.guardian_name, "عبدالله ناصر", "اسم ولي الأمر من اسم الطالب");
-  assert.equal(a.data.guardian_phone, "0551234567", "توحيد صيغة الجوال");
+  assert.equal(a.data.guardian_phone, "+966551234567", "الرقم الدولي يُحفظ بصيغة موحدة");
 
   // أخ بنفس الجوال يأخذ اسم ولي الأمر نفسه
-  const b = await A.admin.post("/api/admin/students", { name: "ريم", guardian_phone: "0551234567" });
+  const b = await A.admin.post("/api/admin/students", { name: "ريم", guardian_phone: "+966 55 123 4567" });
   assert.equal(b.data.guardian_name, "عبدالله ناصر", "الأخ يرث اسم ولي الأمر");
 
-  const g = await A.admin.get("/api/admin/students/guardian?phone=966551234567");
-  assert.equal(g.data.phone, "0551234567");
+  const g = await A.admin.get("/api/admin/students/guardian?phone=%2B966551234567");
+  assert.equal(g.data.phone, "+966551234567");
   assert.equal(g.data.guardian_name, "عبدالله ناصر");
   assert.equal(g.data.siblings.length, 2, "يظهر الإخوة المسجلون");
 
   // مدرسة أخرى لا ترى أولياء أمور مدرستنا
-  assert.equal((await B.admin.get("/api/admin/students/guardian?phone=0551234567")).data.siblings.length, 0);
+  assert.equal((await B.admin.get("/api/admin/students/guardian?phone=%2B966551234567")).data.siblings.length, 0);
 
   // تنظيف بعد الاختبار حتى لا يتأثر حد الباقة
   for (const id of [a.data.id, b.data.id]) await A.admin.post(`/api/admin/students/${id}/status`, { status: "withdrawn" });
@@ -790,6 +790,128 @@ test("أقسام المنصة: الإيقاف يخفي القسم ويرفضه �
   // التشغيل من جديد يعيد القسم كما كان
   assert.equal((await S.admin.put("/api/admin/settings/modules", { attendance: true, analytics: true })).status, 200);
   assert.equal((await S.admin.get("/api/admin/analytics/alerts")).status, 200);
+});
+
+test("الاستيراد من ملف: قالب جاهز، تحقق كامل، واستيراد كامل أو لا شيء", async () => {
+  const S = await makeSchool("مدرسة الاستيراد");
+  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 50 });
+
+  const kinds = await S.admin.get("/api/admin/import/kinds");
+  assert.equal(kinds.status, 200);
+  assert.ok(kinds.data.some((k) => k.key === "students" && k.columns.some((c) => c.required)));
+
+  // القالب يُنزَّل بصيغة CSV وفيه العناوين العربية
+  const cookie = [...S.admin.jar].map(([k, v]) => `${k}=${v}`).join("; ");
+  const tpl = await fetch(`${srv.base}/api/admin/import/template/students`, { headers: { cookie } });
+  assert.equal(tpl.status, 200);
+  const body = await tpl.text();
+  assert.ok(body.includes("اسم الطالب"), "القالب يحوي عناوين الأعمدة");
+
+  // الفصول أولًا
+  const classes = await S.admin.post("/api/admin/import/classes", {
+    rows: [{ "اسم الفصل": "الأول - أ" }, { "اسم الفصل": "الأول - ب" }] });
+  assert.equal(classes.status, 200, JSON.stringify(classes.data));
+  assert.equal(classes.data.created, 2);
+  // التكرار يُرفض
+  assert.equal((await S.admin.post("/api/admin/import/classes", { rows: [{ "اسم الفصل": "الأول - أ" }] })).status, 400);
+
+  // الطلاب: سطر بفصل غير موجود يُبطل الملف كله
+  const bad = await S.admin.post("/api/admin/import/students", { rows: [
+    { "اسم الطالب": "طالب أول", "الفصل": "الأول - أ" },
+    { "اسم الطالب": "طالب ثانٍ", "الفصل": "فصل غير موجود" }] });
+  assert.equal(bad.status, 400);
+  assert.ok(bad.data.errors.some((e) => /غير موجود/.test(e.message)));
+  assert.equal((await S.admin.get("/api/admin/students")).data.length, 0, "لم يُستورد شيء");
+
+  // سطر بلا اسم يُرفض مع رقم السطر
+  const noName = await S.admin.post("/api/admin/import/students", { rows: [{ "اسم الطالب": "", "الفصل": "الأول - أ" }] });
+  assert.equal(noName.status, 400);
+  assert.equal(noName.data.errors[0].row, 2);
+
+  // استيراد صحيح: اسم ولي الأمر يُستنتج والجوال يُوحَّد
+  const ok = await S.admin.post("/api/admin/import/students", { rows: [
+    { "اسم الطالب": "محمد عبدالله سالم", "الفصل": "الأول - أ", "جوال ولي الأمر": "+966 50 111 2233", "الرسوم (نعم/لا)": "نعم" },
+    { "اسم الطالب": "ريم عبدالله سالم", "الفصل": "الأول - ب" }] });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.equal(ok.data.created, 2);
+  const list = (await S.admin.get("/api/admin/students")).data;
+  const first = list.find((x) => x.name === "محمد عبدالله سالم");
+  assert.equal(first.guardian_name, "عبدالله سالم", "اسم ولي الأمر من اسم الطالب");
+  assert.equal(first.guardian_phone, "+966501112233", "توحيد صيغة الجوال");
+  assert.equal(first.fees_enabled, true);
+
+  // المعلمون: كلمات مرور مؤقتة تعود مرة واحدة، والمستخدم المكرر يُرفض
+  const teachers = await S.admin.post("/api/admin/import/teachers", { rows: [
+    { "اسم المعلم": "أحمد سعيد", "اسم المستخدم (إنجليزي)": "ahmad-i", "الجوال": "0500000010" },
+    { "اسم المعلم": "نورة خالد", "اسم المستخدم (إنجليزي)": "noura-i" }] });
+  assert.equal(teachers.status, 200, JSON.stringify(teachers.data));
+  assert.equal(teachers.data.created, 2);
+  assert.ok(teachers.data.rows.every((t) => t.password && t.username));
+  assert.equal((await S.admin.post("/api/admin/import/teachers", {
+    rows: [{ "اسم المعلم": "مكرر", "اسم المستخدم (إنجليزي)": "ahmad-i" }] })).status, 400);
+
+  // المعلم المستورد يدخل بكلمته المؤقتة ويُطلب منه تغييرها
+  const tc = client(srv.base);
+  const login = await tc.post("/api/staff/login", { school: S.id, username: "ahmad-i", password: teachers.data.rows[0].password });
+  assert.equal(login.data.role, "teacher");
+  assert.equal((await tc.get("/api/teacher/me")).data.must_change_password, true);
+
+  // حد الباقة يُحترم في الاستيراد
+  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 2 });
+  assert.equal((await S.admin.post("/api/admin/import/students", {
+    rows: [{ "اسم الطالب": "طالب زائد", "الفصل": "الأول - أ" }] })).status, 400, "حد الباقة يمنع الاستيراد");
+});
+
+test("الاشتراك: تفاصيله للمدرسة، وطلب التجديد يصل للمالك", async () => {
+  const sub = await A.admin.get("/api/admin/settings/subscription");
+  assert.equal(sub.status, 200, JSON.stringify(sub.data));
+  assert.ok(sub.data.subscription.name);
+  assert.equal(typeof sub.data.subscription.students, "number");
+  assert.ok(Array.isArray(sub.data.requests));
+
+  // إعدادات الدعم من لوحة المالك تظهر للمدرسة
+  await owner.put("/api/owner/settings", { support_whatsapp: "0591757224", support_note: "للدعم والتجديد" });
+  const withSupport = await A.admin.get("/api/admin/settings/subscription");
+  assert.equal(withSupport.data.support.support_whatsapp, "0591757224");
+
+  const req = await A.admin.post("/api/admin/settings/subscription/renew", {
+    kind: "renew", months: 12, contact_name: "مدير المدرسة", contact_phone: "0500000000", note: "تجديد سنة" });
+  assert.equal(req.status, 201, JSON.stringify(req.data));
+  assert.equal(req.data.status, "new");
+  // لا يُكرر الطلب نفسه قبل الرد
+  assert.equal((await A.admin.post("/api/admin/settings/subscription/renew", { kind: "renew", months: 12 })).status, 400);
+
+  // المدرسة ترى طلبها فقط
+  const mine = await A.admin.get("/api/admin/settings/subscription");
+  assert.equal(mine.data.requests[0].kind, "renew");
+  assert.equal((await B.admin.get("/api/admin/settings/subscription")).data.requests.length, 0);
+
+  // المالك يراه ويردّ عليه
+  const list = await owner.get("/api/owner/renewals");
+  const found = list.data.find((x) => x.id === req.data.id);
+  assert.ok(found, "الطلب يظهر للمالك");
+  assert.equal(found.school_name, "مدرسة اختبار أ");
+  assert.equal(found.months, 12);
+  assert.equal((await A.admin.get("/api/owner/renewals")).status, 401, "المدرسة لا تفتح لوحة المالك");
+
+  assert.equal((await owner.patch(`/api/owner/renewals/${req.data.id}`,
+    { status: "done", owner_note: "جُدد الاشتراك سنة" })).status, 200);
+  const after = await A.admin.get("/api/admin/settings/subscription");
+  assert.equal(after.data.requests[0].status, "done");
+  assert.equal(after.data.requests[0].owner_note, "جُدد الاشتراك سنة");
+});
+
+test("الأرقام الدولية: أي دولة تُقبل ورابط واتساب يُبنى صحيحًا", async () => {
+  const { normalizePhone } = await import("../src/modules/shared/students.service.js");
+  assert.equal(normalizePhone("+967 77 123 4567"), "+967771234567");
+  assert.equal(normalizePhone("00967771234567"), "+967771234567");
+  assert.equal(normalizePhone("0771234567"), "0771234567", "المحلي يبقى كما هو");
+  assert.equal(normalizePhone("  "), null);
+
+  const yemeni = await A.admin.post("/api/admin/students", { name: "طالب يمني", guardian_phone: "+967 77 111 2233" });
+  assert.equal(yemeni.status, 201, JSON.stringify(yemeni.data));
+  assert.equal(yemeni.data.guardian_phone, "+967771112233");
+  await A.admin.post(`/api/admin/students/${yemeni.data.id}/status`, { status: "withdrawn" });
 });
 
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {

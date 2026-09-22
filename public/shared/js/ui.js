@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { startAnalytics } from "./analytics.js";
 import { icons } from "./icons.js";
 
-export const DEV = "مِدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
+export const DEV = "مدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
 
 // ===================== تثبيت التطبيق =====================
 // مكان واحد ثابت في كل الصفحات: شريط سفلي بهوية المنصة.
@@ -25,12 +25,12 @@ const dismiss = () => {
 };
 
 function iosSteps() {
-  dialog("تثبيت مِدار على جهازك", h("div", { class: "install-steps" },
+  dialog("تثبيت مدار على جهازك", h("div", { class: "install-steps" },
     h("p", {}, "من متصفح Safari:"),
     h("ol", {},
       h("li", {}, h("span", { class: "pill" }, "اضغط زر المشاركة", icons.share({ size: 16 }))),
       h("li", {}, "اختر «إضافة إلى الشاشة الرئيسية»"),
-      h("li", {}, "اضغط «إضافة»، وستظهر أيقونة مِدار على شاشتك"))));
+      h("li", {}, "اضغط «إضافة»، وستظهر أيقونة مدار على شاشتك"))));
 }
 
 // الشريط الموحّد: يظهر مرة واحدة، ويمكن إخفاؤه لمدة شهر
@@ -51,7 +51,7 @@ export function showInstallBar() {
   const close = h("button", { class: "install-close", type: "button", "aria-label": "إخفاء", onclick: dismiss }, icons.close({ size: 16 }));
   const bar = h("div", { class: "install-bar", role: "complementary", "aria-label": "تثبيت التطبيق" },
     h("img", { src: "/brand/mark.svg", alt: "", class: "install-mark", width: 34, height: 26 }),
-    h("div", { class: "install-text" }, h("b", {}, "ثبّت مِدار كتطبيق"),
+    h("div", { class: "install-text" }, h("b", {}, "ثبّت مدار كتطبيق"),
       h("span", {}, isIOS() ? "على شاشة جهازك، بخطوتين" : "على جوالك أو جهازك، بضغطة")),
     action, close);
   document.body.append(bar);
@@ -73,7 +73,7 @@ export function brandLogo(cls = "brand-logo", light = true, variant = "row") {
     ? (light ? "/brand/logo-stacked-light.svg" : "/brand/logo-stacked.svg")
     : (light ? "/brand/logo-light.svg" : "/brand/logo.svg");
   const size = variant === "stacked" ? { width: 184, height: 160 } : { width: 150, height: 38 };
-  return h("img", { src: file, alt: "مِدار", class: cls, ...size });
+  return h("img", { src: file, alt: "مدار", class: cls, ...size });
 }
 
 export function topbar({ subtitle, school, onLogout }) {
@@ -82,11 +82,35 @@ export function topbar({ subtitle, school, onLogout }) {
       (school || subtitle) && h("div", { class: "school" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle))),
     onLogout && btn("خروج", onLogout, "ghost sm")));
 }
-export const footer = () => h("footer", { class: "dev" }, DEV);
+// لا يظهر اسم المنصة ولا المطوّر أسفل الصفحات؛ بيانات التواصل في الإعدادات ← الدعم والاشتراك
+export const footer = () => h("footer", { class: "dev" });
 
 /* ---------- عناصر ---------- */
 export const field = (label, control, hint) => h("label", { class: "f" }, h("span", {}, label), control, hint && h("small", { class: "sub" }, hint));
 export const input = (props = {}) => h("input", props);
+
+/**
+ * حقل كلمة مرور مع زر إظهار واضح.
+ * الزر يعرض «عين» عندما تكون مخفية، و«عين مشطوبة» عندما تكون ظاهرة،
+ * فلا يلتبس معناه. يُستخدم مثل input تمامًا (.value و.focus()).
+ */
+export function passwordInput(props = {}) {
+  const el = h("input", { ...props, type: "password", class: `ltr ${props.class || ""}`.trim() });
+  const toggle = h("button", { class: "pw-toggle", type: "button", "aria-label": "إظهار كلمة المرور", tabindex: "-1" },
+    icons.eye({ size: 18 }));
+  toggle.addEventListener("click", () => {
+    const willShow = el.type === "password";
+    el.type = willShow ? "text" : "password";
+    toggle.setAttribute("aria-label", willShow ? "إخفاء كلمة المرور" : "إظهار كلمة المرور");
+    toggle.replaceChildren(willShow ? icons.eyeOff({ size: 18 }) : icons.eye({ size: 18 }));
+    el.focus();
+  });
+  const wrap = h("div", { class: "pw-wrap" }, el, toggle);
+  Object.defineProperty(wrap, "value", { get: () => el.value, set: (v) => { el.value = v; } });
+  wrap.focus = () => el.focus();
+  wrap.inputEl = el;
+  return wrap;
+}
 export const textarea = (props = {}) => h("textarea", props);
 export function select(options, props = {}) {
   const { value, ...rest } = props;
@@ -119,6 +143,40 @@ export function switchBtn(on, label, onToggle) {
     finally { el.disabled = false; }
   });
   return el;
+}
+
+/**
+ * قائمة أقسام: تعرض بطاقات لكل قسم، والضغط على بطاقة يفتح صفحتها مع زر رجوع.
+ * items: [{ key, name, note }] و render(key) تُعيد محتوى القسم.
+ */
+export function sectionMenu({ title, items, render, intro }) {
+  const box = h("div");
+
+  const openMenu = () => {
+    mount(box,
+      intro ? notice(intro, "") : null,
+      h("div", { class: "menu-grid" }, items.map((it) => h("button", {
+        class: "menu-card", type: "button", onclick: () => open(it),
+      },
+        h("span", { class: "menu-text" },
+          h("span", { class: "menu-name" }, it.name),
+          it.note ? h("span", { class: "menu-note" }, it.note) : null),
+        icons.chevronLeft({ size: 18 })))));
+  };
+
+  const open = async (item) => {
+    const head = () => h("div", { class: "section-head" }, btn("رجوع", openMenu, "ghost sm"), h("h2", {}, item.name));
+    mount(box, head(), h("p", { class: "empty" }, "جارٍ التحميل…"));
+    try {
+      const content = await render(item.key, { reload: () => open(item) });
+      mount(box, head(), content);
+    } catch (e) {
+      mount(box, head(), notice(e.message, "err"));
+    }
+  };
+
+  openMenu();
+  return title ? [h("h2", { class: "menu-title" }, title), box] : box;
 }
 
 // يمنع الضغط المزدوج أثناء تنفيذ العملية ويعرض الأخطاء
@@ -187,9 +245,9 @@ const CRED_LABELS = { school: "رمز المدرسة", username: "اسم الم�
   directory_code: "رمز صفحة الطلاب", access_key: "معرّف الطالب" };
 // شاشة إلزامية عند الدخول بكلمة مرور مؤقتة: لا يُفتح شيء في اللوحة قبل اختيار كلمة مرور خاصة
 export function passwordChangeScreen({ endpoint, logoutEndpoint, school, name }) {
-  const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
-  const nxt = input({ type: "password", class: "ltr", autocomplete: "new-password" });
-  const rep = input({ type: "password", class: "ltr", autocomplete: "new-password" });
+  const cur = passwordInput({ autocomplete: "current-password" });
+  const nxt = passwordInput({ autocomplete: "new-password" });
+  const rep = passwordInput({ autocomplete: "new-password" });
   const msg = h("div");
   mount($("#app"),
     topbar({ school, subtitle: name, onLogout: async () => { await api(logoutEndpoint, {}); location.reload(); } }),
@@ -219,13 +277,14 @@ export function showCredentials(title, creds, note) {
 export function loginScreen({ role, endpoint, withSchool = true, withCode = false, onSuccess }) {
   const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem("midar_school") || "", "aria-label": "رمز المدرسة" });
   const user = input({ class: "ltr", autocomplete: "username" });
-  const pass = input({ class: "ltr", type: "password", autocomplete: "current-password" });
+  const pass = passwordInput({ autocomplete: "current-password" });
   const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 6 });
+  const remember = h("input", { type: "checkbox", id: "remember-me" });
   const msg = h("div");
   const submit = btn("تسجيل الدخول", async () => {
     mount(msg);
     try {
-      await api(endpoint, { school: school.value, username: user.value, password: pass.value, code: code.value });
+      await api(endpoint, { school: school.value, username: user.value, password: pass.value, code: code.value, remember: remember.checked });
       if (withSchool) localStorage.setItem("midar_school", school.value.trim().toLowerCase());
       pass.value = "";
       onSuccess();
@@ -237,7 +296,9 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
     h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo", true, "stacked"), h("p", { class: "role" }, role))),
     h("main", {}, h("div", { class: "auth-card" },
       withSchool && field("رمز المدرسة", school), field("اسم المستخدم", user), field("كلمة المرور", pass),
-      withCode && field("رمز التحقق (6 أرقام)", code), msg, submit)),
+      withCode && field("رمز التحقق (6 أرقام)", code),
+      h("label", { class: "f remember-row" }, remember, h("span", {}, "تذكرني على هذا الجهاز")),
+      msg, submit)),
     footer(),
   ];
 }

@@ -2,7 +2,7 @@
 // والنظام يفتح لكل واحد لوحته حسب دوره في هذه المدرسة.
 import { h, $, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { brandLogo, footer, field, input, btn, notice, sub , showInstallBar} from "/shared/js/ui.js";
+import { brandLogo, footer, field, input, btn, notice, sub , showInstallBar, passwordInput} from "/shared/js/ui.js";
 import { startAnalytics } from "/shared/js/analytics.js";
 import { startAdmin } from "/admin/app.js";
 import { startTeacher } from "/teacher/app.js";
@@ -23,12 +23,13 @@ async function start() {
 
 function showLogin(error) {
   const user = input({ class: "ltr", autocomplete: "username" });
-  const pass = input({ class: "ltr", type: "password", autocomplete: "current-password" });
+  const pass = passwordInput({ autocomplete: "current-password" });
+  const remember = h("input", { type: "checkbox", id: "remember-me" });
   const msg = h("div", {}, error ? notice(error, "err") : null);
   const submit = btn("تسجيل الدخول", async () => {
     mount(msg);
     try {
-      const r = await api("/api/staff/login", { school, username: user.value, password: pass.value });
+      const r = await api("/api/staff/login", { school, username: user.value, password: pass.value, remember: remember.checked });
       pass.value = "";
       sessionStorage.setItem("midar_role", r.role);
       localStorage.setItem("midar_school", school);
@@ -42,7 +43,9 @@ function showLogin(error) {
     h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo", true, "stacked"), h("p", { class: "role" }, "دخول منسوبي المدرسة"))),
     h("main", {}, h("div", { class: "auth-card" },
       sub("للمدير والمعلمين. كل حساب يفتح لوحته الخاصة."),
-      field("اسم المستخدم", user), field("كلمة المرور", pass), msg, submit)),
+      field("اسم المستخدم", user), field("كلمة المرور", pass),
+      h("label", { class: "f remember-row" }, remember, h("span", {}, "تذكرني على هذا الجهاز")),
+      msg, submit)),
     footer());
   user.focus();
   startAnalytics("staff-login");

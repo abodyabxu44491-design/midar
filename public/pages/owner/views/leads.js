@@ -16,7 +16,7 @@ export default async function leads({ refresh }) {
 
 function row(l, refresh) {
   const set = (patch) => async () => { await api(`/api/owner/leads/${l.id}`, patch, "PATCH"); toast("تم التحديث"); refresh(); };
-  const wa = waLink(l.phone, `السلام عليكم ${l.contact_name}، بخصوص طلبكم تجربة منصة مِدار لمدرسة ${l.school_name}.`);
+  const wa = waLink(l.phone, `السلام عليكم ${l.contact_name}، بخصوص طلبكم تجربة منصة مدار لمدرسة ${l.school_name}.`);
   return line(
     h("div", { class: l.status === "new" ? "" : "muted-row" },
       h("b", {}, l.school_name), " ", badge(...STATUS[l.status]),

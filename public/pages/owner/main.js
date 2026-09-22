@@ -7,6 +7,7 @@ import schools from "./views/schools.js";
 import create from "./views/create.js";
 import audit from "./views/audit.js";
 import leads from "./views/leads.js";
+import renewals from "./views/renewals.js";
 import settings from "./views/settings.js";
 import billing from "./views/billing.js";
 
@@ -21,8 +22,8 @@ async function start() {
     return mount(app, loginScreen({ role: "لوحة مالك المنصة", endpoint: `${API}/login`, withSchool: false, withCode: totp, onSuccess: start }));
   }
   const t = tabs([["overview", "المؤشرات"], ["schools", "المدارس والاشتراكات"], ["create", "إضافة مدرسة"],
-    ["billing", "الاشتراكات والفواتير"], ["leads", "طلبات التجربة"], ["settings", "إعدادات المنصة"], ["audit", "سجل العمليات"]],
-    { overview, schools, create, billing, leads, settings, audit }, {});
+    ["billing", "الاشتراكات والفواتير"], ["renewals", "طلبات التجديد"], ["leads", "طلبات التجربة"], ["settings", "إعدادات المنصة"], ["audit", "سجل العمليات"]],
+    { overview, schools, create, billing, renewals, leads, settings, audit }, {});
   mount(app,
     topbar({ subtitle: "لوحة مالك المنصة", onLogout: async () => { await api(`${API}/logout`, {}); location.reload(); } }),
     h("main", {}, t.el), footer());

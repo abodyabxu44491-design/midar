@@ -5,6 +5,13 @@ import { transaction } from "../db/pool.js";
 import { newToken, sha256 } from "./codes.js";
 
 const prefix = () => (env.COOKIE_SECURE ? "__Secure-" : "");
+
+// "تذكرني على هذا الجهاز": جلسة تدوم 30 يومًا بلا حاجة لإعادة إدخال اسم المستخدم وكلمة المرور،
+// بدل المدة القصيرة الافتراضية لكل دور.
+const REMEMBER_DAYS = 30;
+const REMEMBER_HOURS = REMEMBER_DAYS * 24;
+const REMEMBER_IDLE_MIN = REMEMBER_DAYS * 24 * 60;
+
 export const SESSION = {
   owner:      { cookie: "midar_o", path: "/api/owner",      idleMin: 30,  maxHours: 8 },
   admin:      { cookie: "midar_a", path: "/api/admin",      idleMin: 120, maxHours: 12 },
@@ -27,10 +34,10 @@ function readSingle(req) {
   }
   return out;
 }
-function writeSingle(req, res, values) {
+function writeSingle(req, res, values, maxAgeMs = 12 * 3600_000) {
   const value = Object.entries(values).filter(([, v]) => v).map(([k, v]) => `${k}.${v}`).join("|");
   const opts = { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: "/" };
-  if (value) res.cookie(SINGLE, value, { ...opts, maxAge: 12 * 3600_000 });
+  if (value) res.cookie(SINGLE, value, { ...opts, maxAge: maxAgeMs });
   else res.clearCookie(SINGLE, opts);
   req.cookies[SINGLE] = value;
 }
@@ -38,20 +45,22 @@ function tokenOf(req, kind) {
   return single() ? readSingle(req)[TAG[kind]] : req.cookies?.[prefix() + SESSION[kind].cookie];
 }
 
-export async function createSession(res, kind, { userId = null, tenantId = null, ip, userAgent }, q) {
+export async function createSession(res, kind, { userId = null, tenantId = null, ip, userAgent, remember = false }, q) {
   const cfg = SESSION[kind];
   const token = newToken();
+  const maxHours = remember ? REMEMBER_HOURS : cfg.maxHours;
+  const idleMinutes = remember ? REMEMBER_IDLE_MIN : null; // null = مهلة الخمول الافتراضية لهذا الدور
   await q(
-    `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7))`,
-    [sha256(token), kind, userId, tenantId, ip || null, String(userAgent || "").slice(0, 200), cfg.maxHours],
+    `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at, idle_minutes)
+     VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7), $8)`,
+    [sha256(token), kind, userId, tenantId, ip || null, String(userAgent || "").slice(0, 200), maxHours, idleMinutes],
   );
   if (single()) {
     const req = res.req;
-    writeSingle(req, res, { ...readSingle(req), [TAG[kind]]: token });
+    writeSingle(req, res, { ...readSingle(req), [TAG[kind]]: token }, maxHours * 3600_000);
   } else {
     res.cookie(prefix() + cfg.cookie, token, {
-      httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: cfg.path, maxAge: cfg.maxHours * 3600_000,
+      httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: cfg.path, maxAge: maxHours * 3600_000,
     });
   }
 }
@@ -72,7 +81,7 @@ export async function readSession(req, kind) {
     const [s] = await q(
       `UPDATE sessions SET last_seen_at = now()
        WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
-         AND last_seen_at > now() - make_interval(mins => $3)
+         AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
        RETURNING user_id, tenant_id`,
       [hash, kind, cfg.idleMin],
     );

@@ -6,11 +6,12 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 
 // الأسرار محفوظة في Google Secret Manager (لا تُكتب في الكود ولا في Git)
+// ملاحظة: رمز التحقق الثنائي (OWNER_TOTP_SECRET) لم يعد مستخدمًا — الدخول باسم مستخدم وكلمة مرور فقط.
+// لإعادة تفعيله لاحقًا: أعد إضافة defineSecret("OWNER_TOTP_SECRET") هنا وفي السطرين اللذين يستخدمان secrets أدناه.
 const secrets = [
   defineSecret("DATABASE_URL"),
   defineSecret("OWNER_PATH"),            // رابط لوحة المالك السري
   defineSecret("OWNER_PASSWORD_HASH"),
-  defineSecret("OWNER_TOTP_SECRET"),
 ];
 
 const REGION = process.env.MIDAR_REGION || "me-central2";   // الدمام

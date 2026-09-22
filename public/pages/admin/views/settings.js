@@ -1,37 +1,33 @@
 // الإعدادات — مقسّمة إلى أقسام قصيرة بدل صفحة واحدة طويلة
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction,
-  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar } from "/shared/js/ui.js";
-import { csv, CURRENCIES, setCurrency } from "/shared/js/format.js";
+import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
+  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar , passwordInput} from "/shared/js/ui.js";
+import { csv, parseCsv, CURRENCIES, setCurrency, money, fmtDate } from "/shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 
 const SECTIONS = [
-  ["modules", "أقسام المنصة"],
-  ["page", "صفحة المدرسة العامة"],
-  ["payment", "طرق السداد"],
-  ["messages", "رسائل واتساب"],
-  ["users", "المستخدمون والصلاحيات"],
-  ["money", "العملة"],
-  ["access", "الدخول والأمان"],
-  ["data", "البيانات والاشتراك"],
+  { key: "modules", name: "أقسام المنصة", note: "شغّل وأوقف أقسام اللوحة" },
+  { key: "import", name: "استيراد البيانات", note: "قوالب جاهزة للطلاب والمعلمين والفصول" },
+  { key: "page", name: "صفحة المدرسة العامة", note: "ما يراه أولياء الأمور" },
+  { key: "payment", name: "طرق السداد", note: "الحسابات البنكية والدفع النقدي" },
+  { key: "messages", name: "رسائل واتساب", note: "قوالب التنبيه ورمز الدولة" },
+  { key: "users", name: "المستخدمون والصلاحيات", note: "حسابات المحاسبين" },
+  { key: "money", name: "العملة", note: "عملة المدرسة الأساسية" },
+  { key: "access", name: "الدخول والأمان", note: "رمز الصفحة وكلمة المرور والجلسات" },
+  { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
+  { key: "subscription", name: "الاشتراك والدعم", note: "التجديد والترقية والتواصل" },
 ];
 
-export default async function settings(ctx) {
-  const section = select(SECTIONS);
-  const box = h("div");
-  const views = { modules: modulesView, page: pageView, payment: paymentView, messages: messagesView,
-    users: usersView, money: moneyView, access: accessView, data: dataView };
-
-  const show = async () => {
-    mount(box, empty("جارٍ التحميل…"));
-    try { mount(box, await views[section.value]({ ...ctx, show })); }
-    catch (e) { mount(box, notice(e.message, "err")); }
-  };
-  section.addEventListener("change", show);
-  await show();
-
-  return [panel("الإعدادات", null, field("اختر القسم", section)), box];
+export default function settings(ctx) {
+  const views = { modules: modulesView, import: importView, page: pageView, payment: paymentView,
+    messages: messagesView, users: usersView, money: moneyView, access: accessView, data: dataView,
+    subscription: subscriptionView };
+  return sectionMenu({
+    title: "الإعدادات",
+    items: SECTIONS,
+    render: (key, { reload }) => views[key]({ ...ctx, show: reload }),
+  });
 }
 
 /* ===================== 1) أقسام المنصة ===================== */
@@ -71,13 +67,94 @@ async function modulesView() {
   };
 
   return [
-    notice("ما توقفه هنا يختفي من التبويبات ويرفضه الخادم. البيانات المسجّلة تبقى محفوظة وتعود عند التشغيل.", ""),
     msg,
     ...MODULE_GROUPS.map(([title, items]) => panel(title, null,
       items.map(([key, name, note]) => line(
         h("div", {}, h("b", {}, name), note ? sub(note) : null),
         switchBtn(mods[key], name, (next) => save({ [key]: next })))))),
   ];
+}
+
+/* ===================== استيراد البيانات من ملف ===================== */
+async function importView({ show }) {
+  const kinds = await api(`${A}/import/kinds`);
+  const pick = select(kinds.map((k) => [k.key, k.name]));
+  const file = input({ type: "file", accept: ".csv,text/csv" });
+  const preview = h("div");
+  const msg = h("div");
+  let parsed = null;
+
+  const current = () => kinds.find((k) => k.key === pick.value);
+
+  const describe = () => {
+    const k = current();
+    mount(cols,
+      sub(k.note),
+      h("div", { class: "pill" }, "الأعمدة: ",
+        ...k.columns.map((c) => badge(c.header + (c.required ? " (مطلوب)" : ""), c.required ? "" : "gray"))));
+  };
+  const cols = h("div");
+  pick.addEventListener("change", () => { parsed = null; mount(preview); mount(msg); describe(); });
+
+  file.addEventListener("change", async () => {
+    mount(msg); mount(preview);
+    const f = file.files?.[0];
+    if (!f) return;
+    if (f.size > 2 * 1024 * 1024) return mount(msg, notice("حجم الملف أكبر من 2 ميجابايت", "err"));
+    const text = await f.text();
+    const data = parseCsv(text);
+    if (!data.rows.length) return mount(msg, notice("الملف فارغ أو غير مقروء. استخدم القالب.", "err"));
+    parsed = data.rows;
+    const headers = data.headers;
+    mount(preview,
+      notice(`الملف فيه ${data.rows.length} سطر. راجعها قبل الاستيراد.`, ""),
+      h("div", { class: "scroll" }, h("table", { class: "grid" },
+        h("thead", {}, h("tr", {}, headers.map((x) => h("th", {}, x)))),
+        h("tbody", {}, data.rows.slice(0, 10).map((row) => h("tr", {}, headers.map((x) => h("td", {}, row[x] || "—"))))))),
+      data.rows.length > 10 ? sub(`تُعرض أول 10 أسطر من ${data.rows.length}.`) : null);
+  });
+
+  describe();
+
+  return panel("استيراد من ملف", null,
+    sub("نزّل القالب، عبّئه في Excel، احفظه CSV، ثم ارفعه."),
+    field("نوع البيانات", pick),
+    cols,
+    h("div", { class: "row" },
+      btn("تنزيل القالب", () => { location.href = `${A}/import/template/${pick.value}`; }, "soft"),
+      field("اختر الملف", file)),
+    preview, msg,
+    btn("استيراد", async () => {
+      mount(msg);
+      if (!parsed) return mount(msg, notice("اختر ملفًا أولًا", "err"));
+      try {
+        const r = await api(`${A}/import/${pick.value}`, { rows: parsed, dry_run: false });
+        mount(preview);
+        file.value = ""; parsed = null;
+        if (pick.value === "teachers" && r.rows?.length) {
+          showCredentialsList(r.rows);
+        } else {
+          toast(`تم استيراد ${r.created} سطرًا`);
+        }
+        mount(msg, notice(`تم استيراد ${r.created} سطرًا بنجاح.`, ""));
+      } catch (e) {
+        const rows = e.errors || [];
+        mount(msg, notice(e.message, "err"),
+          rows.length ? h("ul", { class: "small" }, rows.slice(0, 20).map((x) => h("li", {},
+            x.row ? `السطر ${x.row}: ${x.message}` : x.message))) : null);
+      }
+    }));
+}
+
+// بيانات دخول المعلمين المستوردين: تُعرض مرة واحدة وتُنسخ أو تُطبع
+function showCredentialsList(rows) {
+  const text = rows.map((r) => `${r.name} — المستخدم: ${r.username} — كلمة المرور: ${r.password}`).join("\n");
+  dialog(`بيانات دخول ${rows.length} معلمًا`, h("div", {},
+    notice("كلمات المرور لن تظهر مرة أخرى. انسخها أو اطبعها وسلّمها لكل معلم.", "warn"),
+    h("div", { class: "report" }, rows.map((r) => line(
+      h("div", {}, h("b", {}, r.name), sub(`المستخدم: ${r.username}`)), keyText(r.password))))),
+  [btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }),
+   btn("طباعة", () => window.print(), "ghost")]);
 }
 
 /* ===================== 2) صفحة المدرسة العامة ===================== */
@@ -114,7 +191,6 @@ async function pageView({ me }) {
       field("دخول صفحة المدرسة", mode), msg),
 
     panel("ما يظهر للزوار", null,
-      sub("ما توقفه هنا يختفي فورًا عن الزوار."),
       PAGE_OPTIONS.map(([key, label, hint]) => line(
         h("div", {}, h("b", {}, label), hint ? sub(hint) : null),
         switchBtn(pub[key], label, (next) => save({ [key]: next }))))),
@@ -170,15 +246,24 @@ const TPL = [["absence", "رسالة الغياب"], ["late", "رسالة الت
 async function messagesView({ me }) {
   if (me.modules && me.modules.messaging === false) return notice("قسم رسائل واتساب موقوف. فعّله من «أقسام المنصة».", "warn");
   const tpl = await api(`${A}/messaging/templates`);
-  const code = input({ class: "ltr", value: tpl.country_code, style: "max-width:120px" });
+  const COUNTRIES = [["966", "السعودية (+966)"], ["967", "اليمن (+967)"], ["971", "الإمارات (+971)"],
+    ["968", "عُمان (+968)"], ["965", "الكويت (+965)"], ["973", "البحرين (+973)"], ["974", "قطر (+974)"],
+    ["20", "مصر (+20)"], ["962", "الأردن (+962)"], ["249", "السودان (+249)"], ["90", "تركيا (+90)"]];
+  const known = COUNTRIES.some(([c]) => c === String(tpl.country_code));
+  const code = select([...COUNTRIES, ["other", "رمز آخر…"]], { value: known ? tpl.country_code : "other" });
+  const custom = input({ class: "ltr", value: known ? "" : tpl.country_code, placeholder: "رمز الدولة بالأرقام",
+    style: `max-width:160px;${known ? "display:none" : ""}` });
+  code.addEventListener("change", () => { custom.style.display = code.value === "other" ? "" : "none"; });
+  const countryCode = () => (code.value === "other" ? custom.value.replace(/\D/g, "") : code.value);
   const fields = Object.fromEntries(TPL.map(([k, label]) => [k, textarea({ rows: 2, value: tpl[k], "aria-label": label })]));
   return panel("قوالب الرسائل", null,
     sub("تُفتح الرسالة جاهزة في واتساب من جهازك."),
     sub("المتغيرات: {الطالب} {المدرسة} {الفصل} {التاريخ} {المبلغ} {الرابط}"),
-    field("رمز الدولة", code),
+    h("div", { class: "row" }, field("دولة المدرسة", code), custom),
+    sub("يُستخدم لإكمال الأرقام المحلية (05…) عند فتح واتساب. الأرقام المكتوبة بصيغة دولية (+…) تُستخدم كما هي."),
     TPL.map(([k, label]) => field(label, fields[k])),
     btn("حفظ القوالب", async () => {
-      await api(`${A}/messaging/templates`, { country_code: code.value,
+      await api(`${A}/messaging/templates`, { country_code: countryCode(),
         ...Object.fromEntries(TPL.map(([k]) => [k, fields[k].value])) }, "PUT");
       toast("تم حفظ القوالب");
     }));
@@ -269,8 +354,8 @@ async function moneyView({ show }) {
 
 /* ===================== 7) الدخول والأمان ===================== */
 async function accessView({ me, refresh }) {
-  const cur = input({ type: "password", class: "ltr", autocomplete: "current-password" });
-  const nxt = input({ type: "password", class: "ltr", autocomplete: "new-password" });
+  const cur = passwordInput({ autocomplete: "current-password" });
+  const nxt = passwordInput({ autocomplete: "new-password" });
   return [
     panel("رمز صفحة الطلاب", null,
       line(h("span", {}, "الرمز الحالي"), keyText(me.school.directory_code)),
@@ -300,6 +385,83 @@ async function accessView({ me, refresh }) {
   ];
 }
 
+/* ===================== الاشتراك والدعم ===================== */
+const KINDS_AR = { renew: "تجديد الاشتراك", upgrade: "ترقية الباقة", support: "طلب دعم" };
+const REQ_STATUS = { new: ["بانتظار الرد", "amber"], contacted: ["تم التواصل", ""], done: ["منفّذ", ""], rejected: ["مرفوض", "gray"] };
+
+async function subscriptionView({ me, show }) {
+  const d = await api(`${A}/settings/subscription`);
+  const s = d.subscription;
+  const waNumber = String(d.support?.support_whatsapp || "").replace(/\D/g, "");
+  const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
+
+  const daysBadge = s.days_left === null || s.days_left === undefined ? null
+    : s.days_left < 0 ? badge(`انتهى منذ ${-s.days_left} يومًا`, "red")
+    : s.days_left <= 14 ? badge(`يتبقى ${s.days_left} يومًا`, "amber")
+    : badge(`يتبقى ${s.days_left} يومًا`);
+
+  return [
+    panel("اشتراك مدرستك", daysBadge,
+      line(h("span", {}, "المدرسة"), h("b", {}, s.name)),
+      line(h("span", {}, "الحالة"), s.status === "active" ? badge("مفعّلة") : badge("موقوفة", "red")),
+      line(h("span", {}, "الباقة"), h("b", {}, s.plan)),
+      line(h("span", {}, "عدد الطلاب"), h("b", {}, `${s.students} من ${s.max_students}`)),
+      s.subscription_end ? line(h("span", {}, "ينتهي في"), h("b", {}, fmtDate(s.subscription_end))) : null,
+      s.subscription_price ? line(h("span", {}, "قيمة الاشتراك السنوي"), h("b", {}, money(s.subscription_price, s.currency))) : null,
+      line(h("span", {}, "مدة السماح بعد الانتهاء"), h("b", {}, `${s.grace_days} يومًا`)),
+      h("div", { class: "row spaced" },
+        btn("تجديد الاشتراك", () => requestDialog("renew", d, show)),
+        btn("ترقية الباقة", () => requestDialog("upgrade", d, show), "soft"),
+        btn("طلب دعم", () => requestDialog("support", d, show), "ghost"))),
+
+    panel("التواصل مع إدارة المنصة", null,
+      d.support?.support_note ? sub(d.support.support_note) : null,
+      waLink ? h("div", { class: "spaced" },
+        h("a", { class: "btn", href: waLink, target: "_blank", rel: "noopener" }, "مراسلة عبر واتساب")) : null,
+      d.support?.brand_email ? line(h("span", {}, "البريد"), keyText(d.support.brand_email)) : null),
+
+    panel("طلباتك السابقة", null,
+      d.requests.length ? d.requests.map((r) => line(
+        h("div", {}, h("b", {}, KINDS_AR[r.kind]), " ", badge(...REQ_STATUS[r.status]),
+          sub(`${fmtDate(String(r.created_at).slice(0, 10))}${r.months ? ` — ${r.months} شهرًا` : ""}${r.students_wanted ? ` — ${r.students_wanted} طالبًا` : ""}`),
+          r.note ? sub(r.note) : null,
+          r.owner_note ? sub(`رد الإدارة: ${r.owner_note}`) : null)))
+        : empty("لا توجد طلبات سابقة.")),
+  ];
+}
+
+function requestDialog(kind, d, show) {
+  const s = d.subscription;
+  const months = select([[12, "سنة كاملة"], [6, "6 أشهر"], [3, "3 أشهر"], [1, "شهر"]], { value: 12 });
+  const seats = input({ type: "number", min: s.students || 1, max: 100000, value: s.max_students });
+  const name = input({ value: "" , placeholder: "اسم المسؤول" });
+  const phone = input({ class: "ltr", inputMode: "tel", placeholder: "رقم للتواصل" });
+  const note = textarea({ rows: 3, placeholder: kind === "support" ? "اشرح لنا المشكلة أو الطلب" : "ملاحظات (اختياري)" });
+  const msg = h("div");
+
+  const body = h("div", {},
+    sub(`المدرسة: ${s.name} — الطلاب ${s.students} من ${s.max_students}${s.subscription_end ? ` — ينتهي ${fmtDate(s.subscription_end)}` : ""}`),
+    kind === "renew" ? field("مدة التجديد", months) : null,
+    kind === "upgrade" ? field("عدد الطلاب المطلوب", seats) : null,
+    h("div", { class: "row" }, field("اسم المسؤول", name), field("رقم التواصل", phone)),
+    field("ملاحظات", note), msg);
+
+  const d2 = dialog(KINDS_AR[kind], body, [btn("إرسال الطلب", async () => {
+    mount(msg);
+    try {
+      await api(`${A}/settings/subscription/renew`, {
+        kind,
+        months: kind === "renew" ? Number(months.value) : undefined,
+        students_wanted: kind === "upgrade" ? Number(seats.value) : undefined,
+        contact_name: name.value || null, contact_phone: phone.value || null, note: note.value || null,
+      });
+      d2.close();
+      toast("وصل طلبك لإدارة المنصة. سنتواصل معك قريبًا.");
+      show();
+    } catch (e) { mount(msg, notice(e.message, "err")); }
+  })]);
+}
+
 /* ===================== 8) البيانات والاشتراك ===================== */
 async function dataView({ me }) {
   return [
@@ -319,11 +481,7 @@ async function dataView({ me }) {
             download: `midar-${d.school}-${new Date().toISOString().slice(0, 10)}.json` });
           a.click();
         }, "ghost"),
-        btn("تثبيت مِدار كتطبيق", () => showInstallBar(), "ghost"))),
+        btn("تثبيت مدار كتطبيق", () => showInstallBar(), "ghost"))),
 
-    panel("الاشتراك", null,
-      line(h("span", {}, "حد الطلاب"), h("b", {}, me.school.max_students)),
-      me.school.subscription_end ? line(h("span", {}, "ينتهي في"), h("b", {}, me.school.subscription_end)) : null,
-      sub("للتجديد أو رفع الحد، تواصل مع إدارة المنصة.")),
   ];
 }

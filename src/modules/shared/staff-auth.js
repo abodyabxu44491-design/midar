@@ -17,6 +17,7 @@ const loginSchema = z.object({
   school: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,30}$/, "رمز المدرسة غير صحيح"),
   username: z.string().trim().toLowerCase().min(1, "اكتب اسم المستخدم").max(40),
   password: z.string().min(1, "اكتب كلمة المرور").max(200),
+  remember: z.boolean().optional().default(false),
 });
 const label = { admin: "إدارة", teacher: "معلم" };
 
@@ -58,8 +59,8 @@ export const staffLoginRouter = () => {
       if (tenant.status !== "active") return { error: "حساب المدرسة موقوف. تواصل مع إدارة المنصة.", status: 403 };
       await q("DELETE FROM security_events WHERE kind = $1 AND subject = $2", [FAIL_IP, ipKey]);   // نجاح الدخول يصفّر عدّاد هذا العنوان
       await q("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [user.id]);
-      await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent") }, q);
-      await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role]})` });
+      await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);
+      await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role]})${b.remember ? " - تذكرني" : ""}` });
       return { role: user.role };
     });
     if (outcome.error) throw outcome.status === 403 ? forbidden(outcome.error) : unauthorized(outcome.error);

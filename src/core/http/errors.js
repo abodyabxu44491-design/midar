@@ -1,12 +1,13 @@
 // الأخطاء الموحدة: رسائل واضحة للمستخدم، وتفاصيل تقنية في السجل فقط
 export class AppError extends Error {
-  constructor(status, message, code) {
+  constructor(status, message, code, details) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;      // تفاصيل إضافية (مثل أخطاء أسطر الاستيراد)
   }
 }
-export const badRequest = (m) => new AppError(400, m, "bad_request");
+export const badRequest = (m, details) => new AppError(400, m, "bad_request", details);
 export const unauthorized = (m = "سجّل الدخول أولًا") => new AppError(401, m, "unauthorized");
 export const forbidden = (m = "غير مسموح") => new AppError(403, m, "forbidden");
 export const notFound = (m = "غير موجود") => new AppError(404, m, "not_found");
@@ -32,7 +33,7 @@ function fromDatabase(err) {
 
 export function errorHandler(err, req, res, _next) {
   const known = err instanceof AppError ? err : fromDatabase(err);
-  if (known) return res.status(known.status).json({ error: known.message, code: known.code });
+  if (known) return res.status(known.status).json({ error: known.message, code: known.code, ...(known.details || {}) });
   if (err.type === "entity.parse.failed") return res.status(400).json({ error: "صيغة الطلب غير صحيحة" });
   if (err.type === "entity.too.large") return res.status(413).json({ error: "حجم الطلب كبير" });
   const ref = Math.random().toString(36).slice(2, 10);

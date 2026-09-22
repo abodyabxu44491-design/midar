@@ -6,6 +6,7 @@ import auth from "./auth.js";
 import tenants from "./tenants.js";
 import audit from "./audit.js";
 import leads from "./leads.js";
+import renewals from "./renewals.js";
 import settings from "./settings.js";
 import billing from "./billing.js";
 
@@ -21,6 +22,7 @@ r.get("/network", (req, res) => res.json({
 }));
 r.use("/tenants", tenants);
 r.use("/leads", leads);
+r.use("/renewals", renewals);
 r.use("/settings", settings);
 r.use("/billing", billing);
 r.use("/audit", audit);

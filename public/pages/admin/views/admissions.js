@@ -14,9 +14,7 @@ export default async function admissions({ me, refresh }) {
   const waiting = list.filter((x) => x.status === "new").length;
 
   return [
-    settings.show_admissions
-      ? notice("النموذج ظاهر في صفحة المدرسة. لإيقافه: الإعدادات.", "")
-      : notice("النموذج موقوف. لتفعيله: الإعدادات ← صفحة المدرسة العامة.", "warn"),
+    settings.show_admissions ? null : notice("النموذج موقوف. فعّله من: الإعدادات ← صفحة المدرسة العامة.", "warn"),
     panel(`طلبات الالتحاق${waiting ? ` (${waiting} جديد)` : ""}`, null,
       list.length ? list.map((x) => row(x, classes, refresh, me)) : empty("لا توجد طلبات بعد.")),
   ];

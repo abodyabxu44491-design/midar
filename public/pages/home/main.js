@@ -42,7 +42,7 @@ function marketing(site) {
         h("a", { class: "btn", href: "#تجربة" }, "اطلب تجربة مجانية"),
         site.brand_phone ? h("a", { class: "btn ghost", href: `https://wa.me/${String(site.brand_phone).replace(/\D/g, "")}`, target: "_blank", rel: "noopener" }, "تواصل واتساب") : null)),
 
-    h("section", { class: "mk-section" }, h("h2", {}, "ماذا تقدم مِدار؟"),
+    h("section", { class: "mk-section" }, h("h2", {}, "ماذا تقدم مدار؟"),
       h("div", { class: "mk-grid" }, FEATURES.map(([t, d]) => h("div", { class: "mk-card" }, h("h3", {}, t), h("p", {}, d))))),
 
     h("section", { class: "mk-section" }, h("h2", {}, "الباقات"),

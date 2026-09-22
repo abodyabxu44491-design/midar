@@ -22,7 +22,6 @@ export default async function academic({ refresh }) {
       ["السنوات المؤرشفة", years.filter((y) => y.status === "archived").length],
     ]),
 
-    notice("كل ما يُضاف الآن يُسجَّل في الفصل الحالي.", ""),
 
     panel("فصول السنة الحالية", null,
       currentYearTerms.length ? currentYearTerms.map((t) => line(
