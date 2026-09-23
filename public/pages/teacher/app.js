@@ -23,7 +23,9 @@ export async function startTeacher() {
   const list = [["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["exams", "الاختبارات والدرجات"],
     ["homework", "الواجبات"], ["announcements", "التعاميم"], ["account", "حسابي"]]
     .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
-  const t = tabs(list, { home, timetable, attendance, exams, homework, announcements, account }, { me });
+  const ctx = { me };
+  const t = tabs(list, { home, timetable, attendance, exams, homework, announcements, account }, ctx);
+  ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   mount(app,
     topbar({ school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`,
       onLogout: async () => { await api("/api/teacher/logout", {}); location.reload(); } }),

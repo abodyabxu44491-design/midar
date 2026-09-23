@@ -1,8 +1,8 @@
 // تبويب الرسوم: الفواتير، الدفعات، الاسترداد، الإلغاء
-import { h } from "/shared/js/dom.js";
+import { h, mount } from "/shared/js/dom.js";
 import { api, idempotencyKey } from "/shared/js/api.js";
-import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, confirmAction } from "/shared/js/ui.js";
-import { money, csv, fmtDate, fmtDateTime, METHODS, CURRENCIES, getCurrency } from "/shared/js/format.js";
+import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, notice, confirmAction } from "/shared/js/ui.js";
+import { money, csv, fmtDate, fmtDateTime, today, METHODS, CURRENCIES, getCurrency } from "/shared/js/format.js";
 import { waButton, messageVars } from "/shared/js/whatsapp.js";
 import { receiptDialog, statementDialog } from "/shared/js/receipt.js";
 import { A, loadClasses, optional } from "./common.js";
@@ -19,7 +19,10 @@ export default async function finance({ refresh }) {
   const amount = input({ type: "number", min: 0.01, step: "0.01" });
   const due = input({ type: "date" });
 
+  const plansPanel = await feePlansPanel(refresh, me2);
+
   return [
+    plansPanel,
     stats([["إجمالي الفواتير", money(totals.fees_total)], ["المحصّل", money(totals.fees_paid)], ["المتبقي", money(totals.fees_remaining)],
       ["تحويلات بانتظار التأكيد", pending.length]]),
     panel(`إشعارات التحويل البنكي (${pending.length} بانتظار المراجعة)`, null,
@@ -150,4 +153,97 @@ async function statement(studentId, ctx = {}) {
     student: mine[0]?.student_name || "", class_name: mine[0]?.class_name,
     invoices: mine, payments,
   });
+}
+
+
+/* ---------------- قوالب الرسوم والتقسيط ---------------- */
+async function feePlansPanel(refresh, me) {
+  const [plans, setup] = await Promise.all([api(`${A}/finance/plans`), api(`${A}/setup`)]);
+  const grades = setup.structure.stages.flatMap((st) => st.grades.map((g) => ({ ...g, stage: st.name })));
+
+  const f = {
+    name: input({ placeholder: "اسم القالب" }),
+    grade: select([["", "كل الصفوف"], ...grades.map((g) => [g.id, `${g.stage} — ${g.name}`])]),
+    amount: input({ type: "number", min: 0, step: "0.01" }),
+    installments: select([[1, "دفعة واحدة"], [2, "دفعتان"], [3, "3 دفعات"], [4, "4 دفعات"], [6, "6 دفعات"], [10, "10 دفعات"], [12, "12 دفعة"]]),
+    first: input({ type: "date", value: today() }),
+    every: select([[1, "كل شهر"], [2, "كل شهرين"], [3, "كل 3 أشهر"]]),
+  };
+
+  const row = (p) => line(
+    h("div", { class: p.is_active ? "" : "muted-row" },
+      h("b", {}, p.name), " ", p.is_active ? null : badge("موقوف", "gray"),
+      sub(`${money(p.amount)} — ${p.installments === 1 ? "دفعة واحدة" : `${p.installments} دفعات كل ${p.interval_months} شهر`}`),
+      sub(`${p.grade_name ? `الصف: ${p.grade_name}` : "كل الصفوف"}${p.students ? ` — طُبق على ${p.students} طالب` : ""}`)),
+    h("div", { class: "row", style: "flex:none" },
+      btn("تطبيق", () => applyDialog(p, grades, refresh), "sm"),
+      btn("نسخ", () => copyPlanDialog(p, grades, refresh), "ghost sm"),
+      btn(p.is_active ? "إيقاف" : "تفعيل", async () => {
+        await api(`${A}/finance/plans/${p.id}`, { is_active: !p.is_active }, "PATCH"); refresh();
+      }, "ghost sm")));
+
+  return panel("قوالب الرسوم", null,
+    plans.length ? plans.map(row) : empty("لا توجد قوالب. أنشئ قالبًا وطبّقه على صف كامل."),
+    h("h3", { class: "sec-title" }, "قالب جديد"),
+    h("div", { class: "row" }, field("الاسم", f.name), field("الصف", f.grade), field("المبلغ", f.amount)),
+    h("div", { class: "row" }, field("التقسيط", f.installments), field("أول استحقاق", f.first), field("الفاصل", f.every)),
+    btn("حفظ القالب", async () => {
+      await api(`${A}/finance/plans`, {
+        name: f.name.value, grade_id: f.grade.value || null, amount: f.amount.value,
+        installments: Number(f.installments.value), first_due: f.first.value,
+        interval_months: Number(f.every.value),
+      });
+      toast("حُفظ القالب"); refresh();
+    }));
+}
+
+function copyPlanDialog(plan, grades, refresh) {
+  const name = input({ value: `${plan.name} (نسخة)` });
+  const grade = select([["", "نفس صف الأصل"], ...grades.map((g) => [g.id, `${g.stage} — ${g.name}`])]);
+  const d = dialog(`نسخ ${plan.name}`, h("div", {},
+    sub("تُنسخ القيمة والتقسيط والتواريخ، ثم عدّل ما تريد."),
+    field("اسم القالب الجديد", name), field("الصف", grade)),
+  [btn("نسخ", async () => {
+    await api(`${A}/finance/plans/${plan.id}/copy`, { name: name.value, grade_id: grade.value || null });
+    d.close(); toast("نُسخ القالب"); refresh();
+  })]);
+}
+
+function applyDialog(plan, grades, refresh) {
+  const scope = select([["plan", plan.grade_name ? `صف القالب (${plan.grade_name})` : "كل الطلاب"],
+    ...grades.map((g) => [String(g.id), `${g.stage} — ${g.name}`])]);
+  const out = h("div");
+  const msg = h("div");
+
+  const preview = async () => {
+    mount(out, empty("جارٍ الحساب…"));
+    try {
+      const body = scope.value === "plan" ? { dry_run: true } : { grade_id: Number(scope.value), dry_run: true };
+      const r = await api(`${A}/finance/plans/${plan.id}/apply`, body);
+      mount(out,
+        sub(`${r.students} طالبًا — ${r.preview.filter((x) => x.exempt).length} معفى`),
+        h("div", { class: "scroll" }, h("table", { class: "grid" },
+          h("thead", {}, h("tr", {}, h("th", {}, "الطالب"), h("th", {}, "الإجمالي"), h("th", {}, "كل دفعة"))),
+          h("tbody", {}, r.preview.slice(0, 12).map((x) => h("tr", {},
+            h("td", {}, x.name), h("td", {}, x.exempt ? "معفى" : money(x.total)),
+            h("td", {}, x.exempt ? "—" : money(x.per_installment))))))));
+    } catch (e) { mount(out, notice(e.message, "err")); }
+  };
+  scope.addEventListener("change", preview);
+
+  const d = dialog(`تطبيق: ${plan.name}`, h("div", {},
+    field("التطبيق على", scope),
+    sub("الخصومات والإعفاءات تُحتسب لكل طالب تلقائيًا، وإعادة التطبيق لا تكرر الفواتير."),
+    out, msg),
+  [btn("تطبيق وإنشاء الفواتير", async () => {
+    mount(msg);
+    try {
+      const body = scope.value === "plan" ? {} : { grade_id: Number(scope.value) };
+      const r = await api(`${A}/finance/plans/${plan.id}/apply`, body);
+      d.close();
+      toast(`أُنشئت ${r.invoices} فاتورة لـ ${r.students} طالبًا`);
+      refresh();
+    } catch (e) { mount(msg, notice(e.message, "err")); }
+  })]);
+  preview();
 }

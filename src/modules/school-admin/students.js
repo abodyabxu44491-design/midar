@@ -1,7 +1,7 @@
 // الطلاب: إضافة، استيراد، تعديل، أرشفة، معرّفات، تفعيل الرسوم
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle } from "../../core/http/errors.js";
+import { handle, notFound, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as students from "../shared/students.service.js";
 import { studentSummaries } from "../shared/finance.service.js";
@@ -57,6 +57,49 @@ r.post("/:id/status", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(students.statusSchema, req.body);
   res.json(await inTenant(req, (q) => students.setStatus(q, req.tenant, id, b)));
+}));
+
+/**
+ * إجراء واحد على عدة طلاب: نقل لشعبة، تغيير الحالة، تفعيل/إيقاف الرسوم.
+ * يتم كاملًا داخل معاملة واحدة، ويُسجَّل في سجل التدقيق لكل طالب.
+ */
+const bulkSchema = z.object({
+  ids: z.array(t.id).min(1, "اختر طالبًا واحدًا على الأقل").max(2000),
+  action: z.enum(["move_class", "status", "fees"]),
+  class_id: t.optId,
+  status: z.enum(students.STATUSES).optional(),
+  fees_enabled: z.boolean().optional(),
+  note: t.optText(300),
+});
+
+r.post("/bulk", handle(async (req, res) => {
+  const b = parse(bulkSchema, req.body);
+  res.json(await inTenant(req, async (q) => {
+    let done = 0;
+    if (b.action === "move_class") {
+      if (b.class_id) {
+        const [cls] = await q("SELECT id FROM classes WHERE id = $1", [b.class_id]);
+        if (!cls) throw notFound("الشعبة غير موجودة");
+      }
+      const rows = await q(
+        "UPDATE students SET class_id = $2 WHERE id = ANY($1::bigint[]) AND status = 'active' RETURNING id",
+        [b.ids, b.class_id ?? null]);
+      done = rows.length;
+    } else if (b.action === "status") {
+      if (!b.status) throw badRequest("حدد الحالة");
+      for (const id of b.ids) {
+        await students.setStatus(q, req.tenant, id, { status: b.status, note: b.note ?? null });
+        done++;
+      }
+    } else {
+      if (b.fees_enabled === undefined) throw badRequest("حدد تفعيل الرسوم أو إيقافها");
+      const rows = await q(
+        "UPDATE students SET fees_enabled = $2 WHERE id = ANY($1::bigint[]) AND status = 'active' RETURNING id",
+        [b.ids, b.fees_enabled]);
+      done = rows.length;
+    }
+    return { done };
+  }));
 }));
 
 export default r;

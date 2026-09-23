@@ -45,8 +45,11 @@ export const env = Object.freeze({
   ownerIps: parsed.data.OWNER_ALLOWED_IPS.split(",").map((s) => s.trim()).filter(Boolean),
 });
 
-// التحقق الثنائي لدخول المالك اختياري الآن: دخول باسم مستخدم وكلمة مرور فقط ما لم يُضبط OWNER_TOTP_SECRET.
-// لإعادة تفعيله لاحقًا: npm run owner:totp ثم ضع الناتج في OWNER_TOTP_SECRET.
+// التحقق الثنائي لدخول المالك اختياري: الدخول باسم مستخدم وكلمة مرور ما لم يُضبط OWNER_TOTP_SECRET.
+// لكنه في الإنتاج خط الدفاع الأخير عن لوحة المالك، فننبّه عند التشغيل بدونه.
+if (env.isProd && !env.OWNER_TOTP_SECRET) {
+  console.warn("⚠ لوحة المالك تعمل بدون تحقق ثنائي. لتفعيله: npm run owner:totp ثم ضع الناتج في OWNER_TOTP_SECRET.");
+}
 
 if (env.isProd && !env.COOKIE_SECURE) {
   console.error("✗ في وضع الإنتاج يجب أن تكون COOKIE_SECURE=true (مع HTTPS)");

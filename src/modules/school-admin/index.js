@@ -22,6 +22,8 @@ import reports from "./reports.js";
 import messaging from "./messaging.js";
 import exportData from "./export.js";
 import importData from "./import.js";
+import sheets from "./sheets.js";
+import setup from "./setup.js";
 import homework from "./homework.js";
 import admissions from "./admissions.js";
 
@@ -48,6 +50,8 @@ r.use("/messaging", requireModule("messaging"), messaging);
 r.use("/homework", requireModule("homework"), homework);
 r.use("/admissions", requireModule("admissions"), admissions);
 r.use("/import", importData);
+r.use("/sheets", sheets);
+r.use("/setup", setup);
 r.use("/export", exportData);
 r.use("/audit", audit);
 export default r;

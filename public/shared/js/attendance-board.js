@@ -4,9 +4,9 @@ import { api } from "./api.js";
 import { field, input, select, btn, panel, empty, line, toast, notice } from "./ui.js";
 import { ATTENDANCE, today } from "./format.js";
 
-export function attendanceBoard(endpoint, classes, wa = null) {
+export function attendanceBoard(endpoint, classes, wa = null, initialClassId = null) {
   if (!classes.length) return panel("تسجيل الحضور", null, empty("لا توجد فصول."));
-  const cls = select(classes.map((c) => [c.id, c.name]));
+  const cls = select(classes.map((c) => [c.id, c.name]), initialClassId ? { value: initialClassId } : {});
   const date = input({ type: "date", value: today(), max: today() });
   const reason = input({ placeholder: "مطلوب فقط عند تعديل حالة مسجلة" });
   const box = h("div");

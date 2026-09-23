@@ -74,14 +74,56 @@ export default async function students({ me, refresh }) {
     }, "soft")));
 
   /* ---- القائمة ---- */
-  const q = input({ placeholder: "بحث بالاسم أو المعرّف", type: "search" });
+  const q = input({ placeholder: "بحث بالاسم أو المعرّف أو جوال ولي الأمر", type: "search" });
   const filter = select(classOptions(classes, "كل الفصول"));
+  const feeFilter = select([["", "كل الحالات المالية"], ["unpaid", "عليه رسوم متبقية"], ["paid", "مسدد"], ["off", "الرسوم موقوفة"]]);
+  const count = h("span", { class: "sub" });
   const box = h("div");
+  const selected = new Set();
+  const bulkBar = h("div");
+  let visible = [];
+
+  // شريط الإجراءات الجماعية: يظهر عند تحديد طالب أو أكثر
+  const drawBulk = () => {
+    if (!selected.size) return mount(bulkBar);
+    const chosen = () => [...selected];
+    mount(bulkBar, h("div", { class: "bulk-bar" },
+      h("b", {}, `${selected.size} محدد`),
+      btn("نقل لشعبة", () => moveDialog(chosen(), classes, refresh), "sm"),
+      btn("تفعيل الرسوم", () => runBulk({ ids: chosen(), action: "fees", fees_enabled: true }, refresh), "soft sm"),
+      btn("إيقاف الرسوم", () => runBulk({ ids: chosen(), action: "fees", fees_enabled: false }, refresh), "soft sm"),
+      btn("تغيير الحالة", () => statusBulkDialog(chosen(), refresh), "danger sm"),
+      btn("تصدير المحدد", () => exportStudents(list.filter((x) => selected.has(x.id))), "ghost sm"),
+      btn("إلغاء التحديد", () => { selected.clear(); draw(); }, "ghost sm")));
+  };
+
+  const selectAll = input({ type: "checkbox", "aria-label": "تحديد كل المعروض" });
+  selectAll.addEventListener("change", () => {
+    for (const s2 of visible) { if (selectAll.checked) selected.add(s2.id); else selected.delete(s2.id); }
+    draw();
+  });
+
   const draw = () => {
     const term = q.value.trim().toUpperCase();
-    const rows = list.filter((s) => (!term || s.name.toUpperCase().includes(term) || s.access_key.includes(term))
-      && (!filter.value || String(s.class_id) === filter.value));
-    mount(box, rows.length ? rows.map((s) => row(s)) : empty("لا يوجد طلاب."));
+    const rows = list.filter((s) => {
+      const matches = !term || s.name.toUpperCase().includes(term) || s.access_key.includes(term)
+        || String(s.guardian_phone || "").includes(term) || String(s.guardian_name || "").toUpperCase().includes(term);
+      const inClass = !filter.value || String(s.class_id) === filter.value;
+      const fee = !feeFilter.value
+        || (feeFilter.value === "off" && !s.fees_enabled)
+        || (feeFilter.value === "paid" && s.fees_enabled && s.fees?.status === "paid")
+        || (feeFilter.value === "unpaid" && s.fees_enabled && s.fees?.status === "unpaid");
+      return matches && inClass && fee;
+    });
+    visible = rows;
+    count.textContent = `${rows.length} من ${list.length}`;
+    mount(box, rows.length
+      ? [h("div", { class: "student-row head" },
+          h("div", { class: "s-pick" }, selectAll),
+          h("div", { class: "s-name" }, sub("تحديد الكل المعروض"))),
+         ...rows.map((s2) => row(s2))]
+      : empty("لا يوجد طالب مطابق."));
+    drawBulk();
   };
   const row = (s) => {
     const feeBadge = !s.fees_enabled ? null
@@ -96,8 +138,15 @@ export default async function students({ me, refresh }) {
           refresh();
         } catch (e) { toast(e.message, true); if (e.status === 409) refresh(); }
       } });
-    // صف الطالب: أعمدة ثابتة — الاسم، الفصل، ولي الأمر، المعرّف، الإجراءات
+    // صف الطالب: أعمدة ثابتة — تحديد، الاسم، الفصل، ولي الأمر، المعرّف، الإجراءات
+    const pick = input({ type: "checkbox", "aria-label": `تحديد ${s.name}` });
+    pick.checked = selected.has(s.id);
+    pick.addEventListener("change", () => {
+      if (pick.checked) selected.add(s.id); else selected.delete(s.id);
+      drawBulk();
+    });
     return h("div", { class: "student-row" },
+      h("div", { class: "s-pick" }, pick),
       h("div", { class: "s-name" }, h("b", {}, s.name), " ", feeBadge,
         s.status !== "active" ? statusBadge(s.status) : null),
       h("div", { class: "s-cell" }, h("span", { class: "s-label" }, "الفصل"), h("span", {}, s.class_name || "بدون فصل")),
@@ -112,6 +161,7 @@ export default async function students({ me, refresh }) {
         btn("إدارة", () => manage(s, classes, me, refresh), "ghost sm")));
   };
   q.addEventListener("input", draw);
+  feeFilter.addEventListener("change", draw);
   filter.addEventListener("change", draw);
   draw();
 
@@ -125,7 +175,9 @@ export default async function students({ me, refresh }) {
   return [
     addPanel, importPanel,
     panel(`الطلاب (${list.length} / ${me.school.max_students})`, exportBtn,
-      h("div", { class: "toolbar" }, q, filter),
+      h("div", { class: "row" }, q, filter, feeFilter),
+      h("div", { class: "toolbar" }, count),
+      bulkBar,
       sub("تفعيل الرسوم يُظهر الفواتير والسداد في ملف الطالب."),
       box),
     inactive.length ? panel(`طلاب خارج القيد (${inactive.length})`, null,
@@ -195,4 +247,42 @@ function card(me, s) {
     line(h("span", {}, "معرّف الطالب"), keyText(s.access_key)),
     notice("افتح الرابط، أدخل رمز الصفحة، ثم اسم ابنك ومعرّفه. لا تشارك المعرّف.", "warn")),
     [btn("طباعة", () => window.print())]);
+}
+
+
+/* ---------- الإجراءات الجماعية ---------- */
+async function runBulk(body, refresh) {
+  const r = await api(`${A}/students/bulk`, body);
+  toast(`تم على ${r.done} طالبًا`);
+  refresh();
+}
+
+function moveDialog(ids, classes, refresh) {
+  const cls = select(classOptions(classes, "بدون شعبة"));
+  const d = dialog(`نقل ${ids.length} طالبًا`, h("div", {},
+    sub("ينتقل الطلاب المحددون إلى الشعبة المختارة."), field("الشعبة", cls)),
+  [btn("نقل", async () => {
+    await runBulk({ ids, action: "move_class", class_id: cls.value || null }, refresh);
+    d.close();
+  })]);
+}
+
+function statusBulkDialog(ids, refresh) {
+  const status = select(Object.entries(STATUS_LABEL));
+  const note = input({ placeholder: "ملاحظة (اختياري)" });
+  const d = dialog(`تغيير حالة ${ids.length} طالبًا`, h("div", {},
+    sub("الطالب خارج القيد يختفي من القوائم وتبقى سجلاته."),
+    field("الحالة", status), field("ملاحظة", note)),
+  [btn("حفظ", async () => {
+    await runBulk({ ids, action: "status", status: status.value, note: note.value || null }, refresh);
+    d.close();
+  }, "danger")]);
+}
+
+function exportStudents(rows) {
+  csv("الطلاب.csv", [
+    ["الاسم", "الفصل", "ولي الأمر", "الجوال", "المعرّف", "الرسوم", "الحالة"],
+    ...rows.map((s) => [s.name, s.class_name || "", s.guardian_name || "", s.guardian_phone || "",
+      s.access_key, s.fees_enabled ? "مفعّلة" : "موقوفة", STATUS_LABEL[s.status] || s.status]),
+  ]);
 }

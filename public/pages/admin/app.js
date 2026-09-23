@@ -9,6 +9,8 @@ import dashboard from "./views/dashboard.js";
 import students from "./views/students.js";
 import teachers from "./views/teachers.js";
 import structure from "./views/structure.js";
+import setupWizard from "./views/setup.js";
+import distribution from "./views/distribution.js";
 import academic from "./views/academic.js";
 import attendance from "./views/attendance.js";
 import exams from "./views/exams.js";
@@ -19,6 +21,7 @@ import settings from "./views/settings.js";
 import audit from "./views/audit.js";
 import timetable from "./views/timetable.js";
 import reports from "./views/reports.js";
+import sheets from "./views/sheets.js";
 import analytics from "./views/analytics.js";
 import admissions from "./views/admissions.js";
 
@@ -35,17 +38,19 @@ export async function startAdmin() {
   // التبويب يظهر فقط إذا كان قسمه مفعّلًا في هذه المدرسة
   const MODULE_OF = {
     attendance: "attendance", timetable: "timetable", exams: "exams", reports: "reports",
-    analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions",
+    analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions", sheets: "attendance",
+    distribution: "timetable",
     announcements: "announcements",
   };
   const allTabs = [
-    ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الفصول والمواد"], ["academic", "السنة الدراسية"],
-    ["attendance", "الحضور"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["reports", "كشف الدرجات"], ["analytics", "التحليلات"],
+    ...(me.setup_completed === false ? [["setup", "معالج الإعداد"]] : []),
+    ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الهيكل الأكاديمي"], ["academic", "السنة الدراسية"],
+    ["attendance", "الحضور"], ["distribution", "توزيع المعلمين"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["reports", "كشف الدرجات"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
     ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"], ["announcements", "التعاميم"], ["settings", "الإعدادات"], ["audit", "السجل"],
   ].filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
 
   const t = tabs(allTabs,
-    { dashboard, students, teachers, structure, academic, attendance, timetable, exams, reports, analytics, finance, ledger, admissions, announcements, settings, audit }, { me });
+    { dashboard, setup: setupWizard, students, teachers, structure, academic, attendance, distribution, timetable, exams, reports, sheets, analytics, finance, ledger, admissions, announcements, settings, audit }, { me });
 
   mount(app,
     topbar({ school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
