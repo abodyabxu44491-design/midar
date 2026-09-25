@@ -1,8 +1,8 @@
 // إنشاء الاختبارات وإدخال الدرجات وإرسالها للاعتماد
-import { h, mount } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, confirmAction } from "/shared/js/ui.js";
-import { EXAM, fmtDate, today } from "/shared/js/format.js";
+import { h, mount } from "../../shared/js/dom.js";
+import { api } from "../../shared/js/api.js";
+import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, confirmAction } from "../../shared/js/ui.js";
+import { EXAM, fmtDate, today } from "../../shared/js/format.js";
 
 const T = "/api/teacher/exams";
 

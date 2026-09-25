@@ -1,12 +1,12 @@
 // صفحة المدرسة العامة
 // تعرض ما فعّلته الإدارة فقط: الصفوف، أسماء الطلاب، البحث، معلمو الصف، الأعداد، الإعلانات، حالة السداد.
 // أي ملف طالب لا يُفتح إلا بمعرّفه السري.
-import { h, $, mount } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { topbar, footer, field, input, textarea, btn, empty, notice, dialog, line, sub, badge, brandLogo , showInstallBar} from "/shared/js/ui.js";
-import { fmtDate } from "/shared/js/format.js";
-import { icons } from "/shared/js/icons.js";
-import { timetableGrid } from "/shared/js/timetable.js";
+import { h, $, mount } from "../shared/js/dom.js";
+import { api } from "../shared/js/api.js";
+import { topbar, footer, field, input, textarea, btn, empty, notice, dialog, line, sub, badge, brandLogo , showInstallBar} from "../shared/js/ui.js";
+import { fmtDate } from "../shared/js/format.js";
+import { icons } from "../shared/js/icons.js";
+import { timetableGrid } from "../shared/js/timetable.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();

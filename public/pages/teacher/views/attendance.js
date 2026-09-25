@@ -1,4 +1,4 @@
-import { attendanceBoard } from "/shared/js/attendance-board.js";
+import { attendanceBoard } from "../../shared/js/attendance-board.js";
 import { myClasses } from "./home.js";
 
 // params.classId يأتي من «حصص اليوم» ليفتح فصل الحصة مباشرة

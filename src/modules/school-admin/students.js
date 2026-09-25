@@ -8,17 +8,62 @@ import { studentSummaries } from "../shared/finance.service.js";
 
 const r = Router();
 
+// قائمة الطلاب.
+//   بدون limit: القائمة كاملة (للتوافق مع التصدير والواجهات القديمة)
+//   مع limit: صفحة واحدة مع التصفية والبحث في الخادم، والعدد الكلي في X-Total-Count
+//   summary=1: أعداد الطلاب لكل شعبة فقط (بطاقات المراحل والصفوف) بدل تنزيل القائمة كلها
+//   fields=basic: الاسم والشعبة فقط (قوائم الاختيار في الحضور والكشوف)
+const listQuery = z.object({
+  status: z.enum(["active", "inactive", "all"]).default("active"),
+  class_id: t.optId,
+  class_ids: z.string().regex(/^\d+(,\d+)*$/).max(4000).optional(),
+  q: z.string().trim().max(80).optional(),
+  fees: z.enum(["paid", "unpaid", "off"]).optional().or(z.literal("")),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  summary: z.enum(["1"]).optional(),
+  fields: z.enum(["basic"]).optional(),
+});
+// حالة الرسوم محسوبة في قاعدة البيانات (للتصفية في الخادم)
+const FEE_BALANCE = `(SELECT COALESCE(SUM(i.amount - invoice_net_paid(i.id)), 0) FROM invoices i WHERE i.student_id = s.id AND i.status = 'open')`;
+const FEE_TOTAL = `(SELECT COALESCE(SUM(i.amount), 0) FROM invoices i WHERE i.student_id = s.id AND i.status = 'open')`;
+
 r.get("/", handle(async (req, res) => {
-  const scope = req.query.status || "active";     // active | inactive | all
+  const f = parse(listQuery, req.query);
   res.json(await inTenant(req, async (q) => {
+    const params = [f.status];
+    const where = ["($1 = 'all' OR ($1 = 'active') = (s.status = 'active'))"];
+    const add = (sql, v) => { params.push(v); where.push(sql.replaceAll("?", `$${params.length}`)); };
+    if (f.summary) {
+      return q(`SELECT s.class_id, count(*)::int AS n FROM students s WHERE ${where[0]} GROUP BY s.class_id`, params);
+    }
+    if (f.class_id) add("s.class_id = ?", f.class_id);
+    if (f.class_ids) add("s.class_id = ANY(?::bigint[])", f.class_ids.split(",").map(Number));
+    if (f.q) {
+      add(`(s.full_name ILIKE '%' || ? || '%' OR s.access_key = upper(?) OR s.guardian_phone LIKE '%' || ? || '%'
+            OR s.guardian_name ILIKE '%' || ? || '%')`, f.q);
+    }
+    if (f.fees === "off") where.push("NOT s.fees_enabled");
+    if (f.fees === "paid") where.push(`s.fees_enabled AND ${FEE_TOTAL} > 0 AND ${FEE_BALANCE} <= 0`);
+    if (f.fees === "unpaid") where.push(`s.fees_enabled AND ${FEE_BALANCE} > 0`);
+    const cols = f.fields === "basic" ? "s.id, s.full_name AS name, s.class_id, c.name AS class_name"
+      : `s.id, s.full_name AS name, s.class_id, c.name AS class_name, s.guardian_name, s.guardian_phone,
+         s.access_key, s.fees_enabled, s.version, s.status, s.status_note, s.status_changed_at, s.created_at`;
+    const paging = f.limit ? `LIMIT ${f.limit} OFFSET ${f.offset}` : "";
     const rows = await q(
-      `SELECT s.id, s.full_name AS name, s.class_id, c.name AS class_name, s.guardian_name, s.guardian_phone,
-              s.access_key, s.fees_enabled, s.version, s.status, s.status_note, s.status_changed_at, s.created_at
+      `SELECT ${cols}${f.limit ? ", count(*) OVER ()::int AS _total" : ""}
          FROM students s LEFT JOIN classes c ON c.id = s.class_id
-        WHERE ($1 = 'all' OR ($1 = 'active') = (s.status = 'active'))
-        ORDER BY c.id NULLS LAST, s.full_name`, [scope]);
-    const summaries = await studentSummaries(q, rows.filter((s) => s.fees_enabled).map((s) => s.id));
-    for (const s of rows) s.fees = s.fees_enabled ? summaries.get(Number(s.id)) : null;
+        WHERE ${where.join(" AND ")}
+        ORDER BY c.sort_order NULLS LAST, c.id NULLS LAST, s.full_name ${paging}`, params);
+    if (f.limit) {
+      res.set("X-Total-Count", String(rows[0]?._total ?? (f.offset ? -1 : 0)));
+      for (const x of rows) delete x._total;
+    }
+    if (f.fields !== "basic") {
+      // ملخص الرسوم للصفحة المعروضة فقط (وليس لكل طلاب المدرسة)
+      const summaries = await studentSummaries(q, rows.filter((x) => x.fees_enabled).map((x) => x.id));
+      for (const x of rows) x.fees = x.fees_enabled ? summaries.get(Number(x.id)) : null;
+    }
     return rows;
   }));
 }));

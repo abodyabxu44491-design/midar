@@ -14,6 +14,12 @@ const leadSchema = z.object({
   city: t.optText(60),
   students_count: z.union([z.coerce.number().int().min(1).max(100000), z.literal("")]).optional().transform((v) => v || null),
   note: t.optText(1000),
+  kind: z.enum(["trial", "subscription", "contact"]).default("trial"),
+  plan_id: z.union([z.coerce.number().int().positive(), z.literal(""), z.null()]).optional().transform((v) => v || null),
+  billing_cycle: z.enum(["monthly", "yearly"]).optional().or(z.literal("")).transform((v) => v || null),
+  months: z.union([z.coerce.number().int().min(1).max(36), z.literal(""), z.null()]).optional().transform((v) => v || null),
+  try_plan: z.boolean().default(true),
+  addon_keys: z.array(z.string().max(40)).max(30).default([]),
 });
 
 r.post("/", limits.login, handle(async (req, res) => {

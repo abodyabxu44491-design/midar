@@ -31,6 +31,11 @@ r.post("/complete", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
+r.post("/reopen", handle(async (req, res) => {
+  await inTenant(req, (q) => q("UPDATE school_profile SET setup_completed_at = NULL WHERE tenant_id = app_tenant()"));
+  res.json({ ok: true });
+}));
+
 /* ---------- المراحل ---------- */
 r.post("/stages", handle(async (req, res) => {
   const b = parse(S.stageSchema, req.body);

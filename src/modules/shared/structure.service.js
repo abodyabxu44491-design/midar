@@ -2,7 +2,7 @@
 // كل ما يولّده القالب قابل للتعديل والحذف والإضافة بعد ذلك.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
-import { STAGES, TEMPLATES, sectionName, catalog } from "./academic-catalog.js";
+import { STAGES, TEMPLATES, SUBJECT_LIBRARY, sectionName, gradeNames, catalog } from "./academic-catalog.js";
 
 export { catalog };
 
@@ -39,7 +39,8 @@ export const templateSchema = z.object({
   template: z.enum(Object.keys(TEMPLATES)),
   sections_per_grade: z.coerce.number().int().min(0).max(20).default(1),
   naming: z.enum(["arabic", "english", "numeric"]).default("arabic"),
-  subjects: z.array(z.string().max(60)).max(60).optional(),     // أسماء المواد المختارة، فارغ = كل المقترح
+  grade_set: z.enum(["arabic_full", "arabic_short", "yemen", "international"]).default("arabic_full"),
+  subjects: z.array(z.string().max(60)).max(120).optional(),    // أسماء المواد المختارة، فارغ = كل المقترح
   stages: z.array(z.string().max(30)).max(10).optional(),       // تخصيص المراحل بدل القالب
 });
 
@@ -253,7 +254,8 @@ export async function applyTemplate(q, b) {
     }
     gradeIdsByStage[key] = [];
 
-    for (const [gi, gradeName] of def.grades.entries()) {
+    const names = gradeNames(key, b.grade_set);
+    for (const [gi, gradeName] of names.entries()) {
       let [grade] = await q("SELECT id FROM grades WHERE stage_id = $1 AND name = $2", [stage.id, gradeName]);
       if (!grade) {
         [grade] = await q(
@@ -269,11 +271,14 @@ export async function applyTemplate(q, b) {
     }
   }
 
-  // المواد: المختارة فقط، أو كل المقترح للمراحل المختارة
-  const wanted = b.subjects?.length ? new Set(b.subjects) : null;
+  // المواد: المختارة من المكتبة الكاملة، أو المقترح الافتراضي للمراحل
+  const library = new Map(SUBJECT_LIBRARY.flatMap((g) => g.items.map((x) => [x.name, x])));
+  const chosen = b.subjects?.length
+    ? b.subjects.map((name) => library.get(name) || { name, code: null, weekly: null })
+    : null;
+
   for (const key of keys) {
-    for (const s of STAGES[key].subjects) {
-      if (wanted && !wanted.has(s.name)) continue;
+    for (const s of chosen ?? STAGES[key].subjects) {
       let [subject] = await q("SELECT id FROM subjects WHERE name = $1", [s.name]);
       if (!subject) {
         const [order] = await q("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM subjects");

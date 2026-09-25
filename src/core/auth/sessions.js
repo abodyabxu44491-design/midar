@@ -77,17 +77,28 @@ export async function readSession(req, kind) {
   if (!token || token.length > 100) return null;
   const hash = sha256(token);
   // الجلسة تُقرأ برمز بصمتها فقط (app.session_hash)؛ سياسة RLS على الجدول لا تسمح بغير ذلك
-  return transaction({ sessionHash: hash }, async (q) => {
-    const [s] = await q(
-      `UPDATE sessions SET last_seen_at = now()
-       WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
-         AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
-       RETURNING user_id, tenant_id`,
-      [hash, kind, cfg.idleMin],
-    );
-    return s || null;
-  });
+  return transaction({ sessionHash: hash }, (q) => sessionRow(q, hash, kind));
 }
+
+// قراءة الجلسة وتحديث «آخر نشاط» مرة في الدقيقة كحد أقصى (بدل كتابة على القرص مع كل طلب)
+export async function sessionRow(q, hash, kind) {
+  const [s] = await q(
+    `WITH s AS (
+       SELECT user_id, tenant_id, last_seen_at FROM sessions
+        WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
+          AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
+     ), touch AS (
+       UPDATE sessions SET last_seen_at = now()
+        WHERE token_hash = $1 AND EXISTS (SELECT 1 FROM s) AND last_seen_at < now() - interval '60 seconds'
+     )
+     SELECT user_id, tenant_id FROM s`,
+    [hash, kind, SESSION[kind].idleMin]);
+  return s || null;
+}
+export const sessionHashOf = (req, kind) => {
+  const token = tokenOf(req, kind);
+  return token && token.length <= 100 ? sha256(token) : null;
+};
 
 export async function destroySession(req, res, kind) {
   const cfg = SESSION[kind];

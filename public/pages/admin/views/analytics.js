@@ -1,9 +1,9 @@
 // التحليلات: أرقام وأداء ومؤشرات تُحسب آليًا
-import { h, mount } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { panel, field, select, empty, line, sub, stats, badge } from "/shared/js/ui.js";
-import { barChart, percentRow } from "/shared/js/charts.js";
-import { money } from "/shared/js/format.js";
+import { h, mount } from "../../shared/js/dom.js";
+import { api } from "../../shared/js/api.js";
+import { panel, field, select, empty, line, sub, stats, badge } from "../../shared/js/ui.js";
+import { barChart, percentRow } from "../../shared/js/charts.js";
+import { money } from "../../shared/js/format.js";
 import { A } from "./common.js";
 
 const monthName = (ym) => new Date(`${ym}-15`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "short", year: "2-digit" });

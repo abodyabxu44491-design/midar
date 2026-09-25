@@ -1,18 +1,22 @@
 // بوابة المحاسب: المالية والرسوم فقط.
 // تُشغَّل من باب المدرسة الموحّد بعد التعرف على دور الحساب.
-import { $, mount, h } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { setCurrency } from "/shared/js/format.js";
-import { topbar, footer, tabs, panel, field, input, btn, toast, sub, passwordChangeScreen , passwordInput} from "/shared/js/ui.js";
-import { setApiBase } from "/admin/views/common.js";
-import ledger from "/admin/views/ledger.js";
-import fees from "/admin/views/finance.js";
+import { $, mount, h } from "../shared/js/dom.js";
+import { api } from "../shared/js/api.js";
+import { setCurrency } from "../shared/js/format.js";
+import { topbar, footer, tabs, lazy, panel, field, input, btn, toast, sub, notice, passwordChangeScreen, passwordInput } from "../shared/js/ui.js";
+import { setApiBase } from "../admin/views/common.js";
+const ledger = lazy(() => import("../admin/views/ledger.js"));
+const fees = lazy(() => import("../admin/views/finance.js"));
 
 const app = $("#app");
 
 export async function startAccountant() {
   setApiBase("accountant");
   const me = await api("/api/accountant/me");
+  if (me.access?.locked) {
+    return mount(app, topbar({ school: me.school.name, subtitle: me.name, onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } }),
+      h("main", {}, panel("اشتراك المدرسة غير فعّال حاليًا", null, notice("لا يمكن استخدام المنصة الآن لأن اشتراك المدرسة متوقف. كل البيانات محفوظة، وتعود للعمل فور تجديد الإدارة للاشتراك.", "warn"))), footer());
+  }
   if (me.must_change_password) {
     return passwordChangeScreen({ endpoint: "/api/accountant/password", logoutEndpoint: "/api/accountant/logout", school: me.school.name, name: me.name });
   }
