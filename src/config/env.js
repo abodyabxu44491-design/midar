@@ -54,4 +54,8 @@ if (env.isProd && !env.OWNER_TOTP_SECRET) {
 if (env.isProd && !env.COOKIE_SECURE) {
   console.error("✗ في وضع الإنتاج يجب أن تكون COOKIE_SECURE=true (مع HTTPS)");
   process.exit(1);
+}// على Render/Firebase/nginx يمر كل الطلب عبر وكيل: بدون TRUST_PROXY يظهر كل الزوار بعنوان الوكيل نفسه،
+// فتصبح حدود المحاولات (لكل عنوان) مشتركة بين كل المستخدمين وقد تمنع الجميع من الدخول.
+if (parsed.data.NODE_ENV === "production" && parsed.data.TRUST_PROXY === 0) {
+  console.warn("⚠ TRUST_PROXY=0 في وضع الإنتاج: كل الزوار سيظهرون بعنوان الوكيل نفسه. على Render ضع TRUST_PROXY=1.");
 }

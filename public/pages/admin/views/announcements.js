@@ -1,8 +1,8 @@
 // تبويب الإعلانات
-import { h } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { panel, field, input, textarea, select, btn, empty, line, sub, toast, confirmAction } from "/shared/js/ui.js";
-import { fmtDate } from "/shared/js/format.js";
+import { h } from "../../shared/js/dom.js";
+import { api } from "../../shared/js/api.js";
+import { panel, field, input, textarea, select, btn, empty, line, sub, toast, confirmAction } from "../../shared/js/ui.js";
+import { fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses, classOptions } from "./common.js";
 
 export default async function announcements({ refresh }) {

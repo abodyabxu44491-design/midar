@@ -52,17 +52,25 @@ export async function studentSummaries(q, ids) {
 }
 
 export async function schoolTotals(q) {
+  // تجميع واحد بدل استدعاء دالة لكل فاتورة (آلاف الاستدعاءات في المدارس الكبيرة)
   const [r] = await q(
-    `SELECT COALESCE(SUM(amount), 0) AS total, COALESCE(SUM(invoice_net_paid(id)), 0) AS paid
-       FROM invoices WHERE status = 'open'`);
+    `SELECT COALESCE(SUM(i.amount), 0) AS total, COALESCE(SUM(p.net), 0) AS paid
+       FROM invoices i
+       LEFT JOIN (SELECT invoice_id, SUM(CASE WHEN kind = 'payment' THEN amount ELSE -amount END) AS net
+                    FROM payments GROUP BY invoice_id) p ON p.invoice_id = i.id
+      WHERE i.status = 'open'`);
   return { fees_total: round2(r.total), fees_paid: round2(r.paid), fees_remaining: round2(r.total - r.paid) };
 }
 
-export const listInvoices = (q, where = "TRUE", params = []) => q(
+// عدد الفواتير المطابقة (منفصل عن الصفحة حتى لا يُحسب المدفوع لكل الفواتير قبل اقتطاع الصفحة)
+export const countInvoices = async (q, where = "TRUE", params = []) => (await q(
+  `SELECT count(*)::int AS n FROM invoices i JOIN students s ON s.id = i.student_id WHERE ${where}`, params))[0].n;
+
+export const listInvoices = (q, where = "TRUE", params = [], { limit = 1000, offset = 0 } = {}) => q(
   `SELECT i.id, i.title, i.amount, i.due_date, i.status, i.void_reason, i.created_at, i.student_id,
-          s.full_name AS student_name, c.name AS class_name, invoice_net_paid(i.id) AS paid
+          s.full_name AS student_name, s.guardian_phone, s.access_key, c.name AS class_name, invoice_net_paid(i.id) AS paid
      FROM invoices i JOIN students s ON s.id = i.student_id LEFT JOIN classes c ON c.id = s.class_id
-    WHERE ${where} ORDER BY i.id DESC LIMIT 1000`, params);
+    WHERE ${where} ORDER BY i.id DESC LIMIT ${Math.min(Number(limit) || 1000, 1000)} OFFSET ${Math.max(0, Number(offset) || 0)}`, params);
 
 export const listPayments = (q, studentId) => q(
   `SELECT p.invoice_id, p.receipt_no, p.kind, p.amount, p.method, p.note, p.created_at, i.title

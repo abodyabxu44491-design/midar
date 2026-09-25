@@ -2,6 +2,8 @@
 // كل عملية تتم داخل معاملة (Transaction): إما تنجح كاملة أو تُلغى كاملة.
 import pg from "pg";
 import { env } from "../../config/env.js";
+import { performance } from "node:perf_hooks";
+import { recordQuery, recordTx } from "../perf.js";
 
 // الأرقام المالية تُقرأ كنص ثم تحول بحذر (تجنب أخطاء الكسور)
 pg.types.setTypeParser(1700, (v) => (v === null ? null : Number(v)));   // numeric
@@ -59,17 +61,31 @@ export async function closePool() {
  * @param {(q: (sql: string, params?: any[]) => Promise<any[]>, client: pg.PoolClient) => Promise<T>} fn
  * @template T
  */
+// فتح اتصال مع محاولة ثانية واحدة: قواعد مثل Neon تتوقف بعد الخمول، وأول اتصال قد يفشل أثناء الاستيقاظ
+async function connect() {
+  const pool = await getPool();
+  try { return await pool.connect(); } catch (e) {
+    await new Promise((r) => setTimeout(r, 800));
+    return pool.connect();
+  }
+}
+
 export async function transaction(ctx, fn) {
-  const client = await (await getPool()).connect();
+  const client = await connect();
+  recordTx();
+  // كل رحلة لقاعدة البيانات تُقاس (Server-Timing)
+  const raw = client.query.bind(client);
+  const timed = async (...a) => { const t = performance.now(); try { return await raw(...a); } finally { recordQuery(performance.now() - t); } };
+  client.query = timed;
   try {
-    await client.query("BEGIN ISOLATION LEVEL READ COMMITTED");
-    // إعدادات محلية للمعاملة فقط (تُمسح تلقائيًا عند الانتهاء)
+    // بدء المعاملة وإعدادات السياق في رحلة واحدة لقاعدة البيانات بدل رحلتين
+    // (القيم تمر عبر escapeLiteral الرسمية من مكتبة pg، والإعدادات محلية للمعاملة فقط وتُمسح عند انتهائها)
+    const lit = (v) => client.escapeLiteral(String(v));
     await client.query(
-      `SELECT set_config('app.tenant_id', $1, true), set_config('app.actor', $2, true),
-              set_config('app.ip', $3, true), set_config('app.platform', $4, true),
-              set_config('app.session_hash', $5, true)`,
-      [ctx.tenantId || "", ctx.actor || "system", ctx.ip || "", ctx.platform ? "on" : "off", ctx.sessionHash || ""],
-    );
+      `BEGIN ISOLATION LEVEL READ COMMITTED;
+       SELECT set_config('app.tenant_id', ${lit(ctx.tenantId || "")}, true), set_config('app.actor', ${lit(ctx.actor || "system")}, true),
+              set_config('app.ip', ${lit(ctx.ip || "")}, true), set_config('app.platform', ${lit(ctx.platform ? "on" : "off")}, true),
+              set_config('app.session_hash', ${lit(ctx.sessionHash || "")}, true)`);
     const q = async (sql, params = []) => (await client.query(sql, params)).rows;
     const result = await fn(q, client);
     await client.query("COMMIT");
@@ -78,6 +94,7 @@ export async function transaction(ctx, fn) {
     await client.query("ROLLBACK").catch(() => {});
     throw err;
   } finally {
+    client.query = raw;
     client.release();
   }
 }

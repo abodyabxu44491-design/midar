@@ -1,23 +1,19 @@
 import { api } from "/shared/js/api.js";
 import { panel, field, input, select, btn, dialog, line, sub, keyText, notice, toast, brandLogo } from "/shared/js/ui.js";
 import { h } from "/shared/js/dom.js";
+import { loadRefs, subForm } from "./sub-form.js";
 
-export default function create({ refresh }) {
-  const f = {
-    name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }),
-    plan: select([["basic", "الأساسية"], ["pro", "الاحترافية"], ["enterprise", "المؤسسات"]]),
-    max: input({ type: "number", value: 200, min: 1 }), end: input({ type: "date" }),
-  };
+export default async function create({ refresh }) {
+  const refs = await loadRefs();
+  const f = { name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }) };
+  const form = subForm(refs, { kind: "trial" });
   return panel("إضافة مدرسة جديدة", null,
     field("اسم المدرسة", f.name),
     field("رمز المدرسة", f.id, "حروف إنجليزية صغيرة وأرقام. يظهر في رابط صفحة الطلاب ولا يمكن تغييره."),
     field("اسم مدير المدرسة", f.admin),
-    h("div", { class: "row" }, field("الباقة", f.plan), field("حد الطلاب", f.max), field("نهاية الاشتراك", f.end)),
+    h("h3", {}, "الاشتراك"), form.el,
     btn("إنشاء المدرسة", async () => {
-      const r = await api("/api/owner/tenants", {
-        name: f.name.value, id: f.id.value, admin_name: f.admin.value, plan: f.plan.value,
-        max_students: Number(f.max.value), subscription_end: f.end.value || null,
-      });
+      const r = await api("/api/owner/tenants", { name: f.name.value, id: f.id.value, admin_name: f.admin.value, subscription: form.value() });
       handoverCard(r);
       refresh();
     }));

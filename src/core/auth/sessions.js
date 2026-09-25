@@ -60,7 +60,8 @@ export async function createSession(res, kind, { userId = null, tenantId = null,
     writeSingle(req, res, { ...readSingle(req), [TAG[kind]]: token }, maxHours * 3600_000);
   } else {
     res.cookie(prefix() + cfg.cookie, token, {
-      httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: cfg.path, maxAge: maxHours * 3600_000,
+      httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: cfg.path,
+      ...(remember || kind === "owner" ? { maxAge: maxHours * 3600_000 } : {}),   // بدون تذكر: ينتهي بإغلاق المتصفح
     });
   }
 }
@@ -77,17 +78,30 @@ export async function readSession(req, kind) {
   if (!token || token.length > 100) return null;
   const hash = sha256(token);
   // الجلسة تُقرأ برمز بصمتها فقط (app.session_hash)؛ سياسة RLS على الجدول لا تسمح بغير ذلك
-  return transaction({ sessionHash: hash }, async (q) => {
-    const [s] = await q(
-      `UPDATE sessions SET last_seen_at = now()
-       WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
-         AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
-       RETURNING user_id, tenant_id`,
-      [hash, kind, cfg.idleMin],
-    );
-    return s || null;
-  });
+  return transaction({ sessionHash: hash }, (q) => sessionRow(q, hash, kind));
 }
+
+// قراءة الجلسة وتحديث «آخر نشاط» مرة في الدقيقة كحد أقصى (بدل كتابة على القرص مع كل طلب)
+export async function sessionRow(q, hash, kind) {
+  const [s] = await q(
+    `WITH s AS (
+       SELECT user_id, tenant_id, last_seen_at FROM sessions
+        WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
+          AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
+     ), touch AS (
+       UPDATE sessions SET last_seen_at = now(),
+              -- «ابقني مسجلًا»: الجلسة تمتد مع الاستخدام، ولا تنتهي إلا بتسجيل الخروج أو 30 يومًا بلا استخدام
+              expires_at = CASE WHEN idle_minutes IS NOT NULL THEN GREATEST(expires_at, now() + make_interval(mins => idle_minutes)) ELSE expires_at END
+        WHERE token_hash = $1 AND EXISTS (SELECT 1 FROM s) AND last_seen_at < now() - interval '60 seconds'
+     )
+     SELECT user_id, tenant_id FROM s`,
+    [hash, kind, SESSION[kind].idleMin]);
+  return s || null;
+}
+export const sessionHashOf = (req, kind) => {
+  const token = tokenOf(req, kind);
+  return token && token.length <= 100 ? sha256(token) : null;
+};
 
 export async function destroySession(req, res, kind) {
   const cfg = SESSION[kind];
@@ -103,7 +117,8 @@ export async function destroySession(req, res, kind) {
 export async function purgeExpiredSessions() {
   // تنظيف شامل عبر كل المدارس: يحتاج سياق المنصة (RLS)
   await transaction({ platform: true, actor: "النظام" }, async (q) => {
-    await q("DELETE FROM sessions WHERE expires_at < now() OR last_seen_at < now() - interval '1 day'");
+    await q(`DELETE FROM sessions WHERE expires_at < now()
+               OR last_seen_at < now() - make_interval(mins => COALESCE(idle_minutes, 24 * 60))`);
     await q("DELETE FROM security_events WHERE created_at < now() - interval '90 days'");
     await q("DELETE FROM rate_limits WHERE reset_at < now()");
   });

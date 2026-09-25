@@ -1,5 +1,5 @@
-import { h } from "/shared/js/dom.js";
-import { stats, panel, empty, line, notice } from "/shared/js/ui.js";
+import { h } from "../../shared/js/dom.js";
+import { stats, panel, empty, line, notice } from "../../shared/js/ui.js";
 
 export const myClasses = (me) => [...new Map(me.load.map((l) => [l.class_id, { id: l.class_id, name: l.class_name }])).values()];
 

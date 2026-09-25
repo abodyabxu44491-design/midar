@@ -1,8 +1,8 @@
 // أوراق للطباعة: بطاقات معرّفات الطلاب، وسجل الحضور الشهري
-import { h, mount } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { panel, field, select, input, btn, empty, sub, notice, brandLogo, sectionMenu } from "/shared/js/ui.js";
-import { ATTENDANCE, fmtDate } from "/shared/js/format.js";
+import { h, mount } from "../../shared/js/dom.js";
+import { api } from "../../shared/js/api.js";
+import { panel, field, select, input, btn, empty, sub, notice, brandLogo, sectionMenu } from "../../shared/js/ui.js";
+import { ATTENDANCE, fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses } from "./common.js";
 
 const monthNow = () => new Date().toISOString().slice(0, 7);

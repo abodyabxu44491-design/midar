@@ -17,7 +17,7 @@ const loginSchema = z.object({
   school: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,30}$/, "رمز المدرسة غير صحيح"),
   username: z.string().trim().toLowerCase().min(1, "اكتب اسم المستخدم").max(40),
   password: z.string().min(1, "اكتب كلمة المرور").max(200),
-  remember: z.boolean().optional().default(false),
+  remember: z.boolean().optional().default(true),   // البقاء مسجلًا هو الافتراضي (حتى تسجيل الخروج)
 });
 const label = { admin: "إدارة", teacher: "معلم" };
 
@@ -27,7 +27,7 @@ const label = { admin: "إدارة", teacher: "معلم" };
  */
 export const staffLoginRouter = () => {
   const r = Router();
-  r.post("/login", limits.login, handle(async (req, res) => {
+  r.post("/login", limits.staffLoginNet, limits.staffLogin, handle(async (req, res) => {
     const b = parse(loginSchema, req.body);
     const outcome = await transaction({ tenantId: b.school, actor: b.username, ip: req.ip }, async (q) => {
       const denied = { error: "بيانات الدخول غير صحيحة" };

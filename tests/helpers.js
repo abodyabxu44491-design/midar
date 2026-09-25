@@ -32,6 +32,7 @@ export function client(base, { origin } = {}) {
     put: (p, b) => call("PUT", p, b),
     del: (p) => call("DELETE", p),
     jar,
+    cookie: () => [...jar].map(([k, v]) => `${k}=${v}`).join("; "),
   };
 }
 

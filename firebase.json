@@ -3,18 +3,72 @@
     "public": "hosting-dist",
     "cleanUrls": false,
     "trailingSlash": false,
-    "predeploy": ["npm run build:hosting"],
-    "ignore": ["firebase.json", "**/.*"],
+    "predeploy": [
+      "npm run build:hosting"
+    ],
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ],
     "headers": [
-      { "source": "/brand/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }] },
-      { "source": "/shared/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] },
-      { "source": "**", "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
-      ] }
+      {
+        "source": "/v/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/v/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/shared/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/brand/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      },
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      }
     ],
     "rewrites": [
-      { "source": "**", "function": { "functionId": "app", "region": "me-central2" } }
+      {
+        "source": "**",
+        "function": {
+          "functionId": "app",
+          "region": "me-central2"
+        }
+      }
     ]
   },
   "functions": [
@@ -23,8 +77,18 @@
       "codebase": "midar",
       "runtime": "nodejs22",
       "ignore": [
-        "node_modules", ".git", ".github", "tests", "docs", "deploy", "backups", "hosting-dist",
-        "firebase-debug.log", "*.local", ".env.local", "public/pages/**/*.md"
+        "node_modules",
+        ".git",
+        ".github",
+        "tests",
+        "docs",
+        "deploy",
+        "backups",
+        "hosting-dist",
+        "firebase-debug.log",
+        "*.local",
+        ".env.local",
+        "public/pages/**/*.md"
       ]
     }
   ]

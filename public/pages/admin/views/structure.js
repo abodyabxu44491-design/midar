@@ -1,8 +1,8 @@
 // الهيكل الأكاديمي: المراحل ← الصفوف ← الشعب ← المواد، في شاشة واحدة
-import { h, mount } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
+import { h, mount } from "../../shared/js/dom.js";
+import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog,
-  notice, confirmAction } from "/shared/js/ui.js";
+  notice, confirmAction } from "../../shared/js/ui.js";
 import { A } from "./common.js";
 
 export default async function structure({ refresh }) {
