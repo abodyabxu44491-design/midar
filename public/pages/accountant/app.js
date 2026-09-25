@@ -5,8 +5,8 @@ import { api } from "../shared/js/api.js";
 import { setCurrency } from "../shared/js/format.js";
 import { topbar, footer, tabs, lazy, panel, field, input, btn, toast, sub, notice, passwordChangeScreen, passwordInput } from "../shared/js/ui.js";
 import { setApiBase } from "../admin/views/common.js";
-const ledger = lazy(() => import("../admin/views/ledger.js"));
-const fees = lazy(() => import("../admin/views/finance.js"));
+const ledger = lazy(() => import("../admin/views/ledger.js"), new URL("../admin/views/ledger.js", import.meta.url).pathname);
+const fees = lazy(() => import("../admin/views/finance.js"), new URL("../admin/views/finance.js", import.meta.url).pathname);
 
 const app = $("#app");
 

@@ -104,15 +104,24 @@ export const input = (props = {}) => h("input", props);
  */
 export function passwordInput(props = {}) {
   const el = h("input", { ...props, type: "password", class: `ltr ${props.class || ""}`.trim() });
-  const toggle = h("button", { class: "pw-toggle", type: "button", "aria-label": "إظهار كلمة المرور", tabindex: "-1" },
-    icons.eye({ size: 18 }));
+  // الأيقونة تعكس الحالة الحالية: عين مشطوبة = مخفية، عين مفتوحة = ظاهرة.
+  // البداية مخفية دائمًا، والضغط يُظهر، والضغط مرة ثانية يُخفي.
+  const toggle = h("button", { class: "pw-toggle", type: "button", tabindex: "-1" });
+  const paint = () => {
+    const visible = el.type === "text";
+    toggle.replaceChildren(visible ? icons.eye({ size: 18 }) : icons.eyeOff({ size: 18 }));
+    toggle.setAttribute("aria-label", visible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور");
+    toggle.setAttribute("title", visible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور");
+    toggle.setAttribute("aria-pressed", String(visible));
+  };
+  // pointerdown يمنع فقدان التركيز من الحقل (لا قفز للوحة المفاتيح على الجوال)
+  toggle.addEventListener("pointerdown", (e) => e.preventDefault());
   toggle.addEventListener("click", () => {
-    const willShow = el.type === "password";
-    el.type = willShow ? "text" : "password";
-    toggle.setAttribute("aria-label", willShow ? "إخفاء كلمة المرور" : "إظهار كلمة المرور");
-    toggle.replaceChildren(willShow ? icons.eyeOff({ size: 18 }) : icons.eye({ size: 18 }));
+    el.type = el.type === "password" ? "text" : "password";
+    paint();
     el.focus();
   });
+  paint();
   const wrap = h("div", { class: "pw-wrap" }, el, toggle);
   Object.defineProperty(wrap, "value", { get: () => el.value, set: (v) => { el.value = v; } });
   wrap.focus = () => el.focus();
@@ -133,8 +142,31 @@ export const empty = (text) => h("p", { class: "empty" }, text);
 // هيكل تحميل بدل صفحة فارغة: يعطي شكل المحتوى القادم فورًا
 export const skeleton = (rows = 5) => h("div", { class: "skel", "aria-busy": "true", "aria-label": "جارٍ التحميل" },
   h("div", { class: "skel-line w40" }), Array.from({ length: rows }, (_, i) => h("div", { class: `skel-line ${["w90", "w75", "w85", "w60"][i % 4]}` })));
-// تحميل القسم عند فتحه فقط (بدل تحميل كل أقسام اللوحة عند الدخول)
-export const lazy = (load) => async (ctx) => (await load()).default(ctx);
+// تحميل مسبق متوازٍ لكل ملفات وحدة واعتمادياتها (من خريطة يضعها الخادم في الصفحة)
+let GRAPH = null;
+const VPREFIX = (import.meta.url.match(/^(.*?\/v\/[^/]+)\//) || [])[1] || "";
+export function preloadModule(url) {
+  if (!url || !VPREFIX) return;
+  GRAPH ??= JSON.parse(document.getElementById("module-graph")?.textContent || "{}");
+  const seen = new Set();
+  const stack = [url.replace(/^\/v\/[^/]+/, "")];
+  while (stack.length) {
+    const u = stack.pop();
+    if (seen.has(u)) continue;
+    seen.add(u);
+    for (const d of GRAPH[u] || []) stack.push(d);
+  }
+  for (const u of seen) {
+    const href = `${VPREFIX}${u}`;
+    if (!document.querySelector(`link[rel="modulepreload"][href="${href}"]`)) document.head.append(h("link", { rel: "modulepreload", href }));
+  }
+}
+// تحميل القسم عند فتحه فقط (بدل تحميل كل أقسام اللوحة عند الدخول)، مع تحميل كل ملفاته معًا
+export const lazy = (load, url) => {
+  const fn = async (ctx) => { preloadModule(url); return (await load()).default(ctx); };
+  fn.preload = () => preloadModule(url);
+  return fn;
+};
 export const badge = (text, cls = "") => h("span", { class: `badge ${cls}` }, text);
 export const notice = (text, tone = "") => h("div", { class: `notice ${tone}`, role: tone === "err" ? "alert" : "status" }, text);
 export const line = (...kids) => h("div", { class: "line" }, ...kids);
@@ -240,7 +272,10 @@ export function tabs(list, views, ctx) {
       if (e.status === 401) setTimeout(() => location.reload(), 1500);
     }
   };
-  for (const [key, label] of list) bar.append(h("button", { type: "button", role: "tab", "data-k": key, onclick: () => show(key) }, label));
+  for (const [key, label] of list) {
+    bar.append(h("button", { type: "button", role: "tab", "data-k": key, onclick: () => show(key),
+      onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() }, label));
+  }
   return { el: h("div", { class: "tabs-layout" }, bar, body), show };
 }
 
@@ -345,4 +380,36 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
           h("span", { class: "gate-badge" }, icons.lock({ size: 14 }), "وصول خاص وآمن")))),
     ),
   ];
+}
+
+
+/* ---------- الروابط والقيم القابلة للنسخ (تصميم موحد: الرابط ← نسخ ← فتح) ---------- */
+async function copyText(text, button) {
+  try { await navigator.clipboard.writeText(text); } catch {
+    const ta = h("textarea", { style: "position:fixed;opacity:0" }, text);
+    document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  if (button) {
+    const old = button.textContent;
+    button.classList.add("done"); button.textContent = "تم النسخ";
+    setTimeout(() => { button.classList.remove("done"); button.textContent = old; }, 1500);
+  }
+}
+export function linkRow(label, url, { note, icon } = {}) {
+  const copy = h("button", { type: "button", class: "btn copy sm", onclick: (e) => copyText(url, e.currentTarget) }, "نسخ");
+  return h("div", { class: "link-row" },
+    h("div", { class: "lr-text" }, h("b", {}, icon || null, label), note ? h("small", {}, note) : null,
+      h("a", { class: "lr-url ltr", href: url, target: "_blank", rel: "noopener" }, url)),
+    h("div", { class: "lr-acts" }, copy,
+      h("a", { class: "btn open sm", href: url, target: "_blank", rel: "noopener" }, icons.external({ size: 14 }), "فتح")));
+}
+export function copyRow(label, value, { secret = false, note } = {}) {
+  const shown = h("code", { class: "lr-val ltr" }, secret ? "••••••••" : value);
+  const acts = [h("button", { type: "button", class: "btn copy sm", onclick: (e) => copyText(value, e.currentTarget) }, "نسخ")];
+  if (secret) acts.unshift(h("button", { type: "button", class: "btn ghost sm", onclick: (e) => {
+    const hidden = shown.textContent !== value;
+    shown.textContent = hidden ? value : "••••••••";
+    e.currentTarget.textContent = hidden ? "إخفاء" : "إظهار";
+  } }, "إظهار"));
+  return h("div", { class: "link-row" }, h("div", { class: "lr-text" }, h("b", {}, label), note ? h("small", {}, note) : null, shown), h("div", { class: "lr-acts" }, acts));
 }

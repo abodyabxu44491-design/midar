@@ -63,7 +63,10 @@ const ANALYTICS_TTL = 5 * 60 * 1000;
 
 r.get("/", handle(async (req, res) => {
   const months = parse(z.coerce.number().int().min(1).max(24).default(6), req.query.months || undefined);
-  const termId = req.query.term_id ? parse(t.id, req.query.term_id) : null;
+  // term_id=current: الفصل الحالي يُحدد في الخادم (تطلب الواجهة التحليلات وبيانات السنة معًا بدل واحد بعد الآخر)
+  const termId = req.query.term_id === "current"
+    ? (await inTenant(req, (q) => q("SELECT id FROM terms WHERE is_current ORDER BY id DESC LIMIT 1")))[0]?.id ?? null
+    : req.query.term_id ? parse(t.id, req.query.term_id) : null;
   const key = `${req.tenantId}:${months}:${termId ?? ""}`;
   const hit = analyticsCache.get(key);
   if (hit && hit.until > Date.now() && req.query.fresh !== "1") return res.json(hit.data);
@@ -71,16 +74,19 @@ r.get("/", handle(async (req, res) => {
   const data = await inTenant(req, async (q) => {
     // الحضور: مرور واحد على السجلات بدل مرورين (حسب الشهر وحسب الفصل معًا)
     const att = await q(
-      `SELECT to_char(a.day, 'YYYY-MM') AS month, c.id AS class_id, c.name AS class_name,
-              count(*) FILTER (WHERE a.status = 'present')::int AS present,
-              count(*) FILTER (WHERE a.status = 'absent')::int  AS absent,
-              count(*) FILTER (WHERE a.status = 'late')::int    AS late,
-              count(*) FILTER (WHERE a.status = 'excused')::int AS excused,
-              count(*)::int AS total,
-              GROUPING(to_char(a.day, 'YYYY-MM')) AS g_month
-         FROM attendance a LEFT JOIN students s ON s.id = a.student_id LEFT JOIN classes c ON c.id = s.class_id
-        WHERE a.day > (CURRENT_DATE - make_interval(months => $1))
-        GROUP BY GROUPING SETS ((to_char(a.day, 'YYYY-MM')), (c.id, c.name))`, [months]);
+      `SELECT a.month, c.id AS class_id, c.name AS class_name,
+              SUM(a.present)::int AS present, SUM(a.absent)::int AS absent,
+              SUM(a.late)::int AS late, SUM(a.excused)::int AS excused, SUM(a.total)::int AS total,
+              GROUPING(a.month) AS g_month
+         FROM (
+           -- تجميع أولي على جدول الحضور الكبير وحده (طالب × شهر)، ثم الربط بالطلاب والفصول على نتيجة صغيرة
+           SELECT student_id, to_char(date_trunc('month', day), 'YYYY-MM') AS month,
+                  count(*) FILTER (WHERE status = 'present') AS present, count(*) FILTER (WHERE status = 'absent') AS absent,
+                  count(*) FILTER (WHERE status = 'late') AS late, count(*) FILTER (WHERE status = 'excused') AS excused, count(*) AS total
+             FROM attendance WHERE day > (CURRENT_DATE - make_interval(months => $1))
+            GROUP BY student_id, date_trunc('month', day)
+         ) a LEFT JOIN students s ON s.id = a.student_id LEFT JOIN classes c ON c.id = s.class_id
+        GROUP BY GROUPING SETS ((a.month), (c.id, c.name))`, [months]);
     const attendance_by_month = att.filter((r) => r.g_month === 0).sort((x, y) => x.month.localeCompare(y.month))
       .map(({ month, present, absent, late, excused, total }) => ({ month, present, absent, late, excused, total }));
     const attendance_by_class = att.filter((r) => r.g_month === 1 && r.class_id)
@@ -89,15 +95,20 @@ r.get("/", handle(async (req, res) => {
 
     // الدرجات: مرور واحد (حسب الفصل والمادة والطالب معًا)
     const sc = await q(
-      `SELECT e.class_id, c.name AS class_name, e.subject_id, sub.name AS subject, sc.student_id, s.full_name AS name, sc_cls.name AS student_class, s.archived_at,
-              SUM(sc.score) AS score, SUM(e.max_score) AS max, count(DISTINCT sc.student_id)::int AS students,
-              GROUPING(e.class_id, c.name) AS g_class, GROUPING(e.subject_id, sub.name) AS g_subject
-         FROM scores sc JOIN exams e ON e.id = sc.exam_id
-         JOIN classes c ON c.id = e.class_id JOIN subjects sub ON sub.id = e.subject_id
-         JOIN students s ON s.id = sc.student_id LEFT JOIN classes sc_cls ON sc_cls.id = s.class_id
-        WHERE e.status = 'published' AND sc.score IS NOT NULL AND ($1::bigint IS NULL OR e.term_id = $1)
-        GROUP BY GROUPING SETS ((e.class_id, c.name), (e.subject_id, sub.name),
-                                (sc.student_id, s.full_name, sc_cls.name, s.archived_at))`, [termId]);
+      `SELECT p.class_id, c.name AS class_name, p.subject_id, sub.name AS subject, p.student_id, s.full_name AS name, sc_cls.name AS student_class, s.archived_at,
+              SUM(p.score) AS score, SUM(p.max) AS max, count(DISTINCT p.student_id)::int AS students,
+              GROUPING(p.class_id, c.name) AS g_class, GROUPING(p.subject_id, sub.name) AS g_subject
+         FROM (
+           -- تجميع أولي على جدول الدرجات الكبير (طالب × فصل × مادة): يمنع فرزًا ضخمًا على القرص
+           SELECT sc.student_id, e.class_id, e.subject_id, SUM(sc.score) AS score, SUM(e.max_score) AS max
+             FROM scores sc JOIN exams e ON e.id = sc.exam_id
+            WHERE e.status = 'published' AND sc.score IS NOT NULL AND ($1::bigint IS NULL OR e.term_id = $1)
+            GROUP BY sc.student_id, e.class_id, e.subject_id
+         ) p
+         JOIN classes c ON c.id = p.class_id JOIN subjects sub ON sub.id = p.subject_id
+         JOIN students s ON s.id = p.student_id LEFT JOIN classes sc_cls ON sc_cls.id = s.class_id
+        GROUP BY GROUPING SETS ((p.class_id, c.name), (p.subject_id, sub.name),
+                                (p.student_id, s.full_name, sc_cls.name, s.archived_at))`, [termId]);
     const pct = (r) => (Number(r.max) > 0 ? Math.round((Number(r.score) / Number(r.max)) * 1000) / 10 : null);
     const grades_by_class = sc.filter((r) => r.g_class === 0).sort((x, y) => Number(x.class_id) - Number(y.class_id))
       .map((r) => ({ class_name: r.class_name, average: pct(r), students: r.students }));

@@ -60,7 +60,8 @@ export async function createSession(res, kind, { userId = null, tenantId = null,
     writeSingle(req, res, { ...readSingle(req), [TAG[kind]]: token }, maxHours * 3600_000);
   } else {
     res.cookie(prefix() + cfg.cookie, token, {
-      httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: cfg.path, maxAge: maxHours * 3600_000,
+      httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: cfg.path,
+      ...(remember || kind === "owner" ? { maxAge: maxHours * 3600_000 } : {}),   // بدون تذكر: ينتهي بإغلاق المتصفح
     });
   }
 }
@@ -88,7 +89,9 @@ export async function sessionRow(q, hash, kind) {
         WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
           AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
      ), touch AS (
-       UPDATE sessions SET last_seen_at = now()
+       UPDATE sessions SET last_seen_at = now(),
+              -- «ابقني مسجلًا»: الجلسة تمتد مع الاستخدام، ولا تنتهي إلا بتسجيل الخروج أو 30 يومًا بلا استخدام
+              expires_at = CASE WHEN idle_minutes IS NOT NULL THEN GREATEST(expires_at, now() + make_interval(mins => idle_minutes)) ELSE expires_at END
         WHERE token_hash = $1 AND EXISTS (SELECT 1 FROM s) AND last_seen_at < now() - interval '60 seconds'
      )
      SELECT user_id, tenant_id FROM s`,
@@ -114,7 +117,8 @@ export async function destroySession(req, res, kind) {
 export async function purgeExpiredSessions() {
   // تنظيف شامل عبر كل المدارس: يحتاج سياق المنصة (RLS)
   await transaction({ platform: true, actor: "النظام" }, async (q) => {
-    await q("DELETE FROM sessions WHERE expires_at < now() OR last_seen_at < now() - interval '1 day'");
+    await q(`DELETE FROM sessions WHERE expires_at < now()
+               OR last_seen_at < now() - make_interval(mins => COALESCE(idle_minutes, 24 * 60))`);
     await q("DELETE FROM security_events WHERE created_at < now() - interval '90 days'");
     await q("DELETE FROM rate_limits WHERE reset_at < now()");
   });

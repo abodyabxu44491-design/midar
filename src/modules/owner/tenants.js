@@ -9,6 +9,7 @@ import { RESERVED_CODES } from "../../core/reserved.js";
 import { ensureDefaults } from "../shared/academic.service.js";
 import { clearLoginFailures } from "../../core/audit.js";
 import { activate, activateSchema } from "../shared/subscription.service.js";
+import { schoolLinks } from "../../core/links.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -127,6 +128,30 @@ r.patch("/:id", handle(async (req, res) => {
     });
   }
   res.json({ ok: true });
+}));
+
+// صفحة المدرسة في لوحة المالك: كل ما يلزم في طلب واحد
+// ملاحظة: كلمات المرور محفوظة ببصمة لا تُعكس، فلا تُعرض أبدًا. «إصدار كلمة مرور جديدة» يعرض الجديدة مرة واحدة.
+r.get("/:id/overview", handle(async (req, res) => {
+  const id = parse(codeSchema, req.params.id);
+  const data = await inSchool(req, id, async (q) => {
+    const [t] = await q(
+      `SELECT t.id, t.name, t.status, t.directory_code, t.created_at, t.currency,
+              (SELECT count(*) FROM students WHERE status = 'active')::int AS students,
+              (SELECT count(*) FROM teachers)::int AS teachers,
+              (SELECT count(*) FROM classes)::int AS sections
+         FROM tenants t WHERE t.id = $1`, [id]);
+    if (!t) throw notFound("المدرسة غير موجودة");
+    const staff = await q(
+      `SELECT username, full_name, role, is_active, must_change_password, last_login_at FROM users
+        WHERE role IN ('admin', 'accountant') ORDER BY role, id`);
+    return { t, staff };
+  });
+  const sub = await platform(req, async (q) => (await q(
+    `SELECT s.kind, s.status, s.plan_name, s.starts_on, s.ends_on, s.max_students, s.max_teachers, (s.ends_on - CURRENT_DATE)::int AS days_left,
+            (SELECT count(*)::int FROM subscriptions x WHERE x.tenant_id = $1 AND x.kind = 'trial') AS trials
+       FROM tenants t JOIN subscriptions s ON s.id = t.subscription_id WHERE t.id = $1`, [id]))[0] || null);
+  res.json({ school: data.t, staff: data.staff, subscription: sub, links: schoolLinks(req, id) });
 }));
 
 r.post("/:id/reset-admin", handle(async (req, res) => {

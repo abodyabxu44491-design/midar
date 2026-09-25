@@ -5,14 +5,16 @@ import { api } from "../api.js";
 import { panel, field, input, textarea, select, btn, badge, notice, toast, confirmAction, dialog, empty, sub, stats } from "../ui.js";
 import { icons } from "../icons.js";
 import { STATUS, QTYPES, DIFFICULTY, fmtNum, newQuestion } from "./engine.js";
-import { builder } from "./builder.js";
-import { questionEditor } from "./editor.js";
+import { preloadModule } from "../ui.js";
 import { rich, loadMath } from "./math.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 export async function examSection({ base, me, admin = false }) {
   const root = h("div");
+  // الطلبات الثلاثة مستقلة: تبدأ معًا بدل انتظار السياق ثم طلب القائمة
+  let prefetched = Promise.all([api(`${base}?status=all`), api(`${base}/stats`)]);
+  prefetched.catch(() => {});
   const ctx = await api(`${base}/context`);
   let filter = "active";
   let search = "";
@@ -22,6 +24,8 @@ export async function examSection({ base, me, admin = false }) {
     list: () => drawList(),
     open: async (id, step = "info", autoPrint = false) => {
       mount(root, empty("جارٍ فتح الاختبار…"));
+      preloadModule(new URL("./builder.js", import.meta.url).pathname);   // المصمم يُحمّل عند فتح اختبار فقط
+      const { builder } = await import("./builder.js");
       mount(root, await builder({ base, id, ctx, me, step, autoPrint,
         onExit: (o) => (o?.open ? nav.open(o.open) : nav.list()) }));
     },
@@ -133,7 +137,8 @@ export async function examSection({ base, me, admin = false }) {
   /* ---------- القائمة ---------- */
   async function drawList() {
     mount(root, empty("جارٍ التحميل…"));
-    const [all, st] = await Promise.all([api(`${base}?status=all`), api(`${base}/stats`)]);
+    const [all, st] = prefetched ? await prefetched : await Promise.all([api(`${base}?status=all`), api(`${base}/stats`)]);
+    prefetched = null;
     const P = st.papers;
     const pending = admin ? all.filter((p) => p.status === "ready") : [];
     const recentDraft = !admin && all.find((p) => p.status === "draft" && Date.now() - new Date(p.updated_at) < 3 * 86400000);
@@ -243,7 +248,8 @@ export async function examSection({ base, me, admin = false }) {
     for (const el of [fUnit, fq]) el.addEventListener("input", () => { clearTimeout(el._t); el._t = setTimeout(load, 300); });
 
     // تعديل أو إضافة سؤال في البنك بنفس محرر الأسئلة
-    function editBankQuestion(row) {
+    async function editBankQuestion(row) {
+      const { questionEditor } = await import("./editor.js");   // المحرر يُحمّل عند فتحه فقط
       const isNew = !row;
       const q = row ? structuredClone({ ...row, id: undefined }) : newQuestion("mcq");
       if (!q.id) q.id = "q_bank";

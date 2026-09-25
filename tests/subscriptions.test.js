@@ -30,7 +30,8 @@ before(async () => {
   s.basic = plans.find((p) => p.code === "basic");
   s.pro = plans.find((p) => p.code === "pro");
   // حالة معروفة للباقة الأساسية في كل تشغيل (تشغيل سابق متوقف قد يترك تعديلًا)
-  s.basic = { ...s.basic, monthly_price: 299, promo_percent: null, promo_label: null, promo_ends_at: null, is_public: true, status: "active",
+  s.basic = { ...s.basic, monthly_price: 299, discount_kind: "none", discount_value: null, promo_label: null, discount_ends_at: null, discount_starts_at: null,
+    sale_monthly_price: null, sale_yearly_price: null, is_public: true, status: "active",
     features: ["students", "teachers", "structure", "parent_portal", "data_export", "attendance", "exams", "reports", "homework",
       "announcements", "messaging", "whatsapp_support"] };
   assert.equal((await owner.put(`/api/owner/plans/${s.basic.id}`, { plan: s.basic, apply: "new" })).status, 200);
@@ -50,7 +51,7 @@ test("الصفحة العامة تقرأ الباقات والأسعار وال�
   assert.ok(!basic.features.some((f) => f.key === "timetable"), "الأساسية لا تشمل الجدول");
 
   // تغيير السعر وإضافة ميزة وعرض مؤقت من لوحة المالك يظهر فورًا
-  const plan = { ...s.basic, monthly_price: 349, promo_percent: 20, promo_label: "عرض الافتتاح", promo_ends_at: day(10),
+  const plan = { ...s.basic, monthly_price: 349, discount_kind: "percent", discount_value: 20, promo_label: "عرض الافتتاح", discount_ends_at: day(10),
     features: [...s.basic.features, "timetable"] };
   const up = await owner.put(`/api/owner/plans/${s.basic.id}`, { plan, apply: "new" });
   assert.equal(up.status, 200, JSON.stringify(up.data));
@@ -240,4 +241,64 @@ test("حد المعلمين من الباقة، وإحصاءات المالك، 
   assert.equal(rows.length, 0, "RLS: الكتابة للمنصة فقط");
   const other = await transaction({ tenantId: s.school }, (q) => q("SELECT count(*)::int AS n FROM subscriptions WHERE tenant_id <> $1", [s.school]));
   assert.equal(other[0].n, 0, "المدرسة ترى اشتراكاتها فقط");
+});
+
+test("نماذج الصفحة العامة: التجربة والتواصل بلا مدة، والاشتراك بمدة افتراضية سنوية (خطأ billing_cycle)", async () => {
+  for (const old of (await owner.get("/api/owner/requests")).data.filter((x) => x.source === "public")) await owner.del(`/api/owner/requests/${old.id}`);
+  const anon = client(srv.base);
+  const base = { school_name: "مدرسة النماذج", contact_name: "سالم", phone: "0550000001" };
+  // كما يرسلها المتصفح: null للحقول غير المستخدمة
+  const trial = await anon.post("/api/public/leads", { ...base, kind: "trial", plan_id: null, billing_cycle: null, months: null, try_plan: true, addon_keys: [] });
+  assert.equal(trial.status, 201, JSON.stringify(trial.data));
+  const contact = await anon.post("/api/public/leads", { ...base, kind: "contact", billing_cycle: null, plan_id: null });
+  assert.equal(contact.status, 201, JSON.stringify(contact.data));
+  const noCycle = await anon.post("/api/public/leads", { ...base, kind: "subscription", plan_id: s.pro.id });
+  assert.equal(noCycle.status, 201, JSON.stringify(noCycle.data));
+  const list = (await owner.get("/api/owner/requests")).data.filter((x) => x.school_name === "مدرسة النماذج");
+  assert.equal(list.find((x) => x.kind === "subscription").billing_cycle, "yearly", "الافتراضي سنوي");
+  assert.equal(list.find((x) => x.kind === "trial").billing_cycle, null, "التجربة بلا مدة");
+  // قيمة خاطئة فعلًا: رسالة عربية بدون اسم الحقل الداخلي
+  const bad = await anon.post("/api/public/leads", { ...base, kind: "subscription", billing_cycle: "weekly" });
+  assert.equal(bad.status, 400);
+  assert.match(bad.data.error, /مدة الاشتراك/);
+  assert.ok(!bad.data.error.includes("billing_cycle"));
+});
+
+test("خصم الباقة: نسبة، مبلغ، سعر نهائي، وتواريخ العرض — والبطاقات العامة تقرأ من قاعدة البيانات", async () => {
+  const site = () => fetch(`${srv.base}/api/site`).then((r) => r.json());
+  const put = (patch) => owner.put(`/api/owner/plans/${s.pro.id}`, { plan: { ...s.pro, monthly_price: 149, yearly_price: 1490, promo_label: null, ...patch }, apply: "new" });
+  const pro = async () => (await site()).plans.find((p) => p.code === "pro");
+  await owner.put("/api/owner/settings", { landing_mode: "marketing" });
+
+  assert.equal((await put({ discount_kind: "none" })).status, 200);
+  let p = await pro();
+  assert.deepEqual([p.monthly.base, p.monthly.final, p.monthly.promo], [149, 149, false], "بدون خصم: السعر الطبيعي");
+
+  assert.equal((await put({ discount_kind: "price", sale_monthly_price: 99, sale_yearly_price: 990 })).status, 200);
+  p = await pro();
+  assert.deepEqual([p.monthly.base, p.monthly.final, p.monthly.promo, p.monthly.percent], [149, 99, true, 34], "149 ← 99");
+  assert.equal(p.yearly.final, 990);
+
+  await put({ discount_kind: "amount", discount_value: 50 });
+  assert.equal((await pro()).monthly.final, 99);
+  await put({ discount_kind: "percent", discount_value: 20 });
+  assert.equal((await pro()).monthly.final, 119.2);
+
+  await put({ discount_kind: "percent", discount_value: 20, discount_starts_at: day(3) });
+  assert.equal((await pro()).monthly.promo, false, "العرض لم يبدأ بعد");
+  await put({ discount_kind: "percent", discount_value: 20, discount_ends_at: day(-1) });
+  assert.equal((await pro()).monthly.promo, false, "العرض انتهى");
+  await put({ discount_kind: "percent", discount_value: 20, discount_ends_at: day(5) });
+  p = await pro();
+  assert.equal(p.promo_ends_at, day(5), "تاريخ نهاية العرض يظهر");
+  assert.equal(p.promo_label, null, "لا يلزم ذكر سبب الخصم");
+
+  assert.equal((await put({ discount_kind: "price", sale_monthly_price: 200 })).status, 400, "السعر بعد الخصم أعلى من الأصلي");
+  assert.equal((await put({ discount_kind: "percent", discount_value: 95 })).status, 400);
+
+  // سعر التفعيل للمدرسة يستخدم نفس الحساب
+  await put({ discount_kind: "price", sale_monthly_price: 99, sale_yearly_price: 990 });
+  const act = await owner.post(`/api/owner/subscriptions/${s.school}/activate`, { kind: "paid", plan_id: s.pro.id, billing_cycle: "monthly" });
+  assert.equal(Number(act.data.price), 99);
+  await put({ discount_kind: "none", monthly_price: s.pro.monthly_price, yearly_price: s.pro.yearly_price });
 });

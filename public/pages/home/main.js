@@ -36,7 +36,8 @@ function marketing(site) {
       h("a", { href: "#plans", onclick: (e) => { e.preventDefault(); go("plans"); } }, "الباقات"),
       trialOn ? h("a", { href: "#trial", onclick: (e) => { e.preventDefault(); go("trial"); } }, "التجربة المجانية") : null,
       h("a", { href: "#contact", onclick: (e) => { e.preventDefault(); go("contact"); } }, "تواصل معنا")),
-    trialOn ? h("button", { class: "st-btn gold sm", onclick: () => trialDialog(site) }, icons.gift({ size: 16 }), "ابدأ تجربتك المجانية") : null));
+    // زر التجربة الرئيسي في الواجهة وقسم التجربة فقط (لا تكرار في الشريط العلوي)
+    h("button", { class: "st-btn ghost sm", onclick: () => go("contact") }, "تواصل معنا")));
 
   const core = (site.features || []).filter((f) => f.kind !== "service");
   const hero = h("section", { class: "st-hero" }, h("div", { class: "in" },
@@ -106,7 +107,7 @@ function priceBlock(p, cycle) {
   if (!pr) return h("div", { class: "contact" }, "تواصل معنا للسعر");
   return h("div", { class: "st-price" },
     h("span", { class: "n" }, fmt(pr.final)), h("span", { class: "u" }, `${CUR[p.currency] || p.currency} ${unit}`),
-    pr.percent > 0 ? [h("del", {}, fmt(pr.base)), h("span", { class: "off" }, `خصم ${fmt(pr.percent)}%`)] : null);
+    pr.promo ? [h("del", {}, fmt(pr.base)), h("span", { class: "off" }, `وفر الآن ${fmt(pr.percent)}%`)] : null);
 }
 
 // قائمة طويلة تُطوى بعد 9 مميزات مع زر لعرض الكل
@@ -121,7 +122,9 @@ function featureList(list) {
 function planCard(p, cycle, site) {
   return h("div", { class: `st-plan${p.highlight ? " hi" : ""}` },
     p.badge ? h("span", { class: "badge" }, p.badge) : null,
-    p.promo_label ? h("div", { class: "promo" }, `${p.promo_label} — حتى ${p.promo_ends_at}`) : null,
+    // العرض: نصه اختياري، وتاريخ انتهائه يظهر إن حدده المالك
+    (p.monthly?.promo || p.yearly?.promo) && (p.promo_label || p.promo_ends_at)
+      ? h("div", { class: "promo" }, [p.promo_label, p.promo_ends_at ? `العرض ساري حتى ${p.promo_ends_at}` : null].filter(Boolean).join(" — ")) : null,
     h("h3", {}, p.name), h("div", { class: "tag" }, p.tagline || ""),
     priceBlock(p, cycle),
     p.setup_fee > 0 ? h("div", { class: "sub" }, `رسوم تجهيز لمرة واحدة: ${fmt(p.setup_fee)} ${CUR[p.currency] || ""}`) : null,
@@ -169,7 +172,8 @@ function leadForm(site, { kind, plan = null, cycle = "yearly", onDone }) {
     try {
       await api("/api/public/leads", {
         kind, ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])),
-        plan_id: planSel?.value || null, billing_cycle: cycleSel?.value || null, try_plan: tryPlan ? tryPlan.checked : true,
+        plan_id: planSel?.value || null, ...(kind === "subscription" ? { billing_cycle: cycleSel?.value || "yearly" } : {}),
+        try_plan: tryPlan ? tryPlan.checked : true,
         addon_keys: [...addonsBox.querySelectorAll("input:checked")].map((x) => x.value),
       });
       for (const el of Object.values(f)) el.value = "";

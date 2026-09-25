@@ -150,3 +150,13 @@ test("ملف الطالب لولي الأمر لا يستلم الحقول ال�
   assert.ok(list?.length >= 1, "الفواتير ظاهرة لولي الأمر");
   for (const k of ["guardian_phone", "access_key", "_total", "student_name"]) assert.ok(!(k in list[0]), k);
 });
+
+test("التحليلات: term_id=current يُحسم في الخادم (طلب واحد مع بيانات السنة بالتوازي)", async () => {
+  const academic = await admin.get("/api/admin/academic");
+  const current = academic.data.current?.term_id;
+  const viaCurrent = await admin.get("/api/admin/analytics?months=6&term_id=current");
+  assert.equal(viaCurrent.status, 200, JSON.stringify(viaCurrent.data));
+  const explicit = await admin.get(`/api/admin/analytics?months=6${current ? `&term_id=${current}` : ""}`);
+  assert.deepEqual(viaCurrent.data, explicit.data, "نفس نتيجة تحديد الفصل الحالي صراحة");
+  assert.equal((await admin.get("/api/admin/analytics?months=6&term_id=abc")).status, 400);
+});

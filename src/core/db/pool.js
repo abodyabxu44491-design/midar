@@ -61,8 +61,17 @@ export async function closePool() {
  * @param {(q: (sql: string, params?: any[]) => Promise<any[]>, client: pg.PoolClient) => Promise<T>} fn
  * @template T
  */
+// فتح اتصال مع محاولة ثانية واحدة: قواعد مثل Neon تتوقف بعد الخمول، وأول اتصال قد يفشل أثناء الاستيقاظ
+async function connect() {
+  const pool = await getPool();
+  try { return await pool.connect(); } catch (e) {
+    await new Promise((r) => setTimeout(r, 800));
+    return pool.connect();
+  }
+}
+
 export async function transaction(ctx, fn) {
-  const client = await (await getPool()).connect();
+  const client = await connect();
   recordTx();
   // كل رحلة لقاعدة البيانات تُقاس (Server-Timing)
   const raw = client.query.bind(client);

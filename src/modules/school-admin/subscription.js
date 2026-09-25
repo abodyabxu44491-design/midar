@@ -58,7 +58,7 @@ const requestSchema = z.object({
   kind: z.enum(["feature", "upgrade", "renewal", "subscription", "contact"]),
   feature_key: z.string().max(40).optional(),
   plan_id: t.optId,
-  billing_cycle: z.enum(["monthly", "yearly"]).optional(),
+  billing_cycle: z.union([z.enum(["monthly", "yearly"]), z.literal(""), z.null()]).optional().transform((v) => v || undefined),
   months: z.coerce.number().int().min(1).max(36).optional(),
   note: t.optText(1000),
   contact_name: t.optText(120),

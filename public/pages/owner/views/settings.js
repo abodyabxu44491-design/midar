@@ -64,5 +64,26 @@ export default async function settings() {
       h("div", { class: "row" }, field("فترة السماح الافتراضية بعد انتهاء الاشتراك (يوم)", grace, "0 = بدون فترة سماح"),
         field("المميزات غير المتاحة في باقة المدرسة", reqMode))),
     msg, btn("حفظ الإعدادات", save),
+    diagnosticsPanel(),
   ];
+}
+
+// فحص بيئة التشغيل: ما يراه الخادم فعليًا بعد النشر (مثلًا على Render)
+function diagnosticsPanel() {
+  const box = h("div");
+  const run = async () => {
+    mount(box, sub("جارٍ الفحص…"));
+    try {
+      const d = await api("/api/owner/settings/diagnostics");
+      mount(box,
+        d.checks.map((c) => h("div", { class: `diag ${c.ok ? "ok" : "bad"}` }, h("b", {}, c.ok ? "✓ " : "✗ ", c.text), c.fix ? sub(`الحل: ${c.fix}`) : null)),
+        h("details", {}, h("summary", { class: "small", style: "cursor:pointer;margin-top:8px" }, "التفاصيل"),
+          [["عنوانك كما يراه الخادم", d.ip], ["سلسلة الوكلاء", d.forwarded_for.join(" ← ") || "—"], ["TRUST_PROXY", d.trust_proxy],
+            ["الرابط PUBLIC_URL", d.public_url || "غير محدد"], ["النطاق الحالي", `${d.protocol}://${d.host}`], ["COOKIE_SECURE", String(d.cookie_secure)],
+            ["وضع الكوكي", d.session_cookie_mode], ["قاعدة البيانات", `PostgreSQL ${d.db.server_version} — ${d.db.ms} مللي ثانية`]]
+            .map(([k, v]) => h("div", { class: "line" }, h("span", { class: "sub" }, k), h("b", { class: "ltr" }, String(v))))));
+    } catch (e) { mount(box, notice(e.message, "err")); }
+  };
+  return panel("فحص بيئة التشغيل", btn("تشغيل الفحص", run, "ghost sm"),
+    sub("يتحقق من إعدادات النشر التي تؤثر على تسجيل الدخول والأمان (مثل الثقة بوكيل Render ورابط المنصة)."), box);
 }

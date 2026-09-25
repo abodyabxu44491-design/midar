@@ -94,13 +94,16 @@ export async function api(url, body, method) {
   }
   const hit = cache.get(url);
   if (hit && hit.until > Date.now()) return structuredClone(hit.data);
-  if (inflight.has(url)) return structuredClone(await inflight.get(url));
+  // النسخ فقط حين تكون الاستجابة مشتركة (كاش أو طلب مدمج)، حتى لا تعدّل شاشة بيانات شاشة أخرى.
+  // الاستجابة العادية تُعاد كما هي (النسخ العميق لبيانات كبيرة مكلف على معالجات الجوال).
+  if (inflight.has(url)) { const shared = inflight.get(url); shared.shared = true; return structuredClone(await shared); }
   const p = withRetry(() => once(url, "GET", undefined, 25_000));
   inflight.set(url, p);
   try {
     const data = await p;
-    if (CACHEABLE.some((re) => re.test(url.split("?")[0]))) cache.set(url, { data, until: Date.now() + CACHE_MS });
-    return structuredClone(data);
+    const cacheable = CACHEABLE.some((re) => re.test(url.split("?")[0]));
+    if (cacheable) cache.set(url, { data, until: Date.now() + CACHE_MS });
+    return cacheable || p.shared ? structuredClone(data) : data;
   } finally {
     inflight.delete(url);
   }

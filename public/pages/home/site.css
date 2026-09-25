@@ -109,3 +109,6 @@ dialog.st-dlg { width: min(560px, 96vw); }
   .st-form .addons { grid-template-columns: 1fr; }
   .st-nav .st-btn { padding: 7px 12px; font-size: 13px; }
 }
+
+/* نماذج الموقع داخل الحوار: زر الإرسال ثابت أسفل الحوار */
+dialog.st-dlg .st-form > div > .st-btn.wide:last-child { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 14px #fff; }

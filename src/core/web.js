@@ -64,6 +64,48 @@ export function moduleGraph(entryUrl, limit = 80) {
   return [...seen];
 }
 
+// خريطة الاعتماديات المباشرة لكل وحدة (رابط بلا إصدار ← روابط ما تستورده). تُضمَّن في الصفحة كبيانات JSON
+// حتى يحمّل المتصفح كل ملفات القسم معًا عند فتحه (بدل اكتشافها مستوى بعد مستوى، وكل مستوى رحلة شبكة).
+let graphCache = null;
+export function fullGraph(isProd) {
+  if (isProd && graphCache) return graphCache;
+  const graph = {};
+  const walk = (dir, base) => {
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory()) { if (name !== "vendor") walk(full, `${base}/${name}`); continue; }
+      if (!name.endsWith(".js")) continue;
+      const url = `${base}/${name}`;
+      const deps = [...fs.readFileSync(full, "utf8").matchAll(IMPORT_RE)].map((m) => path.posix.join(path.posix.dirname(url), m[1]));
+      if (deps.length) graph[url] = deps;
+    }
+  };
+  for (const [mount, dir] of Object.entries(MOUNTS)) walk(dir, `/${mount}`);
+  graphCache = graph;
+  return graph;
+}
+
+// الجزء من الخريطة الذي تصل إليه صفحة معينة (باستيراد ثابت أو عند الطلب) فقط:
+// الصفحة العامة لا تحمل أي مسارات لوحات الموظفين (لا تكشف روابط داخلية).
+// أي نص لمسار وحدة نسبي داخل الملف (import(...) أو new URL(..., import.meta.url) أو تمريره لدالة تحميل)
+const DYNAMIC_RE = /["'](\.{1,2}\/[^"'\s]+\.js)["']/g;
+export function pageGraph(entries, isProd) {
+  const graph = fullGraph(isProd);
+  const seen = new Set();
+  const stack = [...entries];
+  while (stack.length) {
+    const url = stack.pop();
+    if (seen.has(url)) continue;
+    seen.add(url);
+    for (const d of graph[url] || []) stack.push(d);
+    const file = fileOfUrl(url);
+    if (file && fs.existsSync(file)) {
+      for (const m of fs.readFileSync(file, "utf8").matchAll(DYNAMIC_RE)) stack.push(path.posix.join(path.posix.dirname(url), m[1]));
+    }
+  }
+  return Object.fromEntries(Object.entries(graph).filter(([k]) => seen.has(k)));
+}
+
 /* ---------- الصفحات ---------- */
 const pageCache = new Map();
 export function renderPage(file, { isProd }) {
@@ -74,7 +116,8 @@ export function renderPage(file, { isProd }) {
   const preload = entries.flatMap((e) => moduleGraph(e)).filter((u, i, a) => a.indexOf(u) === i)
     .map((u) => `<link rel="modulepreload" href="${v}${u}">`).join("\n  ");
   html = html.replace(MOUNT_RE, (all, attr, mount) => `${attr}="${v}/${mount}/`);
-  html = html.replace("</head>", `  <meta name="app-version" content="${APP_VERSION}">\n  ${preload}\n</head>`);
+  const graph = JSON.stringify(pageGraph(entries, isProd)).replace(/</g, "\\u003c");
+  html = html.replace("</head>", `  <meta name="app-version" content="${APP_VERSION}">\n  ${preload}\n  <script type="application/json" id="module-graph">${graph}</script>\n</head>`);
   if (isProd) pageCache.set(file, html);
   return html;
 }

@@ -46,11 +46,30 @@ input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(
 input[type=checkbox] { width: auto; }
 .ltr { direction: ltr; text-align: left; }
 
-.btn { font: inherit; font-weight: 600; font-size: 14px; padding: 9px 16px; border-radius: 8px; border: none; background: var(--accent); color: #fff; cursor: pointer; white-space: nowrap; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
-.btn.soft { background: var(--teal-soft); color: var(--teal); }
-.btn.danger { background: #fff; color: var(--red); border: 1px solid var(--red); }
+/* ---------- نظام الأزرار الموحد ----------
+   primary: الإجراء الرئيسي | secondary: إجراء ثانوي بإطار | ghost: محايد | soft: خفيف | danger: حذف وإلغاء
+   whatsapp / contact: التواصل | open: فتح رابط | copy: نسخ | trial: التجربة المجانية
+   كل زر له حالات: hover، pressed (active)، disabled، وتركيز لوحة المفاتيح (focus-visible). */
+.btn { --b-bg: var(--accent); --b-fg: #fff; --b-bd: transparent; --b-hover: var(--b-bg);
+  font: inherit; font-weight: 600; font-size: 14px; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--b-bd);
+  background: var(--b-bg); color: var(--b-fg); cursor: pointer; white-space: nowrap; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background .15s, border-color .15s, transform .05s; }
+.btn:hover { background: var(--b-hover); filter: brightness(.96); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:focus-visible { outline: 3px solid rgba(11, 122, 117, .35); outline-offset: 2px; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; transform: none; }
+.btn svg { flex: none; }
+.btn.primary { --b-bg: var(--accent); --b-fg: #fff; }
+.btn.secondary { --b-bg: #fff; --b-fg: var(--accent); --b-bd: var(--accent); --b-hover: var(--teal-soft); }
+.btn.ghost { --b-bg: #fff; --b-fg: var(--ink); --b-bd: var(--line); --b-hover: #F4F6F9; }
+.btn.soft { --b-bg: var(--teal-soft); --b-fg: var(--teal); --b-hover: #D3EAE8; }
+.btn.danger { --b-bg: #fff; --b-fg: var(--red); --b-bd: var(--red); --b-hover: #FDECEA; }
+.btn.whatsapp { --b-bg: #1FA855; --b-fg: #fff; --b-hover: #188C46; }
+.btn.contact { --b-bg: var(--navy); --b-fg: #fff; --b-hover: #0F1B38; }
+.btn.open { --b-bg: #fff; --b-fg: var(--accent); --b-bd: var(--line); --b-hover: var(--teal-soft); }
+.btn.copy { --b-bg: #F4F6F9; --b-fg: var(--ink); --b-bd: var(--line); --b-hover: #E8ECF2; }
+.btn.copy.done { --b-bg: var(--teal-soft); --b-fg: var(--teal); --b-bd: var(--teal); }
+.btn.trial { --b-bg: var(--amber); --b-fg: #fff; --b-hover: #D98F24; }
 .btn.sm { padding: 5px 10px; font-size: 13px; }
 .btn.wide { width: 100%; }
 
@@ -105,6 +124,10 @@ table.grid th { color: var(--muted); font-weight: 600; }
 dialog { border: none; border-radius: 14px; padding: 0; width: min(440px, calc(100% - 32px)); }
 dialog::backdrop { background: rgba(22, 36, 74, .45); }
 dialog .d-in { padding: 18px; }
+/* أزرار الحوار ثابتة أسفله: زر الإرسال ظاهر دائمًا حتى لو كان النموذج أطول من شاشة الجوال */
+dialog:modal { max-height: calc(100dvh - 24px); overflow: auto; overscroll-behavior: contain; }
+dialog .d-in > .row.spaced:last-child { position: sticky; bottom: -18px; background: #fff; margin: 0 -18px -18px; padding: 12px 18px 18px;
+  border-top: 1px solid var(--line); z-index: 2; }
 
 /* صفحة الطلاب */
 .class-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
@@ -462,7 +485,10 @@ button.section-chip:hover { border-color: var(--accent); }
 .gate-roles h3 { color: rgba(255,255,255,.85); font-size: 13.5px; margin: 0 0 8px; font-weight: 600; }
 .role-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .role-card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
-  padding: 10px 8px; text-align: center; color: #fff; font-size: 13px; }
+  padding: 10px 8px; text-align: center; color: #fff; font: inherit; font-size: 13px; cursor: pointer; transition: background .15s, border-color .15s; }
+.role-card:hover { background: rgba(255,255,255,.14); }
+.role-card.on { background: rgba(127,214,207,.18); border-color: #7FD6CF; box-shadow: inset 0 0 0 1px #7FD6CF; font-weight: 700; }
+.role-card:focus-visible { outline: 2px solid #7FD6CF; outline-offset: 2px; }
 .role-card small { display: block; color: rgba(255,255,255,.6); font-size: 11px; margin-top: 2px; }
 .gate-foot { text-align: center; color: rgba(255,255,255,.6); font-size: 12.5px; margin-top: 14px; }
 .gate-badge { display: inline-flex; align-items: center; gap: 6px; color: rgba(255,255,255,.75); font-size: 12.5px; }
@@ -550,3 +576,22 @@ img[loading="lazy"] { content-visibility: auto; }
   .line > .row { flex: 1 1 100% !important; flex-wrap: wrap; justify-content: flex-start; min-width: 0; }
   .line > .row > * { min-width: 0 !important; flex: 0 1 auto; }
 }
+.diag { padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; }
+.diag.ok { background: var(--teal-soft); color: var(--teal); }
+.diag.bad { background: #FDECEA; color: var(--red); }
+
+/* ---------- صف الرابط: الرابط ← نسخ ← فتح ---------- */
+.link-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-bottom: 8px; }
+.link-row .lr-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.link-row .lr-text > b { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.link-row .lr-text small { color: var(--muted); font-size: 12px; }
+.link-row .lr-url, .link-row .lr-val { font-size: 13px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: left; }
+.link-row .lr-val { color: var(--ink); font-family: ui-monospace, Menlo, Consolas, monospace; background: #F4F6F9; padding: 2px 6px; border-radius: 6px; align-self: flex-start; }
+.link-row .lr-acts { display: flex; gap: 6px; flex: none; }
+@media (max-width: 560px) { .link-row { flex-wrap: wrap; } .link-row .lr-acts { width: 100%; } .link-row .lr-acts .btn { flex: 1; } }
+.school-row { font: inherit; width: 100%; text-align: start; display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; color: var(--ink); }
+.school-row:hover { border-color: var(--accent); }
+.school-row > div { flex: 1; min-width: 0; }
+.school-row .go { color: var(--accent); font-size: 20px; }
+.sec-title { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); }

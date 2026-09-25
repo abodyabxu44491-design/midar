@@ -4,13 +4,13 @@ import { $, mount, h } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { topbar, footer, tabs, lazy, panel, notice, passwordChangeScreen } from "../shared/js/ui.js";
 import home from "./views/home.js";
-const attendance = lazy(() => import("./views/attendance.js"));
-const exams = lazy(() => import("./views/exams.js"));
-const announcements = lazy(() => import("./views/announcements.js"));
-const account = lazy(() => import("./views/account.js"));
-const timetable = lazy(() => import("./views/timetable.js"));
-const homework = lazy(() => import("./views/homework.js"));
-const papers = lazy(() => import("./views/papers.js"));
+const attendance = lazy(() => import("./views/attendance.js"), new URL("./views/attendance.js", import.meta.url).pathname);
+const exams = lazy(() => import("./views/exams.js"), new URL("./views/exams.js", import.meta.url).pathname);
+const announcements = lazy(() => import("./views/announcements.js"), new URL("./views/announcements.js", import.meta.url).pathname);
+const account = lazy(() => import("./views/account.js"), new URL("./views/account.js", import.meta.url).pathname);
+const timetable = lazy(() => import("./views/timetable.js"), new URL("./views/timetable.js", import.meta.url).pathname);
+const homework = lazy(() => import("./views/homework.js"), new URL("./views/homework.js", import.meta.url).pathname);
+const papers = lazy(() => import("./views/papers.js"), new URL("./views/papers.js", import.meta.url).pathname);
 
 const app = $("#app");
 

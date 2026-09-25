@@ -1,6 +1,7 @@
 // الرئيسية: الملخص وبيانات الجلسة
 import { Router } from "express";
 import { accessSummary } from "../shared/subscription.service.js";
+import { schoolLinks } from "../../core/links.js";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
 import { schoolTotals } from "../shared/finance.service.js";
@@ -16,6 +17,7 @@ r.get("/me", handle(async (req, res) => {
     name: req.user.full_name,
     must_change_password: req.user.must_change_password,
     access: accessSummary(req),
+    links: schoolLinks(req, req.tenant.id),
     school: { id: t.id, name: t.name, max_students: t.max_students, subscription_end: t.subscription_end, directory_code: t.directory_code, currency: t.currency },
   });
 }));

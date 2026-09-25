@@ -3,7 +3,7 @@ import { h, mount } from "../../shared/js/dom.js";
 import { mySubscription } from "./my-subscription.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
-  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar , passwordInput} from "../../shared/js/ui.js";
+  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar, passwordInput, linkRow } from "../../shared/js/ui.js";
 import { csv, parseCsv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 
@@ -248,9 +248,23 @@ async function pageView({ me }) {
   const mode = select([["code", "تحتاج رمزًا (أكثر خصوصية)"], ["open", "مفتوحة لمن يعرف الرابط"]], { value: pub.access_mode });
   mode.addEventListener("change", () => save({ access_mode: mode.value }));
 
+  // واجهة الموقع المصغّر: النبذة وبيانات التواصل
+  const about = textarea({ rows: 3, value: pub.about || "", placeholder: "نبذة قصيرة عن المدرسة تظهر في أعلى الصفحة (اختياري)", maxLength: 800 });
+  const L = me.links;
   return [
-    panel("طريقة الدخول", btn("معاينة", () => window.open(directoryLink(me), "_blank"), "ghost sm"),
+    panel("روابط مدرستك", null,
+      sub("الرابط العام تشاركه مع أولياء الأمور. روابط الدخول خاصة بالمنسوبين ولا تظهر في الصفحة العامة."),
+      linkRow("صفحة الطلاب وأولياء الأمور (عامة)", L.public.home, { note: "الرئيسية، الطلاب، التسجيل، الإعلانات" }),
+      linkRow("قائمة الطلاب مباشرة", L.public.students),
+      h("h4", { style: "margin:14px 0 6px" }, "روابط الدخول (للمنسوبين فقط)"),
+      linkRow("دخول الإدارة", L.staff.admin), linkRow("دخول المعلمين", L.staff.teacher), linkRow("دخول المحاسب", L.staff.accountant)),
+    panel("طريقة الدخول", btn("معاينة", () => window.open(L.public.home, "_blank"), "ghost sm"),
       field("دخول صفحة المدرسة", mode), msg),
+    panel("واجهة الصفحة", null,
+      field("نبذة عن المدرسة", about),
+      btn("حفظ النبذة", () => save({ about: about.value.trim() || null }), "primary sm"),
+      line(h("div", {}, h("b", {}, "إظهار بيانات التواصل"), sub("الهاتف والبريد والعنوان من «ملف المدرسة»")),
+        switchBtn(pub.show_contact, "بيانات التواصل", (next) => save({ show_contact: next })))),
 
     panel("ما يظهر للزوار", null,
       PAGE_OPTIONS.map(([key, label, hint]) => line(

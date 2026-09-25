@@ -27,8 +27,8 @@ export default async function plans({ refresh }) {
       h("div", {}, sub("المعلمون"), h("b", {}, p.max_teachers ?? "مفتوح")),
       h("div", {}, sub("مدارس عليها"), h("b", {}, p.schools)),
       h("div", {}, sub("تجربة مجانية"), h("b", {}, p.trial_enabled ? "متاحة" : "لا"))),
-    Number(p.discount_percent) > 0 ? sub(`خصم عام ${Number(p.discount_percent)}%`) : null,
-    p.promo_percent ? sub(`عرض مؤقت: ${p.promo_label || ""} ${Number(p.promo_percent)}% حتى ${p.promo_ends_at}`) : null,
+    p.discount_kind && p.discount_kind !== "none" ? sub(`خصم: ${{ percent: `${Number(p.discount_value)}%`, amount: `${Number(p.discount_value)} ${CUR[p.currency] || ""}`,
+      price: `سعر بعد الخصم ${p.sale_monthly_price ?? "—"} شهري / ${p.sale_yearly_price ?? "—"} سنوي` }[p.discount_kind]}${p.discount_starts_at ? ` من ${String(p.discount_starts_at).slice(0, 10)}` : ""}${p.discount_ends_at ? ` حتى ${String(p.discount_ends_at).slice(0, 10)}` : ""}`) : null,
     h("div", { class: "xb-chips", style: "margin-top:10px" }, p.features.map((k) => h("span", { class: "xb-chip", style: "cursor:default" }, icons.check({ size: 12 }), " ", byKey.get(k)?.name || k))));
 
   return [
@@ -59,10 +59,13 @@ function editor(p, catalog, refresh) {
     monthly_price: input({ type: "number", min: 0, step: "0.01", value: p.monthly_price ?? "" }),
     yearly_price: input({ type: "number", min: 0, step: "0.01", value: p.yearly_price ?? "" }),
     setup_fee: input({ type: "number", min: 0, step: "0.01", value: p.setup_fee ?? 0 }),
-    discount_percent: input({ type: "number", min: 0, max: 90, value: Number(p.discount_percent || 0) }),
-    promo_label: input({ value: p.promo_label || "", placeholder: "مثل: عرض العودة للمدارس" }),
-    promo_percent: input({ type: "number", min: 1, max: 90, value: p.promo_percent ?? "" }),
-    promo_ends_at: input({ type: "date", value: p.promo_ends_at || "" }),
+    discount_kind: select([["none", "بدون خصم"], ["percent", "نسبة مئوية %"], ["amount", "مبلغ يُخصم من السعر"], ["price", "سعر نهائي بعد الخصم"]], { value: p.discount_kind || "none" }),
+    discount_value: input({ type: "number", min: 0, step: "0.01", value: p.discount_value ?? "" }),
+    sale_monthly_price: input({ type: "number", min: 0, step: "0.01", value: p.sale_monthly_price ?? "" }),
+    sale_yearly_price: input({ type: "number", min: 0, step: "0.01", value: p.sale_yearly_price ?? "" }),
+    discount_starts_at: input({ type: "date", value: (p.discount_starts_at || "").slice(0, 10) }),
+    discount_ends_at: input({ type: "date", value: (p.discount_ends_at || "").slice(0, 10) }),
+    promo_label: input({ value: p.promo_label || "", placeholder: "اختياري، مثل: عرض الافتتاح" }),
     max_students: input({ type: "number", min: 1, value: p.max_students ?? "", placeholder: "مفتوح" }),
     max_teachers: input({ type: "number", min: 1, value: p.max_teachers ?? "", placeholder: "مفتوح" }),
     sort: input({ type: "number", value: p.sort ?? 100 }),
@@ -84,14 +87,43 @@ function editor(p, catalog, refresh) {
   }));
   drawFeats();
 
+  // الخصم: الحقول المناسبة لنوعه فقط، مع معاينة حية للسعر كما سيظهر في الصفحة العامة
+  const discountBox = h("div");
+  const preview = h("div", { class: "notice" });
+  const drawDiscount = () => {
+    const k = f.discount_kind.value;
+    mount(discountBox,
+      h("div", { class: "row" }, field("نوع الخصم", f.discount_kind),
+        k === "percent" ? field("النسبة %", f.discount_value) : k === "amount" ? field("المبلغ المخصوم", f.discount_value) : null),
+      k === "price" ? h("div", { class: "row" }, field("السعر الشهري بعد الخصم", f.sale_monthly_price), field("السعر السنوي بعد الخصم", f.sale_yearly_price)) : null,
+      k !== "none" ? h("div", { class: "row" }, field("يبدأ في (اختياري)", f.discount_starts_at), field("ينتهي في (اختياري)", f.discount_ends_at), field("نص العرض (اختياري)", f.promo_label)) : null,
+      k !== "none" ? preview : null);
+    paintPreview();
+  };
+  const paintPreview = () => {
+    const k = f.discount_kind.value;
+    const v = Number(f.discount_value.value || 0);
+    const cur = CUR[f.currency.value] || "";
+    const line = (label, base, sale) => {
+      if (base === "" || base == null) return null;
+      const b = Number(base);
+      const fin = k === "percent" ? b * (100 - v) / 100 : k === "amount" ? Math.max(0, b - v) : sale !== "" ? Number(sale) : b;
+      return h("div", {}, `${label}: `, fin < b ? [h("del", {}, `${b} ${cur}`), " ← ", h("b", {}, `${Math.round(fin * 100) / 100} ${cur}`), ` (وفر ${Math.round((1 - fin / b) * 100)}%)`] : h("b", {}, `${b} ${cur} (بدون خصم)`));
+    };
+    mount(preview, h("b", {}, "كما سيظهر للعملاء:"), line("شهري", f.monthly_price.value, f.sale_monthly_price.value), line("سنوي", f.yearly_price.value, f.sale_yearly_price.value));
+  };
+  f.discount_kind.addEventListener("change", drawDiscount);
+  for (const el of [f.discount_value, f.sale_monthly_price, f.sale_yearly_price, f.monthly_price, f.yearly_price]) el.addEventListener("input", paintPreview);
+  drawDiscount();
+
   const body = h("div", {},
     h("div", { class: "row" }, field("اسم الباقة", f.name), field("رمز الباقة", f.code, "إنجليزي، لا يظهر للعملاء")),
     h("div", { class: "row" }, field("وصف مختصر", f.tagline), field("شارة", f.badge)),
     field("وصف", f.description),
     h("h4", {}, "الأسعار"),
     h("div", { class: "row" }, field("العملة", f.currency), field("السعر الشهري", f.monthly_price, "فارغ = غير متاح شهريًا"), field("السعر السنوي", f.yearly_price)),
-    h("div", { class: "row" }, field("رسوم تجهيز لمرة واحدة", f.setup_fee), field("خصم عام %", f.discount_percent)),
-    h("div", { class: "row" }, field("عرض مؤقت: العنوان", f.promo_label), field("نسبة العرض %", f.promo_percent), field("ينتهي في", f.promo_ends_at)),
+    field("رسوم تجهيز لمرة واحدة", f.setup_fee),
+    h("h4", {}, "الخصم (اختياري)"), discountBox,
     h("h4", {}, "الحدود والإعدادات"),
     h("div", { class: "row" }, field("حد الطلاب", f.max_students), field("حد المعلمين", f.max_teachers), field("الترتيب في الصفحة", f.sort)),
     h("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px;margin:8px 0" },
@@ -103,8 +135,10 @@ function editor(p, catalog, refresh) {
     return {
       name: f.name.value, code: f.code.value, tagline: f.tagline.value, badge: f.badge.value, description: f.description.value,
       currency: f.currency.value, monthly_price: num(f.monthly_price), yearly_price: num(f.yearly_price), setup_fee: Number(f.setup_fee.value || 0),
-      discount_percent: Number(f.discount_percent.value || 0), promo_label: f.promo_label.value, promo_percent: num(f.promo_percent),
-      promo_ends_at: f.promo_ends_at.value || null, max_students: num(f.max_students), max_teachers: num(f.max_teachers),
+      discount_kind: f.discount_kind.value, discount_value: num(f.discount_value),
+      sale_monthly_price: num(f.sale_monthly_price), sale_yearly_price: num(f.sale_yearly_price),
+      discount_starts_at: f.discount_starts_at.value || null, discount_ends_at: f.discount_ends_at.value || null,
+      promo_label: f.promo_label.value, max_students: num(f.max_students), max_teachers: num(f.max_teachers),
       trial_enabled: f.trial_enabled.checked, is_public: f.is_public.checked, highlight: f.highlight.checked, contact_only: f.contact_only.checked,
       sort: Number(f.sort.value || 100), features: order.filter((k) => on.has(k)),
     };

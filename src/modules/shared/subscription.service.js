@@ -5,6 +5,7 @@
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { MODULES, KEYS } from "./modules.service.js";
+import { displayPrice } from "./plans-public.service.js";
 
 export const STATUS_LABEL = {
   trial: "تجربة مجانية", active: "فعّال", pending_payment: "بانتظار الدفع", trial_expired: "انتهت التجربة",
@@ -98,15 +99,12 @@ export async function planSnapshot(q, planId) {
   };
 }
 
-// السعر الفعلي لمدرسة: سعرها الخاص إن وُجد، ثم العرض المؤقت أو الخصم العام للباقة
+// السعر الفعلي لمدرسة: سعرها الخاص إن وُجد، وإلا سعر الباقة بعد الخصم الساري (نفس دالة الصفحة العامة)
 export async function priceFor(q, tenantId, plan, cycle) {
   if (!["monthly", "yearly"].includes(cycle)) return 0;
   const [custom] = tenantId ? await q("SELECT * FROM tenant_prices WHERE tenant_id = $1 AND plan_id = $2", [tenantId, plan.id]) : [];
-  const base = Number((custom && custom[`${cycle}_price`]) ?? plan[`${cycle}_price`] ?? 0);
-  if (custom && custom[`${cycle}_price`] != null) return base;
-  const promo = plan.promo_percent && plan.promo_ends_at && iso(plan.promo_ends_at) >= today() ? Number(plan.promo_percent) : 0;
-  const pct = Math.max(promo, Number(plan.discount_percent || 0));
-  return Math.round(base * (100 - pct)) / 100;
+  if (custom && custom[`${cycle}_price`] != null) return Number(custom[`${cycle}_price`]);
+  return displayPrice(plan, cycle)?.final ?? 0;
 }
 
 /* ======================= السجل ======================= */

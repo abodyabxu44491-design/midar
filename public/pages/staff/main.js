@@ -2,7 +2,7 @@
 // والنظام يفتح لكل واحد لوحته حسب دوره في هذه المدرسة.
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { brandLogo, footer, field, input, select, textarea, btn, notice, sub, dialog, showInstallBar, passwordInput } from "../shared/js/ui.js";
+import { brandLogo, footer, field, input, select, textarea, btn, notice, sub, dialog, showInstallBar, passwordInput, preloadModule } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 
@@ -11,10 +11,14 @@ const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 
 // كل لوحة تُحمّل بعد معرفة دور الحساب فقط (صفحة الدخول لا تحمل كود اللوحات الثلاث)
+const portal = (rel, fn) => async () => {
+  preloadModule(new URL(rel, import.meta.url).pathname);   // كل ملفات اللوحة معًا بالتوازي
+  return (await import(rel))[fn]();
+};
 const open = {
-  admin: async () => (await import("../admin/app.js")).startAdmin(),
-  teacher: async () => (await import("../teacher/app.js")).startTeacher(),
-  accountant: async () => (await import("../accountant/app.js")).startAccountant(),
+  admin: portal("../admin/app.js", "startAdmin"),
+  teacher: portal("../teacher/app.js", "startTeacher"),
+  accountant: portal("../accountant/app.js", "startAccountant"),
 };
 
 async function start() {
@@ -34,13 +38,26 @@ async function start() {
 function showLogin(error) {
   const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم أو البريد الإلكتروني" });
   const pass = passwordInput({ autocomplete: "current-password", placeholder: "كلمة المرور" });
-  const remember = h("input", { type: "checkbox", id: "remember-me" });
+  // البقاء مسجلًا هو الافتراضي: الجلسة تبقى حتى تسجيل الخروج (يمكن إلغاؤه على جهاز مشترك)
+  const remember = h("input", { type: "checkbox", id: "remember-me", checked: true });
+  // اختيار الدور: يوضّح للمستخدم أي لوحة سيدخلها (والنظام يتحقق من الدور الفعلي للحساب)
+  const ROLES = [["admin", "الإداري", "الطلاب والفصول"], ["accountant", "المحاسب", "الرسوم والمالية"], ["teacher", "المعلم", "الدرجات والحضور"]];
+  const fromLink = new URLSearchParams(location.search).get("role");   // رابط الدور من صفحة المدرسة
+  let chosen = ["admin", "teacher", "accountant"].includes(fromLink) ? fromLink : (localStorage.getItem("midar_last_role") || "admin");
+  const roleCards = h("div", { class: "role-cards", role: "radiogroup", "aria-label": "اختر دورك" });
+  const drawRoles = () => {
+    mount(roleCards, ROLES.map(([k, name, note]) => h("button", {
+      type: "button", class: `role-card${chosen === k ? " on" : ""}`, role: "radio", "aria-checked": String(chosen === k),
+      onclick: () => { chosen = k; drawRoles(); submit.textContent = `دخول ${name}`; user.focus(); },
+    }, name, h("small", {}, note))));
+  };
   const msg = h("div", {}, error ? notice(error, "err") : null);
 
   const submit = btn("تسجيل الدخول", async () => {
     mount(msg);
     try {
-      const r = await api("/api/staff/login", { school, username: user.value, password: pass.value, remember: remember.checked });
+      if (!user.value.trim() || !pass.value) return mount(msg, notice("أدخل اسم المستخدم وكلمة المرور", "err"));
+      const r = await api("/api/staff/login", { school, username: user.value.trim(), password: pass.value, remember: remember.checked });
       pass.value = "";
       sessionStorage.setItem("midar_role", r.role);
       localStorage.setItem("midar_last_role", r.role);
@@ -49,7 +66,9 @@ function showLogin(error) {
       await open[r.role]();
     } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "wide");
-  for (const el of [user, pass]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
+  for (const el of [user, pass.inputEl || pass]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
+  drawRoles();
+  submit.textContent = `دخول ${ROLES.find(([k]) => k === chosen)?.[1] || ""}`;
 
   mount(app,
     h("div", { class: "gate" }, h("div", { class: "gate-wrap" },
@@ -74,18 +93,15 @@ function showLogin(error) {
         field("كلمة المرور", pass),
 
         h("div", { class: "gate-row" },
-          h("label", {}, remember, h("span", {}, "تذكرني")),
+          h("label", {}, remember, h("span", {}, "ابقني مسجلًا")),
           h("button", { class: "gate-link", type: "button", onclick: () => requestDialog(school) }, "نسيت كلمة المرور؟")),
 
         msg, submit,
 
         h("div", { class: "gate-roles" },
           h("h3", {}, "اختر دورك في المدرسة"),
-          h("div", { class: "role-cards" },
-            h("div", { class: "role-card" }, "الإداري", h("small", {}, "الطلاب والفصول")),
-            h("div", { class: "role-card" }, "المحاسب", h("small", {}, "الرسوم والمالية")),
-            h("div", { class: "role-card" }, "المعلم", h("small", {}, "الدرجات والحضور"))),
-          sub("يتعرف النظام على دورك تلقائيًا من حسابك بعد الدخول.")),
+          roleCards,
+          sub("يفتح النظام لوحة دورك الفعلي من حسابك تلقائيًا.")),
 
         h("div", { class: "gate-foot" },
           h("span", { class: "gate-badge" }, icons.lock({ size: 14 }), "وصول خاص وآمن"),

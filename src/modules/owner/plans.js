@@ -67,10 +67,12 @@ const planSchema = z.object({
   currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
   monthly_price: money, yearly_price: money,
   setup_fee: z.coerce.number().min(0).max(10_000_000).default(0),
-  discount_percent: z.coerce.number().min(0).max(90).default(0),
-  promo_label: t.optText(60),
-  promo_percent: z.union([z.coerce.number().min(1).max(90), z.literal(""), z.null()]).optional().transform((v) => (v === "" ? null : v)),
-  promo_ends_at: t.optDate,
+  // الخصم (اختياري): نسبة، أو مبلغ يُخصم، أو سعر نهائي لكل مدة — مع بداية ونهاية اختيارية
+  discount_kind: z.enum(["none", "percent", "amount", "price"]).default("none"),
+  discount_value: money,
+  sale_monthly_price: money, sale_yearly_price: money,
+  discount_starts_at: t.optDate, discount_ends_at: t.optDate,
+  promo_label: t.optText(60),                     // نص اختياري يظهر مع العرض (مثل «عرض الافتتاح»)
   contact_only: z.boolean().default(false),
   max_students: optInt(100000), max_teachers: optInt(10000),
   trial_enabled: z.boolean().default(true),
@@ -78,7 +80,13 @@ const planSchema = z.object({
   highlight: z.boolean().default(false),
   sort: z.coerce.number().int().min(0).max(1000).default(100),
   features: z.array(z.string().max(40)).max(200).default([]),          // بالترتيب المطلوب في الصفحة
-}).refine((p) => !p.promo_percent === !p.promo_ends_at, "العرض المؤقت يحتاج نسبة وتاريخ انتهاء معًا");
+})
+  .refine((p) => p.discount_kind !== "percent" || (p.discount_value >= 1 && p.discount_value <= 90), "نسبة الخصم بين 1 و90")
+  .refine((p) => p.discount_kind !== "amount" || p.discount_value > 0, "حدد مبلغ الخصم")
+  .refine((p) => p.discount_kind !== "price" || p.sale_monthly_price != null || p.sale_yearly_price != null, "حدد السعر بعد الخصم")
+  .refine((p) => p.discount_kind !== "price" || p.sale_monthly_price == null || p.monthly_price == null || p.sale_monthly_price < p.monthly_price, "السعر الشهري بعد الخصم يجب أن يكون أقل من الأصلي")
+  .refine((p) => p.discount_kind !== "price" || p.sale_yearly_price == null || p.yearly_price == null || p.sale_yearly_price < p.yearly_price, "السعر السنوي بعد الخصم يجب أن يكون أقل من الأصلي")
+  .refine((p) => !p.discount_starts_at || !p.discount_ends_at || p.discount_ends_at >= p.discount_starts_at, "نهاية العرض قبل بدايته");
 // التعديل: نفس الحقول + أين يُطبَّق التغيير
 const planUpdate = z.object({
   plan: z.any(),
@@ -105,7 +113,8 @@ async function writeFeatures(q, planId, keys) {
 }
 
 const PLAN_COLS = ["code", "name", "tagline", "description", "badge", "currency", "monthly_price", "yearly_price", "setup_fee",
-  "discount_percent", "promo_label", "promo_percent", "promo_ends_at", "contact_only", "max_students", "max_teachers",
+  "discount_kind", "discount_value", "sale_monthly_price", "sale_yearly_price", "discount_starts_at", "discount_ends_at",
+  "promo_label", "contact_only", "max_students", "max_teachers",
   "trial_enabled", "is_public", "highlight", "sort"];
 
 r.get("/plans", handle(async (req, res) => res.json(await platform(req, listPlans))));

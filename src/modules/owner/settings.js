@@ -1,5 +1,6 @@
 // إعدادات المنصة: شكل الصفحة الرئيسية وبيانات التواصل
 import { Router } from "express";
+import { env } from "../../config/env.js";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
@@ -47,6 +48,33 @@ r.put("/", handle(async (req, res) => {
     return q(`SELECT ${COLS.join(", ")} FROM platform_settings WHERE id`);
   });
   res.json(row);
+}));
+
+/* ---------- فحص بيئة التشغيل ----------
+   ما يراه الخادم فعليًا: عنوان الزائر المكتشف وسلسلة الوكلاء، وإعدادات الوكيل والكوكي والرابط، وسرعة قاعدة البيانات.
+   يُستخدم للتحقق بعد النشر (مثلًا على Render): إن ظهر عنوان الزائر عنوانَ الوكيل، فالثقة بالوكيل غير مضبوطة. */
+r.get("/diagnostics", handle(async (req, res) => {
+  const t0 = Date.now();
+  const [db] = await transaction({ platform: true }, (q) => q("SELECT now() AS now, version() AS version, current_setting('server_version') AS server_version"));
+  const dbMs = Date.now() - t0;
+  const xff = String(req.get("x-forwarded-for") || "");
+  const chain = xff.split(",").map((x) => x.trim()).filter(Boolean);
+  const checks = [];
+  const add = (ok, text, fix) => checks.push({ ok, text, fix: ok ? null : fix });
+  add(env.TRUST_PROXY > 0 || !chain.length, "الثقة بالوكيل مضبوطة (عنوان كل زائر يُكتشف منفصلًا)",
+    "ضع TRUST_PROXY=1 في متغيرات البيئة على Render ثم أعد النشر");
+  add(!chain.length || req.ip === chain[0] || chain.length > env.TRUST_PROXY, "العنوان المكتشف هو عنوان الزائر الحقيقي",
+    `عدد الوكلاء في السلسلة ${chain.length}. جرّب TRUST_PROXY=${chain.length}`);
+  add(Boolean(env.PUBLIC_URL), "رابط المنصة PUBLIC_URL محدد", "ضع PUBLIC_URL (مثل https://midar.onrender.com أو نطاقك)");
+  add(!env.PUBLIC_URL || env.PUBLIC_URL.replace(/\/$/, "") === `${req.protocol}://${req.get("host")}`,
+    "الرابط المحدد يطابق النطاق الذي فُتحت منه اللوحة", "إن كان للمنصة أكثر من نطاق أضف الباقي في ALLOWED_ORIGINS مفصولة بفواصل");
+  add(env.COOKIE_SECURE === (req.protocol === "https"), "أمان الكوكي يطابق الاتصال (HTTPS)", "على Render: COOKIE_SECURE=true");
+  add(dbMs < 1500, `قاعدة البيانات تستجيب (${dbMs} مللي ثانية)`, "قاعدة البيانات بطيئة: تأكد أن منطقة Neon قريبة من منطقة Render (فرانكفورت)");
+  res.json({
+    ip: req.ip, forwarded_for: chain, protocol: req.protocol, host: req.get("host"), trust_proxy: env.TRUST_PROXY,
+    public_url: env.PUBLIC_URL || null, cookie_secure: env.COOKIE_SECURE, session_cookie_mode: env.SESSION_COOKIE_MODE || "separate",
+    node_env: env.NODE_ENV, db: { ms: dbMs, server_version: db.server_version }, checks,
+  });
 }));
 
 export default r;
