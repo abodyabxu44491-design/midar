@@ -1,10 +1,10 @@
 // المالية: لوحة التحكم، الحركات، الحسابات، التبرعات، الرواتب، التقارير
-import { h, mount } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast,
-  dialog, notice, confirmAction, brandLogo, sectionMenu } from "../../shared/js/ui.js";
-import { barChart } from "../../shared/js/charts.js";
-import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
+  dialog, notice, confirmAction, brandLogo, sectionMenu } from "/shared/js/ui.js";
+import { barChart } from "/shared/js/charts.js";
+import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "/shared/js/format.js";
 import { A } from "./common.js";
 
 const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };

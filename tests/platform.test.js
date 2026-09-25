@@ -424,26 +424,17 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   assert.ok(before.data.summary.due >= 4000);
   assert.ok(before.data.renewals.some((t) => t.id === A.id));
 
-  // بعد مدة السماح: الاشتراك ينتهي (تغيير حالة فقط، بلا حذف ولا إيقاف للمدرسة)
+  // الإيقاف التلقائي بعد مدة السماح
   const suspended = await owner.post("/api/owner/billing/suspend-expired", {});
-  assert.ok(suspended.data.suspended.some((t) => t.tenant_id === A.id), "الاشتراك المنتهي يُنهى");
-  const me = await A.admin.get("/api/admin/me");
-  assert.equal(me.status, 200, "المدير يبقى قادرًا على الدخول ليجدد");
-  assert.equal(me.data.access.locked, true);
-  assert.equal(me.data.access.status, "expired");
-  const blocked = await A.admin.get("/api/admin/students");
-  assert.equal(blocked.status, 402, "باقي اللوحة مقفل حتى التجديد");
-  assert.equal(blocked.data.code, "subscription_inactive");
-  assert.equal((await A.admin.get("/api/admin/subscription")).status, 200, "صفحة الاشتراك متاحة للتجديد");
-  assert.equal((await client(srv.base).post(`/api/public/${A.id}/directory`, { access: "X" })).status, 404, "صفحات المدرسة العامة متوقفة");
+  assert.ok(suspended.data.suspended.some((t) => t.tenant_id === A.id), "المدرسة المنتهية تُوقف");
+  assert.equal((await A.admin.get("/api/admin/me")).status, 401, "مستخدموها خرجوا");
 
-  // السداد يعيد التفعيل ويمدد الاشتراك، والبيانات كما هي
+  // السداد يعيد التفعيل ويمدد الاشتراك
   assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "transfer" })).status, 200);
   const tenants = await owner.get("/api/owner/tenants");
   const A2 = tenants.data.find((t) => t.id === A.id);
   assert.equal(A2.status, "active");
   assert.equal(A2.subscription_end, nextYear);
-  assert.equal((await A.admin.get("/api/admin/students")).status, 200, "عادت المدرسة للعمل ببياناتها");
   assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "cash" })).status, 400, "لا تُسدد مرتين");
 
   // المدرسة لا ترى فواتير الاشتراك
@@ -1260,139 +1251,6 @@ test("النسخ والتكرار: مواد صف، قالب رسوم، وجدو�
 
   // العزل
   assert.equal((await B.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`, { to_grade_id: g2.id })).status, 404);
-});
-
-test("تغيير كلمة المرور: طلب ← تحقق الإدارة ← اعتماد المالك ← رابط لمرة واحدة", async () => {
-  const S = await makeSchool("مدرسة كلمات المرور");
-  const teacher = await S.admin.post("/api/admin/teachers", { name: "معلم النسيان", username: "forgot-teacher" });
-  assert.equal(teacher.status, 201, JSON.stringify(teacher.data));
-
-  // 1) الطلب من بوابة المدرسة بلا تسجيل دخول
-  const anon = client(srv.base);
-  const submitted = await anon.post(`/api/public/${S.id}/password-request`, {
-    full_name: "معلم النسيان", username: "forgot-teacher", phone: "0500000123",
-    job_title: "teacher", description: "نسيت كلمة المرور بعد الإجازة", contact_pref: "whatsapp" });
-  assert.equal(submitted.status, 201, JSON.stringify(submitted.data));
-  assert.match(submitted.data.ref, /^PR-\d{4}-[A-Z0-9]{5}$/);
-  assert.equal(submitted.data.token, undefined, "لا يُعاد أي رمز للمستخدم");
-
-  // الطلب يصل لإدارة المدرسة فقط
-  const list = await S.admin.get("/api/admin/password-requests");
-  const request = list.data.find((x) => x.ref === submitted.data.ref);
-  assert.equal(request.status, "new");
-  assert.equal(request.token_hash, undefined, "تجزئة الرمز لا تُعاد للواجهة");
-  assert.equal((await B.admin.get("/api/admin/password-requests")).data.length, 0, "مدرسة أخرى لا تراه");
-
-  // 2) المالك لا يرى الطلب قبل إحالته
-  assert.equal((await owner.get("/api/owner/password-requests")).data.some((x) => x.ref === request.ref), false);
-  assert.equal((await owner.post(`/api/owner/password-requests/${request.id}/review`, { decision: "approve" })).status, 400);
-
-  // 3) الإدارة تتحقق وتحيل
-  const referred = await S.admin.post(`/api/admin/password-requests/${request.id}/review`,
-    { decision: "refer", note: "تحققت من هويته هاتفيًا" });
-  assert.equal(referred.status, 200, JSON.stringify(referred.data));
-  assert.equal(referred.data.matched_account, true);
-  assert.equal((await S.admin.post(`/api/admin/password-requests/${request.id}/review`, { decision: "refer" })).status, 400,
-    "لا تُعاد المراجعة مرتين");
-
-  // 4) المالك يعتمد فيصدر الرابط مرة واحدة
-  const approved = await owner.post(`/api/owner/password-requests/${request.id}/review`,
-    { decision: "approve", note: "اعتُمد" });
-  assert.equal(approved.status, 200, JSON.stringify(approved.data));
-  assert.match(approved.data.link, /\/reset\?token=[0-9a-f]{64}$/);
-  const token = approved.data.link.split("token=")[1];
-
-  // 5) صفحة التغيير تتحقق من الرابط
-  const check = await anon.get(`/api/public/password-reset/check?token=${token}`);
-  assert.equal(check.status, 200, JSON.stringify(check.data));
-  assert.equal((await anon.get(`/api/public/password-reset/check?token=${"a".repeat(64)}`)).status, 404);
-
-  // كلمة مرور ضعيفة تُرفض
-  assert.equal((await anon.post("/api/public/password-reset", { token, password: "123" })).status, 400);
-
-  const done = await anon.post("/api/public/password-reset", { token, password: "Forgot-Pass-2026" });
-  assert.equal(done.status, 200, JSON.stringify(done.data));
-
-  // 6) الرابط لا يُستخدم مرتين، والحساب يعمل بكلمة المرور الجديدة بلا إجبار تغيير
-  assert.equal((await anon.post("/api/public/password-reset", { token, password: "Another-Pass-2026" })).status, 404);
-  const tc = client(srv.base);
-  const login = await tc.post("/api/staff/login", { school: S.id, username: "forgot-teacher", password: "Forgot-Pass-2026" });
-  assert.equal(login.data.role, "teacher");
-  assert.equal((await tc.get("/api/teacher/me")).data.must_change_password, false);
-
-  const closed = (await S.admin.get("/api/admin/password-requests")).data.find((x) => x.ref === request.ref);
-  assert.equal(closed.status, "used");
-  assert.ok(closed.used_at);
-});
-
-test("الحقول المخصصة: تعريفها وقيمها وتحققها وظهورها لولي الأمر", async () => {
-  const S = await makeSchool("مدرسة الحقول");
-  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 50 });
-
-  // حقول بأنواع مختلفة
-  const bus = await S.admin.post("/api/admin/custom-fields", {
-    entity: "student", label: "رقم الحافلة", type: "number", required: false, show_parent: true });
-  assert.equal(bus.status, 201, JSON.stringify(bus.data));
-  assert.match(bus.data.key, /^[a-z][a-z0-9_]*$/, "مفتاح إنجليزي يُشتق تلقائيًا");
-
-  const health = await S.admin.post("/api/admin/custom-fields", {
-    entity: "student", label: "الحالة الصحية", type: "select",
-    options: ["سليم", "يحتاج متابعة", "حساسية"], required: true, show_parent: false });
-  assert.equal(health.status, 201);
-  assert.equal((await S.admin.post("/api/admin/custom-fields",
-    { entity: "student", label: "الحالة الصحية", type: "text" })).status, 409, "لا تكرار للاسم");
-  assert.equal((await S.admin.post("/api/admin/custom-fields",
-    { entity: "student", label: "بلا خيارات", type: "select" })).status, 400, "قائمة بلا خيارات تُرفض");
-
-  const student = await S.admin.post("/api/admin/students", { name: "طالب الحقول" });
-  const url = `/api/admin/custom-fields/values/student/${student.data.id}`;
-
-  // الحقل المطلوب يُفرض
-  assert.equal((await S.admin.put(url, { values: { [bus.data.key]: "12" } })).status, 400);
-  // نوع خاطئ يُرفض
-  assert.equal((await S.admin.put(url, {
-    values: { [bus.data.key]: "ليس رقمًا", [health.data.key]: "سليم" } })).status, 400);
-  // قيمة خارج القائمة تُرفض
-  assert.equal((await S.admin.put(url, {
-    values: { [bus.data.key]: "12", [health.data.key]: "قيمة غريبة" } })).status, 400);
-
-  const saved = await S.admin.put(url, { values: { [bus.data.key]: "12", [health.data.key]: "يحتاج متابعة" } });
-  assert.equal(saved.status, 200, JSON.stringify(saved.data));
-  const values = await S.admin.get(url);
-  assert.equal(values.data[bus.data.key], "12");
-  assert.equal(values.data[health.data.key], "يحتاج متابعة");
-
-  // ولي الأمر يرى ما فعّلته المدرسة فقط
-  const anon = client(srv.base);
-  const code = (await S.admin.get("/api/admin/me")).data.school.directory_code;
-  const key = (await S.admin.get("/api/admin/students")).data.find((x) => x.id === student.data.id).access_key;
-  await anon.post(`/api/public/${S.id}/page`, { access: code });
-  const profile = await anon.post(`/api/public/${S.id}/student`, { student_id: student.data.id, key });
-  assert.equal(profile.status, 200, JSON.stringify(profile.data));
-  const labels = profile.data.custom.map((x) => x.label);
-  assert.ok(labels.includes("رقم الحافلة"), "الحقل المفعّل لولي الأمر يظهر");
-  assert.ok(!labels.includes("الحالة الصحية"), "الحقل غير المفعّل لا يظهر");
-
-  // الحذف يزيل الحقل وقيمه
-  assert.equal((await S.admin.del(`/api/admin/custom-fields/${bus.data.id}`)).status, 200);
-  assert.equal((await S.admin.get(url)).data[bus.data.key], undefined);
-
-  // العزل
-  assert.equal((await B.admin.get("/api/admin/custom-fields")).data.length, 0);
-});
-
-test("مركز التنبيهات: مستويات مرتبة ووجهة لكل تنبيه", async () => {
-  const n = await A.admin.get("/api/admin/analytics/notifications");
-  assert.equal(n.status, 200, JSON.stringify(n.data));
-  assert.ok(Array.isArray(n.data.items));
-  assert.ok(n.data.items.every((x) => ["urgent", "action", "info"].includes(x.level)), "كل تنبيه له مستوى");
-  assert.ok(n.data.items.every((x) => x.count > 0 && x.text && x.tab), "كل تنبيه له عدد ونص ووجهة");
-  for (const key of ["urgent", "action", "info"]) assert.equal(typeof n.data.counts[key], "number");
-
-  // مدرسة فارغة: لا تنبيهات عاجلة
-  const S = await makeSchool("مدرسة بلا تنبيهات");
-  const fresh = await S.admin.get("/api/admin/analytics/notifications");
-  assert.equal(fresh.data.items.filter((x) => x.level === "urgent").length, 0);
 });
 
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {

@@ -1,7 +1,7 @@
 // معالج إعداد المدرسة: بيانات المدرسة ← القالب والمراحل ← الشعب ← المواد
-import { h, mount } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, sub, badge, notice, toast, empty } from "../../shared/js/ui.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { panel, field, input, select, btn, sub, badge, notice, toast, empty } from "/shared/js/ui.js";
 import { A } from "./common.js";
 
 export default async function setup({ refresh }) {
@@ -25,7 +25,6 @@ export default async function setup({ refresh }) {
 
   /* ---- الخطوة 2: القالب والشعب ---- */
   const template = select(c.templates.map((x) => [x.key, `${x.name}${x.grades ? ` — ${x.grades} صفوف` : ""}`]), { value: "primary" });
-  const gradeSet = select(c.grade_sets.map((g) => [g.key, `${g.name}`]), { value: "arabic_full" });
   const sections = input({ type: "number", min: 0, max: 20, value: 2 });
   const naming = select(c.naming.map((n) => [n.key, `${n.name} (${n.sample})`]));
 
@@ -45,25 +44,16 @@ export default async function setup({ refresh }) {
   };
 
   const drawSubjects = () => {
-    const suggested = new Set(subjectsOfTemplate().map((s) => s.name));
-    for (const name of suggested) if (!chosen.has(name)) chosen.set(name, true);
-
+    const list = subjectsOfTemplate();
+    if (!list.length) return mount(subjectBox, empty("لا توجد مواد مقترحة لهذا القالب. أضفها لاحقًا من الهيكل الأكاديمي."));
+    for (const s of list) if (!chosen.has(s.name)) chosen.set(s.name, true);
     mount(subjectBox,
-      h("div", { class: "toolbar" },
-        sub("مكتبة المواد كاملة. المقترح لمرحلتك مفعّل مسبقًا، فعّل أو أوقف ما تشاء."),
-        btn("تفعيل المقترح فقط", () => {
-          chosen.clear();
-          for (const name of suggested) chosen.set(name, true);
-          drawSubjects();
-        }, "ghost sm")),
-      c.subject_library.map((group) => h("section", { class: "subject-group" },
-        h("h3", { class: "sec-title" }, group.group),
-        h("div", { class: "subject-grid" }, group.items.map((s) => {
-          const cb = input({ type: "checkbox", checked: chosen.get(s.name) === true });
-          cb.addEventListener("change", () => chosen.set(s.name, cb.checked));
-          return h("label", { class: `subject-pick ${suggested.has(s.name) ? "suggested" : ""}` }, cb,
-            h("span", {}, h("b", {}, s.name), sub(`${s.code} — ${s.weekly} حصص أسبوعيًا`)));
-        })))));
+      h("div", { class: "subject-grid" }, list.map((s) => {
+        const cb = input({ type: "checkbox", checked: chosen.get(s.name) !== false });
+        cb.addEventListener("change", () => chosen.set(s.name, cb.checked));
+        return h("label", { class: "subject-pick" }, cb,
+          h("span", {}, h("b", {}, s.name), sub(`${s.code} — ${s.weekly} حصص أسبوعيًا`)));
+      })));
   };
   template.addEventListener("change", () => { chosen.clear(); drawSubjects(); draw(); });
 
@@ -92,8 +82,7 @@ export default async function setup({ refresh }) {
       step === 2 ? panel("المراحل والصفوف والشعب", null,
         field("قالب المدرسة", template),
         stages.length ? h("div", { class: "pill" }, "المراحل: ", ...stages.map((s) => badge(s, "gray"))) : sub("بدون قالب: ستبني الهيكل بنفسك."),
-        h("div", { class: "row" }, field("تسمية الصفوف", gradeSet), field("عدد الشعب لكل صف", sections), field("تسمية الشعب", naming)),
-      h("div", { class: "pill small muted" }, c.grade_sets.find((g) => g.key === gradeSet.value)?.sample || ""),
+        h("div", { class: "row" }, field("عدد الشعب لكل صف", sections), field("تسمية الشعب", naming)),
         sub("مثال: الصف الأول مع 3 شعب ينشئ: الأول - أ، الأول - ب، الأول - ج."),
         h("div", { class: "row spaced" },
           btn("السابق", () => { step = 1; draw(); }, "ghost"),
@@ -108,22 +97,18 @@ export default async function setup({ refresh }) {
             const picked = [...chosen.entries()].filter(([, on]) => on).map(([name]) => name);
             const r = await api(`${A}/setup/template`, {
               template: template.value, sections_per_grade: Number(sections.value),
-              naming: naming.value, grade_set: gradeSet.value, subjects: picked,
+              naming: naming.value, subjects: picked,
             });
             await api(`${A}/setup/complete`, {});
             toast(`تم: ${r.stages} مراحل، ${r.grades} صفوف، ${r.sections} شعب، ${r.subjects} مواد`);
             setTimeout(() => location.reload(), 900);   // تختفي تبويبة المعالج وتظهر اللوحة كاملة
           }))) : null,
 
-      h("div", { class: "spaced" },
-        btn("تخطي المعالج والدخول للوحة", async () => {
-          await api(`${A}/setup/complete`, {});
-          location.reload();
-        }, "ghost sm"),
-        sub("يمكنك العودة للمعالج في أي وقت من: الإعدادات ← الهيكل الأكاديمي.")));
+      step === 1 ? h("div", { class: "spaced" },
+        btn("تخطي المعالج", async () => { await api(`${A}/setup/complete`, {}); location.reload(); }, "ghost sm")) : null);
   };
 
   drawSubjects();
   draw();
-  return [notice("إعداد المدرسة لأول مرة: ثلاث خطوات وتصبح جاهزة.", ""), box];
+  return [notice("إعداد المدرسة لأول مرة. ثلاث خطوات وتصبح جاهزة.", ""), box];
 }

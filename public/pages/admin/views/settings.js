@@ -1,32 +1,28 @@
 // الإعدادات — مقسّمة إلى أقسام قصيرة بدل صفحة واحدة طويلة
-import { h, mount } from "../../shared/js/dom.js";
-import { mySubscription } from "./my-subscription.js";
-import { api } from "../../shared/js/api.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
-  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar, passwordInput, linkRow } from "../../shared/js/ui.js";
-import { csv, parseCsv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
+  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar , passwordInput} from "/shared/js/ui.js";
+import { csv, parseCsv, CURRENCIES, setCurrency, money, fmtDate } from "/shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 
 const SECTIONS = [
   { key: "modules", name: "أقسام المنصة", note: "شغّل وأوقف أقسام اللوحة" },
   { key: "import", name: "استيراد البيانات", note: "قوالب جاهزة للطلاب والمعلمين والفصول" },
-  { key: "fields", name: "الحقول المخصصة", note: "أضف أي معلومة تحتاجها مدرستك" },
   { key: "page", name: "صفحة المدرسة العامة", note: "ما يراه أولياء الأمور" },
   { key: "payment", name: "طرق السداد", note: "الحسابات البنكية والدفع النقدي" },
   { key: "messages", name: "رسائل واتساب", note: "قوالب التنبيه ورمز الدولة" },
   { key: "users", name: "المستخدمون والصلاحيات", note: "حسابات المحاسبين" },
-  { key: "passwords", name: "طلبات كلمات المرور", note: "تحقق من هوية الطالب ثم أحِل الطلب" },
   { key: "money", name: "العملة", note: "عملة المدرسة الأساسية" },
   { key: "access", name: "الدخول والأمان", note: "رمز الصفحة وكلمة المرور والجلسات" },
   { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
-  { key: "subscription", name: "اشتراكي", note: "الباقة والمميزات والتجديد والترقية" },
+  { key: "subscription", name: "الاشتراك والدعم", note: "التجديد والترقية والتواصل" },
 ];
 
 export default function settings(ctx) {
-  const views = { modules: modulesView, import: importView, fields: customFieldsView, page: pageView, payment: paymentView,
-    messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
-    access: accessView, data: dataView,
-    subscription: mySubscription };
+  const views = { modules: modulesView, import: importView, page: pageView, payment: paymentView,
+    messages: messagesView, users: usersView, money: moneyView, access: accessView, data: dataView,
+    subscription: subscriptionView };
   return sectionMenu({
     title: "الإعدادات",
     items: SECTIONS,
@@ -41,7 +37,6 @@ const MODULE_GROUPS = [
     ["timetable", "الجدول الدراسي", "جدول حصص لكل صف وجدول لكل معلم"],
     ["exams", "الاختبارات والدرجات", "إدخال الدرجات واعتمادها ونشرها"],
     ["reports", "كشوف الدرجات", "يحتاج تشغيل الاختبارات"],
-    ["exam_papers", "مصمم الاختبارات الورقية", "بنك الأسئلة وإنشاء أوراق الاختبارات وطباعتها"],
     ["homework", "الواجبات", "ينشرها المعلم ويتابعها ولي الأمر"],
   ]],
   ["التواصل والتسجيل", [
@@ -60,9 +55,7 @@ const MODULE_GROUPS = [
 ];
 
 async function modulesView() {
-  const [mods, subInfo] = await Promise.all([api(`${A}/settings/modules`), api(`${A}/subscription`).catch(() => null)]);
-  // القسم غير المشمول في الباقة يظهر مقفلًا (والخادم يرفضه حتى لو فُعّل)
-  const locked = new Set((subInfo?.features || []).filter((f) => !f.included).map((f) => f.key));
+  const mods = await api(`${A}/settings/modules`);
   const msg = h("div");
   const save = async (patch) => {
     mount(msg);
@@ -77,9 +70,8 @@ async function modulesView() {
     msg,
     ...MODULE_GROUPS.map(([title, items]) => panel(title, null,
       items.map(([key, name, note]) => line(
-        h("div", {}, h("b", {}, name), locked.has(key) ? badge("غير متاحة في باقتك", "gray") : null, note ? sub(note) : null),
-        locked.has(key) ? h("span", { class: "sub", style: "flex:none" }, "اطلبها من «اشتراكي»")
-          : switchBtn(mods[key], name, (next) => save({ [key]: next })))))),
+        h("div", {}, h("b", {}, name), note ? sub(note) : null),
+        switchBtn(mods[key], name, (next) => save({ [key]: next })))))),
   ];
 }
 
@@ -165,60 +157,6 @@ function showCredentialsList(rows) {
    btn("طباعة", () => window.print(), "ghost")]);
 }
 
-/* ===================== الحقول المخصصة ===================== */
-const FIELD_TYPES = { text: "نص", number: "رقم", date: "تاريخ", select: "قائمة", boolean: "نعم / لا" };
-
-async function customFieldsView({ show }) {
-  const list = await api(`${A}/custom-fields?entity=student`);
-  const f = {
-    label: input({ placeholder: "اسم الحقل" }),
-    type: select(Object.entries(FIELD_TYPES)),
-    options: input({ placeholder: "خيارات القائمة مفصولة بفاصلة" }),
-    required: input({ type: "checkbox" }),
-    show_parent: input({ type: "checkbox" }),
-  };
-  const optionsRow = h("div", { class: "hidden" }, field("الخيارات", f.options));
-  f.type.addEventListener("change", () => optionsRow.classList.toggle("hidden", f.type.value !== "select"));
-
-  const row = (x) => line(
-    h("div", { class: x.is_active ? "" : "muted-row" },
-      h("b", {}, x.label), " ", badge(FIELD_TYPES[x.type], "gray"),
-      x.required ? badge("مطلوب", "amber") : null,
-      x.show_parent ? badge("يظهر لولي الأمر", "") : null,
-      x.type === "select" ? sub(`الخيارات: ${(x.options || []).join("، ")}`) : null),
-    h("div", { class: "row", style: "flex:none" },
-      btn(x.show_parent ? "إخفاء عن ولي الأمر" : "إظهار لولي الأمر", async () => {
-        await api(`${A}/custom-fields/${x.id}`, { show_parent: !x.show_parent }, "PATCH"); show();
-      }, "ghost sm"),
-      btn(x.required ? "اجعله اختياريًا" : "اجعله مطلوبًا", async () => {
-        await api(`${A}/custom-fields/${x.id}`, { required: !x.required }, "PATCH"); show();
-      }, "ghost sm"),
-      btn("حذف", async () => {
-        if (!confirmAction(`حذف «${x.label}» وقيمه لدى كل الطلاب؟`)) return;
-        await api(`${A}/custom-fields/${x.id}`, undefined, "DELETE"); toast("حُذف الحقل"); show();
-      }, "danger sm")));
-
-  return [
-    panel("حقول الطلاب المخصصة", null,
-      sub("تظهر في بطاقة الطالب داخل اللوحة، وما تفعّله منها يظهر أيضًا لولي الأمر."),
-      list.length ? list.map(row) : empty("لا توجد حقول مخصصة.")),
-
-    panel("إضافة حقل", null,
-      h("div", { class: "row" }, field("اسم الحقل", f.label), field("النوع", f.type)),
-      optionsRow,
-      h("label", { class: "f pill" }, f.required, "حقل مطلوب"),
-      h("label", { class: "f pill" }, f.show_parent, "يظهر لولي الأمر في ملف الطالب"),
-      btn("إضافة الحقل", async () => {
-        await api(`${A}/custom-fields`, {
-          entity: "student", label: f.label.value, type: f.type.value,
-          options: f.type.value === "select" ? f.options.value.split(/[,،]/).map((x) => x.trim()).filter(Boolean) : undefined,
-          required: f.required.checked, show_parent: f.show_parent.checked,
-        });
-        toast("أُضيف الحقل"); show();
-      })),
-  ];
-}
-
 /* ===================== 2) صفحة المدرسة العامة ===================== */
 const PAGE_OPTIONS = [
   ["show_classes", "عرض قائمة الصفوف", "الزائر يرى الصفوف ويضغط على الصف ليفتحه"],
@@ -248,23 +186,9 @@ async function pageView({ me }) {
   const mode = select([["code", "تحتاج رمزًا (أكثر خصوصية)"], ["open", "مفتوحة لمن يعرف الرابط"]], { value: pub.access_mode });
   mode.addEventListener("change", () => save({ access_mode: mode.value }));
 
-  // واجهة الموقع المصغّر: النبذة وبيانات التواصل
-  const about = textarea({ rows: 3, value: pub.about || "", placeholder: "نبذة قصيرة عن المدرسة تظهر في أعلى الصفحة (اختياري)", maxLength: 800 });
-  const L = me.links;
   return [
-    panel("روابط مدرستك", null,
-      sub("الرابط العام تشاركه مع أولياء الأمور. روابط الدخول خاصة بالمنسوبين ولا تظهر في الصفحة العامة."),
-      linkRow("صفحة الطلاب وأولياء الأمور (عامة)", L.public.home, { note: "الرئيسية، الطلاب، التسجيل، الإعلانات" }),
-      linkRow("قائمة الطلاب مباشرة", L.public.students),
-      h("h4", { style: "margin:14px 0 6px" }, "روابط الدخول (للمنسوبين فقط)"),
-      linkRow("دخول الإدارة", L.staff.admin), linkRow("دخول المعلمين", L.staff.teacher), linkRow("دخول المحاسب", L.staff.accountant)),
-    panel("طريقة الدخول", btn("معاينة", () => window.open(L.public.home, "_blank"), "ghost sm"),
+    panel("طريقة الدخول", btn("معاينة", () => window.open(directoryLink(me), "_blank"), "ghost sm"),
       field("دخول صفحة المدرسة", mode), msg),
-    panel("واجهة الصفحة", null,
-      field("نبذة عن المدرسة", about),
-      btn("حفظ النبذة", () => save({ about: about.value.trim() || null }), "primary sm"),
-      line(h("div", {}, h("b", {}, "إظهار بيانات التواصل"), sub("الهاتف والبريد والعنوان من «ملف المدرسة»")),
-        switchBtn(pub.show_contact, "بيانات التواصل", (next) => save({ show_contact: next })))),
 
     panel("ما يظهر للزوار", null,
       PAGE_OPTIONS.map(([key, label, hint]) => line(
@@ -412,52 +336,6 @@ function permsDialog(u, refresh) {
   })]);
 }
 
-/* ===================== طلبات كلمات المرور ===================== */
-const PR_JOBS = { admin: "إداري", accountant: "محاسب", teacher: "معلم" };
-const PR_CONTACT = { phone: "اتصال هاتفي", whatsapp: "واتساب", email: "بريد إلكتروني" };
-const PR_STATUS = {
-  new: ["بانتظار مراجعتك", "amber"], referred: ["محال إلى مالك المنصة", ""],
-  approved: ["اعتُمد — أُرسل الرابط", ""], used: ["تم التغيير", ""],
-  rejected: ["مرفوض", "gray"], expired: ["انتهى الرابط", "gray"],
-};
-
-async function passwordRequestsView({ show }) {
-  const list = await api(`${A}/password-requests`);
-  const waiting = list.filter((x) => x.status === "new").length;
-
-  const row = (r) => line(
-    h("div", { class: r.status === "new" ? "" : "muted-row" },
-      h("b", {}, r.full_name), " ", badge(...(PR_STATUS[r.status] || [r.status, "gray"])),
-      sub(`طلب ${r.ref} — ${PR_JOBS[r.job_title]} — الحساب: ${r.username}`),
-      sub(`${r.phone} — التواصل المفضل: ${PR_CONTACT[r.contact_pref]}${r.branch ? ` — ${r.branch}` : ""}`),
-      sub(`السبب: ${r.description}`),
-      r.admin_note ? sub(`ملاحظتك: ${r.admin_note}`) : null,
-      r.owner_note ? sub(`رد المنصة: ${r.owner_note}`) : null),
-    h("div", { class: "row", style: "flex:none" },
-      r.status === "new" ? btn("تحققت — أحِل للمنصة", () => reviewDialog(r, "refer", show), "sm") : null,
-      r.status === "new" ? btn("رفض", () => reviewDialog(r, "reject", show), "danger sm") : null));
-
-  return panel(`طلبات تغيير كلمات المرور${waiting ? ` (${waiting} بانتظارك)` : ""}`, null,
-    sub("تحقق من هوية صاحب الطلب هاتفيًا، ثم أحِله لمالك المنصة لإصدار الرابط. لا يمكنك إصدار الرابط بنفسك."),
-    list.length ? list.map(row) : empty("لا توجد طلبات."));
-}
-
-function reviewDialog(r, decision, show) {
-  const note = input({ placeholder: decision === "refer" ? "كيف تحققت من هويته؟" : "سبب الرفض" });
-  const msg = h("div");
-  const d = dialog(decision === "refer" ? `إحالة طلب ${r.ref}` : `رفض طلب ${r.ref}`, h("div", {},
-    sub(`${r.full_name} — ${PR_JOBS[r.job_title]} — ${r.phone}`),
-    decision === "refer" ? notice("بعد الإحالة يعتمد مالك المنصة الطلب ويصدر رابطًا مؤقتًا لصاحب الحساب.", "") : null,
-    note, msg),
-  [btn(decision === "refer" ? "إحالة" : "رفض", async () => {
-    mount(msg);
-    try {
-      await api(`${A}/password-requests/${r.id}/review`, { decision, note: note.value || null });
-      d.close(); toast(decision === "refer" ? "أُحيل الطلب" : "رُفض الطلب"); show();
-    } catch (e) { mount(msg, notice(e.message, "err")); }
-  }, decision === "reject" ? "danger" : "primary")]);
-}
-
 /* ===================== 6) العملة ===================== */
 async function moneyView({ show }) {
   const cur = await api(`${A}/settings/currency`);
@@ -505,6 +383,83 @@ async function accessView({ me, refresh }) {
         toast("أُنهيت الجلسات الأخرى");
       }, "danger"))),
   ];
+}
+
+/* ===================== الاشتراك والدعم ===================== */
+const KINDS_AR = { renew: "تجديد الاشتراك", upgrade: "ترقية الباقة", support: "طلب دعم" };
+const REQ_STATUS = { new: ["بانتظار الرد", "amber"], contacted: ["تم التواصل", ""], done: ["منفّذ", ""], rejected: ["مرفوض", "gray"] };
+
+async function subscriptionView({ me, show }) {
+  const d = await api(`${A}/settings/subscription`);
+  const s = d.subscription;
+  const waNumber = String(d.support?.support_whatsapp || "").replace(/\D/g, "");
+  const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
+
+  const daysBadge = s.days_left === null || s.days_left === undefined ? null
+    : s.days_left < 0 ? badge(`انتهى منذ ${-s.days_left} يومًا`, "red")
+    : s.days_left <= 14 ? badge(`يتبقى ${s.days_left} يومًا`, "amber")
+    : badge(`يتبقى ${s.days_left} يومًا`);
+
+  return [
+    panel("اشتراك مدرستك", daysBadge,
+      line(h("span", {}, "المدرسة"), h("b", {}, s.name)),
+      line(h("span", {}, "الحالة"), s.status === "active" ? badge("مفعّلة") : badge("موقوفة", "red")),
+      line(h("span", {}, "الباقة"), h("b", {}, s.plan)),
+      line(h("span", {}, "عدد الطلاب"), h("b", {}, `${s.students} من ${s.max_students}`)),
+      s.subscription_end ? line(h("span", {}, "ينتهي في"), h("b", {}, fmtDate(s.subscription_end))) : null,
+      s.subscription_price ? line(h("span", {}, "قيمة الاشتراك السنوي"), h("b", {}, money(s.subscription_price, s.currency))) : null,
+      line(h("span", {}, "مدة السماح بعد الانتهاء"), h("b", {}, `${s.grace_days} يومًا`)),
+      h("div", { class: "row spaced" },
+        btn("تجديد الاشتراك", () => requestDialog("renew", d, show)),
+        btn("ترقية الباقة", () => requestDialog("upgrade", d, show), "soft"),
+        btn("طلب دعم", () => requestDialog("support", d, show), "ghost"))),
+
+    panel("التواصل مع إدارة المنصة", null,
+      d.support?.support_note ? sub(d.support.support_note) : null,
+      waLink ? h("div", { class: "spaced" },
+        h("a", { class: "btn", href: waLink, target: "_blank", rel: "noopener" }, "مراسلة عبر واتساب")) : null,
+      d.support?.brand_email ? line(h("span", {}, "البريد"), keyText(d.support.brand_email)) : null),
+
+    panel("طلباتك السابقة", null,
+      d.requests.length ? d.requests.map((r) => line(
+        h("div", {}, h("b", {}, KINDS_AR[r.kind]), " ", badge(...REQ_STATUS[r.status]),
+          sub(`${fmtDate(String(r.created_at).slice(0, 10))}${r.months ? ` — ${r.months} شهرًا` : ""}${r.students_wanted ? ` — ${r.students_wanted} طالبًا` : ""}`),
+          r.note ? sub(r.note) : null,
+          r.owner_note ? sub(`رد الإدارة: ${r.owner_note}`) : null)))
+        : empty("لا توجد طلبات سابقة.")),
+  ];
+}
+
+function requestDialog(kind, d, show) {
+  const s = d.subscription;
+  const months = select([[12, "سنة كاملة"], [6, "6 أشهر"], [3, "3 أشهر"], [1, "شهر"]], { value: 12 });
+  const seats = input({ type: "number", min: s.students || 1, max: 100000, value: s.max_students });
+  const name = input({ value: "" , placeholder: "اسم المسؤول" });
+  const phone = input({ class: "ltr", inputMode: "tel", placeholder: "رقم للتواصل" });
+  const note = textarea({ rows: 3, placeholder: kind === "support" ? "اشرح لنا المشكلة أو الطلب" : "ملاحظات (اختياري)" });
+  const msg = h("div");
+
+  const body = h("div", {},
+    sub(`المدرسة: ${s.name} — الطلاب ${s.students} من ${s.max_students}${s.subscription_end ? ` — ينتهي ${fmtDate(s.subscription_end)}` : ""}`),
+    kind === "renew" ? field("مدة التجديد", months) : null,
+    kind === "upgrade" ? field("عدد الطلاب المطلوب", seats) : null,
+    h("div", { class: "row" }, field("اسم المسؤول", name), field("رقم التواصل", phone)),
+    field("ملاحظات", note), msg);
+
+  const d2 = dialog(KINDS_AR[kind], body, [btn("إرسال الطلب", async () => {
+    mount(msg);
+    try {
+      await api(`${A}/settings/subscription/renew`, {
+        kind,
+        months: kind === "renew" ? Number(months.value) : undefined,
+        students_wanted: kind === "upgrade" ? Number(seats.value) : undefined,
+        contact_name: name.value || null, contact_phone: phone.value || null, note: note.value || null,
+      });
+      d2.close();
+      toast("وصل طلبك لإدارة المنصة. سنتواصل معك قريبًا.");
+      show();
+    } catch (e) { mount(msg, notice(e.message, "err")); }
+  })]);
 }
 
 /* ===================== 8) البيانات والاشتراك ===================== */

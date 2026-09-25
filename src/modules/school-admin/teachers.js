@@ -1,7 +1,7 @@
 // المعلمون وحساباتهم (حسابات منفصلة تمامًا عن الإدارة)
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
+import { handle, notFound, conflict } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword } from "../../core/auth/codes.js";
@@ -47,10 +47,6 @@ r.post("/", handle(async (req, res) => {
   const id = await inTenant(req, async (q) => {
     const [taken] = await q("SELECT 1 FROM users WHERE username = $1", [b.username]);
     if (taken) throw conflict("اسم المستخدم مستخدم داخل المدرسة");
-    const limit = req.subscription?.max_teachers;
-    if (limit && (await q("SELECT count(*)::int AS n FROM teachers"))[0].n >= limit) {
-      throw badRequest(`وصلت لحد المعلمين في باقتك (${limit} معلم). اطلب الترقية من صفحة «اشتراكي».`);
-    }
     const [tch] = await q(
       `INSERT INTO teachers (tenant_id, full_name, phone, employee_no, national_id, email, specialty, department)
        VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`,

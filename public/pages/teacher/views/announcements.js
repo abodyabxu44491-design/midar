@@ -1,7 +1,7 @@
-import { h } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
-import { panel, empty, line, sub } from "../../shared/js/ui.js";
-import { fmtDate } from "../../shared/js/format.js";
+import { h } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { panel, empty, line, sub } from "/shared/js/ui.js";
+import { fmtDate } from "/shared/js/format.js";
 
 export default async function announcements() {
   const list = await api("/api/teacher/announcements");

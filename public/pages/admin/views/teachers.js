@@ -1,9 +1,8 @@
 // تبويب المعلمين
-import { h, mount } from "../../shared/js/dom.js";
-import { icons } from "../../shared/js/icons.js";
-import { api } from "../../shared/js/api.js";
-import { panel, field, input, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction } from "../../shared/js/ui.js";
-import { fmtDateTime, csv } from "../../shared/js/format.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { panel, field, input, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction } from "/shared/js/ui.js";
+import { fmtDateTime, csv } from "/shared/js/format.js";
 import { A, loadClasses, loadSubjects, staffLink } from "./common.js";
 
 export default async function teachers({ me, refresh }) {
@@ -112,68 +111,22 @@ function exportTeachers(list) {
   ]);
 }
 
-/**
- * أداة الإسناد: قائمة الصفوف فقط.
- * الضغط على صف يفتح مواده لاختيارها، ثم «حفظ الصف» يغلقه ويعرض ما اخترته.
- */
 function loadPicker(classes, subjects, current = []) {
-  if (!classes.length || !subjects.length) {
-    return { el: empty("أضف الصفوف والمواد أولًا من «الهيكل الأكاديمي»."), value: () => [], setSubjects: () => {} };
-  }
-
-  // الحالة: صف ← مجموعة المواد المختارة
-  const picked = new Map(classes.map((c) => [Number(c.id), new Set()]));
-  for (const l of current) picked.get(Number(l.class_id))?.add(Number(l.subject_id));
-
-  const el = h("div", { class: "assign-list" });
-
-  const nameOf = (id) => subjects.find((s2) => Number(s2.id) === Number(id))?.name;
-  const summary = (c) => {
-    const ids = [...picked.get(Number(c.id))];
-    return ids.length ? ids.map(nameOf).filter(Boolean).join("، ") : "لا توجد مواد مسندة";
-  };
-
-  const draw = (openId = null) => {
-    mount(el, classes.map((c) => {
-      const count = picked.get(Number(c.id)).size;
-      const head = h("button", { type: "button", class: `assign-head ${count ? "has" : ""}`,
-        onclick: () => draw(Number(openId) === Number(c.id) ? null : c.id) },
-        h("span", { class: "assign-name" }, c.name),
-        h("span", { class: "assign-sum" }, summary(c)),
-        count ? badge(`${count}`, "") : null,
-        icons.chevronDown({ size: 16 }));
-
-      if (Number(openId) !== Number(c.id)) return h("div", { class: "assign-item" }, head);
-
-      // فتح الصف: مواده فقط
-      const boxes = subjects.map((s2) => {
-        const cb = input({ type: "checkbox", checked: picked.get(Number(c.id)).has(Number(s2.id)) });
-        cb.addEventListener("change", () => {
-          const set = picked.get(Number(c.id));
-          if (cb.checked) set.add(Number(s2.id)); else set.delete(Number(s2.id));
-        });
-        return h("label", { class: "assign-subject" }, cb, h("span", {}, s2.name));
-      });
-
-      return h("div", { class: "assign-item open" }, head,
-        h("div", { class: "assign-body" },
-          h("div", { class: "assign-subjects" }, boxes),
-          h("div", { class: "row spaced" },
-            btn("حفظ الصف", () => draw(null), "soft sm"),
-            btn("مسح اختيار الصف", () => { picked.get(Number(c.id)).clear(); draw(c.id); }, "ghost sm"))));
-    }));
-  };
-  draw();
-
+  const boxes = [];
+  const el = h("div", { class: "spaced" }, classes.length && subjects.length ? classes.map((c) => h("div", { style: "margin-bottom:6px" },
+    h("b", { class: "small" }, `${c.name}: `),
+    subjects.map((s) => {
+      const cb = input({ type: "checkbox", checked: current.some((l) => l.class_id === c.id && l.subject_id === s.id) });
+      boxes.push([cb, c.id, s.id]);
+      return h("label", { class: "small", style: "margin-inline-end:12px;white-space:nowrap" }, cb, " ", s.name);
+    }))) : empty("أضف الصفوف والمواد أولًا من «الهيكل الأكاديمي»."));
   return {
     el,
-    value: () => [...picked.entries()].flatMap(([classId, set]) =>
-      [...set].map((subjectId) => ({ class_id: classId, subject_id: subjectId }))),
-    // اقتراح التخصص: تحديد مواد معيّنة في كل الصفوف
+    value: () => boxes.filter(([cb]) => cb.checked).map(([, class_id, subject_id]) => ({ class_id, subject_id })),
+    // اقتراح التخصص: تحديد مواد معيّنة في كل الفصول
     setSubjects: (subjectIds) => {
-      const wanted = subjectIds.map(Number);
-      for (const set of picked.values()) for (const id of wanted) set.add(id);
-      draw();
+      const wanted = new Set(subjectIds.map(Number));
+      for (const [cb, , subjectId] of boxes) if (wanted.has(Number(subjectId))) cb.checked = true;
     },
   };
 }

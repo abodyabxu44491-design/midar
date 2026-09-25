@@ -1,8 +1,8 @@
 // توزيع المعلمين: مصفوفة الشعب × المواد، وكل خلية تختار المعلم
-import { h, mount } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
-import { panel, field, select, btn, empty, sub, toast, notice, badge } from "../../shared/js/ui.js";
-import { csv } from "../../shared/js/format.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { panel, field, select, btn, empty, sub, toast, notice, badge } from "/shared/js/ui.js";
+import { csv } from "/shared/js/format.js";
 import { A } from "./common.js";
 
 export default async function distribution({ refresh }) {

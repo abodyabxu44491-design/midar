@@ -11,30 +11,8 @@ import { requirePermission } from "../../core/auth/guards.js";
 
 const r = Router();
 
-// الفواتير: صفحة بعد صفحة مع البحث والتصفية في الخادم (بدون limit: أول 1000 كما كان)
-const invoiceQuery = z.object({
-  q: z.string().trim().max(80).optional(), class_id: t.optId, student_id: t.optId,
-  status: z.enum(["all", "open", "void", "unpaid"]).default("all"),
-  limit: z.coerce.number().int().min(1).max(200).optional(),
-  offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
-  totals: z.enum(["0", "1"]).default("1"),
-});
 r.get("/invoices", handle(async (req, res) => {
-  const f = parse(invoiceQuery, req.query);
-  res.json(await inTenant(req, async (q) => {
-    const params = [];
-    const where = ["TRUE"];
-    const add = (sql, v) => { params.push(v); where.push(sql.replaceAll("?", `$${params.length}`)); };
-    if (f.q) add("(s.full_name ILIKE '%' || ? || '%' OR i.title ILIKE '%' || ? || '%' OR i.id::text = ?)", f.q);
-    if (f.class_id) add("s.class_id = ?", f.class_id);
-    if (f.student_id) add("i.student_id = ?", f.student_id);
-    if (f.status === "open") where.push("i.status = 'open'");
-    if (f.status === "void") where.push("i.status = 'void'");
-    if (f.status === "unpaid") where.push("i.status = 'open' AND invoice_net_paid(i.id) < i.amount");
-    const rows = await finance.listInvoices(q, where.join(" AND "), params, { limit: f.limit ?? 1000, offset: f.offset });
-    const total = f.limit && (rows.length === f.limit || f.offset) ? await finance.countInvoices(q, where.join(" AND "), params) : rows.length + f.offset;
-    return { invoices: rows, total, totals: f.totals === "1" ? await finance.schoolTotals(q) : undefined };
-  }));
+  res.json(await inTenant(req, async (q) => ({ invoices: await finance.listInvoices(q), totals: await finance.schoolTotals(q) })));
 }));
 
 r.post("/invoices", handle(async (req, res) => {

@@ -2,22 +2,12 @@
 import { z } from "zod";
 import { badRequest } from "./errors.js";
 
-// أسماء الحقول بالعربية في رسائل الخطأ (المستخدم لا يرى أسماء داخلية مثل billing_cycle)
-const FIELD_LABELS = {
-  billing_cycle: "مدة الاشتراك", plan_id: "الباقة", months: "عدد الأشهر", kind: "نوع الطلب", school_name: "اسم المدرسة",
-  contact_name: "اسم المسؤول", phone: "رقم الجوال", email: "البريد الإلكتروني", students_count: "عدد الطلاب", city: "المدينة",
-  username: "اسم المستخدم", password: "كلمة المرور", school: "رمز المدرسة", name: "الاسم", class_id: "الفصل", subject_id: "المادة",
-  amount: "المبلغ", date: "التاريخ", title: "العنوان", total_marks: "الدرجة النهائية", price: "السعر", feature_key: "الميزة",
-  student_id: "الطالب", key: "معرّف الطالب", addon_keys: "المميزات الإضافية", note: "الملاحظات",
-};
-const fieldLabel = (path) => FIELD_LABELS[path[path.length - 1]] || (path.length ? "أحد الحقول" : "الطلب");
-
 export const parse = (schema, data) => {
   const r = schema.safeParse(data ?? {});
   if (!r.success) {
     const i = r.error.issues[0];
     throw badRequest(i.message.startsWith("Expected") || i.message.startsWith("Invalid") || i.message.startsWith("String") || i.message.startsWith("Number")
-      ? `قيمة غير صحيحة في: ${fieldLabel(i.path)}` : i.message);
+      ? `قيمة غير صحيحة في الحقل: ${i.path.join(".") || "الطلب"}` : i.message);
   }
   return r.data;
 };

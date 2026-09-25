@@ -1,9 +1,9 @@
 // طلبات الالتحاق الواردة من صفحة المدرسة
-import { h, mount } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
-import { panel, empty, badge, line, sub, btn, input, select, dialog, toast, notice, showCredentials, keyText } from "../../shared/js/ui.js";
-import { fmtDate, fmtDateTime } from "../../shared/js/format.js";
-import { waLink } from "../../shared/js/whatsapp.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { panel, empty, badge, line, sub, btn, input, select, dialog, toast, notice, showCredentials, keyText } from "/shared/js/ui.js";
+import { fmtDate, fmtDateTime } from "/shared/js/format.js";
+import { waLink } from "/shared/js/whatsapp.js";
 import { A, loadClasses, classOptions } from "./common.js";
 
 const STATUS = { new: ["جديد", "amber"], contacted: ["تم التواصل", ""], accepted: ["مقبول", ""], rejected: ["مرفوض", "gray"] };

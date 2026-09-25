@@ -1,30 +1,20 @@
 // تبويب الرسوم: الفواتير، الدفعات، الاسترداد، الإلغاء
-import { h, mount } from "../../shared/js/dom.js";
-import { api, idempotencyKey } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, notice, confirmAction, skeleton } from "../../shared/js/ui.js";
-import { money, csv, fmtDate, fmtDateTime, today, METHODS, CURRENCIES, getCurrency } from "../../shared/js/format.js";
-import { waButton, messageVars } from "../../shared/js/whatsapp.js";
-import { receiptDialog, statementDialog } from "../../shared/js/receipt.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api, idempotencyKey } from "/shared/js/api.js";
+import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, notice, confirmAction } from "/shared/js/ui.js";
+import { money, csv, fmtDate, fmtDateTime, today, METHODS, CURRENCIES, getCurrency } from "/shared/js/format.js";
+import { waButton, messageVars } from "/shared/js/whatsapp.js";
+import { receiptDialog, statementDialog } from "/shared/js/receipt.js";
 import { A, loadClasses, optional } from "./common.js";
 
 export default async function finance({ refresh }) {
-  // الفواتير 50 في كل مرة (بحث وتصفية في الخادم)، ولا تنزيل لقائمة كل الطلاب
-  const PAGE = 50;
-  const [first, classes, claims, templates, me2] = await Promise.all([
-    api(`${A}/finance/invoices?limit=${PAGE}`), loadClasses(), optional(api(`${A}/finance/claims`), []),
+  const [{ invoices, totals }, classes, students, claims, templates, me2] = await Promise.all([
+    api(`${A}/finance/invoices`), loadClasses(), api(`${A}/students`), optional(api(`${A}/finance/claims`), []),
     optional(api(`${A}/messaging/templates`), null), api(`${A}/me`)]);
-  const { totals } = first;
+  const byId = new Map(students.map((s) => [s.id, s]));
   const pending = claims.filter((c) => c.status === "pending");
-  // لمن الفاتورة: فصل كامل، أو طالب يُختار من فصله
-  const targetClass = select([["", "اختر الفصل"], ...classes.map((c) => [c.id, c.name])]);
-  const targetStudent = select([["", "كل طلاب الفصل"]]);
-  targetClass.addEventListener("change", async () => {
-    mount(targetStudent, h("option", { value: "" }, "كل طلاب الفصل"));
-    if (!targetClass.value) return;
-    const list = await api(`${A}/students?class_id=${targetClass.value}&fields=basic&limit=500`);
-    targetStudent.append(...list.map((x) => h("option", { value: x.id }, x.name)));
-  });
-  const target = { get value() { return targetStudent.value ? `student:${targetStudent.value}` : targetClass.value ? `class:${targetClass.value}` : ""; } };
+  const target = select([["", "اختر"], ...classes.map((c) => [`class:${c.id}`, `فصل كامل: ${c.name}`]),
+    ...students.map((s) => [`student:${s.id}`, `طالب: ${s.name}`])]);
   const title = input({ placeholder: "بند الرسوم" });
   const amount = input({ type: "number", min: 0.01, step: "0.01" });
   const due = input({ type: "date" });
@@ -39,7 +29,7 @@ export default async function finance({ refresh }) {
       sub("تأكد من وصول المبلغ قبل التأكيد. التأكيد يصدر إيصالًا."),
       claims.length ? claims.slice(0, 50).map((c) => claimRow(c, refresh)) : empty("لا توجد إشعارات تحويل.")),
     panel("إصدار فاتورة", null,
-      h("div", { class: "row" }, field("الفصل", targetClass), field("الطالب", targetStudent), field("البند", title)),
+      h("div", { class: "row" }, field("لـ", target), field("البند", title)),
       h("div", { class: "row" }, field(`المبلغ (${CURRENCIES[getCurrency()].symbol})`, amount), field("تاريخ الاستحقاق", due)),
       sub("إصدار الفاتورة يفعّل الرسوم للطالب."),
       btn("إصدار الفاتورة", async () => {
@@ -49,7 +39,9 @@ export default async function finance({ refresh }) {
         const r = await api(`${A}/finance/invoices`, { target: kind, target_id: id, title: title.value, amount: amount.value, due_date: due.value || null });
         toast(`تم إصدار ${r.created} فاتورة`); refresh();
       })),
-    invoicesPanel(first, { classes, templates, me: me2, refresh, PAGE }),
+    panel("الفواتير", btn("تصدير", () => csv("الفواتير.csv", [["رقم", "الطالب", "الفصل", "البند", "المبلغ", "المدفوع", "المتبقي", "الحالة", "الاستحقاق"],
+      ...invoices.map((i) => [i.id, i.student_name, i.class_name, i.title, i.amount, i.paid, i.amount - i.paid, i.status === "void" ? "ملغاة" : "", i.due_date])]), "ghost sm"),
+      invoices.length ? invoices.map((i) => invoiceRow(i, refresh, { templates, me: me2, student: byId.get(i.student_id) })) : empty("لم تُصدر فواتير بعد.")),
   ];
 }
 
@@ -154,8 +146,8 @@ async function history(i, ctx = {}) {
 // كشف حساب الطالب: كل فواتيره ودفعاته
 async function statement(studentId, ctx = {}) {
   const [{ invoices }, payments] = await Promise.all([
-    api(`${A}/finance/invoices?student_id=${studentId}&totals=0`), api(`${A}/finance/students/${studentId}/payments`)]);
-  const mine = invoices;   // فواتير هذا الطالب فقط (من الخادم، بلا حد 1000)
+    api(`${A}/finance/invoices`), api(`${A}/finance/students/${studentId}/payments`)]);
+  const mine = invoices.filter((i) => i.student_id === studentId);
   statementDialog({
     school: ctx.me?.school?.name || "",
     student: mine[0]?.student_name || "", class_name: mine[0]?.class_name,
@@ -254,53 +246,4 @@ function applyDialog(plan, grades, refresh) {
     } catch (e) { mount(msg, notice(e.message, "err")); }
   })]);
   preview();
-}
-
-
-// قائمة الفواتير: بحث وتصفية في الخادم، و«عرض المزيد» بدل عرض آلاف الصفوف مرة واحدة
-function invoicesPanel(first, { classes, templates, me, refresh, PAGE }) {
-  const q = input({ type: "search", placeholder: "بحث باسم الطالب أو البند أو رقم الفاتورة" });
-  const cls = select([["", "كل الفصول"], ...classes.map((c) => [c.id, c.name])]);
-  const st = select([["all", "كل الفواتير"], ["unpaid", "غير مسددة"], ["open", "سارية"], ["void", "ملغاة"]]);
-  const list = h("div");
-  const count = h("span", { class: "sub" });
-  const more = h("div", { class: "spaced" });
-  let items = [];
-  let total = 0;
-  let seq = 0;
-  const qs = (offset) => `${A}/finance/invoices?limit=${PAGE}&offset=${offset}&totals=0&status=${st.value}${cls.value ? `&class_id=${cls.value}` : ""}${q.value.trim() ? `&q=${encodeURIComponent(q.value.trim())}` : ""}`;
-  const rowOf = (i) => invoiceRow(i, refresh, { templates, me,
-    student: { id: i.student_id, name: i.student_name, class_name: i.class_name, guardian_phone: i.guardian_phone, access_key: i.access_key } });
-  const drawMore = () => mount(more, items.length < total ? btn(`عرض المزيد (${total - items.length} متبقية)`, async (e) => {
-    e.currentTarget.disabled = true;
-    const r = await api(qs(items.length));
-    items = items.concat(r.invoices);
-    list.append(...r.invoices.map(rowOf));
-    count.textContent = `${items.length} من ${total}`;
-    drawMore();
-  }, "ghost") : null);
-  const load = async () => {
-    const my = ++seq;
-    mount(list, skeleton(4));
-    const r = await api(qs(0));
-    if (my !== seq) return;   // نتيجة بحث أقدم وصلت متأخرة
-    items = r.invoices; total = r.total;
-    count.textContent = `${items.length} من ${total}`;
-    mount(list, items.length ? items.map(rowOf) : empty("لا توجد فواتير مطابقة."));
-    drawMore();
-  };
-  let t;
-  q.addEventListener("input", () => { clearTimeout(t); t = setTimeout(load, 300); });
-  cls.addEventListener("change", load);
-  st.addEventListener("change", load);
-  items = first.invoices; total = first.total;
-  count.textContent = `${items.length} من ${total}`;
-  mount(list, items.length ? items.map(rowOf) : empty("لم تُصدر فواتير بعد."));
-  drawMore();
-  return panel("الفواتير", btn("تصدير", async () => {
-    const all = await api(`${A}/finance/invoices?totals=0&status=${st.value}${cls.value ? `&class_id=${cls.value}` : ""}`);
-    csv("الفواتير.csv", [["رقم", "الطالب", "الفصل", "البند", "المبلغ", "المدفوع", "المتبقي", "الحالة", "الاستحقاق"],
-      ...all.invoices.map((i) => [i.id, i.student_name, i.class_name, i.title, i.amount, i.paid, i.amount - i.paid, i.status === "void" ? "ملغاة" : "", i.due_date])]);
-  }, "ghost sm"),
-    h("div", { class: "row" }, q, cls, st), h("div", { class: "toolbar" }, count), list, more);
 }

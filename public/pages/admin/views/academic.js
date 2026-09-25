@@ -1,8 +1,8 @@
 // السنة الدراسية والفصول الدراسية، وبدء سنة جديدة
-import { h, mount } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, confirmAction, stats } from "../../shared/js/ui.js";
-import { fmtDate } from "../../shared/js/format.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, confirmAction, stats } from "/shared/js/ui.js";
+import { fmtDate } from "/shared/js/format.js";
 import { A, loadClasses, classOptions } from "./common.js";
 
 const OUTCOME = { passed: ["ناجح", ""], failed: ["راسب", "red"], incomplete: ["غير مكتمل", "amber"] };

@@ -1,10 +1,10 @@
 // ملف الطالب الكامل — يُفتح بمعرّف الطالب فقط
-import { h, $, mount } from "../shared/js/dom.js";
-import { api, idempotencyKey } from "../shared/js/api.js";
-import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select , showInstallBar} from "../shared/js/ui.js";
-import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "../shared/js/format.js";
-import { timetableGrid } from "../shared/js/timetable.js";
-import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
+import { h, $, mount } from "/shared/js/dom.js";
+import { api, idempotencyKey } from "/shared/js/api.js";
+import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select , showInstallBar} from "/shared/js/ui.js";
+import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "/shared/js/format.js";
+import { timetableGrid } from "/shared/js/timetable.js";
+import { receiptDialog, statementDialog } from "/shared/js/receipt.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -33,72 +33,10 @@ function render(d) {
   const count = (st) => d.attendance.filter((a) => a.status === st).length;
   document.title = `مدار — ${s.name}`;
 
-  // ملف الطالب: رأس ثابت + أقسام مستقلة، بدل صفحة واحدة طويلة
-  const sections = [
-    { key: "overview", name: "نظرة عامة", note: "البيانات والملخص" },
-    ...(d.settings.profile_show_grades ? [{ key: "grades", name: "الدرجات", note: d.academic?.term_name || "" }] : []),
-    ...(d.settings.profile_show_attendance ? [{ key: "attendance", name: "الحضور والغياب", note: `${count("absent")} غياب` }] : []),
-    ...(d.homework?.length ? [{ key: "homework", name: "الواجبات", note: `${d.homework.length} واجب` }] : []),
-    ...(d.timetable?.length ? [{ key: "timetable", name: "الجدول الدراسي", note: "حصص الأسبوع" }] : []),
-    ...(f ? [{ key: "fees", name: "الرسوم والسداد", note: f.status === "unpaid" ? money(f.remaining) : "مسدد" }] : []),
-    ...(d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
-    ...(d.announcements.length ? [{ key: "news", name: "التعاميم", note: `${d.announcements.length}` }] : []),
-  ];
-
-  const views = {
-    overview: () => [
-      section("البيانات الأساسية",
-        info("اسم الطالب", s.name), info("الفصل", s.class_name), info("ولي الأمر", s.guardian_name),
-        info("جوال ولي الأمر", s.guardian_phone, "ltr"), info("تاريخ التسجيل", fmtDate(s.since)),
-        ...(d.custom || []).map((c) => info(c.label, c.value))),
-      d.settings.profile_show_grades && d.grades.length
-        ? section("آخر الدرجات", d.grades.slice(0, 4).map(gradeLine)) : null,
-      f ? feesSection(f, true) : null,
-    ],
-    grades: () => section(d.academic?.term_name ? `الدرجات — ${d.academic.term_name}` : "الدرجات",
-      d.grades.length ? d.grades.map(gradeLine) : empty("لم تُنشر درجات بعد.")),
-    attendance: () => section("الحضور والغياب",
-      h("div", { class: "kpis inline" },
-        h("div", {}, h("b", {}, count("present")), "حاضر"),
-        h("div", {}, h("b", {}, count("absent")), "غائب"),
-        h("div", {}, h("b", {}, count("late")), "متأخر"),
-        h("div", {}, h("b", {}, count("excused")), "بعذر")),
-      d.attendance.length ? d.attendance.map((a) => line(
-        h("span", {}, fmtDate(a.day)), badge(ATTENDANCE[a.status].label, ATTENDANCE[a.status].tone)))
-        : empty("لا توجد سجلات.")),
-    homework: () => section("الواجبات", d.homework.map((w) => line(
-      h("div", {}, h("b", {}, w.title), " ", w.submitted ? badge("سُلّم") : badge("لم يُسلّم", "amber"),
-        sub(`${w.subject}${w.teacher ? ` — ${w.teacher}` : ""}${w.due_date ? ` — التسليم ${fmtDate(w.due_date)}` : ""}`),
-        w.details ? sub(w.details) : null)))),
-    timetable: () => section("الجدول الدراسي",
-      timetableGrid(d.timetable, { cell: (day, p2, sl) => (sl
-        ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
-        : h("span", { class: "muted" }, "—")) })),
-    fees: () => feesSection(f),
-    teachers: () => section("المعلمون والمواد",
-      d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher)))),
-    news: () => section("التعاميم", d.announcements.map((a) => line(
-      h("div", {}, h("b", {}, a.title), sub(fmtDate(a.created_at)), a.body ? sub(a.body) : null)))),
-  };
-
-  const body = h("div");
-  const nav = h("nav", { class: "profile-nav" });
-  const openSection = (key) => {
-    nav.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
-    mount(body, views[key]());
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  mount(nav, sections.map((sec) => {
-    const b = h("button", { type: "button", "data-k": sec.key, onclick: () => openSection(sec.key) },
-      h("span", {}, sec.name), sec.note ? h("small", {}, sec.note) : null);
-    return b;
-  }));
-
   mount(app,
     topbar({ school: d.school, subtitle: "ملف الطالب", onLogout: () => { sessionStorage.removeItem(KEY); back(); } }),
-    h("main", { class: "profile-page" },
+    h("main", {},
       h("div", { class: "toolbar" }, btn("الرجوع لقائمة الطلاب", back, "ghost sm"), btn("طباعة", () => window.print(), "ghost sm")),
-
       h("div", { class: "profile-head" },
         h("h1", {}, s.name),
         h("div", { style: "opacity:.85" }, s.class_name),
@@ -106,24 +44,50 @@ function render(d) {
           d.settings.profile_show_grades ? h("div", {}, h("b", {}, avg === null ? "—" : `${avg}%`), "متوسط الدرجات") : null,
           d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("absent")), "أيام الغياب") : null,
           d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("late")), "مرات التأخر") : null,
-          f ? h("div", {}, h("b", {}, f.status === "paid" ? "مسدد" : f.status === "unpaid" ? money(f.remaining) : "—"),
-            f.status === "unpaid" ? "رسوم متبقية" : "حالة الرسوم") : null)),
+          f && h("div", {}, h("b", {}, f.status === "paid" ? "مسدد" : f.status === "unpaid" ? money(f.remaining) : "—"),
+            f.status === "unpaid" ? "رسوم متبقية" : "حالة الرسوم"))),
 
-      h("div", { class: "profile-layout" }, nav, body)),
+      h("div", { class: "cols-2" },
+      section("البيانات الأساسية",
+        info("اسم الطالب", s.name), info("الفصل", s.class_name), info("ولي الأمر", s.guardian_name),
+        info("جوال ولي الأمر", s.guardian_phone, "ltr"), info("تاريخ التسجيل", fmtDate(s.since))),
+
+      f && feesSection(f),
+
+      d.timetable?.length ? section("الجدول الدراسي",
+        timetableGrid(d.timetable, { cell: (day, p, sl) => (sl
+          ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
+          : h("span", { class: "muted" }, "—")) })) : null,
+
+      d.homework?.length ? section("الواجبات", d.homework.map((w) => line(
+        h("div", {}, h("b", {}, w.title), " ", w.submitted ? badge("سُلّم") : badge("لم يُسلّم", "amber"),
+          sub(`${w.subject}${w.teacher ? ` — ${w.teacher}` : ""}${w.due_date ? ` — التسليم ${fmtDate(w.due_date)}` : ""}`),
+          w.details ? sub(w.details) : null))) ) : null,
+
+      d.settings.profile_show_grades ? section(d.academic?.term_name ? `الدرجات — ${d.academic.term_name}` : "الدرجات", d.grades.length ? d.grades.map((g) => {
+        const p = Math.round((g.score / g.max_score) * 100);
+        const color = p >= 65 ? "var(--teal)" : p >= 50 ? "var(--amber)" : "var(--red)";
+        return h("div", { style: "padding:8px 0;border-top:1px solid var(--line)" },
+          h("div", { class: "row", style: "justify-content:space-between" }, h("b", {}, `${g.subject} — ${g.title}`), h("span", { style: "flex:none" }, `${g.score} / ${g.max_score}`)),
+          h("div", { class: "bar" }, h("i", { style: `width:${p}%;background:${color}` })),
+          sub(fmtDate(g.exam_date)));
+      }) : empty("لا توجد درجات منشورة بعد.")) : null,
+
+      d.settings.profile_show_attendance ? section("الحضور والغياب", d.attendance.length ? d.attendance.map((a) => line(
+        h("span", {}, fmtDay(a.day)), h("b", { style: `color:${ATTENDANCE[a.status][1]}` }, ATTENDANCE[a.status][0]))) : empty("لا يوجد سجل حضور بعد.")) : null,
+
+      d.settings.profile_show_teachers ? section("المعلمون والمواد", d.teachers.length ? d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher))) : empty("لا يوجد.")) : null,
+
+      section("التعاميم", d.announcements.length ? d.announcements.map((a) => line(
+        h("div", {}, h("b", {}, a.title), h("div", {}, a.body), sub(fmtDate(a.created_at))))) : empty("لا توجد تعاميم.")))),
     footer());
-
-  openSection("overview");
-  showInstallBar();
 }
 
-// سطر درجة واحد
-const gradeLine = (g) => line(
-  h("div", {}, h("b", {}, g.subject), sub(`${g.title}${g.exam_date ? ` — ${fmtDate(g.exam_date)}` : ""}`)),
-  h("b", {}, `${g.score} / ${g.max_score}`));
+const CLAIM = { pending: ["بانتظار تأكيد المدرسة", "amber"], confirmed: ["تم التأكيد", ""], rejected: ["مرفوض", "red"] };
 
 let schoolName = "", studentName = "", className = "";
 
-function feesSection(f, compact = false) {
+function feesSection(f) {
   const open = f.invoices.filter((i) => i.status === "open");
   const pendingFor = (id) => f.claims.filter((c) => c.invoice_id === id && c.status === "pending").reduce((a, c) => a + c.amount, 0);
   return section("الرسوم والسداد",
@@ -132,8 +96,8 @@ function feesSection(f, compact = false) {
     line(h("span", {}, "المدفوع"), h("b", {}, money(f.paid))),
     line(h("span", {}, "المتبقي"), h("b", { class: f.remaining > 0 ? "danger-text" : "" }, money(f.remaining))),
 
-    compact ? null : h("h3", { class: "sec-title" }, "الفواتير"),
-    compact ? null : open.length ? open.map((i) => {
+    h("h3", { class: "sec-title" }, "الفواتير"),
+    open.length ? open.map((i) => {
       const rem = Math.round((i.amount - i.paid) * 100) / 100;
       const waiting = pendingFor(i.id);
       return line(
@@ -143,13 +107,13 @@ function feesSection(f, compact = false) {
         rem > 0 ? btn("ادفع", () => payDialog(f, i, Math.round((rem - waiting) * 100) / 100)) : null);
     }) : empty("لا توجد فواتير."),
 
-    !compact && f.claims.length ? [h("h3", { class: "sec-title" }, "إشعارات التحويل"),
+    f.claims.length ? [h("h3", { class: "sec-title" }, "إشعارات التحويل"),
       f.claims.map((c) => line(
         h("div", {}, h("b", {}, `${money(c.amount)} — تحويل بتاريخ ${fmtDate(c.transfer_date)}`), " ", badge(...CLAIM[c.status]),
           c.review_note ? sub(c.status === "rejected" ? `سبب الرفض: ${c.review_note}` : c.review_note) : null),
         c.receipt_no ? keyText(c.receipt_no) : null))] : null,
 
-    !compact && f.receipts.length ? [
+    f.receipts.length ? [
       h("div", { class: "toolbar" },
         h("h3", { class: "sec-title", style: "margin:0" }, "الإيصالات"),
         btn("كشف الحساب", () => statementDialog({

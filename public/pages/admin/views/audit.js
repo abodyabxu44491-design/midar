@@ -1,8 +1,8 @@
 // تبويب السجل: تصفية وبحث، وكل تعديل مع القيم قبل وبعد
-import { h, mount } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, empty, line, sub } from "../../shared/js/ui.js";
-import { fmtDateTime, csv } from "../../shared/js/format.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { panel, field, input, select, btn, empty, line, sub } from "/shared/js/ui.js";
+import { fmtDateTime, csv } from "/shared/js/format.js";
 import { A } from "./common.js";
 
 const show = (v) => (v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));

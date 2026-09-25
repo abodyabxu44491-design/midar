@@ -7,8 +7,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 const patchSchema = z.object({
-  status: z.enum(["new", "reviewing", "approved", "awaiting_payment", "active", "rejected", "canceled", "expired", "contacted", "converted"]).optional()
-    .transform((v) => ({ contacted: "reviewing", converted: "active" }[v] || v)),
+  status: z.enum(["new", "contacted", "converted", "rejected"]).optional(),
   owner_note: t.optText(500),
   tenant_id: z.string().max(30).optional().nullable(),
 });
@@ -17,7 +16,7 @@ r.get("/", handle(async (req, res) => {
   res.json(await platform(req, (q) => q(
     `SELECT id, school_name, contact_name, phone, email, city, students_count, note, status, owner_note,
             tenant_id, host(ip) AS ip, created_at
-       FROM leads WHERE source = 'public' ORDER BY status = 'new' DESC, id DESC LIMIT 200`)));
+       FROM leads ORDER BY status = 'new' DESC, id DESC LIMIT 200`)));
 }));
 
 r.patch("/:id", handle(async (req, res) => {
