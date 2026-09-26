@@ -12,7 +12,7 @@ r.get("/", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const [c] = await q("SELECT id FROM classes WHERE id = $1", [b.class_id]);
     if (!c) throw notFound("الفصل غير موجود");
-    return attendance.listForClass(q, b.class_id, b.date);
+    return attendance.listForClass(q, b.class_id, b.date, { withContact: true });
   }));
 }));
 

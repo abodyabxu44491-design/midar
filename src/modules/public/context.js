@@ -4,6 +4,7 @@ import { notFound, unauthorized } from "../../core/http/errors.js";
 import { safeEqual } from "../../core/auth/codes.js";
 import { securityEvent, recentFailures, logEvent } from "../../core/audit.js";
 import { parse, t, z } from "../../core/http/validate.js";
+import { accessContext } from "../shared/subscription.service.js";
 
 const schoolParam = z.string().toLowerCase().regex(/^[a-z0-9-]{3,30}$/);
 // 10 محاولات خاطئة من العنوان الواحد لكل طالب خلال 30 دقيقة، وسقف 100 لكل طالب من كل العناوين.
@@ -17,6 +18,8 @@ export async function inSchool(req, actor, fn) {
   return transaction({ tenantId: r.data, actor, ip: req.ip }, async (q) => {
     const [tenant] = await q("SELECT id, name, status, directory_code, currency FROM tenants WHERE id = $1", [r.data]);
     if (!tenant || tenant.status !== "active") throw notFound("المدرسة غير متاحة");
+    // اشتراك متوقف: صفحات المدرسة العامة غير متاحة (والبيانات محفوظة)
+    if ((await accessContext(q)).access.locked) throw notFound("المدرسة غير متاحة");
     return fn(q, tenant);
   });
 }

@@ -1,5 +1,6 @@
 // بوابة المحاسب: المالية والرسوم فقط. لا وصول للطلاب ولا الدرجات ولا الإعدادات.
 import { Router } from "express";
+import { accessSummary } from "../shared/subscription.service.js";
 import { requireStaff, requireModule } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
 import { handle } from "../../core/http/errors.js";
@@ -17,6 +18,7 @@ r.get("/me", handle(async (req, res) => {
   res.json({
     name: req.user.full_name,
     role: "accountant",
+    access: accessSummary(req),
     must_change_password: req.user.must_change_password,
     school: { id: req.tenant.id, name: req.tenant.name },
     currency: req.tenant.currency,

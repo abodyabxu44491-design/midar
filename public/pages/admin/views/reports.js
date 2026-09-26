@@ -1,18 +1,26 @@
 // تبويب التقارير: كشف درجات الطالب أو الصف كامل، جاهز للطباعة أو الحفظ PDF
-import { h, mount } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { panel, field, select, btn, empty, sub, notice, brandLogo } from "/shared/js/ui.js";
-import { fmtDate } from "/shared/js/format.js";
+import { h, mount } from "../../shared/js/dom.js";
+import { api } from "../../shared/js/api.js";
+import { panel, field, select, btn, empty, sub, notice, brandLogo } from "../../shared/js/ui.js";
+import { fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses } from "./common.js";
 
 export default async function reports({ me }) {
-  const [classes, students, academic] = await Promise.all([loadClasses(), api(`${A}/students`), api(`${A}/academic`)]);
+  const [classes, academic] = await Promise.all([loadClasses(), api(`${A}/academic`)]);
   const currentYearTerms = academic.terms.filter((t) => t.year_id === academic.current?.year_id);
   const termPicker = select([["", "السنة كاملة"], ...currentYearTerms.map((t) => [t.id, t.name])],
     { value: academic.current?.term_id ?? "" });
   const termQuery = () => (termPicker.value ? `?term_id=${termPicker.value}` : "");
   const classPicker = select([["", "اختر الصف"], ...classes.map((c) => [c.id, c.name])]);
-  const studentPicker = select([["", "اختر الطالب"], ...students.map((s) => [s.id, s.name])]);
+  // الطالب يُختار بعد الصف: تُحمّل أسماء طلاب الصف المختار فقط
+  const studentClass = select([["", "اختر الصف أولًا"], ...classes.map((c) => [c.id, c.name])]);
+  const studentPicker = select([["", "اختر الطالب"]]);
+  studentClass.addEventListener("change", async () => {
+    mount(studentPicker, h("option", { value: "" }, studentClass.value ? "جارٍ التحميل…" : "اختر الطالب"));
+    if (!studentClass.value) return;
+    const list = await api(`${A}/students?class_id=${studentClass.value}&fields=basic&limit=500`);
+    mount(studentPicker, h("option", { value: "" }, "اختر الطالب"), list.map((s) => h("option", { value: s.id }, s.name)));
+  });
   const out = h("div");
   const msg = h("div");
 
@@ -31,7 +39,7 @@ export default async function reports({ me }) {
       sub("من الاختبارات المنشورة فقط. للحفظ PDF: اضغط طباعة ثم «حفظ كـ PDF»."),
       field("الفصل الدراسي", termPicker),
       h("div", { class: "row" },
-        field("طالب واحد", studentPicker),
+        field("صف الطالب", studentClass), field("طالب واحد", studentPicker),
         btn("عرض", () => studentPicker.value && show(async () => [await api(`${A}/reports/report-card/${studentPicker.value}${termQuery()}`)]), "soft")),
       h("div", { class: "row" },
         field("صف كامل", classPicker),

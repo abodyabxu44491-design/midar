@@ -20,6 +20,7 @@ export const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res, n
 function fromDatabase(err) {
   switch (err.code) {
     case "P0001": return new AppError(400, err.message, "rule");               // قواعد الحماية داخل القاعدة
+    case "P0002": return new AppError(404, err.message, "not_found");          // سجل غير موجود (دوال القاعدة)
     case "23505": return new AppError(409, "هذه القيمة مسجلة من قبل", "duplicate");
     case "23503": return new AppError(409, "لا يمكن تنفيذ العملية لأن السجل مرتبط ببيانات أخرى", "in_use");
     case "23514": return new AppError(400, "إحدى القيم غير صالحة", "check");

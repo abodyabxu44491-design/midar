@@ -7,6 +7,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 import * as payments from "../shared/payments.service.js";
 import { getSettings, updateSettings, settingsSchema } from "../shared/public-settings.service.js";
 import { getModules, updateModules, modulesSchema } from "../shared/modules.service.js";
+import { toOld, kindOld } from "../shared/subscription.service.js";
 
 const r = Router();
 
@@ -40,9 +41,11 @@ r.get("/subscription", handle(async (req, res) => {
               (SELECT count(*) FROM students WHERE status = 'active')::int AS students,
               (t.subscription_end - CURRENT_DATE)::int AS days_left
          FROM tenants t WHERE t.id = app_tenant()`);
-    const requests = await q(
-      `SELECT id, kind, months, students_wanted, note, status, owner_note, created_at
-         FROM renewal_requests ORDER BY id DESC LIMIT 20`);
+    // طلبات المدرسة من الجدول الموحد بأسماء الحالات السابقة (توافق مع الواجهات القديمة)
+    const requests = (await q(
+      `SELECT id, kind, months, students_count AS students_wanted, note, status, owner_note, created_at
+         FROM leads WHERE source = 'school' AND kind IN ('renewal', 'upgrade', 'contact') ORDER BY id DESC LIMIT 20`))
+      .map((x) => ({ ...x, kind: kindOld(x.kind), status: toOld(x.status) }));
     return { subscription: tn, requests };
   });
   const [platform] = await transaction({}, (q) =>
@@ -52,15 +55,17 @@ r.get("/subscription", handle(async (req, res) => {
 
 r.post("/subscription/renew", handle(async (req, res) => {
   const b = parse(renewalSchema, req.body);
+  const kind = { renew: "renewal", upgrade: "upgrade", support: "contact" }[b.kind];
   const row = await inTenant(req, async (q) => {
-    const [open] = await q("SELECT id FROM renewal_requests WHERE status = 'new' AND kind = $1", [b.kind]);
+    const [open] = await q("SELECT id FROM leads WHERE source = 'school' AND status = 'new' AND kind = $1", [kind]);
     if (open) throw badRequest("لديك طلب سابق بانتظار الرد. سنتواصل معك قريبًا.");
+    const [tn] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
     const [created] = await q(
-      `INSERT INTO renewal_requests (tenant_id, kind, months, students_wanted, note, contact_name, contact_phone, requested_by)
-       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id, kind, status, created_at`,
-      [b.kind, b.months ?? null, b.students_wanted ?? null, b.note ?? null,
-       b.contact_name ?? null, b.contact_phone ?? null, req.actor]);
-    return created;
+      `INSERT INTO leads (school_name, contact_name, phone, note, tenant_id, kind, source, months, students_count, requested_by)
+       VALUES ($1, $2, $3, $4, app_tenant(), $5, 'school', $6, $7, $8) RETURNING id, kind, status, created_at`,
+      [tn.name, b.contact_name || req.user.full_name, b.contact_phone ?? null, b.note ?? null, kind, b.months ?? null,
+       b.students_wanted ?? null, req.actor]);
+    return { ...created, kind: b.kind, status: toOld(created.status) };
   });
   res.status(201).json(row);
 }));

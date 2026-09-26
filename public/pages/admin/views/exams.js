@@ -1,8 +1,8 @@
 // تبويب الاختبارات: مراجعة الدرجات واعتمادها
-import { h } from "/shared/js/dom.js";
-import { api } from "/shared/js/api.js";
-import { panel, btn, empty, badge, line, sub, toast, dialog, confirmAction } from "/shared/js/ui.js";
-import { EXAM, csv, fmtDate } from "/shared/js/format.js";
+import { h } from "../../shared/js/dom.js";
+import { api } from "../../shared/js/api.js";
+import { panel, btn, empty, badge, line, sub, toast, dialog, confirmAction } from "../../shared/js/ui.js";
+import { EXAM, csv, fmtDate } from "../../shared/js/format.js";
 import { A } from "./common.js";
 
 export default async function exams({ refresh }) {

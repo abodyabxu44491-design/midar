@@ -9,7 +9,7 @@ export async function startAnalytics(pageName) {
   if (started) return;
   started = true;
   try {
-    const site = await fetch("/api/site", { cache: "no-store" }).then((r) => r.json());
+    const site = await fetch("/api/analytics-config").then((r) => r.json());
     if (!site.analytics) return;
     const { initializeApp } = await import(`${SDK}/firebase-app.js`);
     const { initializeAnalytics, isSupported, logEvent } = await import(`${SDK}/firebase-analytics.js`);

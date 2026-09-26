@@ -1,6 +1,11 @@
 // بناء التطبيق: الحماية، الواجهات البرمجية، والصفحات
 // برمجة وتطوير: المبرمج عبدالله السكني
 import express from "express";
+import compression from "compression";
+import { staticRoutes, sendPage, serviceWorker } from "./core/web.js";
+import { APP_VERSION, APP_RELEASE, BUILD_HASH, STARTED_AT } from "./core/version.js";
+import { perfMiddleware } from "./core/perf.js";
+import { siteData } from "./modules/shared/plans-public.service.js";
 import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +31,9 @@ export function createApp() {
   const app = express();
   app.set("trust proxy", env.TRUST_PROXY);
   app.disable("x-powered-by");
-  app.use(securityHeaders, noIndex);
+  app.use(perfMiddleware, securityHeaders, noIndex);
+  // ضغط كل الاستجابات النصية (JSON وJS وCSS وHTML): 5–10 أضعاف أصغر على الجوال
+  app.use(compression({ threshold: 1024 }));
 
   // فحص سريع للمراقبة وإيقاظ الخادم (لا يلمس قاعدة البيانات حتى لا تُستهلك ساعات حوسبتها)
   app.get("/healthz", (req, res) => res.json({ ok: true }));
@@ -38,8 +45,13 @@ export function createApp() {
   });
 
   /* ---------- الواجهات البرمجية ---------- */
+  // رقم الإصدار: تعرضه الواجهة ويقارنه المتصفح لاكتشاف النشر الجديد
+  app.get("/api/version", (req, res) => res.set("Cache-Control", "no-store").json({ version: APP_VERSION, release: APP_RELEASE, build: BUILD_HASH, started_at: STARTED_AT }));
+  // إعداد التحليلات فقط (صغير وثابت): بدل تنزيل بيانات الصفحة الرسمية كاملة في كل صفحة
+  app.get("/api/analytics-config", (req, res) => res.set("Cache-Control", "public, max-age=3600").json({ analytics: env.FIREBASE_ANALYTICS || null }));
   app.get("/api/site", limits.site, handle(async (req, res) => {
-    const [s] = await transaction({}, (q) => q("SELECT landing_mode, brand_phone, brand_email FROM platform_settings WHERE id"));
+    // الصفحة العامة تقرأ الباقات والأسعار والمميزات من قاعدة البيانات (لا نصوص ثابتة في الكود)
+    const s = await siteData();
     res.set("Cache-Control", "no-store").json({ analytics: env.FIREBASE_ANALYTICS, ...s });
   }));
   const api = express.Router();
@@ -47,7 +59,15 @@ export function createApp() {
   // يجب أن يُحسم الحد هنا لأن المحلل الأول هو الذي يرفض الطلب الكبير قبل أن يصل لأي محلل داخل المسار.
   const smallJson = express.json({ limit: "512kb" });
   const uploadJson = express.json({ limit: "4mb" });
-  const isUpload = (req) => req.method === "POST" && /^\/(admin|accountant)\/ledger\/entries\/\d+\/attachments$/.test(req.path);
+  // وكذلك صور الأسئلة وشعار المدرسة، وحفظ ورقة الاختبار (قد تكون طويلة: حتى 300 سؤال)
+  const isUpload = (req) => (req.method === "POST" && (
+      /^\/(admin|accountant)\/ledger\/entries\/\d+\/attachments$/.test(req.path)
+      || /^\/(admin|teacher)\/papers\/images$/.test(req.path)
+      || req.path === "/admin/papers-settings/logo"
+      || /^\/(admin|teacher)\/papers\/import$/.test(req.path)))
+    || (req.method === "PUT" && /^\/(admin|teacher)\/papers\/\d+$/.test(req.path));
+  // كل استجابة API تحمل رقم الإصدار: إن اختلف عن إصدار الصفحة المفتوحة تعرف الواجهة أن هناك تحديثًا
+  api.use((req, res, next) => { res.set("X-App-Version", APP_VERSION); next(); });
   api.use(limits.api, noStore, (req, res, next) => (isUpload(req) ? uploadJson : smallJson)(req, res, next), cookieParser(), sameOrigin);
   api.use("/owner", ownerApi);
   api.use("/admin", adminApi);
@@ -58,13 +78,11 @@ export function createApp() {
   api.use((req, res, next) => next(notFound("المسار غير موجود")));
   app.use("/api", api);
 
-  /* ---------- الملفات الثابتة ---------- */
-  const assets = { maxAge: env.isProd ? "7d" : 0, index: false, fallthrough: true };
-  app.use("/brand", express.static(path.join(WEB, "brand"), assets));
-  app.use("/shared", express.static(path.join(WEB, "shared"), assets));
-  app.get("/favicon.ico", (req, res) => res.sendFile(path.join(WEB, "brand", "favicon.ico")));
-  // عامل الخدمة يجب أن يُقدَّم من الجذر ليغطي كل الصفحات
-  app.get("/sw.js", (req, res) => res.set("Cache-Control", "no-cache").type("application/javascript").sendFile(path.join(WEB, "sw.js")));
+  /* ---------- الملفات الثابتة (بإصدار وبدون) ---------- */
+  staticRoutes(app, { isProd: env.isProd });
+  app.get("/favicon.ico", (req, res) => res.set("Cache-Control", "public, max-age=86400").sendFile(path.join(WEB, "brand", "favicon.ico")));
+  // عامل الخدمة من الجذر ليغطي كل الصفحات، ومحتواه يتغير مع كل إصدار
+  app.get("/sw.js", serviceWorker());
 
   /* ---------- الصفحات ----------
      الرابط الرئيسي صفحة فاضية بلا روابط.
@@ -74,16 +92,11 @@ export function createApp() {
        /<رمز المدرسة>/idara     باب المدير والمعلم
      ولوحة المالك على رابط سري فقط.                                   */
   const file = (...p) => path.join(pages, ...p);
-  const send = (...p) => (req, res) => res.sendFile(file(...p));
+  const send = (...p) => sendPage(file(...p), { isProd: env.isProd });   // HTML بلا كاش ويشير للإصدار الحالي
 
   app.use(env.OWNER_PATH, ownerNetwork, express.static(file("owner"), { index: "index.html", redirect: true }));
-  app.use("/school-page", express.static(file("school"), { index: false }));
-  // ملفات لوحتي الإدارة والمعلم تُحمّل من باب المدرسة الموحّد
-  app.use("/admin", express.static(file("admin"), { index: false }));
-  app.use("/teacher", express.static(file("teacher"), { index: false }));
-  app.use("/accountant", express.static(file("accountant"), { index: false }));
-  app.use("/staff-page", express.static(file("staff"), { index: false }));
-  app.use("/home-page", express.static(file("home"), { index: false }));
+  app.get("/reset", send("reset", "index.html"));     // صفحة تغيير كلمة المرور بالرابط
+  app.get("/reset/", send("reset", "index.html"));
   app.get("/", send("home", "index.html"));
 
   const school = (handler) => (req, res, next) =>

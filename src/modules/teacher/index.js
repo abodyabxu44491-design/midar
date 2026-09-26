@@ -7,6 +7,8 @@ import attendance from "./attendance.js";
 import exams from "./exams.js";
 import timetable from "./timetable.js";
 import homework from "./homework.js";
+import { papersRouter } from "../shared/exam-papers.routes.js";
+import { teacherSyncRouter } from "../shared/sync.routes.js";
 
 const r = Router();
 r.use(logoutRouter("teacher"));
@@ -17,4 +19,6 @@ r.use("/attendance", requireModule("attendance"), attendance);
 r.use("/exams", requireModule("exams"), exams);
 r.use("/timetable", requireModule("timetable"), timetable);
 r.use("/homework", requireModule("homework"), homework);
+r.use("/papers", requireModule("exam_papers"), papersRouter("teacher"));
+r.use("/sync", teacherSyncRouter());      // العمل بدون إنترنت: الحضور والدرجات
 export default r;
