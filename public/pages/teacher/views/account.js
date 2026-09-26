@@ -1,5 +1,5 @@
-import { api } from "../../shared/js/api.js";
-import { panel, field, input, btn, toast , passwordInput} from "../../shared/js/ui.js";
+import { api } from "/shared/js/api.js";
+import { panel, field, input, btn, toast , passwordInput} from "/shared/js/ui.js";
 
 export default function account() {
   const cur = passwordInput({ autocomplete: "current-password" });

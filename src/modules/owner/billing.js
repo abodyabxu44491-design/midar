@@ -69,15 +69,6 @@ r.post("/invoices/:id/pay", handle(async (req, res) => {
               status = CASE WHEN status = 'suspended' AND auto_suspended_at IS NOT NULL THEN 'active' ELSE status END,
               auto_suspended_at = NULL
         WHERE id = $1`, [inv.tenant_id, inv.period_end]);
-    // السداد يمدد الاشتراك الحالي ويعيده فعّالًا (بنفس بيانات المدرسة)
-    const [sub] = await q(
-      `UPDATE subscriptions s SET ends_on = GREATEST(COALESCE(s.ends_on, CURRENT_DATE), $2::date),
-              status = CASE WHEN s.status IN ('expired', 'trial_expired', 'pending_payment', 'trial') THEN 'active' ELSE s.status END,
-              kind = CASE WHEN s.kind = 'trial' THEN 'paid' ELSE s.kind END
-         FROM tenants t WHERE t.id = $1 AND s.id = t.subscription_id RETURNING s.id`, [inv.tenant_id, inv.period_end]);
-    if (sub) await q(`INSERT INTO subscription_events (tenant_id, subscription_id, event, details, actor)
-                      VALUES ($1, $2, 'paid', jsonb_build_object('invoice', $3::bigint, 'until', $4::date), $5)`,
-      [inv.tenant_id, sub.id, id, inv.period_end, req.actor]);
   });
   res.json({ ok: true });
 }));

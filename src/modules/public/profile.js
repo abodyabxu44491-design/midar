@@ -9,7 +9,6 @@ import { getSettings } from "../shared/public-settings.service.js";
 import { forClass } from "../shared/timetable.service.js";
 import { listForStudent } from "../shared/homework.service.js";
 import { current } from "../shared/academic.service.js";
-import { list as listFields, valuesOf } from "../shared/custom-fields.service.js";
 
 const r = Router({ mergeParams: true });
 const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, "•") : null);
@@ -37,7 +36,7 @@ r.post("/student", limits.studentKey, handle(async (req, res) => {
     if (s.fees_enabled) {
       fees = {
         ...(await studentSummary(q, s.id)),
-        invoices: (await listInvoices(q, "i.student_id = $1", [s.id])).map(({ student_name, class_name, student_id, guardian_phone, access_key, ...i }) => i),
+        invoices: (await listInvoices(q, "i.student_id = $1", [s.id])).map(({ student_name, class_name, student_id, ...i }) => i),
         receipts: await listPayments(q, s.id),
         claims: await claimsForStudent(q, s.id),
         accounts: (await listAccounts(q, { activeOnly: true })).map(({ is_active, ...a }) => a),
@@ -49,20 +48,11 @@ r.post("/student", limits.studentKey, handle(async (req, res) => {
       currency: tenant.currency,
       student: { id: s.id, name: s.full_name, class_name: cls?.name || "غير محدد", guardian_name: s.guardian_name,
         guardian_phone: mask(s.guardian_phone), since: s.created_at },
-      custom: await publicCustom(q, s.id),
       settings, academic: term, attendance, grades, teachers, announcements: news, fees,
       timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],
       homework: settings.profile_show_homework && s.class_id ? await listForStudent(q, s) : [],
     };
   }));
 }));
-
-// الحقول المخصصة التي فعّلت المدرسة إظهارها لولي الأمر
-async function publicCustom(q, studentId) {
-  const fields = (await listFields(q, "student")).filter((f) => f.is_active && f.show_parent);
-  if (!fields.length) return [];
-  const values = await valuesOf(q, "student", studentId);
-  return fields.filter((f) => values[f.key] !== undefined).map((f) => ({ label: f.label, value: values[f.key] }));
-}
 
 export default r;

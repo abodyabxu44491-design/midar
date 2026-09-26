@@ -400,18 +400,12 @@ test("سجل التدقيق يسجل التعديلات بالقيم", async () 
   assert.ok(r.data.some((a) => a.changes?.some((c) => c.field === "guardian_name")));
 });
 
-test("قفل الدخول 5 دقائق بعد 5 محاولات خاطئة، مع الوقت المتبقي للعد التنازلي", async () => {
+test("قفل الحساب بعد 5 محاولات خاطئة", async () => {
   const x = client(srv.base);
-  const tries = [];
-  for (let i = 0; i < 5; i++) tries.push(await x.post("/api/staff/login", { school: A.id, username: "tester", password: "wrong-pass" }));
-  assert.deepEqual(tries.slice(0, 4).map((t) => t.status), [401, 401, 401, 401]);
-  assert.equal(tries[4].status, 429, "المحاولة الخامسة تبدأ القفل فورًا");
-  assert.equal(tries[4].data.code, "locked");
-  assert.ok(tries[4].data.retry_after > 280 && tries[4].data.retry_after <= 300, `5 دقائق: ${tries[4].data.retry_after}`);
+  for (let i = 0; i < 5; i++) await x.post("/api/staff/login", { school: A.id, username: "tester", password: "wrong-pass" });
   const r = await x.post("/api/staff/login", { school: A.id, username: "tester", password: s.teacherPw });
-  assert.equal(r.status, 429, "كلمة المرور الصحيحة لا تفتح أثناء القفل");
-  assert.match(r.data.error, /إيقاف الدخول مؤقتًا/);
-  assert.ok(r.data.retry_after <= tries[4].data.retry_after, "العد لا يزيد مع المحاولة أثناء القفل");
+  assert.equal(r.status, 401);
+  assert.match(r.data.error, /مقفل/);
 });
 
 test("اشتراكات المدارس: فاتورة، سداد، تمديد، وإيقاف تلقائي", async () => {
@@ -430,26 +424,17 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   assert.ok(before.data.summary.due >= 4000);
   assert.ok(before.data.renewals.some((t) => t.id === A.id));
 
-  // بعد مدة السماح: الاشتراك ينتهي (تغيير حالة فقط، بلا حذف ولا إيقاف للمدرسة)
+  // الإيقاف التلقائي بعد مدة السماح
   const suspended = await owner.post("/api/owner/billing/suspend-expired", {});
-  assert.ok(suspended.data.suspended.some((t) => t.tenant_id === A.id), "الاشتراك المنتهي يُنهى");
-  const me = await A.admin.get("/api/admin/me");
-  assert.equal(me.status, 200, "المدير يبقى قادرًا على الدخول ليجدد");
-  assert.equal(me.data.access.locked, true);
-  assert.equal(me.data.access.status, "expired");
-  const blocked = await A.admin.get("/api/admin/students");
-  assert.equal(blocked.status, 402, "باقي اللوحة مقفل حتى التجديد");
-  assert.equal(blocked.data.code, "subscription_inactive");
-  assert.equal((await A.admin.get("/api/admin/subscription")).status, 200, "صفحة الاشتراك متاحة للتجديد");
-  assert.equal((await client(srv.base).post(`/api/public/${A.id}/directory`, { access: "X" })).status, 404, "صفحات المدرسة العامة متوقفة");
+  assert.ok(suspended.data.suspended.some((t) => t.tenant_id === A.id), "المدرسة المنتهية تُوقف");
+  assert.equal((await A.admin.get("/api/admin/me")).status, 401, "مستخدموها خرجوا");
 
-  // السداد يعيد التفعيل ويمدد الاشتراك، والبيانات كما هي
+  // السداد يعيد التفعيل ويمدد الاشتراك
   assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "transfer" })).status, 200);
   const tenants = await owner.get("/api/owner/tenants");
   const A2 = tenants.data.find((t) => t.id === A.id);
   assert.equal(A2.status, "active");
   assert.equal(A2.subscription_end, nextYear);
-  assert.equal((await A.admin.get("/api/admin/students")).status, 200, "عادت المدرسة للعمل ببياناتها");
   assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "cash" })).status, 400, "لا تُسدد مرتين");
 
   // المدرسة لا ترى فواتير الاشتراك
@@ -929,488 +914,6 @@ test("الأرقام الدولية: أي دولة تُقبل ورابط وات�
   await A.admin.post(`/api/admin/students/${yemeni.data.id}/status`, { status: "withdrawn" });
 });
 
-test("أوراق الطباعة: بطاقات المعرّفات وسجل الحضور الشهري", async () => {
-  const cards = await A.admin.get("/api/admin/sheets/cards");
-  assert.equal(cards.status, 200, JSON.stringify(cards.data));
-  assert.ok(cards.data.school && cards.data.directory_code);
-  assert.ok(cards.data.students.every((s) => s.name && s.access_key), "كل بطاقة فيها الاسم والمعرّف");
-
-  const byClass = await A.admin.get(`/api/admin/sheets/cards?class_id=${s.classId}`);
-  assert.ok(byClass.data.students.length <= cards.data.students.length);
-  assert.ok(byClass.data.students.every((x) => x.class_name));
-
-  const month = new Date().toISOString().slice(0, 7);
-  const sheet = await A.admin.get(`/api/admin/sheets/attendance-month?class_id=${s.classId}&month=${month}`);
-  assert.equal(sheet.status, 200, JSON.stringify(sheet.data));
-  assert.ok(sheet.data.days >= 28 && sheet.data.days <= 31);
-  assert.ok(sheet.data.students.every((x) => typeof x.absent === "number" && "days" in x));
-  assert.equal((await A.admin.get(`/api/admin/sheets/attendance-month?class_id=${s.classId}&month=2026-13`)).status, 400);
-
-  // مدرسة أخرى لا ترى فصولنا
-  assert.equal((await B.admin.get(`/api/admin/sheets/attendance-month?class_id=${s.classId}&month=${month}`)).status, 404);
-  assert.equal((await B.admin.get("/api/admin/sheets/cards")).data.students.length, 0);
-});
-
-test("سجل العمليات: تصفية بالقسم والنوع والتاريخ والبحث", async () => {
-  const filters = await A.admin.get("/api/admin/audit/filters");
-  assert.equal(filters.status, 200);
-  assert.ok(filters.data.tables.some((x) => x.key === "students"));
-
-  const all = await A.admin.get("/api/admin/audit");
-  assert.ok(all.data.length > 0);
-
-  const students = await A.admin.get("/api/admin/audit?table=students");
-  assert.ok(students.data.length > 0);
-  assert.ok(students.data.every((x) => /الطلاب/.test(x.summary)), "التصفية بالقسم تعمل");
-
-  const inserts = await A.admin.get("/api/admin/audit?table=students&action=insert");
-  assert.ok(inserts.data.every((x) => /إضافة/.test(x.summary)));
-
-  const future = await A.admin.get("/api/admin/audit?from=2099-01-01");
-  assert.equal(future.data.length, 0, "التصفية بالتاريخ تعمل");
-
-  const found = await A.admin.get(`/api/admin/audit?q=${encodeURIComponent("طالب الاختبار")}`);
-  assert.ok(found.data.length > 0, "البحث في القيم يعمل");
-
-  // السجل لا يتجاوز المدرسة
-  const other = await B.admin.get(`/api/admin/audit?q=${encodeURIComponent("طالب الاختبار")}`);
-  assert.equal(other.data.length, 0);
-});
-
-test("معالج الإعداد: قالب ينشئ المراحل والصفوف والشعب والمواد، وكلها قابلة للتعديل", async () => {
-  const S = await makeSchool("مدرسة الهيكل");
-  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 500 });
-
-  const state = await S.admin.get("/api/admin/setup");
-  assert.equal(state.status, 200, JSON.stringify(state.data));
-  assert.equal(state.data.profile.setup_completed_at, null, "مدرسة جديدة = الإعداد لم يكتمل");
-  assert.ok(state.data.catalog.templates.some((x) => x.key === "primary"));
-  assert.equal(state.data.structure.stages.length, 0);
-
-  // بيانات المدرسة
-  const profile = await S.admin.put("/api/admin/setup/profile", {
-    name: "مدرسة الهيكل النموذجية", school_type: "private", gender: "boys",
-    country: "السعودية", city: "الرياض", email: "info@example.com", phone: "0500000000" });
-  assert.equal(profile.status, 200, JSON.stringify(profile.data));
-  assert.equal(profile.data.city, "الرياض");
-  assert.equal(profile.data.name, "مدرسة الهيكل النموذجية");
-
-  // تطبيق قالب ابتدائي: 6 صفوف × 3 شعب + المواد المختارة
-  const applied = await S.admin.post("/api/admin/setup/template", {
-    template: "primary", sections_per_grade: 3, naming: "arabic",
-    subjects: ["اللغة العربية", "الرياضيات", "العلوم"] });
-  assert.equal(applied.status, 200, JSON.stringify(applied.data));
-  assert.equal(applied.data.stages, 1);
-  assert.equal(applied.data.grades, 6);
-  assert.equal(applied.data.sections, 18, "6 صفوف × 3 شعب");
-  assert.equal(applied.data.subjects, 3, "المواد المختارة فقط");
-
-  const after = (await S.admin.get("/api/admin/setup")).data.structure;
-  assert.equal(after.stages.length, 1);
-  const grade1 = after.stages[0].grades[0];
-  assert.equal(grade1.sections.length, 3);
-  assert.match(grade1.sections[0].name, /- أ$/, "تسمية الشعب بالحروف العربية");
-  assert.ok(after.subjects.every((x) => x.grade_ids.length === 6), "المواد مرتبطة بصفوف المرحلة");
-
-  // إعادة تطبيق القالب لا تكرر شيئًا
-  const again = await S.admin.post("/api/admin/setup/template", {
-    template: "primary", sections_per_grade: 3, naming: "arabic" });
-  assert.equal(again.data.grades, 0, "لا تكرار للصفوف");
-  assert.equal(again.data.sections, 0, "لا تكرار للشعب");
-
-  // إنشاء شعب إضافية بنمط إنجليزي
-  const more = await S.admin.post(`/api/admin/setup/grades/${grade1.id}/sections`, { count: 2, naming: "english" });
-  assert.equal(more.data.created, 2);
-  assert.match(more.data.sections[0].name, /- A$/);
-
-  // تعديل وحذف وترتيب
-  assert.equal((await S.admin.patch(`/api/admin/setup/grades/${grade1.id}`, { name: "الصف الأول" })).status, 200);
-  const stage = (await S.admin.get("/api/admin/setup")).data.structure.stages[0];
-  const ids = stage.grades.map((g) => g.id);
-  assert.equal((await S.admin.post(`/api/admin/setup/stages/${stage.id}/reorder`,
-    { ids: [ids[1], ids[0], ...ids.slice(2)] })).status, 200);
-  const reordered = (await S.admin.get("/api/admin/setup")).data.structure.stages[0];
-  assert.equal(Number(reordered.grades[0].id), Number(ids[1]), "الترتيب تغيّر");
-
-  const lastGrade = reordered.grades[reordered.grades.length - 1];
-  const delRes = await S.admin.del(`/api/admin/setup/grades/${lastGrade.id}`);
-  assert.equal(delRes.status, 200, JSON.stringify(delRes.data));
-
-  // صف فيه طلاب لا يُحذف
-  const section = reordered.grades[0].sections[0];
-  await S.admin.post("/api/admin/students", { name: "طالب الهيكل", class_id: section.id });
-  assert.equal((await S.admin.del(`/api/admin/setup/grades/${reordered.grades[0].id}`)).status, 400);
-
-  // مادة جديدة وربطها بصفوف
-  const subject = await S.admin.post("/api/admin/setup/subjects", {
-    name: "المهارات الحياتية", code: "LIF", weekly_periods: 2, grade_ids: [reordered.grades[0].id] });
-  assert.equal(subject.status, 201, JSON.stringify(subject.data));
-  const withSubject = (await S.admin.get("/api/admin/setup")).data.structure.subjects
-    .find((x) => x.name === "المهارات الحياتية");
-  assert.equal(withSubject.grade_ids.length, 1);
-  assert.equal((await S.admin.post("/api/admin/setup/subjects", { name: "المهارات الحياتية" })).status, 409);
-
-  // إنهاء الإعداد
-  assert.equal((await S.admin.post("/api/admin/setup/complete", {})).status, 200);
-  assert.ok((await S.admin.get("/api/admin/me")).data.setup_completed);
-
-  // العزل
-  assert.equal((await B.admin.get("/api/admin/setup")).data.structure.stages.length, 0);
-});
-
-test("قوالب الرسوم: تقسيط تلقائي وخصومات وإعفاء، ولا تكرار عند إعادة التطبيق", async () => {
-  const S = await makeSchool("مدرسة الرسوم");
-  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 100 });
-  await S.admin.post("/api/admin/setup/template", { template: "primary", sections_per_grade: 1, naming: "arabic" });
-  const structure = (await S.admin.get("/api/admin/setup")).data.structure;
-  const grade = structure.stages[0].grades[0];
-  const section = grade.sections[0];
-
-  const a = await S.admin.post("/api/admin/students", { name: "طالب أول", class_id: section.id });
-  const bStudent = await S.admin.post("/api/admin/students", { name: "طالب ثانٍ", class_id: section.id });
-  const cStudent = await S.admin.post("/api/admin/students", { name: "طالب معفى", class_id: section.id });
-
-  // قالب: 5000 على 4 دفعات
-  const plan = await S.admin.post("/api/admin/finance/plans", {
-    name: "رسوم الأول الابتدائي", grade_id: grade.id, amount: 5000, installments: 4,
-    first_due: "2026-09-01", interval_months: 2 });
-  assert.equal(plan.status, 201, JSON.stringify(plan.data));
-  assert.equal((await S.admin.post("/api/admin/finance/plans", { name: "رسوم الأول الابتدائي", amount: 100 })).status, 409);
-
-  // خصم 20% للثاني، وإعفاء كامل للثالث
-  assert.equal((await S.admin.post("/api/admin/finance/adjustments",
-    { student_id: bStudent.data.id, kind: "discount", percent: 20, note: "أخ ثانٍ" })).status, 201);
-  assert.equal((await S.admin.post("/api/admin/finance/adjustments",
-    { student_id: cStudent.data.id, kind: "exemption", note: "حالة خاصة" })).status, 201);
-
-  // معاينة قبل التطبيق
-  const preview = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, { dry_run: true });
-  assert.equal(preview.data.students, 3);
-  assert.equal(preview.data.invoices, 0, "المعاينة لا تنشئ شيئًا");
-  const previewB = preview.data.preview.find((x) => x.student_id === bStudent.data.id);
-  assert.equal(previewB.total, 4000, "خصم 20٪");
-  assert.equal(previewB.per_installment, 1000);
-  assert.equal(preview.data.preview.find((x) => x.student_id === cStudent.data.id).total, 0);
-
-  // التطبيق الفعلي
-  const applied = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, {});
-  assert.equal(applied.status, 200, JSON.stringify(applied.data));
-  assert.equal(applied.data.invoices, 8, "طالبان × 4 دفعات، والمعفى بلا فواتير");
-
-  const invoices = (await S.admin.get("/api/admin/finance/invoices")).data.invoices;
-  const mine = invoices.filter((i) => i.student_id === a.data.id);
-  assert.equal(mine.length, 4);
-  assert.equal(mine.reduce((sum, i) => sum + Number(i.amount), 0), 5000, "مجموع الدفعات = الرسوم");
-  assert.ok(mine.some((i) => /دفعة 1 من 4/.test(i.title)));
-  const dues = mine.map((i) => i.due_date).sort();
-  assert.equal(dues[0], "2026-09-01");
-  assert.equal(dues[3], "2027-03-01", "كل دفعة بعد شهرين");
-
-  // إعادة التطبيق لا تكرر
-  const again = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, {});
-  assert.equal(again.data.invoices, 0);
-
-  // طالب جديد في نفس الصف يأخذ الفواتير عند إعادة التطبيق
-  const late = await S.admin.post("/api/admin/students", { name: "طالب متأخر", class_id: section.id });
-  const third = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, {});
-  assert.equal(third.data.invoices, 4);
-  assert.ok((await S.admin.get("/api/admin/finance/invoices")).data.invoices.some((i) => i.student_id === late.data.id));
-});
-
-test("الإجراءات الجماعية على الطلاب", async () => {
-  const S = await makeSchool("مدرسة الإجراءات");
-  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 100 });
-  await S.admin.post("/api/admin/setup/template", { template: "primary", sections_per_grade: 2, naming: "arabic" });
-  const grade = (await S.admin.get("/api/admin/setup")).data.structure.stages[0].grades[0];
-  const [first, second] = grade.sections;
-
-  const ids = [];
-  for (const name of ["طالب أ", "طالب ب", "طالب ج"]) {
-    ids.push((await S.admin.post("/api/admin/students", { name, class_id: first.id })).data.id);
-  }
-
-  // نقل جماعي لشعبة أخرى
-  const moved = await S.admin.post("/api/admin/students/bulk", { ids, action: "move_class", class_id: second.id });
-  assert.equal(moved.status, 200, JSON.stringify(moved.data));
-  assert.equal(moved.data.done, 3);
-  const list = (await S.admin.get("/api/admin/students")).data;
-  assert.ok(ids.every((id) => Number(list.find((x) => x.id === id).class_id) === Number(second.id)));
-
-  // تفعيل الرسوم جماعيًا
-  assert.equal((await S.admin.post("/api/admin/students/bulk",
-    { ids, action: "fees", fees_enabled: true })).data.done, 3);
-  assert.ok((await S.admin.get("/api/admin/students")).data.filter((x) => ids.includes(x.id)).every((x) => x.fees_enabled));
-
-  // تغيير الحالة جماعيًا
-  assert.equal((await S.admin.post("/api/admin/students/bulk",
-    { ids: ids.slice(0, 2), action: "status", status: "transferred", note: "نقل جماعي" })).data.done, 2);
-  const after = (await S.admin.get("/api/admin/students")).data;
-  assert.equal(after.filter((x) => ids.includes(x.id)).length, 1, "المنقولون خرجوا من القائمة النشطة");
-
-  // التحقق من المدخلات
-  assert.equal((await S.admin.post("/api/admin/students/bulk", { ids: [], action: "fees", fees_enabled: true })).status, 400);
-  assert.equal((await S.admin.post("/api/admin/students/bulk",
-    { ids, action: "move_class", class_id: 999999 })).status, 404);
-  // لا تتجاوز المدرسة حدودها
-  assert.equal((await B.admin.post("/api/admin/students/bulk",
-    { ids, action: "fees", fees_enabled: true })).data.done, 0);
-});
-
-test("توليد الجدول: مسودة بلا تعارض، لا تُحفظ إلا بموافقة المدير", async () => {
-  const S = await makeSchool("مدرسة الجدول");
-  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 100 });
-  await S.admin.post("/api/admin/setup/template", { template: "primary", sections_per_grade: 2, naming: "arabic" });
-  const structure = (await S.admin.get("/api/admin/setup")).data.structure;
-  const grade = structure.stages[0].grades[0];
-  const sections = grade.sections;
-  const subjects = structure.subjects.filter((x) => x.grade_ids.includes(Number(grade.id)));
-
-  // معلم واحد لمادتين في الشعبتين
-  const teacher = await S.admin.post("/api/admin/teachers", { name: "معلم الجدول", username: "tt-teacher" });
-  assert.equal(teacher.status, 201, JSON.stringify(teacher.data));
-  const items = sections.flatMap((c) => subjects.slice(0, 2).map((sub) => ({
-    class_id: c.id, subject_id: sub.id, teacher_id: teacher.data.id })));
-  assert.equal((await S.admin.post("/api/admin/teachers/assignments/bulk", { items })).data.saved, items.length);
-
-  // إعدادات الجدول
-  const settings = await S.admin.put("/api/admin/timetable/settings", {
-    days: [0, 1, 2, 3, 4], periods_per_day: 6, start_time: "07:30", period_minutes: 45, break_after: 3, break_minutes: 20 });
-  assert.equal(settings.status, 200, JSON.stringify(settings.data));
-
-  const timesRes = await S.admin.get("/api/admin/timetable/settings");
-  assert.equal(timesRes.data.times.length, 6);
-  assert.equal(timesRes.data.times[0].from, "07:30");
-  assert.equal(timesRes.data.times[1].from, "08:15", "الحصة الثانية بعد 45 دقيقة");
-  assert.equal(timesRes.data.times[3].from, "10:05", "الفسحة 20 دقيقة بعد الحصة الثالثة");
-
-  // التوليد: مسودة فقط
-  const draft = await S.admin.post("/api/admin/timetable/generate", { class_ids: sections.map((c) => c.id) });
-  assert.equal(draft.status, 200, JSON.stringify(draft.data));
-  assert.ok(draft.data.slots.length > 0, "وُزّعت حصص");
-  assert.equal((await S.admin.get(`/api/admin/timetable?class_id=${sections[0].id}`)).data.length, 0,
-    "المسودة لا تُحفظ قبل الموافقة");
-
-  // لا تعارض داخل المسودة: معلم واحد في وقت واحد، وشعبة واحدة في وقت واحد
-  const teacherSlots = draft.data.slots.filter((x) => x.teacher_id).map((x) => `${x.teacher_id}:${x.day}:${x.period}`);
-  assert.equal(new Set(teacherSlots).size, teacherSlots.length, "لا معلم في فصلين بنفس الوقت");
-  const classSlots = draft.data.slots.map((x) => `${x.class_id}:${x.day}:${x.period}`);
-  assert.equal(new Set(classSlots).size, classSlots.length, "لا شعبة بحصتين بنفس الوقت");
-  assert.ok(draft.data.slots.every((x) => x.period <= 6), "ضمن عدد الحصص اليومية");
-
-  // الاعتماد
-  const applied = await S.admin.post("/api/admin/timetable/apply", {
-    slots: draft.data.slots.map(({ class_id, day, period, subject_id, teacher_id }) =>
-      ({ class_id, day, period, subject_id, teacher_id })), replace: true });
-  assert.equal(applied.status, 200, JSON.stringify(applied.data));
-  assert.equal(applied.data.saved, draft.data.slots.length);
-  assert.ok((await S.admin.get(`/api/admin/timetable?class_id=${sections[0].id}`)).data.length > 0);
-
-  // الجدول المعتمد بلا تعارضات
-  const conflicts = await S.admin.get("/api/admin/timetable/conflicts");
-  assert.equal(conflicts.data.teacher.length, 0);
-  assert.equal(conflicts.data.room.length, 0);
-
-  // إعادة التوليد بعد الاعتماد لا تتعارض مع الشعب الأخرى
-  const second = await S.admin.post("/api/admin/timetable/generate", { class_ids: [sections[0].id], replace: true });
-  assert.ok(second.data.slots.every((x) => x.class_id === sections[0].id));
-
-  // العزل
-  assert.equal((await B.admin.post("/api/admin/timetable/generate", { class_ids: sections.map((c) => c.id) })).status, 400);
-});
-
-test("النسخ والتكرار: مواد صف، قالب رسوم، وجدول شعبة", async () => {
-  const S = await makeSchool("مدرسة النسخ");
-  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 100 });
-  await S.admin.post("/api/admin/setup/template", { template: "primary", sections_per_grade: 2, naming: "arabic" });
-  const st = (await S.admin.get("/api/admin/setup")).data.structure;
-  const [g1, g2] = st.stages[0].grades;
-  const [c1, c2] = g1.sections;
-
-  // نسخ مواد صف إلى صف: نفرغ الهدف أولًا ثم ننسخ
-  const before = (await S.admin.get("/api/admin/setup")).data.structure.subjects
-    .filter((x) => x.grade_ids.includes(Number(g1.id))).length;
-  const copied = await S.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`,
-    { to_grade_id: g2.id, replace: true });
-  assert.equal(copied.status, 200, JSON.stringify(copied.data));
-  assert.equal(copied.data.copied, before, "نُسخت كل مواد الصف");
-  // إعادة النسخ بلا تكرار
-  assert.equal((await S.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`, { to_grade_id: g2.id })).data.copied, 0);
-
-  // نسخ قالب رسوم
-  const plan = await S.admin.post("/api/admin/finance/plans", { name: "رسوم الأول", grade_id: g1.id, amount: 4000, installments: 2 });
-  const clone = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/copy`, { name: "رسوم الثاني", grade_id: g2.id });
-  assert.equal(clone.status, 201, JSON.stringify(clone.data));
-  const plans = (await S.admin.get("/api/admin/finance/plans")).data;
-  const copiedPlan = plans.find((p) => p.name === "رسوم الثاني");
-  assert.equal(Number(copiedPlan.amount), 4000);
-  assert.equal(copiedPlan.installments, 2);
-  assert.equal(Number(copiedPlan.grade_id), Number(g2.id));
-
-  // نسخ جدول شعبة إلى شعبة: المعلم المشغول تُترك حصته بلا معلم
-  const teacher = await S.admin.post("/api/admin/teachers", { name: "معلم النسخ", username: "copy-teacher" });
-  const subject = (await S.admin.get("/api/admin/setup")).data.structure.subjects[0];
-  await S.admin.post("/api/admin/teachers/assignments/bulk",
-    { items: [{ class_id: c1.id, subject_id: subject.id, teacher_id: teacher.data.id }] });
-  await S.admin.put("/api/admin/timetable/slot",
-    { class_id: c1.id, day: 0, period: 1, subject_id: subject.id, teacher_id: teacher.data.id });
-
-  const copyRes = await S.admin.post("/api/admin/timetable/copy",
-    { from_class_id: c1.id, to_class_id: c2.id, keep_teachers: true });
-  assert.equal(copyRes.status, 200, JSON.stringify(copyRes.data));
-  assert.equal(copyRes.data.copied, 1);
-  assert.equal(copyRes.data.without_teacher, 1, "المعلم مشغول في نفس الوقت فتُركت بلا معلم");
-  const target = (await S.admin.get(`/api/admin/timetable?class_id=${c2.id}`)).data;
-  assert.equal(target.length, 1);
-  assert.equal(target[0].teacher_id, null);
-  assert.equal(Number(target[0].subject_id), Number(subject.id));
-
-  // العزل
-  assert.equal((await B.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`, { to_grade_id: g2.id })).status, 404);
-});
-
-test("نسيت كلمة المرور: المعلم والمحاسب تعتمدهم الإدارة، ومدير المدرسة يعتمده المالك — ورابط لمرة واحدة", async () => {
-  const S = await makeSchool("مدرسة كلمات المرور");
-  const teacher = await S.admin.post("/api/admin/teachers", { name: "معلم النسيان", username: "forgot-teacher" });
-  assert.equal(teacher.status, 201, JSON.stringify(teacher.data));
-  const anon = client(srv.base);
-  const reset = async (token, password) => anon.post("/api/public/password-reset", { token, password });
-
-  /* ---- أ) معلم: الإدارة تتحقق وتعتمد وتصدر الرابط، والمالك لا يدخل ---- */
-  const submitted = await anon.post(`/api/public/${S.id}/password-request`, {
-    full_name: "معلم النسيان", username: "Forgot-Teacher ", phone: "0500000123",
-    job_title: "teacher", description: "نسيت كلمة المرور بعد الإجازة", contact_pref: "whatsapp" });
-  assert.equal(submitted.status, 201, JSON.stringify(submitted.data));
-  assert.match(submitted.data.ref, /^PR-\d{4}-[A-Z0-9]{5}$/);
-  assert.equal(submitted.data.token, undefined, "لا يُعاد أي رمز للمستخدم");
-
-  const list = await S.admin.get("/api/admin/password-requests");
-  const request = list.data.find((x) => x.ref === submitted.data.ref);
-  assert.equal(request.status, "new");
-  assert.equal(request.account_role, "teacher");
-  assert.equal(request.token_hash, undefined, "تجزئة الرمز لا تُعاد للواجهة");
-  assert.equal((await B.admin.get("/api/admin/password-requests")).data.length, 0, "مدرسة أخرى لا تراه");
-  assert.equal((await owner.get("/api/owner/password-requests")).data.some((x) => x.ref === request.ref), false, "المالك لا يرى طلبات المعلمين");
-  assert.equal((await owner.post(`/api/owner/password-requests/${request.id}/review`, { decision: "approve" })).status, 404);
-
-  const approved = await S.admin.post(`/api/admin/password-requests/${request.id}/review`, { decision: "approve", note: "تحققت هاتفيًا" });
-  assert.equal(approved.status, 200, JSON.stringify(approved.data));
-  assert.match(approved.data.link, /\/reset\?token=[0-9a-f]{64}$/);
-  assert.equal((await S.admin.post(`/api/admin/password-requests/${request.id}/review`, { decision: "approve" })).status, 400, "لا يُعتمد مرتين");
-  const token = approved.data.link.split("token=")[1];
-  assert.equal((await anon.get(`/api/public/password-reset/check?token=${token}`)).status, 200);
-  assert.equal((await anon.get(`/api/public/password-reset/check?token=${"a".repeat(64)}`)).status, 404);
-  assert.equal((await reset(token, "123")).status, 400, "كلمة ضعيفة تُرفض");
-  assert.equal((await reset(token, "Forgot-Pass-2026")).status, 200);
-  assert.equal((await reset(token, "Another-Pass-2026")).status, 404, "الرابط لمرة واحدة");
-  const tc = client(srv.base);
-  assert.equal((await tc.post("/api/staff/login", { school: S.id, username: "forgot-teacher", password: "Forgot-Pass-2026" })).data.role, "teacher");
-  assert.equal((await tc.get("/api/teacher/me")).data.must_change_password, false);
-  assert.equal((await S.admin.get("/api/admin/password-requests")).data.find((x) => x.ref === request.ref).status, "used");
-
-  /* ---- ب) مدير المدرسة: الطلب يذهب للمالك مباشرة، حتى لو ادّعى صاحبه أنه «معلم» ---- */
-  const adminReq = await anon.post(`/api/public/${S.id}/password-request`, {
-    full_name: "شخص يدعي أنه معلم", username: "admin", phone: "0500000999",
-    job_title: "teacher", description: "أريد تغيير كلمة المرور", contact_pref: "phone" });
-  assert.equal(adminReq.status, 201);
-  const schoolList = (await S.admin.get("/api/admin/password-requests")).data;
-  assert.equal(schoolList.some((x) => x.ref === adminReq.data.ref), false, "الإدارة لا تعتمد إعادة كلمة مرور حساب إداري");
-  const ownerRow = (await owner.get("/api/owner/password-requests")).data.find((x) => x.ref === adminReq.data.ref);
-  assert.ok(ownerRow, "يصل للمالك");
-  assert.equal(ownerRow.account_role, "admin");
-  assert.equal(ownerRow.status, "new");
-  assert.equal((await S.admin.post(`/api/admin/password-requests/${ownerRow.id}/review`, { decision: "approve" })).status, 404);
-
-  const ownerOk = await owner.post(`/api/owner/password-requests/${ownerRow.id}/review`, { decision: "approve", note: "تحققت من المدير" });
-  assert.equal(ownerOk.status, 200, JSON.stringify(ownerOk.data));
-  assert.equal((await reset(ownerOk.data.link.split("token=")[1], "Admin-Reset-2026")).status, 200);
-  const ac = client(srv.base);
-  assert.equal((await ac.post("/api/staff/login", { school: S.id, username: "admin", password: "Admin-Reset-2026" })).data.role, "admin");
-
-  // إعادة تعيين كلمة مرور المدير أنهت جلساته القديمة (كما يجب)
-  assert.equal((await S.admin.get("/api/admin/me")).status, 401, "الجلسات القديمة انتهت");
-
-  /* ---- ج) طلب لاسم غير موجود: عند الإدارة، ولا يمكن اعتماده ---- */
-  const ghost = await anon.post(`/api/public/${S.id}/password-request`, {
-    full_name: "غير موجود", username: "nobody-here", phone: "0500000888", job_title: "accountant", description: "نسيت كلمة المرور" });
-  assert.equal(ghost.status, 201, "لا يُكشف لصاحب الطلب وجود الحساب من عدمه");
-  const g = (await ac.get("/api/admin/password-requests")).data.find((x) => x.ref === ghost.data.ref);
-  assert.equal(g.account_role, null);
-  const noAcc = await ac.post(`/api/admin/password-requests/${g.id}/review`, { decision: "approve" });
-  assert.equal(noAcc.status, 400);
-  assert.match(noAcc.data.error, /لا يوجد حساب/);
-  assert.equal((await ac.post(`/api/admin/password-requests/${g.id}/review`, { decision: "reject", note: "غير معروف" })).status, 200);
-});
-
-test("الحقول المخصصة: تعريفها وقيمها وتحققها وظهورها لولي الأمر", async () => {
-  const S = await makeSchool("مدرسة الحقول");
-  await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 50 });
-
-  // حقول بأنواع مختلفة
-  const bus = await S.admin.post("/api/admin/custom-fields", {
-    entity: "student", label: "رقم الحافلة", type: "number", required: false, show_parent: true });
-  assert.equal(bus.status, 201, JSON.stringify(bus.data));
-  assert.match(bus.data.key, /^[a-z][a-z0-9_]*$/, "مفتاح إنجليزي يُشتق تلقائيًا");
-
-  const health = await S.admin.post("/api/admin/custom-fields", {
-    entity: "student", label: "الحالة الصحية", type: "select",
-    options: ["سليم", "يحتاج متابعة", "حساسية"], required: true, show_parent: false });
-  assert.equal(health.status, 201);
-  assert.equal((await S.admin.post("/api/admin/custom-fields",
-    { entity: "student", label: "الحالة الصحية", type: "text" })).status, 409, "لا تكرار للاسم");
-  assert.equal((await S.admin.post("/api/admin/custom-fields",
-    { entity: "student", label: "بلا خيارات", type: "select" })).status, 400, "قائمة بلا خيارات تُرفض");
-
-  const student = await S.admin.post("/api/admin/students", { name: "طالب الحقول" });
-  const url = `/api/admin/custom-fields/values/student/${student.data.id}`;
-
-  // الحقل المطلوب يُفرض
-  assert.equal((await S.admin.put(url, { values: { [bus.data.key]: "12" } })).status, 400);
-  // نوع خاطئ يُرفض
-  assert.equal((await S.admin.put(url, {
-    values: { [bus.data.key]: "ليس رقمًا", [health.data.key]: "سليم" } })).status, 400);
-  // قيمة خارج القائمة تُرفض
-  assert.equal((await S.admin.put(url, {
-    values: { [bus.data.key]: "12", [health.data.key]: "قيمة غريبة" } })).status, 400);
-
-  const saved = await S.admin.put(url, { values: { [bus.data.key]: "12", [health.data.key]: "يحتاج متابعة" } });
-  assert.equal(saved.status, 200, JSON.stringify(saved.data));
-  const values = await S.admin.get(url);
-  assert.equal(values.data[bus.data.key], "12");
-  assert.equal(values.data[health.data.key], "يحتاج متابعة");
-
-  // ولي الأمر يرى ما فعّلته المدرسة فقط
-  const anon = client(srv.base);
-  const code = (await S.admin.get("/api/admin/me")).data.school.directory_code;
-  const key = (await S.admin.get("/api/admin/students")).data.find((x) => x.id === student.data.id).access_key;
-  await anon.post(`/api/public/${S.id}/page`, { access: code });
-  const profile = await anon.post(`/api/public/${S.id}/student`, { student_id: student.data.id, key });
-  assert.equal(profile.status, 200, JSON.stringify(profile.data));
-  const labels = profile.data.custom.map((x) => x.label);
-  assert.ok(labels.includes("رقم الحافلة"), "الحقل المفعّل لولي الأمر يظهر");
-  assert.ok(!labels.includes("الحالة الصحية"), "الحقل غير المفعّل لا يظهر");
-
-  // الحذف يزيل الحقل وقيمه
-  assert.equal((await S.admin.del(`/api/admin/custom-fields/${bus.data.id}`)).status, 200);
-  assert.equal((await S.admin.get(url)).data[bus.data.key], undefined);
-
-  // العزل
-  assert.equal((await B.admin.get("/api/admin/custom-fields")).data.length, 0);
-});
-
-test("مركز التنبيهات: مستويات مرتبة ووجهة لكل تنبيه", async () => {
-  const n = await A.admin.get("/api/admin/analytics/notifications");
-  assert.equal(n.status, 200, JSON.stringify(n.data));
-  assert.ok(Array.isArray(n.data.items));
-  assert.ok(n.data.items.every((x) => ["urgent", "action", "info"].includes(x.level)), "كل تنبيه له مستوى");
-  assert.ok(n.data.items.every((x) => x.count > 0 && x.text && x.tab), "كل تنبيه له عدد ونص ووجهة");
-  for (const key of ["urgent", "action", "info"]) assert.equal(typeof n.data.counts[key], "number");
-
-  // مدرسة فارغة: لا تنبيهات عاجلة
-  const S = await makeSchool("مدرسة بلا تنبيهات");
-  const fresh = await S.admin.get("/api/admin/analytics/notifications");
-  assert.equal(fresh.data.items.filter((x) => x.level === "urgent").length, 0);
-});
-
 test("تصدير بيانات المدرسة يشمل كل الأقسام ولا يتجاوزها", async () => {
   const r = await A.admin.get("/api/admin/export");
   assert.equal(r.status, 200);
@@ -1654,15 +1157,14 @@ test("أقفال الدخول: تبقى الحماية، ورسالة القفل
   const x = client(srv.base);
   for (let i = 0; i < 5; i++) await x.post("/api/staff/login", { school: C.id, username: "acc-lock", password: "wrong-pass-1" });
   const locked = await x.post("/api/staff/login", { school: C.id, username: "acc-lock", password: created.data.credentials.password });
-  assert.equal(locked.status, 429);
-  assert.equal(locked.data.code, "locked", "كلمة المرور الصحيحة لا تفتح أثناء القفل");
+  assert.equal(locked.status, 401);
+  assert.match(locked.data.error, /مقفل/, "كلمة المرور الصحيحة لا تفتح أثناء القفل");
 
   // اسم غير موجود يُعامل بالطريقة نفسها: لا فرق ظاهر بين حساب موجود وغير موجود
   const y = client(srv.base);
   for (let i = 0; i < 5; i++) await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
   const ghost = await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
-  assert.equal(ghost.data.code, "locked");
-  assert.equal(ghost.data.error, locked.data.error, "نفس الرسالة لحساب موجود وغير موجود");
+  assert.match(ghost.data.error, /مقفل/);
 
   // المدير يعيد تعيين كلمة المرور فيُفك القفل فورًا
   const id = (await C.admin.get("/api/admin/users")).data.find((u) => u.username === "acc-lock").id;
@@ -1812,7 +1314,7 @@ test("كلمة المرور المؤقتة: لا يعمل شيء قبل تغيي
   }
 });
 
-test("الإنتاج يعمل بدون تحقق ثنائي لكنه ينبّه، ويعمل بصمت مع ضبطه", async () => {
+test("الإنتاج يرفض الإقلاع بدون OWNER_TOTP_SECRET إلا باستثناء صريح", async () => {
   const { spawnSync } = await import("node:child_process");
   const base = {
     PATH: process.env.PATH, NODE_ENV: "production", COOKIE_SECURE: "true",
@@ -1822,11 +1324,9 @@ test("الإنتاج يعمل بدون تحقق ثنائي لكنه ينبّه،
   const run = (extra) => spawnSync(process.execPath, ["--input-type=module", "-e", 'await import("./src/config/env.js")'],
     { env: { ...base, ...extra }, cwd: new URL("..", import.meta.url), encoding: "utf8" });
 
-  const without = run({});
-  assert.equal(without.status, 0, "يعمل بدون تحقق ثنائي");
-  assert.match(without.stderr, /تحقق ثنائي/, "لكنه ينبّه بوضوح");
-
-  const withSecret = run({ OWNER_TOTP_SECRET: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" });
-  assert.equal(withSecret.status, 0);
-  assert.doesNotMatch(withSecret.stderr, /تحقق ثنائي/, "لا تنبيه عند ضبطه");
+  const refused = run({});
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.match(refused.stderr, /OWNER_TOTP_SECRET/);
+  assert.equal(run({ OWNER_ALLOW_NO_TOTP: "true" }).status, 0, "الاستثناء الصريح يعمل");
+  assert.equal(run({ OWNER_TOTP_SECRET: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" }).status, 0, "مع السر يعمل");
 });

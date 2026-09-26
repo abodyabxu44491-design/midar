@@ -1,41 +1,33 @@
 // الرئيسية: الملخص، التنبيهات، والبحث السريع
-import { h, mount } from "../../shared/js/dom.js";
-import { api } from "../../shared/js/api.js";
-import { stats, panel, notice, line, keyText, sub, input, empty, badge, btn } from "../../shared/js/ui.js";
-import { money, fmtDate } from "../../shared/js/format.js";
-import { waButton, messageVars } from "../../shared/js/whatsapp.js";
+import { h, mount } from "/shared/js/dom.js";
+import { api } from "/shared/js/api.js";
+import { stats, panel, notice, line, keyText, sub, input, empty, badge, btn } from "/shared/js/ui.js";
+import { money, fmtDate } from "/shared/js/format.js";
+import { waButton, messageVars } from "/shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
 
-export default async function dashboard({ me, goTo }) {
-  const [d, alerts, notifications, templates] = await Promise.all([
+export default async function dashboard({ me }) {
+  const [d, alerts, templates] = await Promise.all([
     api(`${A}/dashboard`),
     optional(api(`${A}/analytics/alerts`), { counts: {}, absentees: [], overdue: [] }),
-    optional(api(`${A}/analytics/notifications`), { items: [], counts: {} }),
     optional(api(`${A}/messaging/templates`), null)]);
   const canMessage = Boolean(templates);
   const c = alerts.counts;
 
-  const LEVELS = {
-    urgent: { name: "عاجل", dot: "🔴", cls: "bad" },
-    action: { name: "يحتاج إجراء", dot: "🟠", cls: "warn" },
-    info: { name: "معلومات", dot: "🟢", cls: "" },
-  };
-
-  // مركز التنبيهات: مرتبة بالأهمية، والضغط ينقلك للقسم
-  const center = (data, goTo) => {
-    if (!data.items.length) return null;
-    return panel("مركز التنبيهات", null,
-      ["urgent", "action", "info"].map((level) => {
-        const rows = data.items.filter((x) => x.level === level);
-        if (!rows.length) return null;
-        return h("div", { class: "notif-group" },
-          h("h3", { class: "sec-title" }, `${LEVELS[level].dot} ${LEVELS[level].name}`),
-          rows.map((x) => h("button", { class: `notif ${LEVELS[level].cls}`, type: "button",
-            onclick: () => goTo(x.tab) },
-            h("span", { class: "notif-count" }, x.count),
-            h("span", { class: "notif-text" }, h("b", {}, x.text), x.hint ? sub(x.hint) : null))));
-      }));
-  };
+  const alert = (label, value, tone = "") => (value ? h("div", { class: `alert-card ${tone}` }, h("span", {}, label), h("b", {}, value)) : null);
+  const cards = [
+    alert("اختبارات تنتظر اعتمادك", c.pending_exams, "warn"),
+    alert("تحويلات بانتظار التأكيد", c.pending_claims, "warn"),
+    alert("طلبات تسجيل جديدة", c.new_admissions, "warn"),
+    alert("فواتير تجاوزت موعد السداد", c.overdue_invoices, "bad"),
+    alert("طلاب غابوا 3 أيام فأكثر", c.frequent_absentees, "bad"),
+    alert("معلمون بدون إسناد", c.teachers_without_load),
+    alert("صفوف بدون جدول", c.classes_without_timetable),
+    alert("طلاب بدون فصل", c.students_without_class),
+    alert("حركات مالية تنتظر الاعتماد", c.pending_finance, "warn"),
+    alert("حسابات رصيدها منخفض", c.low_balance_accounts, "bad"),
+    alert("مسير رواتب هذا الشهر لم يُنشأ", c.payroll_due, "warn"),
+  ].filter(Boolean);
 
   return [
     d.academic ? notice(`السنة الدراسية: ${d.academic.year_name} — الفصل الحالي: ${d.academic.term_name || "غير محدد"}`, "") : null,
@@ -46,7 +38,9 @@ export default async function dashboard({ me, goTo }) {
       ["رسوم غير محصّلة", money(d.fees_remaining), `المحصّل ${money(d.fees_paid)}`],
     ]),
 
-    center(notifications, goTo || (() => {})),
+    cards.length
+      ? panel("يحتاج انتباهك", null, h("div", { class: "alert-grid" }, cards))
+      : null,
 
     quickSearch(),
 

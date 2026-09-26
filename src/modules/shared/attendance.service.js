@@ -13,10 +13,9 @@ export const markSchema = z.object({
   entries: z.array(z.object({ student_id: t.id, status: z.enum(STATUSES) })).min(1).max(500),
 });
 
-// withContact: جوال ولي الأمر لأزرار التنبيه (للإدارة فقط، لا يُرسل لبوابة المعلم)
-export async function listForClass(q, classId, day, { withContact = false } = {}) {
+export async function listForClass(q, classId, day) {
   return q(
-    `SELECT s.id, s.full_name AS name, a.status${withContact ? ", s.guardian_phone, s.guardian_name, s.access_key" : ""}
+    `SELECT s.id, s.full_name AS name, a.status
        FROM students s LEFT JOIN attendance a ON a.student_id = s.id AND a.day = $2
       WHERE s.class_id = $1 AND s.archived_at IS NULL
       ORDER BY s.full_name`,

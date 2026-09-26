@@ -24,6 +24,8 @@ const schema = z.object({
   OWNER_PASSWORD_HASH: z.string().startsWith("scrypt$", "أنشئ OWNER_PASSWORD_HASH بالأمر: npm run owner:password"),
   OWNER_TOTP_SECRET: z.string().regex(/^[A-Z2-7]{16,64}$/).optional().or(z.literal("")),
   OWNER_ALLOWED_IPS: z.string().default(""),
+  // في الإنتاج يلزم OWNER_TOTP_SECRET؛ هذا المتغير للاستثناء الصريح فقط (لا يُنصح به)
+  OWNER_ALLOW_NO_TOTP: bool.default("false"),
   COOKIE_SECURE: bool.default("true"),
   // separate = كوكي منفصل لكل دور (سيرفر خاص) | single = كوكي واحد باسم __session (مطلوب في Firebase Hosting)
   SESSION_COOKIE_MODE: z.enum(["separate", "single"]).default("separate"),
@@ -45,17 +47,13 @@ export const env = Object.freeze({
   ownerIps: parsed.data.OWNER_ALLOWED_IPS.split(",").map((s) => s.trim()).filter(Boolean),
 });
 
-// التحقق الثنائي لدخول المالك اختياري: الدخول باسم مستخدم وكلمة مرور ما لم يُضبط OWNER_TOTP_SECRET.
-// لكنه في الإنتاج خط الدفاع الأخير عن لوحة المالك، فننبّه عند التشغيل بدونه.
-if (env.isProd && !env.OWNER_TOTP_SECRET) {
-  console.warn("⚠ لوحة المالك تعمل بدون تحقق ثنائي. لتفعيله: npm run owner:totp ثم ضع الناتج في OWNER_TOTP_SECRET.");
+if (env.isProd && !env.OWNER_TOTP_SECRET && !env.OWNER_ALLOW_NO_TOTP) {
+  console.error("✗ في وضع الإنتاج يجب ضبط OWNER_TOTP_SECRET (التحقق بخطوتين للوحة المالك). أنشئه بالأمر: npm run owner:totp");
+  console.error("  (للاستثناء المؤقت فقط: OWNER_ALLOW_NO_TOTP=true)");
+  process.exit(1);
 }
 
 if (env.isProd && !env.COOKIE_SECURE) {
   console.error("✗ في وضع الإنتاج يجب أن تكون COOKIE_SECURE=true (مع HTTPS)");
   process.exit(1);
-}// على Render/Firebase/nginx يمر كل الطلب عبر وكيل: بدون TRUST_PROXY يظهر كل الزوار بعنوان الوكيل نفسه،
-// فتصبح حدود المحاولات (لكل عنوان) مشتركة بين كل المستخدمين وقد تمنع الجميع من الدخول.
-if (parsed.data.NODE_ENV === "production" && parsed.data.TRUST_PROXY === 0) {
-  console.warn("⚠ TRUST_PROXY=0 في وضع الإنتاج: كل الزوار سيظهرون بعنوان الوكيل نفسه. على Render ضع TRUST_PROXY=1.");
 }

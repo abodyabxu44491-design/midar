@@ -7,11 +7,8 @@ import tenants from "./tenants.js";
 import audit from "./audit.js";
 import leads from "./leads.js";
 import renewals from "./renewals.js";
-import passwordRequests from "./password-requests.js";
 import settings from "./settings.js";
 import billing from "./billing.js";
-import plans from "./plans.js";
-import { subscriptions, requests } from "./subscriptions.js";
 
 const r = Router();
 r.use(ownerNetwork);       // عنوان IP غير مسموح = "غير موجود"
@@ -26,11 +23,7 @@ r.get("/network", (req, res) => res.json({
 r.use("/tenants", tenants);
 r.use("/leads", leads);
 r.use("/renewals", renewals);
-r.use("/password-requests", passwordRequests);
 r.use("/settings", settings);
 r.use("/billing", billing);
-r.use("/", plans);                      // /catalog و /plans و /prices
-r.use("/subscriptions", subscriptions);
-r.use("/requests", requests);
 r.use("/audit", audit);
 export default r;

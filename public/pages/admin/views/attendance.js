@@ -1,14 +1,15 @@
 // تبويب الحضور (كل الفصول) مع تنبيه واتساب لولي الأمر
-import { attendanceBoard } from "../../shared/js/attendance-board.js";
-import { api } from "../../shared/js/api.js";
-import { waButton, messageVars } from "../../shared/js/whatsapp.js";
+import { attendanceBoard } from "/shared/js/attendance-board.js";
+import { api } from "/shared/js/api.js";
+import { waButton, messageVars } from "/shared/js/whatsapp.js";
 import { A, loadClasses, optional } from "./common.js";
 
 export default async function attendance({ me }) {
-  // جوال ولي الأمر يأتي مع صفوف حضور الشعبة نفسها (بدل تنزيل قائمة كل طلاب المدرسة)
-  const [classes, templates] = await Promise.all([loadClasses(), optional(api(`${A}/messaging/templates`), null)]);
+  const [classes, templates, students] = await Promise.all([
+    loadClasses(), optional(api(`${A}/messaging/templates`), null), api(`${A}/students`)]);
+  const byId = new Map(students.map((s) => [s.id, s]));
   const wa = (row) => {
-    const s = row;
+    const s = byId.get(row.id);
     if (!s?.guardian_phone || !templates) return null;
     return waButton({
       phone: s.guardian_phone, countryCode: templates.country_code,

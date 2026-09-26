@@ -36,26 +36,17 @@ export function noIndex(req, res, next) {
   next();
 }
 
-// النطاقات المسموحة: النطاق الذي وصل إليه الطلب فعلًا (req.hostname يقرأ X-Forwarded-Host خلف وكيل موثوق
-// مثل Firebase Hosting)، ورابط المنصة، والنطاقات الإضافية، ونطاقا Firebase الافتراضيان للمشروع.
-const firebaseProject = (() => {
-  try { return process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || "{}").projectId || null; } catch { return null; }
-})();
-const extraOrigins = [env.PUBLIC_URL, ...String(process.env.ALLOWED_ORIGINS || "").split(","), ...(firebaseProject
-  ? [`https://${firebaseProject}.web.app`, `https://${firebaseProject}.firebaseapp.com`] : [])]
-  .map((o) => o && o.trim().replace(/\/$/, "")).filter(Boolean);
-export function allowedOrigins(req) {
-  const hosts = [req.get("host"), req.hostname, req.get("x-forwarded-host")?.split(",")[0]?.trim()].filter(Boolean);
-  return new Set([...hosts.flatMap((h) => [`https://${h}`, `http://${h}`]), ...extraOrigins]);
-}
-
 // حماية من الطلبات المزورة (CSRF): أي طلب يغير بيانات يجب أن يأتي من نفس الموقع
 export function sameOrigin(req, res, next) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
   const origin = req.get("origin");
   const site = req.get("sec-fetch-site");
   if (site && !["same-origin", "none"].includes(site)) return next(forbidden("مصدر الطلب غير موثوق"));
-  if (origin && !allowedOrigins(req).has(origin)) return next(forbidden("مصدر الطلب غير موثوق"));
+  if (origin) {
+    const host = req.get("host");
+    const allowed = new Set([`https://${host}`, `http://${host}`, env.PUBLIC_URL].filter(Boolean));
+    if (!allowed.has(origin)) return next(forbidden("مصدر الطلب غير موثوق"));
+  }
   if (!req.is("application/json") && req.headers["content-length"] > 0) return next(forbidden("نوع الطلب غير مدعوم"));
   next();
 }

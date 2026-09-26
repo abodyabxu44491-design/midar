@@ -6,7 +6,6 @@ export const MODULES = [
   { key: "timetable", name: "الجدول الدراسي", note: "جدول حصص لكل صف وجدول لكل معلم" },
   { key: "exams", name: "الاختبارات والدرجات", note: "إدخال الدرجات واعتمادها ونشرها" },
   { key: "reports", name: "كشوف الدرجات", note: "يحتاج تشغيل الاختبارات" },
-  { key: "exam_papers", name: "مصمم الاختبارات الورقية", note: "بنك الأسئلة وإنشاء أوراق الاختبارات وطباعتها" },
   { key: "homework", name: "الواجبات", note: "ينشرها المعلم ويتابعها ولي الأمر" },
   { key: "announcements", name: "التعاميم", note: "رسائل المدرسة لأولياء الأمور" },
   { key: "admissions", name: "طلبات التسجيل", note: "طلبات التحاق الطلاب الجدد" },
@@ -42,6 +41,3 @@ export async function updateModules(q, patch) {
       WHERE tenant_id = app_tenant() RETURNING ${KEYS.join(", ")}`, keys.map((k) => patch[k]));
   return row;
 }
-
-// القسم الفعّال = مفعّل من إدارة المدرسة «و» مشمول في اشتراكها. الحارس يستخدم هذا، فيُرفض القسم غير المشمول في الخادم.
-export const effectiveModules = (toggles, entitled) => Object.fromEntries(KEYS.map((k) => [k, Boolean(toggles[k]) && entitled.has(k)]));

@@ -42,9 +42,7 @@ export class PgStore {
   }
 }
 
-const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSuccessfulRequests = false } = {}) => rateLimit({
-  ...(keyGenerator ? { keyGenerator } : {}),
-  skipSuccessfulRequests,
+const make = (name, windowMin, limit, { shared = false } = {}) => rateLimit({
   windowMs: windowMin * 60_000,
   limit: limit * factor,
   standardHeaders: "draft-7",
@@ -57,12 +55,7 @@ export const limits = {
   api: make("api", 1, 180),                              // عام (في الذاكرة)
   site: make("site", 1, 120),                            // /api/site: استعلام قاعدة بيانات بلا تسجيل دخول
   health: make("health", 1, 20),                         // /healthz/db
-  login: make("login", 15, 10, { shared: true }),        // الطلبات العامة الحساسة ودخول المالك
-  // دخول الموظفين: موظفو المدرسة غالبًا على شبكة واحدة (عنوان واحد)، فالحد لكل حساب وليس لكل شبكة.
-  // التخمين محمي أيضًا بقفل الحساب بعد 5 محاولات خاطئة. الدخول الناجح لا يُحسب.
-  staffLogin: make("staffLogin", 15, 20, { shared: true, skipSuccessfulRequests: true,
-    keyGenerator: (req) => `${req.ip}|${String(req.body?.school || "").toLowerCase()}|${String(req.body?.username || "").toLowerCase()}`.slice(0, 200) }),
-  staffLoginNet: make("staffLoginNet", 15, 300, { shared: true, skipSuccessfulRequests: true }),   // سقف واسع للشبكة الواحدة
+  login: make("login", 15, 10, { shared: true }),        // تسجيل الدخول والطلبات العامة الحساسة
   studentKey: make("studentKey", 10, 20, { shared: true }),   // إدخال معرّف الطالب ورمز الصفحة
   payment: make("payment", 10, 20, { shared: true }),    // الدفع
 };

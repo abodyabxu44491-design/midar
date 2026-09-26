@@ -1,5 +1,5 @@
 // أدوات مشتركة بين تبويبات الإدارة
-import { api } from "../../shared/js/api.js";
+import { api } from "/shared/js/api.js";
 
 // مسار الواجهة يتغير حسب الدور: مدير المدرسة أو المحاسب
 export let A = "/api/admin";
