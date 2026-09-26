@@ -36,8 +36,8 @@ function marketing(site) {
       h("a", { href: "#plans", onclick: (e) => { e.preventDefault(); go("plans"); } }, "الباقات"),
       trialOn ? h("a", { href: "#trial", onclick: (e) => { e.preventDefault(); go("trial"); } }, "التجربة المجانية") : null,
       h("a", { href: "#contact", onclick: (e) => { e.preventDefault(); go("contact"); } }, "تواصل معنا")),
-    // زر التجربة الرئيسي في الواجهة وقسم التجربة فقط (لا تكرار في الشريط العلوي)
-    h("button", { class: "st-btn ghost sm", onclick: () => go("contact") }, "تواصل معنا")));
+    // لا أزرار مكررة في الشريط العلوي: الروابط تكفي، والتجربة والتواصل لكل منهما قسمه
+    null));
 
   const core = (site.features || []).filter((f) => f.kind !== "service");
   const hero = h("section", { class: "st-hero" }, h("div", { class: "in" },
@@ -47,8 +47,7 @@ function marketing(site) {
       h("p", { class: "lead" }, site.site_subheadline || "الطلاب والحضور والدرجات والرسوم وأولياء الأمور، في منصة عربية واحدة سهلة تعمل من الجوال والكمبيوتر."),
       h("div", { class: "cta" },
         trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, icons.gift({ size: 18 }), "اطلب تجربة مجانية") : null,
-        plans.length ? h("button", { class: "st-btn light", onclick: () => go("plans") }, "عرض الباقات") : null,
-        h("button", { class: "st-btn out", onclick: () => go("contact") }, "تواصل معنا")),
+        plans.length ? h("button", { class: "st-btn light", onclick: () => go("plans") }, "عرض الباقات") : null),
       trialOn ? h("div", { class: "st-trial-note" }, icons.gift({ size: 16 }), `تجربة مجانية لمدة ${days} يومًا — بدون رسوم خلال فترة التجربة`) : null),
     h("div", { class: "points" }, core.slice(0, 6).map((f) => h("div", {}, icons.check({ size: 18 }),
       h("span", {}, h("b", {}, f.name), f.description ? ` — ${f.description}` : ""))))));
@@ -196,21 +195,26 @@ function leadForm(site, { kind, plan = null, cycle = "yearly", onDone }) {
     msg, send);
 }
 
-function trialDialog(site, plan = null) {
-  const box = h("div");
-  const d = dialog("اطلب تجربة مجانية", box);
+// زر الإرسال في شريط أزرار النافذة الثابت (بجانب «إغلاق»): ظاهر دائمًا ولا يغطيه شيء
+function formDialog(title, top, form) {
+  const box = h("div", { class: "st-form", style: "padding:0" }, top, form);
+  const send = form.querySelector(":scope > .st-btn.wide:last-child");
+  const d = dialog(title, box, send ? [send] : []);
   d.classList.add("st-dlg");
-  mount(box, h("div", { class: "st-form", style: "padding:0" },
-    h("div", { class: "st-trial-note", style: "color:#9A5B00;background:#FFF4E0;margin:0 0 12px" }, icons.gift({ size: 16 }),
-      `${site.trial_days || 30} يومًا مجانًا — بدون رسوم خلال فترة التجربة`),
-    leadForm(site, { kind: "trial", plan, onDone: (ok) => mount(box, ok) })));
+  return { d, box };
+}
+
+function trialDialog(site, plan = null) {
+  let ref;
+  const form = leadForm(site, { kind: "trial", plan, onDone: (ok) => { mount(ref.box, ok); ref.d.querySelector(".st-btn.wide")?.remove(); } });
+  ref = formDialog("اطلب تجربة مجانية", h("div", { class: "st-trial-note", style: "color:#9A5B00;background:#FFF4E0;margin:0 0 12px" }, icons.gift({ size: 16 }),
+    `${site.trial_days || 30} يومًا مجانًا — بدون رسوم خلال فترة التجربة`), form);
 }
 
 function subscribeDialog(site, plan, cycle) {
-  const box = h("div");
-  const d = dialog(`طلب اشتراك — ${plan.name}`, box);
-  d.classList.add("st-dlg");
-  mount(box, h("div", { class: "st-form", style: "padding:0" }, leadForm(site, { kind: "subscription", plan, cycle, onDone: (ok) => mount(box, ok) })));
+  let ref;
+  const form = leadForm(site, { kind: "subscription", plan, cycle, onDone: (ok) => { mount(ref.box, ok); ref.d.querySelector(".st-btn.wide")?.remove(); } });
+  ref = formDialog(`طلب اشتراك — ${plan.name}`, null, form);
 }
 
 start();

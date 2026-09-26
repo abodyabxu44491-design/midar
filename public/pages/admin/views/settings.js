@@ -1,9 +1,11 @@
 // الإعدادات — مقسّمة إلى أقسام قصيرة بدل صفحة واحدة طويلة
 import { h, mount } from "../../shared/js/dom.js";
+import { waLink } from "../../shared/js/whatsapp.js";
+import syncView from "./sync.js";
 import { mySubscription } from "./my-subscription.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
-  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar, passwordInput, linkRow } from "../../shared/js/ui.js";
+  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar, passwordInput, linkRow, copyRow } from "../../shared/js/ui.js";
 import { csv, parseCsv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 
@@ -18,6 +20,7 @@ const SECTIONS = [
   { key: "passwords", name: "طلبات كلمات المرور", note: "تحقق من هوية الطالب ثم أحِل الطلب" },
   { key: "money", name: "العملة", note: "عملة المدرسة الأساسية" },
   { key: "access", name: "الدخول والأمان", note: "رمز الصفحة وكلمة المرور والجلسات" },
+  { key: "sync", name: "المزامنة والأجهزة", note: "العمل بدون إنترنت: التعارضات والأجهزة" },
   { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
   { key: "subscription", name: "اشتراكي", note: "الباقة والمميزات والتجديد والترقية" },
 ];
@@ -26,7 +29,7 @@ export default function settings(ctx) {
   const views = { modules: modulesView, import: importView, fields: customFieldsView, page: pageView, payment: paymentView,
     messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
     access: accessView, data: dataView,
-    subscription: mySubscription };
+    subscription: mySubscription, sync: syncView };
   return sectionMenu({
     title: "الإعدادات",
     items: SECTIONS,
@@ -416,11 +419,14 @@ function permsDialog(u, refresh) {
 const PR_JOBS = { admin: "إداري", accountant: "محاسب", teacher: "معلم" };
 const PR_CONTACT = { phone: "اتصال هاتفي", whatsapp: "واتساب", email: "بريد إلكتروني" };
 const PR_STATUS = {
-  new: ["بانتظار مراجعتك", "amber"], referred: ["محال إلى مالك المنصة", ""],
-  approved: ["اعتُمد — أُرسل الرابط", ""], used: ["تم التغيير", ""],
+  new: ["بانتظار اعتمادك", "amber"], referred: ["محال إلى مالك المنصة", ""],
+  approved: ["اعتُمد — أُصدر الرابط", ""], used: ["تم التغيير", ""],
   rejected: ["مرفوض", "gray"], expired: ["انتهى الرابط", "gray"],
 };
+const ROLE_AR = { teacher: "معلم", accountant: "محاسب", admin: "إداري" };
 
+// طلبات «نسيت كلمة المرور» للمعلمين والمحاسبين: الإدارة تتحقق وتعتمد وتُصدر الرابط بنفسها.
+// (طلبات مدير المدرسة تذهب لمالك المنصة مباشرة ولا تظهر هنا)
 async function passwordRequestsView({ show }) {
   const list = await api(`${A}/password-requests`);
   const waiting = list.filter((x) => x.status === "new").length;
@@ -428,33 +434,46 @@ async function passwordRequestsView({ show }) {
   const row = (r) => line(
     h("div", { class: r.status === "new" ? "" : "muted-row" },
       h("b", {}, r.full_name), " ", badge(...(PR_STATUS[r.status] || [r.status, "gray"])),
-      sub(`طلب ${r.ref} — ${PR_JOBS[r.job_title]} — الحساب: ${r.username}`),
+      r.account_role ? " " : null, r.account_role ? badge(`الحساب: ${ROLE_AR[r.account_role]}`, "blue") : (r.status === "new" ? badge("لا يوجد حساب بهذا الاسم", "red") : null),
+      sub(`طلب ${r.ref} — ذكر أنه: ${PR_JOBS[r.job_title]} — اسم المستخدم: ${r.username}`),
       sub(`${r.phone} — التواصل المفضل: ${PR_CONTACT[r.contact_pref]}${r.branch ? ` — ${r.branch}` : ""}`),
       sub(`السبب: ${r.description}`),
-      r.admin_note ? sub(`ملاحظتك: ${r.admin_note}`) : null,
-      r.owner_note ? sub(`رد المنصة: ${r.owner_note}`) : null),
+      r.admin_note ? sub(`ملاحظتك: ${r.admin_note}`) : null),
     h("div", { class: "row", style: "flex:none" },
-      r.status === "new" ? btn("تحققت — أحِل للمنصة", () => reviewDialog(r, "refer", show), "sm") : null,
+      r.status === "new" ? btn("تحققت — اعتماد وإصدار الرابط", () => reviewDialog(r, "approve", show), "primary sm") : null,
       r.status === "new" ? btn("رفض", () => reviewDialog(r, "reject", show), "danger sm") : null));
 
-  return panel(`طلبات تغيير كلمات المرور${waiting ? ` (${waiting} بانتظارك)` : ""}`, null,
-    sub("تحقق من هوية صاحب الطلب هاتفيًا، ثم أحِله لمالك المنصة لإصدار الرابط. لا يمكنك إصدار الرابط بنفسك."),
+  return panel(`طلبات «نسيت كلمة المرور»${waiting ? ` (${waiting} بانتظارك)` : ""}`, null,
+    sub("طلبات المعلمين والمحاسبين في مدرستك. تحقق من هوية صاحب الطلب (اتصال أو واتساب) ثم اعتمد: يُصدر رابط تغيير لمرة واحدة صالح ساعتين ترسله له."),
+    notice("طلب مدير المدرسة لا يصل هنا: يعتمده مالك المنصة مباشرة.", ""),
     list.length ? list.map(row) : empty("لا توجد طلبات."));
 }
 
 function reviewDialog(r, decision, show) {
-  const note = input({ placeholder: decision === "refer" ? "كيف تحققت من هويته؟" : "سبب الرفض" });
+  const note = input({ placeholder: decision === "approve" ? "كيف تحققت من هويته؟ (اختياري)" : "سبب الرفض" });
   const msg = h("div");
-  const d = dialog(decision === "refer" ? `إحالة طلب ${r.ref}` : `رفض طلب ${r.ref}`, h("div", {},
-    sub(`${r.full_name} — ${PR_JOBS[r.job_title]} — ${r.phone}`),
-    decision === "refer" ? notice("بعد الإحالة يعتمد مالك المنصة الطلب ويصدر رابطًا مؤقتًا لصاحب الحساب.", "") : null,
-    note, msg),
-  [btn(decision === "refer" ? "إحالة" : "رفض", async () => {
+  const body = h("div", {},
+    sub(`${r.full_name} — ${r.account_role ? `حساب ${ROLE_AR[r.account_role]}` : PR_JOBS[r.job_title]} — ${r.phone}`),
+    decision === "approve" ? notice("تأكد من هويته أولًا. سيُنشأ رابط يغيّر به كلمة مروره بنفسه، ويعمل مرة واحدة خلال ساعتين.", "warn") : null,
+    note, msg);
+  const d = dialog(decision === "approve" ? `اعتماد طلب ${r.ref}` : `رفض طلب ${r.ref}`, body,
+  [btn(decision === "approve" ? "اعتماد وإصدار الرابط" : "رفض", async (e) => {
+    const button = e.currentTarget;   // يُحفظ قبل الانتظار (currentTarget يصبح فارغًا بعده)
     mount(msg);
+    button.disabled = true;
     try {
-      await api(`${A}/password-requests/${r.id}/review`, { decision, note: note.value || null });
-      d.close(); toast(decision === "refer" ? "أُحيل الطلب" : "رُفض الطلب"); show();
-    } catch (e) { mount(msg, notice(e.message, "err")); }
+      const res = await api(`${A}/password-requests/${r.id}/review`, { decision, note: note.value || null });
+      if (res.escalated) { d.close(); toast("تبيّن أنه حساب إداري: أُحيل الطلب لمالك المنصة"); return show(); }
+      if (decision === "reject") { d.close(); toast("رُفض الطلب"); return show(); }
+      // الرابط يظهر مرة واحدة فقط: نسخ أو إرسال بواتساب لرقم صاحب الطلب
+      const text = `مرحبًا ${r.full_name}، هذا رابط تغيير كلمة المرور لحسابك في مدار (صالح ساعتين ولمرة واحدة):\n${res.link}`;
+      const wa = waLink(r.phone, text);
+      mount(body, notice("اعتُمد الطلب. هذا الرابط يظهر الآن فقط، أرسله لصاحب الطلب:", "warn"),
+        copyRow("رابط تغيير كلمة المرور", res.link, { note: `صالح ${res.expires_hours} ساعة ولمرة واحدة` }),
+        wa ? h("a", { class: "btn whatsapp", href: wa, target: "_blank", rel: "noopener" }, "إرسال عبر واتساب") : null);
+      button.remove();   // اعتُمد: لا زر اعتماد ثانٍ
+      show();
+    } catch (err) { button.disabled = false; mount(msg, notice(err.message, "err")); }
   }, decision === "reject" ? "danger" : "primary")]);
 }
 

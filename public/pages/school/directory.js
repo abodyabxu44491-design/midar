@@ -74,34 +74,44 @@ function askAccess(error) {
 function homePage() {
   const f = home.features;
   document.title = `مدار — ${home.school.name}`;
-  const keyBox = findByKey();
+  // الأقسام: كل واحد مرة واحدة فقط (التواصل له بطاقته الخاصة في الأسفل)
   const tiles = [
     f.directory ? tile(icons.users({ size: 26 }), "الطلاب", "المراحل والصفوف والشعب", () => { location.hash = "#/students"; }) : null,
     f.admissions ? tile(icons.plus({ size: 26 }), "طلب تسجيل طالب", "للطلاب الجدد", admissionForm) : null,
-    home.announcements.length ? tile(icons.megaphone({ size: 26 }), "الأخبار والإعلانات", `${home.announcements.length} إعلان`, () => document.getElementById("news")?.scrollIntoView({ behavior: "smooth" })) : null,
-    home.contact ? tile(icons.phone({ size: 26 }), "التواصل مع المدرسة", home.contact.phone || home.contact.email || "", () => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })) : null,
+    home.announcements.length ? tile(icons.megaphone({ size: 26 }), "الأخبار والإعلانات", `${home.announcements.length} إعلان`,
+      () => document.getElementById("news")?.scrollIntoView({ behavior: "smooth" })) : null,
   ].filter(Boolean);
   shell([
     h("section", { class: "ss-hero" },
       home.school.logo ? h("img", { class: "ss-hero-logo", src: `${P}/logo`, alt: `شعار ${home.school.name}` }) : brandLogo("ss-hero-logo", false, "row"),
       h("h1", {}, home.school.name),
-      home.school.about ? h("p", { class: "ss-about" }, home.school.about) : null,
-      home.counts ? h("div", { class: "ss-stats" },
-        stat(home.counts.students, "طالب"), stat(home.counts.grades, "صف"), stat(home.counts.sections, "شعبة")) : null),
-    h("section", { class: "ss-card" }, h("h2", {}, icons.key({ size: 20 }), "ملف الطالب"),
-      sub("أدخل معرّف الطالب من البطاقة التي سلّمتها المدرسة لفتح ملفه مباشرة."), keyBox),
-    tiles.length ? h("section", { class: "ss-tiles" }, tiles) : null,
-    home.announcements.length ? h("section", { class: "ss-card", id: "news" }, h("h2", {}, "الأخبار والإعلانات"),
+      home.school.about ? h("p", { class: "ss-about" }, home.school.about) : null),
+    h("section", { class: "ss-card ss-keycard" }, h("h2", {}, icons.key({ size: 20 }), "ملف الطالب"),
+      sub("أدخل معرّف الطالب من البطاقة التي سلّمتها المدرسة لفتح ملفه مباشرة."), findByKey()),
+    tiles.length ? h("section", { class: `ss-tiles n${tiles.length}` }, tiles) : null,
+    home.announcements.length ? h("section", { class: "ss-card", id: "news" }, h("h2", {}, icons.megaphone({ size: 20 }), "الأخبار والإعلانات"),
       home.announcements.map((a) => h("article", { class: "ss-news" }, h("b", {}, a.title), h("p", {}, a.body), h("small", {}, fmtDate(a.created_at))))) : null,
-    home.contact ? h("section", { class: "ss-card", id: "contact" }, h("h2", {}, "التواصل"),
-      h("div", { class: "ss-contact" },
-        home.contact.phone ? h("a", { class: "btn contact", href: `tel:${home.contact.phone}` }, "اتصال: ", h("span", { class: "ltr" }, home.contact.phone)) : null,
-        home.contact.phone ? h("a", { class: "btn whatsapp", href: `https://wa.me/${String(home.contact.phone).replace(/\D/g, "").replace(/^0/, "966")}`, target: "_blank", rel: "noopener" }, "واتساب") : null,
-        home.contact.email ? h("a", { class: "btn secondary", href: `mailto:${home.contact.email}` }, h("span", { class: "ltr" }, home.contact.email)) : null),
-      [home.contact.city, home.contact.address].filter(Boolean).length ? sub([home.contact.city, home.contact.address].filter(Boolean).join(" — ")) : null) : null,
+    contactCard(home.contact),
   ]);
 }
-const stat = (n, label) => h("div", {}, h("b", {}, Number(n).toLocaleString("ar")), h("span", {}, label));
+
+// التواصل: بطاقة واحدة مرتبة — كل وسيلة في سطر بأيقونتها وزر إجرائها
+function contactCard(c) {
+  if (!c || !(c.phone || c.email || c.address || c.city)) return null;
+  const intl = c.phone ? String(c.phone).replace(/\D/g, "").replace(/^0/, "966") : null;
+  const rowOf = (icon, label, value, action) => h("div", { class: "ss-crow" },
+    h("span", { class: "ic" }, icon), h("div", { class: "tx" }, h("small", {}, label), h("b", {}, value)), action || null);
+  return h("section", { class: "ss-card", id: "contact" }, h("h2", {}, icons.phone({ size: 20 }), "تواصل مع المدرسة"),
+    c.phone ? rowOf(icons.phone({ size: 18 }), "الهاتف", h("span", { class: "ltr" }, c.phone),
+      h("div", { class: "acts" },
+        h("a", { class: "btn contact sm", href: `tel:${c.phone}` }, "اتصال"),
+        h("a", { class: "btn whatsapp sm", href: `https://wa.me/${intl}`, target: "_blank", rel: "noopener" }, "واتساب"))) : null,
+    c.email ? rowOf(icons.link({ size: 18 }), "البريد الإلكتروني", h("span", { class: "ltr" }, c.email),
+      h("a", { class: "btn secondary sm", href: `mailto:${c.email}` }, "مراسلة")) : null,
+    c.city || c.address ? rowOf(icons.external({ size: 18 }), "العنوان", [c.city, c.address].filter(Boolean).join(" — "),
+      h("a", { class: "btn open sm", href: `https://www.google.com/maps/search/${encodeURIComponent([c.address, c.city].filter(Boolean).join(" "))}`,
+        target: "_blank", rel: "noopener" }, "الخريطة")) : null);
+}
 const tile = (icon, title, note, onclick) => h("button", { class: "ss-tile", type: "button", onclick }, h("span", { class: "ic" }, icon), h("b", {}, title), note ? h("small", {}, note) : null);
 
 // البحث بالمعرّف: يفتح ملف الطالب مباشرة

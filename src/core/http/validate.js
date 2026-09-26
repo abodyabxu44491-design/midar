@@ -1,6 +1,7 @@
 // التحقق من المدخلات بـ zod قبل وصولها لأي منطق
 import { z } from "zod";
 import { badRequest } from "./errors.js";
+import { canonPassword } from "../auth/password.js";
 
 // أسماء الحقول بالعربية في رسائل الخطأ (المستخدم لا يرى أسماء داخلية مثل billing_cycle)
 const FIELD_LABELS = {
@@ -39,8 +40,9 @@ export const t = {
   optDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ غير صحيح"), z.literal(""), z.null()]).optional().transform(keep),
   money: z.coerce.number().positive("المبلغ يجب أن يكون أكبر من صفر").max(10_000_000).multipleOf(0.01, "المبلغ بحد أقصى رقمين بعد الفاصلة"),
   username: z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{3,40}$/, "اسم المستخدم: حروف إنجليزية وأرقام (3 أحرف على الأقل)"),
-  password: z.string().min(10, "كلمة المرور 10 أحرف على الأقل").max(200)
-    .regex(/[A-Za-z]/, "كلمة المرور تحتاج حرفًا إنجليزيًا").regex(/[0-9]/, "كلمة المرور تحتاج رقمًا"),
+  // الشروط تُفحص على الشكل الموحد نفسه الذي يُحفظ (الأرقام العربية أرقام، والأحرف المخفية لا تُحسب)
+  password: z.preprocess((v) => (typeof v === "string" ? canonPassword(v) : v), z.string().min(10, "كلمة المرور 10 أحرف على الأقل").max(200)
+    .regex(/[A-Za-z]/, "كلمة المرور تحتاج حرفًا إنجليزيًا").regex(/[0-9]/, "كلمة المرور تحتاج رقمًا")),
   idemKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/, "مفتاح العملية غير صالح"),
   studentKey: z.string().trim().toUpperCase().regex(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/, "معرّف الطالب غير صحيح"),
 };

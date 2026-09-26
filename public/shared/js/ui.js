@@ -103,7 +103,8 @@ export const input = (props = {}) => h("input", props);
  * فلا يلتبس معناه. يُستخدم مثل input تمامًا (.value و.focus()).
  */
 export function passwordInput(props = {}) {
-  const el = h("input", { ...props, type: "password", class: `ltr ${props.class || ""}`.trim() });
+  // لوحات مفاتيح الجوال: لا حروف كبيرة ولا تصحيح تلقائي (يغيّران كلمة المرور خاصة بعد إظهارها كنص)
+  const el = h("input", { autocapitalize: "none", autocorrect: "off", spellcheck: false, ...props, type: "password", class: `ltr ${props.class || ""}`.trim() });
   // الأيقونة تعكس الحالة الحالية: عين مشطوبة = مخفية، عين مفتوحة = ظاهرة.
   // البداية مخفية دائمًا، والضغط يُظهر، والضغط مرة ثانية يُخفي.
   const toggle = h("button", { class: "pw-toggle", type: "button", tabindex: "-1" });
@@ -330,7 +331,7 @@ export function showCredentials(title, creds, note) {
 export function loginScreen({ role, endpoint, withSchool = true, withCode = false, onSuccess,
   title = "بوابة مالك المنصة", subtitle = "إدارة المدارس والاشتراكات من مكان واحد", points = [] }) {
   const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem("midar_school") || "", "aria-label": "رمز المدرسة" });
-  const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم أو البريد الإلكتروني" });
+  const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
   const pass = passwordInput({ autocomplete: "current-password", placeholder: "كلمة المرور" });
   const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 6, placeholder: "000000" });
   const remember = h("input", { type: "checkbox", id: "remember-me" });
@@ -364,7 +365,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
         h("p", { class: "gate-sub" }, subtitle),
 
         withSchool ? field("رمز المدرسة", school) : null,
-        field("اسم المستخدم أو البريد الإلكتروني", user),
+        field("اسم المستخدم", user),
         field("كلمة المرور", pass),
         withCode ? field("رمز التحقق (6 أرقام)", code) : null,
 

@@ -95,3 +95,16 @@
   .ss-teachers { grid-template-columns: 1fr 1fr; column-gap: 20px; }
 }
 @media (min-width: 900px) { .ss-grid { grid-template-columns: repeat(4, 1fr); } .ss-students { grid-template-columns: repeat(3, 1fr); } }
+
+/* بطاقة التواصل: سطر لكل وسيلة */
+.ss-crow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.ss-crow:first-of-type { border-top: 0; }
+.ss-crow .ic { width: 38px; height: 38px; border-radius: 10px; background: var(--teal-soft); color: var(--teal); display: flex; align-items: center; justify-content: center; flex: none; }
+.ss-crow .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ss-crow .tx small { color: var(--muted); font-size: 12px; }
+.ss-crow .tx b { font-size: 14.5px; overflow-wrap: anywhere; }
+.ss-crow .acts { display: flex; gap: 6px; flex: none; }
+.ss-keycard { border-color: var(--accent); box-shadow: 0 6px 18px rgba(11,122,117,.08); }
+.ss-tiles.n1 { grid-template-columns: 1fr; }
+@media (min-width: 640px) { .ss-tiles.n2 { grid-template-columns: 1fr 1fr; } .ss-tiles.n3 { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 380px) { .ss-crow { flex-wrap: wrap; } .ss-crow .acts { width: 100%; } .ss-crow .acts .btn { flex: 1; } }

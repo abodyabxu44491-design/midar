@@ -37,14 +37,9 @@ r.post("/home", limits.api, handle(async (req, res) => {
     const [profile] = settings.show_contact
       ? await q("SELECT city, address, phone, email FROM school_profile WHERE tenant_id = app_tenant()") : [];
     const [logo] = await q("SELECT logo_image_id FROM exam_paper_settings WHERE tenant_id = app_tenant() AND show_logo");
-    const [counts] = settings.show_class_counts ? await q(
-      `SELECT (SELECT count(*) FROM students s WHERE ${ACTIVE})::int AS students,
-              (SELECT count(*) FROM classes)::int AS sections,
-              (SELECT count(*) FROM grades)::int AS grades`) : [null];
     return {
       school: { name: tenant.name, about: settings.about || null, logo: Boolean(logo?.logo_image_id) },
       contact: settings.show_contact && profile ? profile : null,
-      counts: counts || null,
       announcements: settings.show_announcements
         ? await q("SELECT title, body, created_at FROM announcements WHERE class_id IS NULL ORDER BY id DESC LIMIT 6") : [],
       features: {

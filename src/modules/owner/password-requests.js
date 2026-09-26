@@ -1,4 +1,4 @@
-// طلبات تغيير كلمة المرور — اعتماد مالك المنصة وإصدار الرابط
+// طلبات «نسيت كلمة المرور» لمديري المدارس — اعتماد مالك المنصة وإصدار الرابط
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";

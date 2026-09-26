@@ -400,12 +400,18 @@ test("سجل التدقيق يسجل التعديلات بالقيم", async () 
   assert.ok(r.data.some((a) => a.changes?.some((c) => c.field === "guardian_name")));
 });
 
-test("قفل الحساب بعد 5 محاولات خاطئة", async () => {
+test("قفل الدخول 5 دقائق بعد 5 محاولات خاطئة، مع الوقت المتبقي للعد التنازلي", async () => {
   const x = client(srv.base);
-  for (let i = 0; i < 5; i++) await x.post("/api/staff/login", { school: A.id, username: "tester", password: "wrong-pass" });
+  const tries = [];
+  for (let i = 0; i < 5; i++) tries.push(await x.post("/api/staff/login", { school: A.id, username: "tester", password: "wrong-pass" }));
+  assert.deepEqual(tries.slice(0, 4).map((t) => t.status), [401, 401, 401, 401]);
+  assert.equal(tries[4].status, 429, "المحاولة الخامسة تبدأ القفل فورًا");
+  assert.equal(tries[4].data.code, "locked");
+  assert.ok(tries[4].data.retry_after > 280 && tries[4].data.retry_after <= 300, `5 دقائق: ${tries[4].data.retry_after}`);
   const r = await x.post("/api/staff/login", { school: A.id, username: "tester", password: s.teacherPw });
-  assert.equal(r.status, 401);
-  assert.match(r.data.error, /مقفل/);
+  assert.equal(r.status, 429, "كلمة المرور الصحيحة لا تفتح أثناء القفل");
+  assert.match(r.data.error, /إيقاف الدخول مؤقتًا/);
+  assert.ok(r.data.retry_after <= tries[4].data.retry_after, "العد لا يزيد مع المحاولة أثناء القفل");
 });
 
 test("اشتراكات المدارس: فاتورة، سداد، تمديد، وإيقاف تلقائي", async () => {
@@ -1262,67 +1268,77 @@ test("النسخ والتكرار: مواد صف، قالب رسوم، وجدو�
   assert.equal((await B.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`, { to_grade_id: g2.id })).status, 404);
 });
 
-test("تغيير كلمة المرور: طلب ← تحقق الإدارة ← اعتماد المالك ← رابط لمرة واحدة", async () => {
+test("نسيت كلمة المرور: المعلم والمحاسب تعتمدهم الإدارة، ومدير المدرسة يعتمده المالك — ورابط لمرة واحدة", async () => {
   const S = await makeSchool("مدرسة كلمات المرور");
   const teacher = await S.admin.post("/api/admin/teachers", { name: "معلم النسيان", username: "forgot-teacher" });
   assert.equal(teacher.status, 201, JSON.stringify(teacher.data));
-
-  // 1) الطلب من بوابة المدرسة بلا تسجيل دخول
   const anon = client(srv.base);
+  const reset = async (token, password) => anon.post("/api/public/password-reset", { token, password });
+
+  /* ---- أ) معلم: الإدارة تتحقق وتعتمد وتصدر الرابط، والمالك لا يدخل ---- */
   const submitted = await anon.post(`/api/public/${S.id}/password-request`, {
-    full_name: "معلم النسيان", username: "forgot-teacher", phone: "0500000123",
+    full_name: "معلم النسيان", username: "Forgot-Teacher ", phone: "0500000123",
     job_title: "teacher", description: "نسيت كلمة المرور بعد الإجازة", contact_pref: "whatsapp" });
   assert.equal(submitted.status, 201, JSON.stringify(submitted.data));
   assert.match(submitted.data.ref, /^PR-\d{4}-[A-Z0-9]{5}$/);
   assert.equal(submitted.data.token, undefined, "لا يُعاد أي رمز للمستخدم");
 
-  // الطلب يصل لإدارة المدرسة فقط
   const list = await S.admin.get("/api/admin/password-requests");
   const request = list.data.find((x) => x.ref === submitted.data.ref);
   assert.equal(request.status, "new");
+  assert.equal(request.account_role, "teacher");
   assert.equal(request.token_hash, undefined, "تجزئة الرمز لا تُعاد للواجهة");
   assert.equal((await B.admin.get("/api/admin/password-requests")).data.length, 0, "مدرسة أخرى لا تراه");
+  assert.equal((await owner.get("/api/owner/password-requests")).data.some((x) => x.ref === request.ref), false, "المالك لا يرى طلبات المعلمين");
+  assert.equal((await owner.post(`/api/owner/password-requests/${request.id}/review`, { decision: "approve" })).status, 404);
 
-  // 2) المالك لا يرى الطلب قبل إحالته
-  assert.equal((await owner.get("/api/owner/password-requests")).data.some((x) => x.ref === request.ref), false);
-  assert.equal((await owner.post(`/api/owner/password-requests/${request.id}/review`, { decision: "approve" })).status, 400);
-
-  // 3) الإدارة تتحقق وتحيل
-  const referred = await S.admin.post(`/api/admin/password-requests/${request.id}/review`,
-    { decision: "refer", note: "تحققت من هويته هاتفيًا" });
-  assert.equal(referred.status, 200, JSON.stringify(referred.data));
-  assert.equal(referred.data.matched_account, true);
-  assert.equal((await S.admin.post(`/api/admin/password-requests/${request.id}/review`, { decision: "refer" })).status, 400,
-    "لا تُعاد المراجعة مرتين");
-
-  // 4) المالك يعتمد فيصدر الرابط مرة واحدة
-  const approved = await owner.post(`/api/owner/password-requests/${request.id}/review`,
-    { decision: "approve", note: "اعتُمد" });
+  const approved = await S.admin.post(`/api/admin/password-requests/${request.id}/review`, { decision: "approve", note: "تحققت هاتفيًا" });
   assert.equal(approved.status, 200, JSON.stringify(approved.data));
   assert.match(approved.data.link, /\/reset\?token=[0-9a-f]{64}$/);
+  assert.equal((await S.admin.post(`/api/admin/password-requests/${request.id}/review`, { decision: "approve" })).status, 400, "لا يُعتمد مرتين");
   const token = approved.data.link.split("token=")[1];
-
-  // 5) صفحة التغيير تتحقق من الرابط
-  const check = await anon.get(`/api/public/password-reset/check?token=${token}`);
-  assert.equal(check.status, 200, JSON.stringify(check.data));
+  assert.equal((await anon.get(`/api/public/password-reset/check?token=${token}`)).status, 200);
   assert.equal((await anon.get(`/api/public/password-reset/check?token=${"a".repeat(64)}`)).status, 404);
-
-  // كلمة مرور ضعيفة تُرفض
-  assert.equal((await anon.post("/api/public/password-reset", { token, password: "123" })).status, 400);
-
-  const done = await anon.post("/api/public/password-reset", { token, password: "Forgot-Pass-2026" });
-  assert.equal(done.status, 200, JSON.stringify(done.data));
-
-  // 6) الرابط لا يُستخدم مرتين، والحساب يعمل بكلمة المرور الجديدة بلا إجبار تغيير
-  assert.equal((await anon.post("/api/public/password-reset", { token, password: "Another-Pass-2026" })).status, 404);
+  assert.equal((await reset(token, "123")).status, 400, "كلمة ضعيفة تُرفض");
+  assert.equal((await reset(token, "Forgot-Pass-2026")).status, 200);
+  assert.equal((await reset(token, "Another-Pass-2026")).status, 404, "الرابط لمرة واحدة");
   const tc = client(srv.base);
-  const login = await tc.post("/api/staff/login", { school: S.id, username: "forgot-teacher", password: "Forgot-Pass-2026" });
-  assert.equal(login.data.role, "teacher");
+  assert.equal((await tc.post("/api/staff/login", { school: S.id, username: "forgot-teacher", password: "Forgot-Pass-2026" })).data.role, "teacher");
   assert.equal((await tc.get("/api/teacher/me")).data.must_change_password, false);
+  assert.equal((await S.admin.get("/api/admin/password-requests")).data.find((x) => x.ref === request.ref).status, "used");
 
-  const closed = (await S.admin.get("/api/admin/password-requests")).data.find((x) => x.ref === request.ref);
-  assert.equal(closed.status, "used");
-  assert.ok(closed.used_at);
+  /* ---- ب) مدير المدرسة: الطلب يذهب للمالك مباشرة، حتى لو ادّعى صاحبه أنه «معلم» ---- */
+  const adminReq = await anon.post(`/api/public/${S.id}/password-request`, {
+    full_name: "شخص يدعي أنه معلم", username: "admin", phone: "0500000999",
+    job_title: "teacher", description: "أريد تغيير كلمة المرور", contact_pref: "phone" });
+  assert.equal(adminReq.status, 201);
+  const schoolList = (await S.admin.get("/api/admin/password-requests")).data;
+  assert.equal(schoolList.some((x) => x.ref === adminReq.data.ref), false, "الإدارة لا تعتمد إعادة كلمة مرور حساب إداري");
+  const ownerRow = (await owner.get("/api/owner/password-requests")).data.find((x) => x.ref === adminReq.data.ref);
+  assert.ok(ownerRow, "يصل للمالك");
+  assert.equal(ownerRow.account_role, "admin");
+  assert.equal(ownerRow.status, "new");
+  assert.equal((await S.admin.post(`/api/admin/password-requests/${ownerRow.id}/review`, { decision: "approve" })).status, 404);
+
+  const ownerOk = await owner.post(`/api/owner/password-requests/${ownerRow.id}/review`, { decision: "approve", note: "تحققت من المدير" });
+  assert.equal(ownerOk.status, 200, JSON.stringify(ownerOk.data));
+  assert.equal((await reset(ownerOk.data.link.split("token=")[1], "Admin-Reset-2026")).status, 200);
+  const ac = client(srv.base);
+  assert.equal((await ac.post("/api/staff/login", { school: S.id, username: "admin", password: "Admin-Reset-2026" })).data.role, "admin");
+
+  // إعادة تعيين كلمة مرور المدير أنهت جلساته القديمة (كما يجب)
+  assert.equal((await S.admin.get("/api/admin/me")).status, 401, "الجلسات القديمة انتهت");
+
+  /* ---- ج) طلب لاسم غير موجود: عند الإدارة، ولا يمكن اعتماده ---- */
+  const ghost = await anon.post(`/api/public/${S.id}/password-request`, {
+    full_name: "غير موجود", username: "nobody-here", phone: "0500000888", job_title: "accountant", description: "نسيت كلمة المرور" });
+  assert.equal(ghost.status, 201, "لا يُكشف لصاحب الطلب وجود الحساب من عدمه");
+  const g = (await ac.get("/api/admin/password-requests")).data.find((x) => x.ref === ghost.data.ref);
+  assert.equal(g.account_role, null);
+  const noAcc = await ac.post(`/api/admin/password-requests/${g.id}/review`, { decision: "approve" });
+  assert.equal(noAcc.status, 400);
+  assert.match(noAcc.data.error, /لا يوجد حساب/);
+  assert.equal((await ac.post(`/api/admin/password-requests/${g.id}/review`, { decision: "reject", note: "غير معروف" })).status, 200);
 });
 
 test("الحقول المخصصة: تعريفها وقيمها وتحققها وظهورها لولي الأمر", async () => {
@@ -1638,14 +1654,15 @@ test("أقفال الدخول: تبقى الحماية، ورسالة القفل
   const x = client(srv.base);
   for (let i = 0; i < 5; i++) await x.post("/api/staff/login", { school: C.id, username: "acc-lock", password: "wrong-pass-1" });
   const locked = await x.post("/api/staff/login", { school: C.id, username: "acc-lock", password: created.data.credentials.password });
-  assert.equal(locked.status, 401);
-  assert.match(locked.data.error, /مقفل/, "كلمة المرور الصحيحة لا تفتح أثناء القفل");
+  assert.equal(locked.status, 429);
+  assert.equal(locked.data.code, "locked", "كلمة المرور الصحيحة لا تفتح أثناء القفل");
 
   // اسم غير موجود يُعامل بالطريقة نفسها: لا فرق ظاهر بين حساب موجود وغير موجود
   const y = client(srv.base);
   for (let i = 0; i < 5; i++) await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
   const ghost = await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
-  assert.match(ghost.data.error, /مقفل/);
+  assert.equal(ghost.data.code, "locked");
+  assert.equal(ghost.data.error, locked.data.error, "نفس الرسالة لحساب موجود وغير موجود");
 
   // المدير يعيد تعيين كلمة المرور فيُفك القفل فورًا
   const id = (await C.admin.get("/api/admin/users")).data.find((u) => u.username === "acc-lock").id;

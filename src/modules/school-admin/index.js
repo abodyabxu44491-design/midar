@@ -30,6 +30,7 @@ import customFields from "./custom-fields.js";
 import homework from "./homework.js";
 import admissions from "./admissions.js";
 import { papersRouter, papersAdminSettingsRouter } from "../shared/exam-papers.routes.js";
+import { adminSyncRouter } from "../shared/sync.routes.js";
 
 const r = Router();
 r.use(logoutRouter("admin"));            // /logout (بدون حارس)
@@ -57,6 +58,7 @@ r.use("/homework", requireModule("homework"), homework);
 r.use("/admissions", requireModule("admissions"), admissions);
 r.use("/papers", requireModule("exam_papers"), papersRouter("admin"));
 r.use("/papers-settings", requireModule("exam_papers"), papersAdminSettingsRouter());
+r.use("/sync", adminSyncRouter());         // تعارضات المزامنة والأجهزة
 r.use("/import", importData);
 r.use("/sheets", sheets);
 r.use("/setup", setup);

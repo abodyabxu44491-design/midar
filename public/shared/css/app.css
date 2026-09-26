@@ -595,3 +595,27 @@ img[loading="lazy"] { content-visibility: auto; }
 .school-row > div { flex: 1; min-width: 0; }
 .school-row .go { color: var(--accent); font-size: 20px; }
 .sec-title { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); }
+
+/* ---------- مؤشر الاتصال والمزامنة ---------- */
+.sync-pill { font: inherit; font-size: 12.5px; font-weight: 600; border-radius: 999px; padding: 5px 12px; border: 1px solid transparent; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+.sync-pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.sync-pill.ok { background: rgba(255,255,255,.14); color: #CFF5E9; }
+.sync-pill.busy { background: #FFF6E6; color: #8A5A10; }
+.sync-pill.busy::before { animation: pulse 1s infinite; }
+.sync-pill.off { background: #EEF1F5; color: #4A5568; }
+.sync-pill.warn { background: #FDECEA; color: var(--red); }
+@keyframes pulse { 50% { opacity: .3; } }
+.pending-dot { display: inline-block; font-size: 11px; font-weight: 600; color: #8A5A10; background: #FFF6E6; border-radius: 999px; padding: 1px 8px; margin-inline-start: 6px; }
+.topbar .in { gap: 10px; }
+@media (max-width: 560px) { .sync-pill { font-size: 11.5px; padding: 4px 9px; } }
+.sync-pill .short { display: none; }
+@media (max-width: 560px) { .sync-pill .full { display: none; } .sync-pill .short { display: inline; } }
+
+/* ---------- قفل المحاولات الخاطئة: عد تنازلي ---------- */
+.lock-box { background: #FFF6E6; border: 1px solid #F3D9A8; color: #7A4B00; border-radius: 12px; padding: 14px; text-align: center; margin: 8px 0; }
+.lock-title { font-weight: 700; font-size: 14.5px; margin-bottom: 6px; }
+.lock-sub { font-size: 12.5px; opacity: .85; }
+.lock-time { display: block; font-size: 34px; font-weight: 800; letter-spacing: 2px; margin: 4px 0 8px; font-variant-numeric: tabular-nums; color: #9A5B00; }
+.lock-bar { height: 6px; background: #F3D9A8; border-radius: 3px; overflow: hidden; margin: 0 auto 8px; max-width: 260px; }
+.lock-bar i { display: block; height: 100%; background: #E8A33D; border-radius: 3px; transition: width .25s linear; }

@@ -1,4 +1,5 @@
-// طلبات تغيير كلمات المرور — اعتماد المالك وإصدار الرابط
+// طلبات «نسيت كلمة المرور» لمديري المدارس — اعتماد المالك وإصدار الرابط
+// (طلبات المعلمين والمحاسبين تعتمدها إدارة كل مدرسة ولا تصل هنا)
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, empty, badge, line, sub, btn, input, dialog, toast, notice, keyText } from "/shared/js/ui.js";
@@ -8,24 +9,24 @@ import { waLink } from "/shared/js/whatsapp.js";
 const JOBS = { admin: "إداري", accountant: "محاسب", teacher: "معلم" };
 const CONTACT = { phone: "اتصال هاتفي", whatsapp: "واتساب", email: "بريد إلكتروني" };
 const STATUS = {
-  referred: ["بانتظار اعتمادك", "amber"], approved: ["معتمد — أُرسل الرابط", ""],
+  new: ["بانتظار اعتمادك", "amber"], referred: ["بانتظار اعتمادك", "amber"], approved: ["معتمد — أُرسل الرابط", ""],
   used: ["تم التغيير", ""], rejected: ["مرفوض", "gray"], expired: ["انتهى الرابط", "gray"],
 };
 
 export default async function passwordRequests({ refresh }) {
   const list = await api("/api/owner/password-requests");
-  const waiting = list.filter((x) => x.status === "referred").length;
-  return panel(`طلبات تغيير كلمات المرور${waiting ? ` (${waiting} بانتظارك)` : ""}`, null,
-    sub("الطلب يصل هنا بعد تحقق إدارة المدرسة من هوية صاحبه."),
+  const waiting = list.filter((x) => x.status === "new" || x.status === "referred").length;
+  return panel(`طلبات «نسيت كلمة المرور» لمديري المدارس${waiting ? ` (${waiting} بانتظارك)` : ""}`, null,
+    sub("تصل هنا مباشرة طلبات الحسابات الإدارية فقط. تحقق من هوية صاحب الطلب (اتصال أو واتساب) قبل الاعتماد. طلبات المعلمين والمحاسبين تعتمدها إدارة المدرسة."),
     list.length ? list.map((r) => row(r, refresh)) : empty("لا توجد طلبات."));
 }
 
 function row(r, refresh) {
   const wa = waLink(r.phone, `بخصوص طلب تغيير كلمة المرور رقم ${r.ref}`);
   return line(
-    h("div", { class: r.status === "referred" ? "" : "muted-row" },
+    h("div", { class: ["new", "referred"].includes(r.status) ? "" : "muted-row" },
       h("b", {}, `${r.full_name} — ${r.school_name}`), " ", badge(...(STATUS[r.status] || [r.status, "gray"])),
-      sub(`طلب ${r.ref} — ${JOBS[r.job_title]} — الحساب: ${r.username}`),
+      sub(`طلب ${r.ref} — ${r.account_role === "admin" ? "حساب مدير المدرسة" : JOBS[r.job_title]} — اسم المستخدم: ${r.username}`),
       sub(`${r.phone} — التواصل المفضل: ${CONTACT[r.contact_pref]} — ${fmtDateTime(r.created_at)}`),
       sub(`السبب: ${r.description}`),
       r.reviewed_by ? sub(`راجعه من المدرسة: ${r.reviewed_by}${r.admin_note ? ` — ${r.admin_note}` : ""}`) : null,
@@ -34,8 +35,8 @@ function row(r, refresh) {
       r.used_at ? sub(`استُخدم الرابط ${fmtDateTime(r.used_at)}`) : null),
     h("div", { class: "row", style: "flex:none" },
       wa ? h("a", { class: "btn ghost sm", href: wa, target: "_blank", rel: "noopener" }, "واتساب") : null,
-      r.status === "referred" ? btn("اعتماد وإصدار الرابط", () => approve(r, refresh), "sm") : null,
-      r.status === "referred" ? btn("رفض", () => reject(r, refresh), "danger sm") : null));
+      ["new", "referred"].includes(r.status) ? btn("اعتماد وإصدار الرابط", () => approve(r, refresh), "primary sm") : null,
+      ["new", "referred"].includes(r.status) ? btn("رفض", () => reject(r, refresh), "danger sm") : null));
 }
 
 function approve(r, refresh) {

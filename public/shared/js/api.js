@@ -4,6 +4,7 @@ export class ApiError extends Error {
   constructor(message, status, code, details) {
     super(message); this.status = status; this.code = code;
     if (details?.errors) this.errors = details.errors;   // أخطاء أسطر الاستيراد
+    if (details?.retry_after) this.retryAfter = Number(details.retry_after);   // ثوانٍ حتى فتح القفل
   }
 }
 

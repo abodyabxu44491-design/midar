@@ -117,6 +117,9 @@ export async function destroySession(req, res, kind) {
 export async function purgeExpiredSessions() {
   // تنظيف شامل عبر كل المدارس: يحتاج سياق المنصة (RLS)
   await transaction({ platform: true, actor: "النظام" }, async (q) => {
+    // سجل تغييرات المزامنة: 30 يومًا (جهاز غاب أطول يعيد اللقطة تلقائيًا)، والعمليات المطبّقة: 90 يومًا
+    await q("DELETE FROM sync_changes WHERE changed_at < now() - interval '30 days'");
+    await q("DELETE FROM sync_operations WHERE status IN ('applied', 'rejected', 'resolved') AND received_at < now() - interval '90 days'");
     await q(`DELETE FROM sessions WHERE expires_at < now()
                OR last_seen_at < now() - make_interval(mins => COALESCE(idle_minutes, 24 * 60))`);
     await q("DELETE FROM security_events WHERE created_at < now() - interval '90 days'");

@@ -1,5 +1,7 @@
 /* الصفحة الرسمية لمدار: متجاوبة للجوال والتابلت والكمبيوتر */
-.st { --ink: #16244A; --acc: #0B7A75; --acc2: #E8A33D; --soft: #F3F6F9; background: #fff; color: var(--ink); }
+/* ألوان الموقع: للصفحة وللنوافذ أيضًا (النوافذ تُضاف خارج .st، فبدون هذا تصبح أزرارها بلا لون حتى يمر عليها المؤشر) */
+.st, dialog.st-dlg { --ink: #16244A; --acc: #0B7A75; --acc2: #E8A33D; --soft: #F3F6F9; }
+.st { background: #fff; color: var(--ink); }
 .st a { color: inherit; }
 .st-nav { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
   border-bottom: 1px solid #E5E9F0; }
@@ -110,5 +112,5 @@ dialog.st-dlg { width: min(560px, 96vw); }
   .st-nav .st-btn { padding: 7px 12px; font-size: 13px; }
 }
 
-/* نماذج الموقع داخل الحوار: زر الإرسال ثابت أسفل الحوار */
-dialog.st-dlg .st-form > div > .st-btn.wide:last-child { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 14px #fff; }
+/* زر الإرسال داخل شريط أزرار النافذة: بعرض مناسب بجانب «إغلاق» */
+dialog.st-dlg .d-in > .row.spaced:last-child .st-btn.wide { width: auto; flex: 1; }

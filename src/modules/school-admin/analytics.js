@@ -181,7 +181,7 @@ r.get("/notifications", handle(async (req, res) => {
       (SELECT count(*) FROM exams WHERE status = 'pending')::int AS pending_exams,
       (SELECT count(*) FROM payment_claims WHERE status = 'pending')::int AS pending_claims,
       (SELECT count(*) FROM admissions WHERE status = 'new')::int AS new_admissions,
-      (SELECT count(*) FROM password_requests WHERE status = 'new')::int AS password_requests,
+      (SELECT count(*) FROM password_requests WHERE status = 'new' AND route = 'school')::int AS password_requests,
       (SELECT count(*) FROM exam_papers WHERE status = 'ready' AND NOT is_template)::int AS papers_ready,
       (SELECT count(*) FROM finance_entries WHERE status = 'pending')::int AS pending_finance,
       (SELECT count(*) FROM (${OVERDUE}) o)::int AS overdue_invoices,
