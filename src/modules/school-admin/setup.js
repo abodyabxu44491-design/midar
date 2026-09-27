@@ -36,6 +36,12 @@ r.post("/reopen", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ---------- وضع الشعب (نعم/لا) ---------- */
+r.put("/sections-mode", handle(async (req, res) => {
+  const { sections_enabled } = parse(S.sectionsModeSchema, req.body);
+  res.json(await inTenant(req, (q) => S.setSectionsMode(q, sections_enabled)));
+}));
+
 /* ---------- المراحل ---------- */
 r.post("/stages", handle(async (req, res) => {
   const b = parse(S.stageSchema, req.body);

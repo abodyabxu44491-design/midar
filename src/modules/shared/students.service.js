@@ -2,10 +2,12 @@
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, conflict, notFound } from "../../core/http/errors.js";
 import { newStudentKey } from "../../core/auth/codes.js";
+import { resolveClassForGrade } from "./structure.service.js";
 
 export const studentSchema = z.object({
   name: t.name("اسم الطالب"),
   class_id: t.optId,
+  grade_id: t.optId,   // بديل عن class_id في وضع "بدون شعب": يُحل تلقائيًا لشعبة الصف الافتراضية
   guardian_name: t.optText(120),
   guardian_phone: t.phone,
   fees_enabled: z.boolean().optional().default(false),
@@ -15,6 +17,7 @@ export const updateSchema = z.object({
   version: z.coerce.number().int().positive("رقم النسخة مطلوب"),
   name: t.name("اسم الطالب").optional(),
   class_id: t.optId,
+  grade_id: t.optId,
   guardian_name: t.optText(120),
   guardian_phone: t.phone,
   fees_enabled: z.boolean().optional(),
@@ -61,6 +64,7 @@ async function ensureCapacity(q, tenant, adding) {
 
 // إنشاء طالب مع معرّف فريد (يُعاد التوليد تلقائيًا في حالة التصادم النادر)
 async function insertOne(q, s) {
+  const classId = s.class_id ?? (s.grade_id ? await resolveClassForGrade(q, s.grade_id) : null);
   const name = cleanName(s.name);
   const phone = normalizePhone(s.guardian_phone);
   // اسم ولي الأمر: المكتوب، أو من سجل أخ له بنفس الجوال، أو من اسم الطالب
@@ -79,7 +83,7 @@ async function insertOne(q, s) {
        VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)
        ON CONFLICT (tenant_id, access_key) DO NOTHING
        RETURNING id, full_name AS name, guardian_name, guardian_phone, access_key`,
-      [s.class_id, name, guardian, phone, key, s.fees_enabled]);
+      [classId, name, guardian, phone, key, s.fees_enabled]);
     if (rows.length) return rows[0];
   }
   throw conflict("تعذر إنشاء معرّف فريد، أعد المحاولة");
@@ -108,9 +112,11 @@ export async function create(q, tenant, list) {
 export async function update(q, id, b) {
   const s = await get(q, id);
   if (s.version !== b.version) throw conflict("تم تعديل بيانات هذا الطالب من شخص آخر. حدّث الصفحة ثم أعد المحاولة.");
+  const resolvedClassId = b.class_id !== undefined ? b.class_id
+    : b.grade_id !== undefined ? await resolveClassForGrade(q, b.grade_id) : s.class_id;
   const next = {
     full_name: b.name ? cleanName(b.name) : s.full_name,
-    class_id: b.class_id !== undefined ? b.class_id : s.class_id,
+    class_id: resolvedClassId,
     guardian_name: b.guardian_name !== undefined ? b.guardian_name : s.guardian_name,
     guardian_phone: b.guardian_phone !== undefined ? normalizePhone(b.guardian_phone) : s.guardian_phone,
     fees_enabled: b.fees_enabled ?? s.fees_enabled,

@@ -273,7 +273,9 @@ export function tabs(list, views, ctx) {
       if (e.status === 401) setTimeout(() => location.reload(), 1500);
     }
   };
+  // عنصر بلا مفتاح (key = null) هو عنوان تجميع بصري فقط، لا يفتح شيء ولا يُحسب تبويبًا
   for (const [key, label] of list) {
+    if (key === null) { bar.append(h("span", { class: "tab-group-label" }, label)); continue; }
     bar.append(h("button", { type: "button", role: "tab", "data-k": key, onclick: () => show(key),
       onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() }, label));
   }

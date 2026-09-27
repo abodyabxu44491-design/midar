@@ -5,6 +5,7 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction } from "../../shared/js/ui.js";
 import { fmtDateTime, csv } from "../../shared/js/format.js";
 import { A, loadClasses, loadSubjects, staffLink } from "./common.js";
+import { importButtons } from "./import-wizard.js";
 
 export default async function teachers({ me, refresh }) {
   const [classes, subjects, list] = await Promise.all([loadClasses(), loadSubjects(), api(`${A}/teachers`)]);
@@ -33,6 +34,7 @@ export default async function teachers({ me, refresh }) {
   });
 
   return [
+    importButtons("teachers", "المعلمين", { onDone: refresh }),
     panel("إضافة معلم", btn("تصدير المعلمين", () => exportTeachers(list), "ghost sm"),
       h("div", { class: "row" }, field("الاسم", f.name), field("اسم المستخدم", f.user), field("الجوال", f.phone)),
       h("div", { class: "row" }, field("الرقم الوظيفي", f.employee_no), field("رقم الهوية", f.national_id), field("البريد", f.email)),

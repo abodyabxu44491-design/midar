@@ -37,6 +37,11 @@ a { color: var(--accent); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .row > * { flex: 1; min-width: 150px; }
 .row > .btn, .row > .switch { flex: none; min-width: 0; }
+/* على الجوال: أي صف فيه 3 حقول أو أكثر (اسم/رمز/رقم...) يتراص عموديًا بدل ما يتزاحم بعرض ضيق */
+@media (max-width: 480px) {
+  .row:has(> .f:nth-child(3)) { flex-direction: column; align-items: stretch; }
+  .row:has(> .f:nth-child(3)) > .f { width: 100%; min-width: 0; }
+}
 label.f { display: block; margin-bottom: 12px; }
 label.f > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 label.f.remember-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; }
@@ -76,6 +81,8 @@ input[type=checkbox] { width: auto; }
 .tabs { display: flex; gap: 2px; overflow-x: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 0 6px; margin-bottom: 16px; }
 .tabs button { font: inherit; font-size: 14px; background: none; border: none; padding: 11px 12px; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
 .tabs button.on { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
+.tab-group-label { font-size: 11px; color: var(--muted); font-weight: 700; padding: 10px 12px 4px; white-space: nowrap; align-self: center; }
+.tab-group-label:first-child { padding-inline-start: 4px; }
 
 .line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
 .sub { font-size: 13px; color: var(--muted); }
@@ -268,6 +275,8 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   }
   .tabs-layout > .tabs button.on { background: var(--teal-soft); border-inline-start-color: var(--accent); }
   .tabs-layout > .tabs button:hover { background: var(--bg); }
+  .tabs-layout > .tabs .tab-group-label { display: block; text-align: right; padding: 14px 12px 4px; }
+  .tabs-layout > .tabs .tab-group-label:first-child { padding-top: 4px; }
   /* الصفحة العامة وملف الطالب: عمودان على الشاشات الكبيرة */
   .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; align-items: start; }
   .cols-2 > * { min-width: 0; }
@@ -316,7 +325,10 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .alert-card b { font-size: 22px; }
 .alert-card.warn { border-color: var(--amber); background: var(--amber-soft); }
 .alert-card.bad { border-color: var(--red); background: var(--red-soft); color: var(--red); }
-.search-result { padding: 10px 0; border-top: 1px solid var(--line); }
+.search-result { display: block; width: 100%; text-align: right; background: none; border: none; border-top: 1px solid var(--line); padding: 10px 0; font: inherit; cursor: pointer; }
+.search-result:hover { background: var(--teal-soft); }
+.quick-actions { flex-wrap: wrap; margin-bottom: 16px; }
+.quick-actions .btn { flex: 1 1 auto; }
 
 .receipt { max-width: 520px; }
 @media print {

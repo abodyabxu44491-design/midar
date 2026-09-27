@@ -7,9 +7,21 @@ import { A } from "./common.js";
 
 export default async function structure({ refresh }) {
   const d = await api(`${A}/setup`);
-  const { stages, unassigned, subjects } = d.structure;
+  const { stages, unassigned, subjects, sections_enabled: sectionsEnabled } = d.structure;
   const naming = d.catalog.naming;
   const allGrades = stages.flatMap((st) => st.grades.map((g) => ({ ...g, stage: st.name })));
+
+  /* ---------- تفعيل/تعطيل نظام الشعب ---------- */
+  const sectionsToggle = input({ type: "checkbox", checked: sectionsEnabled });
+  const sectionsModePanel = panel("نظام الشعب", null,
+    h("label", { class: "f pill" }, sectionsToggle, "هذه المدرسة تستخدم شعبًا متعددة لكل صف"),
+    sub(sectionsEnabled
+      ? "عند الإيقاف: يختفي مفهوم «الشعبة» من كل الواجهات، ويرتبط كل طالب بصفه مباشرة. لا فقدان بيانات — الشعب الحالية تبقى محفوظة."
+      : "الآن كل صف يُعامل كوحدة واحدة بلا شعب. عند التفعيل تقدر تنشئ شعبًا متعددة لكل صف."),
+    btn("حفظ", async () => {
+      await api(`${A}/setup/sections-mode`, { sections_enabled: sectionsToggle.checked }, "PUT");
+      toast("تم الحفظ"); refresh();
+    }, "soft"));
 
   /* ---------- إضافة مرحلة ---------- */
   const stageName = input({ placeholder: "اسم المرحلة" });
@@ -34,7 +46,7 @@ export default async function structure({ refresh }) {
           await api(`${A}/setup/stages/${st.id}`, undefined, "DELETE"); toast("حُذفت المرحلة"); refresh();
         }, "danger sm")),
 
-      st.grades.length ? st.grades.map((g, i) => gradeRow(st, g, i, refresh, naming, allGrades)) : empty("لا توجد صفوف في هذه المرحلة."),
+      st.grades.length ? st.grades.map((g, i) => gradeRow(st, g, i, refresh, naming, allGrades, sectionsEnabled)) : empty("لا توجد صفوف في هذه المرحلة."),
 
       h("div", { class: "row spaced" }, field("إضافة صف", gradeName),
         btn("إضافة الصف", async () => {
@@ -44,7 +56,7 @@ export default async function structure({ refresh }) {
   });
 
   /* ---------- شعب بلا صف ---------- */
-  const orphans = unassigned.length ? panel("شعب غير مرتبطة بصف", null,
+  const orphans = (sectionsEnabled && unassigned.length) ? panel("شعب غير مرتبطة بصف", null,
     sub("اربطها بصفّها ليظهر الهيكل مرتبًا."),
     unassigned.map((c) => line(
       h("div", {}, h("b", {}, c.name), sub(`${c.students} طالب`)),
@@ -77,18 +89,21 @@ export default async function structure({ refresh }) {
   return [
     d.profile?.setup_completed_at ? null
       : notice("لم يكتمل إعداد المدرسة بعد. افتح «معالج الإعداد» لبناء الهيكل في ثلاث خطوات.", "warn"),
-    addStage, ...tree, orphans, subjectsPanel,
+    addStage, sectionsModePanel, ...tree, orphans, subjectsPanel,
   ];
 }
 
 /* ---------- صف مع شعبه ---------- */
-function gradeRow(stage, g, index, refresh, naming, allGrades = []) {
+function gradeRow(stage, g, index, refresh, naming, allGrades = [], sectionsEnabled = true) {
   const count = input({ type: "number", min: 1, max: 20, value: 1, style: "max-width:90px" });
   const pattern = select(naming.map((n) => [n.key, n.name]));
+  const totalStudents = g.sections.reduce((n, s) => n + s.students, 0);
   return h("div", { class: "grade-block" },
     h("div", { class: "grade-head" },
       h("b", {}, g.name),
-      h("span", { class: "sub" }, `${g.sections.length} شعب — ${g.sections.reduce((n, s) => n + s.students, 0)} طالب`),
+      h("span", { class: "sub" }, sectionsEnabled
+        ? `${g.sections.length} شعب — ${totalStudents} طالب`
+        : `${totalStudents} طالب`),
       h("div", { class: "row", style: "flex:none" },
         index > 0 ? btn("↑", async () => {
           const ids = stage.grades.map((x) => x.id);
@@ -111,7 +126,7 @@ function gradeRow(stage, g, index, refresh, naming, allGrades = []) {
           await api(`${A}/setup/grades/${g.id}`, undefined, "DELETE"); toast("حُذف الصف"); refresh();
         }, "danger sm"))),
 
-    h("div", { class: "sections" }, g.sections.length
+    !sectionsEnabled ? null : h("div", { class: "sections" }, g.sections.length
       ? g.sections.map((c) => h("span", { class: "section-chip" }, c.name,
           h("span", { class: "small muted" }, ` ${c.students}`),
           btn("✎", () => renameDialog("الشعبة", c.name, async (name) => {
@@ -119,7 +134,7 @@ function gradeRow(stage, g, index, refresh, naming, allGrades = []) {
           }), "ghost sm")))
       : sub("لا توجد شعب.")),
 
-    h("div", { class: "row" }, field("عدد الشعب", count), field("التسمية", pattern),
+    !sectionsEnabled ? null : h("div", { class: "row" }, field("عدد الشعب", count), field("التسمية", pattern),
       btn("إنشاء الشعب تلقائيًا", async () => {
         const r = await api(`${A}/setup/grades/${g.id}/sections`, { count: Number(count.value), naming: pattern.value });
         toast(r.created ? `أُنشئت ${r.created} شعبة` : "الشعب موجودة مسبقًا");

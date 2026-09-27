@@ -9,7 +9,6 @@ import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
 const students = lazy(() => import("./views/students.js"), new URL("./views/students.js", import.meta.url).pathname);
 const teachers = lazy(() => import("./views/teachers.js"), new URL("./views/teachers.js", import.meta.url).pathname);
-const structure = lazy(() => import("./views/structure.js"), new URL("./views/structure.js", import.meta.url).pathname);
 const setupWizard = lazy(() => import("./views/setup.js"), new URL("./views/setup.js", import.meta.url).pathname);
 const distribution = lazy(() => import("./views/distribution.js"), new URL("./views/distribution.js", import.meta.url).pathname);
 const academic = lazy(() => import("./views/academic.js"), new URL("./views/academic.js", import.meta.url).pathname);
@@ -57,14 +56,26 @@ export async function startAdmin() {
     announcements: "announcements", papers: "exam_papers",
   };
   const allTabs = [
-    ["dashboard", "الرئيسية"], ["students", "الطلاب"], ["teachers", "المعلمون"], ["structure", "الهيكل الأكاديمي"], ["academic", "السنة الدراسية"],
-    ["attendance", "الحضور"], ["distribution", "توزيع المعلمين"], ["timetable", "الجدول"], ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
-    ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"], ["announcements", "التعاميم"], ["subscription", "اشتراكي"], ["settings", "الإعدادات"], ["audit", "السجل"],
-  ].filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
+    ["dashboard", "الرئيسية"],
+    [null, "الأفراد"],
+    ["students", "الطلاب"], ["teachers", "المعلمون"],
+    [null, "الأكاديمي"],
+    ["academic", "السنة الدراسية"], ["attendance", "الحضور"], ["distribution", "توزيع المعلمين"], ["timetable", "الجدول"],
+    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
+    [null, "المالية"],
+    ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"],
+    [null, "أخرى"],
+    ["announcements", "التعاميم"], ["subscription", "اشتراكي"],
+    [null, "الإدارة"],
+    ["settings", "الإعدادات"], ["audit", "السجل"],
+  ]
+    .filter(([key]) => key === null || !MODULE_OF[key] || me.modules?.[MODULE_OF[key]])
+    // إزالة أي عنوان تجميع لم يبق تحته أي تبويب فعلي (بسبب إيقاف الأقسام)
+    .filter(([key], i, arr) => key !== null || (arr[i + 1] && arr[i + 1][0] !== null));
 
   const ctx = { me };
   const t = tabs(allTabs,
-    { dashboard, setup: setupWizard, students, teachers, structure, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
+    { dashboard, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
   ctx.goTo = (key) => t.show(key);
 
   mount(app,

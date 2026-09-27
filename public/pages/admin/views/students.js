@@ -5,8 +5,9 @@ import { panel, field, input, textarea, select, btn, empty, badge, line, sub, ke
   showCredentials, confirmAction, notice, brandLogo, skeleton } from "../../shared/js/ui.js";
 import { money, csv, fmtDate } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
-import { A, loadClasses, classOptions, directoryLink, optional } from "./common.js";
+import { A, loadClasses, classOptions, directoryLink, optional, rememberField } from "./common.js";
 import { api as call } from "../../shared/js/api.js";
+import { importButtons } from "./import-wizard.js";
 
 export default async function students({ me, refresh }) {
   // لا تنزيل لقائمة كل الطلاب: أعداد كل شعبة من ملخص صغير، والقائمة صفحة بعد صفحة من الخادم
@@ -66,9 +67,9 @@ export default async function students({ me, refresh }) {
   /* ---- استيراد ---- */
   const bulk = textarea({ rows: 4, placeholder: "اسم الطالب، اسم ولي الأمر، رقم الجوال\nاسم الطالب، اسم ولي الأمر، رقم الجوال" });
   const bulkCls = select(classOptions(classes, "بدون فصل"));
-  const importPanel = panel("استيراد من Excel", null,
+  const importPanel = panel("استيراد سريع باللصق", null,
     sub("انسخ من Excel: اسم الطالب، اسم ولي الأمر، الجوال — كل طالب في سطر."),
-    sub("أو من الإعدادات ← استيراد البيانات: نزّل قالبًا جاهزًا وارفعه كملف."),
+    sub("لاستيراد ملف Excel/CSV جاهز (مع فحص ومعاينة الأخطاء)، استخدم زر «استيراد الطلاب» أعلى الصفحة."),
     field("الفصل", bulkCls), bulk,
     h("div", { class: "spaced" }, btn("استيراد", async () => {
       const rows = bulk.value.split(/\r?\n/).map((l) => l.split(/[,،\t]/).map((x) => x.trim())).filter((p) => p[0]);
@@ -82,8 +83,8 @@ export default async function students({ me, refresh }) {
     }, "soft")));
 
   /* ---- القائمة ---- */
-  const q = input({ placeholder: "بحث بالاسم أو المعرّف أو جوال ولي الأمر", type: "search" });
-  const filter = select(classOptions(classes, "كل الفصول"));
+  const q = rememberField("students-q", input({ placeholder: "بحث بالاسم أو المعرّف أو جوال ولي الأمر", type: "search" }));
+  const filter = rememberField("students-class", select(classOptions(classes, "كل الفصول")), { event: "change" });
   // متصفح الصفوف: مرحلة ← صف ← شعبة. يبدأ بالمراحل ولا يعرض كل الطلاب دفعة واحدة.
   const navBox = h("div");
   let scope = { level: stages.length ? "stages" : "all", stage: null, grade: null };
@@ -137,7 +138,7 @@ export default async function students({ me, refresh }) {
           onclick: () => { filter.value = String(c.id); drawNav(); draw(); },
         }, c.name, h("span", { class: "small muted" }, ` ${countIn([Number(c.id)])}`)))));
   };
-  const feeFilter = select([["", "كل الحالات المالية"], ["unpaid", "عليه رسوم متبقية"], ["paid", "مسدد"], ["off", "الرسوم موقوفة"]]);
+  const feeFilter = rememberField("students-fees", select([["", "كل الحالات المالية"], ["unpaid", "عليه رسوم متبقية"], ["paid", "مسدد"], ["off", "الرسوم موقوفة"]]), { event: "change" });
   const count = h("span", { class: "sub" });
   const box = h("div");
   const selected = new Set();
@@ -272,6 +273,7 @@ export default async function students({ me, refresh }) {
   }
 
   return [
+    importButtons("students", "الطلاب", { onDone: refresh }),
     addPanel, importPanel,
     panel(`الطلاب (${totalActive} / ${me.school.max_students >= 100000 ? "مفتوح" : me.school.max_students})`, exportBtn,
       navBox,

@@ -2,16 +2,17 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { waLink } from "../../shared/js/whatsapp.js";
 import syncView from "./sync.js";
+import structureView from "./structure.js";
 import { mySubscription } from "./my-subscription.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
   empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar, passwordInput, linkRow, copyRow } from "../../shared/js/ui.js";
-import { csv, parseCsv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
+import { csv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 
 const SECTIONS = [
   { key: "modules", name: "أقسام المنصة", note: "شغّل وأوقف أقسام اللوحة" },
-  { key: "import", name: "استيراد البيانات", note: "قوالب جاهزة للطلاب والمعلمين والفصول" },
+  { key: "structure", name: "الهيكل الأكاديمي", note: "المراحل والصفوف والشعب" },
   { key: "fields", name: "الحقول المخصصة", note: "أضف أي معلومة تحتاجها مدرستك" },
   { key: "page", name: "صفحة المدرسة العامة", note: "ما يراه أولياء الأمور" },
   { key: "payment", name: "طرق السداد", note: "الحسابات البنكية والدفع النقدي" },
@@ -26,7 +27,7 @@ const SECTIONS = [
 ];
 
 export default function settings(ctx) {
-  const views = { modules: modulesView, import: importView, fields: customFieldsView, page: pageView, payment: paymentView,
+  const views = { modules: modulesView, structure: (a) => structureView({ refresh: a.show }), fields: customFieldsView, page: pageView, payment: paymentView,
     messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
     access: accessView, data: dataView,
     subscription: mySubscription, sync: syncView };
@@ -84,88 +85,6 @@ async function modulesView() {
         locked.has(key) ? h("span", { class: "sub", style: "flex:none" }, "اطلبها من «اشتراكي»")
           : switchBtn(mods[key], name, (next) => save({ [key]: next })))))),
   ];
-}
-
-/* ===================== استيراد البيانات من ملف ===================== */
-async function importView({ show }) {
-  const kinds = await api(`${A}/import/kinds`);
-  const pick = select(kinds.map((k) => [k.key, k.name]));
-  const file = input({ type: "file", accept: ".csv,text/csv" });
-  const preview = h("div");
-  const msg = h("div");
-  let parsed = null;
-
-  const current = () => kinds.find((k) => k.key === pick.value);
-
-  const describe = () => {
-    const k = current();
-    mount(cols,
-      sub(k.note),
-      h("div", { class: "pill" }, "الأعمدة: ",
-        ...k.columns.map((c) => badge(c.header + (c.required ? " (مطلوب)" : ""), c.required ? "" : "gray"))));
-  };
-  const cols = h("div");
-  pick.addEventListener("change", () => { parsed = null; mount(preview); mount(msg); describe(); });
-
-  file.addEventListener("change", async () => {
-    mount(msg); mount(preview);
-    const f = file.files?.[0];
-    if (!f) return;
-    if (f.size > 2 * 1024 * 1024) return mount(msg, notice("حجم الملف أكبر من 2 ميجابايت", "err"));
-    const text = await f.text();
-    const data = parseCsv(text);
-    if (!data.rows.length) return mount(msg, notice("الملف فارغ أو غير مقروء. استخدم القالب.", "err"));
-    parsed = data.rows;
-    const headers = data.headers;
-    mount(preview,
-      notice(`الملف فيه ${data.rows.length} سطر. راجعها قبل الاستيراد.`, ""),
-      h("div", { class: "scroll" }, h("table", { class: "grid" },
-        h("thead", {}, h("tr", {}, headers.map((x) => h("th", {}, x)))),
-        h("tbody", {}, data.rows.slice(0, 10).map((row) => h("tr", {}, headers.map((x) => h("td", {}, row[x] || "—"))))))),
-      data.rows.length > 10 ? sub(`تُعرض أول 10 أسطر من ${data.rows.length}.`) : null);
-  });
-
-  describe();
-
-  return panel("استيراد من ملف", null,
-    sub("نزّل القالب، عبّئه في Excel، احفظه CSV، ثم ارفعه."),
-    field("نوع البيانات", pick),
-    cols,
-    h("div", { class: "row" },
-      btn("تنزيل القالب", () => { location.href = `${A}/import/template/${pick.value}`; }, "soft"),
-      field("اختر الملف", file)),
-    preview, msg,
-    btn("استيراد", async () => {
-      mount(msg);
-      if (!parsed) return mount(msg, notice("اختر ملفًا أولًا", "err"));
-      try {
-        const r = await api(`${A}/import/${pick.value}`, { rows: parsed, dry_run: false });
-        mount(preview);
-        file.value = ""; parsed = null;
-        if (pick.value === "teachers" && r.rows?.length) {
-          showCredentialsList(r.rows);
-        } else {
-          toast(`تم استيراد ${r.created} سطرًا`);
-        }
-        mount(msg, notice(`تم استيراد ${r.created} سطرًا بنجاح.`, ""));
-      } catch (e) {
-        const rows = e.errors || [];
-        mount(msg, notice(e.message, "err"),
-          rows.length ? h("ul", { class: "small" }, rows.slice(0, 20).map((x) => h("li", {},
-            x.row ? `السطر ${x.row}: ${x.message}` : x.message))) : null);
-      }
-    }));
-}
-
-// بيانات دخول المعلمين المستوردين: تُعرض مرة واحدة وتُنسخ أو تُطبع
-function showCredentialsList(rows) {
-  const text = rows.map((r) => `${r.name} — المستخدم: ${r.username} — كلمة المرور: ${r.password}`).join("\n");
-  dialog(`بيانات دخول ${rows.length} معلمًا`, h("div", {},
-    notice("كلمات المرور لن تظهر مرة أخرى. انسخها أو اطبعها وسلّمها لكل معلم.", "warn"),
-    h("div", { class: "report" }, rows.map((r) => line(
-      h("div", {}, h("b", {}, r.name), sub(`المستخدم: ${r.username}`)), keyText(r.password))))),
-  [btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }),
-   btn("طباعة", () => window.print(), "ghost")]);
 }
 
 /* ===================== الحقول المخصصة ===================== */
