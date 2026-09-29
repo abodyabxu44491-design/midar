@@ -44,7 +44,7 @@ export default async function dashboard({ me, goTo }) {
 
     stats([
       ["طالب", d.students, `حد الباقة ${me.school.max_students}`], ["معلم", d.teachers], ["فصل", d.classes],
-      ["غائب اليوم", d.absent_today, d.recorded_today ? `سُجل ${d.recorded_today} طالب` : "لم يُسجل الحضور بعد"],
+      ["غائب اليوم", d.absent_today, d.recorded_today ? `سُجل ${d.recorded_today} طالب` : d.today?.holiday ? `اليوم إجازة: ${d.today.holiday.name}` : d.today && !d.today.study_day ? "اليوم ليس يوم دراسة" : "لم يُسجل الحضور بعد"],
       ["رسوم غير محصّلة", money(d.fees_remaining), `المحصّل ${money(d.fees_paid)}`],
     ]),
 

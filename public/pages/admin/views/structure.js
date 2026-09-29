@@ -19,7 +19,14 @@ export default async function structure({ refresh }) {
       ? "عند الإيقاف: يختفي مفهوم «الشعبة» من كل الواجهات، ويرتبط كل طالب بصفه مباشرة. لا فقدان بيانات — الشعب الحالية تبقى محفوظة."
       : "الآن كل صف يُعامل كوحدة واحدة بلا شعب. عند التفعيل تقدر تنشئ شعبًا متعددة لكل صف."),
     btn("حفظ", async () => {
-      await api(`${A}/setup/sections-mode`, { sections_enabled: sectionsToggle.checked }, "PUT");
+      const want = sectionsToggle.checked;
+      try {
+        await api(`${A}/setup/sections-mode`, { sections_enabled: want }, "PUT");
+      } catch (e) {
+        // تحذير الإيقاف: نعرض التفاصيل ونطلب تأكيدًا صريحًا قبل المتابعة
+        if (e.status !== 409 || !confirmAction(`${e.message}\n\nهل تريد المتابعة؟`)) { sectionsToggle.checked = !want; return toast(e.status === 409 ? "لم يتغير شيء" : e.message); }
+        await api(`${A}/setup/sections-mode`, { sections_enabled: want, confirm: true }, "PUT");
+      }
       toast("تم الحفظ"); refresh();
     }, "soft"));
 

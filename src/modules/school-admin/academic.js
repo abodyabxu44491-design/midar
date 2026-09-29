@@ -17,6 +17,32 @@ r.get("/", handle(async (req, res) => {
   };}));
 }));
 
+/* ---------- الإجازات والعطل ---------- */
+r.get("/holidays", handle(async (req, res) => {
+  res.json(await inTenant(req, async (q) => ({ holidays: await academic.listHolidays(q), kinds: academic.HOLIDAY_KINDS })));
+}));
+r.post("/holidays", handle(async (req, res) => {
+  const b = parse(academic.holidaySchema, req.body);
+  res.status(201).json(await inTenant(req, (q) => academic.addHoliday(q, b)));
+}));
+r.put("/holidays/:id", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const b = parse(academic.holidaySchema, req.body);
+  await inTenant(req, (q) => academic.updateHoliday(q, id, b));
+  res.json({ ok: true });
+}));
+r.delete("/holidays/:id", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  await inTenant(req, (q) => academic.deleteHoliday(q, id));
+  res.json({ ok: true });
+}));
+
+// تعديل السنة الحالية وعدد فصولها (نفس ما يفعله معالج الإعداد الأول)
+r.put("/year", handle(async (req, res) => {
+  const b = parse(academic.yearSchema.omit({ make_current: true }), req.body);
+  res.json(await inTenant(req, (q) => academic.configureYear(q, b)));
+}));
+
 r.post("/years", handle(async (req, res) => {
   const b = parse(academic.yearSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => academic.createYear(q, b)));

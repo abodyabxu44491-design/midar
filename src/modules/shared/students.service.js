@@ -4,7 +4,16 @@ import { badRequest, conflict, notFound } from "../../core/http/errors.js";
 import { newStudentKey } from "../../core/auth/codes.js";
 import { resolveClassForGrade } from "./structure.service.js";
 
+// حقول الطالب الأساسية الجديدة (كلها اختيارية). "" أو null تعني المسح عند التعديل.
+const blankToNull = (v) => (v === undefined ? undefined : v || null);
+export const profileFields = {
+  student_no: z.string().trim().max(30).optional().nullable().transform(blankToNull),
+  birth_date: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاريخ الميلاد غير صحيح"), z.literal(""), z.null()]).optional().transform(blankToNull),
+  gender: z.union([z.enum(["male", "female"]), z.literal(""), z.null()]).optional().transform(blankToNull),
+  student_phone: t.phone,
+};
 export const studentSchema = z.object({
+  ...profileFields,
   name: t.name("اسم الطالب"),
   class_id: t.optId,
   grade_id: t.optId,   // بديل عن class_id في وضع "بدون شعب": يُحل تلقائيًا لشعبة الصف الافتراضية
@@ -14,6 +23,7 @@ export const studentSchema = z.object({
 });
 export const importSchema = z.object({ students: z.array(studentSchema).min(1, "لا يوجد طلاب").max(1000, "الحد 1000 طالب في المرة") });
 export const updateSchema = z.object({
+  ...profileFields,
   version: z.coerce.number().int().positive("رقم النسخة مطلوب"),
   name: t.name("اسم الطالب").optional(),
   class_id: t.optId,
@@ -79,11 +89,13 @@ async function insertOne(q, s) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const key = newStudentKey();
     const rows = await q(
-      `INSERT INTO students (tenant_id, class_id, full_name, guardian_name, guardian_phone, access_key, fees_enabled)
-       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)
+      `INSERT INTO students (tenant_id, class_id, full_name, guardian_name, guardian_phone, access_key, fees_enabled,
+                             student_no, birth_date, gender, student_phone)
+       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (tenant_id, access_key) DO NOTHING
-       RETURNING id, full_name AS name, guardian_name, guardian_phone, access_key`,
-      [classId, name, guardian, phone, key, s.fees_enabled]);
+       RETURNING id, full_name AS name, guardian_name, guardian_phone, access_key, student_no`,
+      [classId, name, guardian, phone, key, s.fees_enabled ?? false, s.student_no ?? null, s.birth_date ?? null,
+       s.gender ?? null, normalizePhone(s.student_phone)]);
     if (rows.length) return rows[0];
   }
   throw conflict("تعذر إنشاء معرّف فريد، أعد المحاولة");
@@ -104,13 +116,24 @@ export async function create(q, tenant, list) {
   // قفل صف المدرسة حتى لا تتجاوز عمليتان متزامنتان حد الباقة
   await q("SELECT id FROM tenants WHERE id = app_tenant() FOR UPDATE");
   await ensureCapacity(q, tenant, list.length);
+  await ensureStudentNos(q, list.map((x) => x.student_no));
   const out = [];
   for (const s of list) out.push(await insertOne(q, s));
   return out;
 }
 
+/** رقم الطالب لا يتكرر داخل المدرسة (وداخل الدفعة نفسها) */
+export async function ensureStudentNos(q, numbers, exceptId = null) {
+  const list = numbers.filter(Boolean);
+  if (new Set(list).size !== list.length) throw badRequest("رقم الطالب مكرر داخل البيانات المرسلة");
+  if (!list.length) return;
+  const [dup] = await q("SELECT student_no FROM students WHERE student_no = ANY($1::text[]) AND ($2::bigint IS NULL OR id <> $2) LIMIT 1", [list, exceptId]);
+  if (dup) throw conflict(`رقم الطالب «${dup.student_no}» مستخدم لطالب آخر`);
+}
+
 export async function update(q, id, b) {
   const s = await get(q, id);
+  if (b.student_no !== undefined && b.student_no !== s.student_no) await ensureStudentNos(q, [b.student_no], id);
   if (s.version !== b.version) throw conflict("تم تعديل بيانات هذا الطالب من شخص آخر. حدّث الصفحة ثم أعد المحاولة.");
   const resolvedClassId = b.class_id !== undefined ? b.class_id
     : b.grade_id !== undefined ? await resolveClassForGrade(q, b.grade_id) : s.class_id;
@@ -120,11 +143,17 @@ export async function update(q, id, b) {
     guardian_name: b.guardian_name !== undefined ? b.guardian_name : s.guardian_name,
     guardian_phone: b.guardian_phone !== undefined ? normalizePhone(b.guardian_phone) : s.guardian_phone,
     fees_enabled: b.fees_enabled ?? s.fees_enabled,
+    student_no: b.student_no !== undefined ? b.student_no : s.student_no,
+    birth_date: b.birth_date !== undefined ? b.birth_date : s.birth_date,
+    gender: b.gender !== undefined ? b.gender : s.gender,
+    student_phone: b.student_phone !== undefined ? normalizePhone(b.student_phone) : s.student_phone,
   };
   const [row] = await q(
-    `UPDATE students SET full_name = $2, class_id = $3, guardian_name = $4, guardian_phone = $5, fees_enabled = $6
+    `UPDATE students SET full_name = $2, class_id = $3, guardian_name = $4, guardian_phone = $5, fees_enabled = $6,
+            student_no = $8, birth_date = $9, gender = $10, student_phone = $11
       WHERE id = $1 AND version = $7 RETURNING version`,
-    [id, next.full_name, next.class_id, next.guardian_name, next.guardian_phone, next.fees_enabled, b.version]);
+    [id, next.full_name, next.class_id, next.guardian_name, next.guardian_phone, next.fees_enabled, b.version,
+     next.student_no, next.birth_date, next.gender, next.student_phone]);
   if (!row) throw conflict("تم تعديل بيانات هذا الطالب من شخص آخر. حدّث الصفحة ثم أعد المحاولة.");
   return row;
 }
@@ -159,4 +188,42 @@ export async function setStatus(q, tenant, id, { status, note }) {
   }
   await q("UPDATE students SET status = $2, status_note = $3 WHERE id = $1", [id, status, note ?? null]);
   return { status };
+}
+
+
+/* ---------- الصورة ---------- */
+const MAGIC = [
+  ["image/jpeg", (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff],
+  ["image/png", (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))],
+  ["image/webp", (b) => b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP"],
+];
+export const photoSchema = z.object({ data_url: z.string().max(220_000, "الصورة كبيرة").regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "صيغة الصورة غير مدعومة") });
+
+/** تُحفظ الصورة المصغّرة فقط (تُصغَّر في المتصفح إلى ≈ 320px). التحقق من نوعها الحقيقي من محتواها لا من اسمها. */
+export async function setPhoto(q, id, dataUrl) {
+  await get(q, id);
+  const buf = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
+  if (buf.length > 150_000) throw badRequest("الصورة كبيرة (الحد 150 كيلوبايت بعد التصغير)");
+  const type = MAGIC.find(([, ok]) => buf.length > 12 && ok(buf))?.[0];
+  if (!type) throw badRequest("الملف ليس صورة صالحة");
+  await q("UPDATE students SET photo = $2, photo_type = $3 WHERE id = $1", [id, buf, type]);
+}
+export async function removePhoto(q, id) {
+  await get(q, id);
+  await q("UPDATE students SET photo = NULL, photo_type = NULL WHERE id = $1", [id]);
+}
+export async function getPhoto(q, id) {
+  const [r] = await q("SELECT photo, photo_type FROM students WHERE id = $1", [id]);
+  if (!r?.photo) throw notFound("لا توجد صورة");
+  return r;
+}
+
+/* ---------- إحصائيات الصفحة الرئيسية ---------- */
+export async function stats(q) {
+  const [r] = await q(
+    `SELECT count(*)::int AS total,
+            count(*) FILTER (WHERE status = 'active')::int AS active,
+            count(*) FILTER (WHERE status = 'active' AND created_at >= now() - interval '30 days')::int AS new_30d
+       FROM students`);
+  return r;
 }

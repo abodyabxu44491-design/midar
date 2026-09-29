@@ -1,6 +1,6 @@
 {
   "name": "midar",
-  "version": "2.1.0",
+  "version": "2.5.0",
   "description": "مدار | MIDAR — منصة إدارة المدارس. برمجة وتطوير: المبرمج عبدالله السكني",
   "author": "المبرمج عبدالله السكني",
   "private": true,
@@ -14,6 +14,7 @@
     "migrate": "node scripts/migrate.js",
     "seed:demo": "node scripts/seed-demo.js",
     "owner:password": "node scripts/owner-password.js",
+    "credential:key": "node scripts/credential-key.js",
     "owner:totp": "node scripts/owner-totp.js",
     "test": "NODE_ENV=test node --test --test-concurrency=1 tests/*.test.js",
     "build:hosting": "node scripts/build-hosting.js",

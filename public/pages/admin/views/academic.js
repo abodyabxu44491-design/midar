@@ -4,6 +4,9 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, confirmAction, stats } from "../../shared/js/ui.js";
 import { fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses, classOptions } from "./common.js";
+import { holidaysPanel } from "./holidays-panel.js";
+
+const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
 const OUTCOME = { passed: ["ناجح", ""], failed: ["راسب", "red"], incomplete: ["غير مكتمل", "amber"] };
 const ACTIONS = [["promote", "ترفيع للصف التالي"], ["repeat", "إعادة السنة"], ["graduate", "تخرّج"],
@@ -14,6 +17,8 @@ export default async function academic({ refresh }) {
   const { current, years, terms } = data;
   const currentYearTerms = terms.filter((t) => t.year_id === current?.year_id);
 
+  const holidays = await holidaysPanel(refresh);
+  const ttSettings = (await api(`${A}/timetable/settings`).catch(() => null))?.settings;
   return [
     stats([
       ["السنة الحالية", current?.year_name || "—", current ? `${fmtDate(current.year_start)} إلى ${fmtDate(current.year_end)}` : "لم تُنشأ بعد"],
@@ -22,6 +27,10 @@ export default async function academic({ refresh }) {
       ["السنوات المؤرشفة", years.filter((y) => y.status === "archived").length],
     ]),
 
+
+    yearPanel(current, currentYearTerms.length, refresh),
+    ttSettings ? studyDaysPanel(ttSettings, refresh) : null,
+    holidays,
 
     panel("فصول السنة الحالية", null,
       currentYearTerms.length ? currentYearTerms.map((t) => line(
@@ -153,4 +162,41 @@ function addYear(dateStr, days = 1) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+
+// تعديل السنة الحالية وعدد فصولها — نفس خدمة معالج الإعداد الأول
+function yearPanel(current, termCount, refresh) {
+  if (!current) return null;
+  const name = input({ value: current.year_name });
+  const a = input({ type: "date", class: "ltr", value: current.year_start?.slice(0, 10) });
+  const b = input({ type: "date", class: "ltr", value: current.year_end?.slice(0, 10) });
+  const terms = select([["1", "فصل واحد"], ["2", "فصلان"], ["3", "ثلاثة فصول"], ["4", "4 فصول"], ["5", "5 فصول"], ["6", "6 فصول"]], { value: String(termCount || 2) });
+  return panel("بيانات السنة ونظام الفصول", null,
+    field("اسم السنة", name),
+    h("div", { class: "row" }, field("بداية السنة", a), field("نهاية السنة", b)),
+    field("نظام الفصول", terms),
+    sub("تغيير عدد الفصول يعيد قسمة مدة السنة بالتساوي. لا يُسمح به إن كانت هناك اختبارات أو فواتير مرتبطة بالفصول."),
+    btn("حفظ", async () => {
+      await api(`${A}/academic/year`, { name: name.value.trim(), start_date: a.value, end_date: b.value, terms: Number(terms.value) }, "PUT");
+      toast("تم الحفظ"); refresh();
+    }, "soft"));
+}
+
+// أيام الدراسة الأسبوعية (نفس الإعداد المستخدم في الجدول والحضور)
+function studyDaysPanel(settings, refresh) {
+  const on = new Set(settings.days.map(Number));
+  const boxes = DAY_NAMES.map((d, i) => {
+    const cb = input({ type: "checkbox", checked: on.has(i) });
+    return [cb, h("label", { class: "pick-card" + (on.has(i) ? " on" : "") }, cb, h("span", {}, h("b", {}, d)))];
+  });
+  return panel("أيام الدراسة", null,
+    sub("اليوم غير المحدد لا يُعدّ يوم دراسة في الحضور والجدول."),
+    h("div", { class: "pick-grid" }, boxes.map((x) => x[1])),
+    btn("حفظ أيام الدراسة", async () => {
+      const days = boxes.map(([cb], i) => (cb.checked ? i : -1)).filter((i) => i >= 0);
+      if (!days.length) return toast("اختر يومًا واحدًا على الأقل");
+      await api(`${A}/timetable/settings`, { ...settings, days }, "PUT");
+      toast("تم الحفظ"); refresh();
+    }, "soft"));
 }

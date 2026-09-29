@@ -5,6 +5,7 @@ import { handle, notFound, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as students from "../shared/students.service.js";
 import { studentSummaries } from "../shared/finance.service.js";
+import { buildProfile } from "../shared/student-profile.service.js";
 
 const r = Router();
 
@@ -15,6 +16,9 @@ const r = Router();
 //   fields=basic: الاسم والشعبة فقط (قوائم الاختيار في الحضور والكشوف)
 const listQuery = z.object({
   status: z.enum(["active", "inactive", "all"]).default("active"),
+  st: z.enum(students.STATUSES).optional(),          // حالة محددة (متخرج، منقول، منسحب...)
+  stats: z.enum(["1"]).optional(),
+  since: z.string().datetime({ offset: true }).optional(),   // المضافون أو المحدَّثون منذ وقت (عرض الطلاب المستوردين)
   class_id: t.optId,
   class_ids: z.string().regex(/^\d+(,\d+)*$/).max(4000).optional(),
   q: z.string().trim().max(80).optional(),
@@ -31,24 +35,28 @@ const FEE_TOTAL = `(SELECT COALESCE(SUM(i.amount), 0) FROM invoices i WHERE i.st
 r.get("/", handle(async (req, res) => {
   const f = parse(listQuery, req.query);
   res.json(await inTenant(req, async (q) => {
-    const params = [f.status];
+    if (f.stats) return students.stats(q);
+    const params = [f.st ? "all" : f.status];
     const where = ["($1 = 'all' OR ($1 = 'active') = (s.status = 'active'))"];
     const add = (sql, v) => { params.push(v); where.push(sql.replaceAll("?", `$${params.length}`)); };
     if (f.summary) {
       return q(`SELECT s.class_id, count(*)::int AS n FROM students s WHERE ${where[0]} GROUP BY s.class_id`, params);
     }
+    if (f.st) add("s.status = ?", f.st);
+    if (f.since) add("(s.created_at >= ? OR s.updated_at >= ?)", f.since);
     if (f.class_id) add("s.class_id = ?", f.class_id);
     if (f.class_ids) add("s.class_id = ANY(?::bigint[])", f.class_ids.split(",").map(Number));
     if (f.q) {
       add(`(s.full_name ILIKE '%' || ? || '%' OR s.access_key = upper(?) OR s.guardian_phone LIKE '%' || ? || '%'
-            OR s.guardian_name ILIKE '%' || ? || '%')`, f.q);
+            OR s.guardian_name ILIKE '%' || ? || '%' OR s.student_no ILIKE '%' || ? || '%')`, f.q);
     }
     if (f.fees === "off") where.push("NOT s.fees_enabled");
     if (f.fees === "paid") where.push(`s.fees_enabled AND ${FEE_TOTAL} > 0 AND ${FEE_BALANCE} <= 0`);
     if (f.fees === "unpaid") where.push(`s.fees_enabled AND ${FEE_BALANCE} > 0`);
     const cols = f.fields === "basic" ? "s.id, s.full_name AS name, s.class_id, c.name AS class_name"
       : `s.id, s.full_name AS name, s.class_id, c.name AS class_name, s.guardian_name, s.guardian_phone,
-         s.access_key, s.fees_enabled, s.version, s.status, s.status_note, s.status_changed_at, s.created_at`;
+         s.access_key, s.fees_enabled, s.version, s.status, s.status_note, s.status_changed_at, s.created_at,
+         s.student_no, s.birth_date, s.gender, s.student_phone, (s.photo IS NOT NULL) AS has_photo`;
     const paging = f.limit ? `LIMIT ${f.limit} OFFSET ${f.offset}` : "";
     const rows = await q(
       `SELECT ${cols}${f.limit ? ", count(*) OVER ()::int AS _total" : ""}
@@ -145,6 +153,31 @@ r.post("/bulk", handle(async (req, res) => {
     }
     return { done };
   }));
+}));
+
+// ملف الطالب الكامل للإدارة: نفس ما يراه ولي الأمر، لكن بدون معرّف الدخول وبكل الأقسام
+r.get("/:id/profile", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  res.json(await inTenant(req, async (q) => buildProfile(q, req.tenant, await students.get(q, id, { includeArchived: true }), { admin: true })));
+}));
+
+// الصورة: تُخدم من الخادم بصلاحية الإدارة فقط، وتُخزَّن مؤقتًا حسب رقم النسخة (?v=)
+r.get("/:id/photo", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const p = await inTenant(req, (q) => students.getPhoto(q, id));
+  res.set({ "Content-Type": p.photo_type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; sandbox" }).send(p.photo);
+}));
+r.put("/:id/photo", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const b = parse(students.photoSchema, req.body);
+  await inTenant(req, (q) => students.setPhoto(q, id, b.data_url));
+  res.json({ ok: true });
+}));
+r.delete("/:id/photo", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  await inTenant(req, (q) => students.removePhoto(q, id));
+  res.json({ ok: true });
 }));
 
 export default r;

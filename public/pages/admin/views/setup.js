@@ -1,129 +1,260 @@
-// معالج إعداد المدرسة: بيانات المدرسة ← القالب والمراحل ← الشعب ← المواد
+// معالج «إعداد المدرسة الأكاديمي» — يحفظ في نفس الجداول والخدمات التي تديرها شاشات الإعدادات
+// (الهيكل الأكاديمي، السنة الدراسية، الإجازات، أيام الدراسة)، فلا يوجد نظام ثانٍ.
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, sub, badge, notice, toast, empty } from "../../shared/js/ui.js";
+import { panel, field, input, select, btn, sub, badge, notice, toast } from "../../shared/js/ui.js";
 import { A } from "./common.js";
 
-export default async function setup({ refresh }) {
-  const d = await api(`${A}/setup`);
-  const c = d.catalog;
-  const p = d.profile || {};
-  const box = h("div");
-  let step = 1;
+const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const TITLES = ["بيانات المدرسة", "المراحل", "أسماء الصفوف", "الشعب", "السنة الدراسية", "نظام الفصول", "أيام الدراسة", "الإجازات", "المواد", "المراجعة"];
 
-  /* ---- الخطوة 1: بيانات المدرسة ---- */
+export default async function setup() {
+  const [d, hol] = await Promise.all([api(`${A}/setup`), api(`${A}/academic/holidays`)]);
+  const c = d.catalog, p = d.profile || {};
+  const box = h("div");
+  const now = new Date();
+  const y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+
+  // كل ما يدخله المدير يبقى هنا حتى «إنهاء الإعداد»
+  const st = {
+    step: 1,
+    stages: new Set(["primary"]),
+    gradeSet: "arabic_full",
+    sections: true, sectionCount: 2, naming: "arabic",
+    year: { name: `${y0}–${y0 + 1}`, start: `${y0}-09-01`, end: `${y0 + 1}-06-30` },
+    termMode: "2", termCustom: 4,
+    days: new Set([0, 1, 2, 3, 4]),
+    holidays: [],
+    subjects: new Map(),
+    custom: {},          // أسماء معدَّلة يدويًا لكل مرحلة
+    editNames: false,
+  };
   const f = {
     name: input({ value: p.name || "" }),
     school_type: select(c.school_types.map((x) => [x.key, x.name]), { value: p.school_type || "private" }),
     gender: select(c.genders.map((x) => [x.key, x.name]), { value: p.gender || "boys" }),
-    country: input({ value: p.country || "" }),
-    city: input({ value: p.city || "" }),
-    address: input({ value: p.address || "" }),
+    country: input({ value: p.country || "" }), city: input({ value: p.city || "" }),
     email: input({ class: "ltr", type: "email", value: p.email || "" }),
     phone: input({ class: "ltr", inputMode: "tel", value: p.phone || "" }),
   };
 
-  /* ---- الخطوة 2: القالب والشعب ---- */
-  const template = select(c.templates.map((x) => [x.key, `${x.name}${x.grades ? ` — ${x.grades} صفوف` : ""}`]), { value: "primary" });
-  const gradeSet = select(c.grade_sets.map((g) => [g.key, `${g.name}`]), { value: "arabic_full" });
-  const sections = input({ type: "number", min: 0, max: 20, value: 2 });
-  const naming = select(c.naming.map((n) => [n.key, `${n.name} (${n.sample})`]));
-
-  /* ---- الخطوة 3: المواد ---- */
-  const subjectBox = h("div");
-  const chosen = new Map();     // اسم المادة ← مفعّلة
-
-  const stagesOfTemplate = () => (c.templates.find((x) => x.key === template.value)?.stages || []);
-  const subjectsOfTemplate = () => {
-    const names = stagesOfTemplate();
-    const list = [];
-    for (const st of c.stages) {
-      if (!names.includes(st.name)) continue;
-      for (const s of st.subjects) if (!list.some((x) => x.name === s.name)) list.push(s);
-    }
-    return list;
+  const ORDER = ["kindergarten", "primary", "middle", "secondary"];
+  const orderedStages = () => ORDER.map((k) => c.stages.find((s) => s.key === k)).filter((s) => s && st.stages.has(s.key));
+  const stageKeys = () => orderedStages().map((s) => s.key);
+  // أسماء صفوف مرحلة: المعدَّلة يدويًا إن وُجدت، وإلا من النمط المختار
+  const gradesOf = (key) => st.custom[key] || c.grade_sets.find((g) => g.key === st.gradeSet)?.names?.[key] || [];
+  const allGrades = () => orderedStages().flatMap((s) => gradesOf(s.key));
+  const termCount = () => (st.termMode === "custom" ? Number(st.termCustom) : Number(st.termMode));
+  const suggested = () => {
+    const names = new Set();
+    for (const s of c.stages) if (st.stages.has(s.key)) for (const x of s.subjects) names.add(x.name);
+    return names;
   };
 
-  const drawSubjects = () => {
-    const suggested = new Set(subjectsOfTemplate().map((s) => s.name));
-    for (const name of suggested) if (!chosen.has(name)) chosen.set(name, true);
+  // بطاقة اختيار كبيرة (مناسبة للمس)
+  const pick = (type, name, checked, title, note, onChange) => {
+    const el = input({ type, name, checked });
+    el.addEventListener("change", () => onChange(el.checked));
+    return h("label", { class: `pick-card ${checked ? "on" : ""}` }, el, h("span", {}, h("b", {}, title), note ? sub(note) : null));
+  };
 
-    mount(subjectBox,
-      h("div", { class: "toolbar" },
-        sub("مكتبة المواد كاملة. المقترح لمرحلتك مفعّل مسبقًا، فعّل أو أوقف ما تشاء."),
-        btn("تفعيل المقترح فقط", () => {
-          chosen.clear();
-          for (const name of suggested) chosen.set(name, true);
-          drawSubjects();
-        }, "ghost sm")),
-      c.subject_library.map((group) => h("section", { class: "subject-group" },
-        h("h3", { class: "sec-title" }, group.group),
-        h("div", { class: "subject-grid" }, group.items.map((s) => {
-          const cb = input({ type: "checkbox", checked: chosen.get(s.name) === true });
-          cb.addEventListener("change", () => chosen.set(s.name, cb.checked));
-          return h("label", { class: `subject-pick ${suggested.has(s.name) ? "suggested" : ""}` }, cb,
+  const nav = (back, next, nextLabel = "التالي") => h("div", { class: "row spaced" },
+    back ? btn("السابق", () => go(st.step - 1), "ghost") : h("span"),
+    btn(nextLabel, next));
+  const go = (n) => { st.step = n; if (n === 9) fillSubjects(); draw(); window.scrollTo?.({ top: 0 }); };
+  const need = (ok, msg) => { if (!ok) toast(msg); return ok; };
+
+  function fillSubjects() {
+    const sg = suggested();
+    for (const s of sg) if (!st.subjects.has(s)) st.subjects.set(s, true);
+  }
+
+  // معاينة كاملة: كل مرحلة وصفوفها بالترتيب، مع إمكانية تعديل أي اسم
+  const gradesPreview = () => {
+    const stages = orderedStages();
+    const total = allGrades().length;
+    return panel(`معاينة صفوف مدرستك (${total} صفًا)`, null,
+      sub("هكذا ستظهر أسماء الصفوف في النظام كله: الطلاب والحضور والاختبارات والتقارير."),
+      stages.map((s) => {
+        const names = gradesOf(s.key);
+        return h("section", { class: "prev-stage" },
+          h("h3", { class: "sec-title" }, `${s.name} — ${names.length} صفوف`),
+          st.editNames
+            ? h("div", { class: "prev-edit" }, names.map((n, i) => {
+                const el = input({ value: n });
+                el.addEventListener("input", () => {
+                  st.custom[s.key] = [...(st.custom[s.key] || gradesOf(s.key))];
+                  st.custom[s.key][i] = el.value;
+                });
+                return field(`الصف ${i + 1}`, el);
+              }))
+            : h("ol", { class: "prev-list" }, names.map((n) => h("li", {}, n))));
+      }),
+      h("div", { class: "row" },
+        btn(st.editNames ? "تم" : "تعديل الأسماء يدويًا", () => { st.editNames = !st.editNames; draw(); }, "soft"),
+        Object.keys(st.custom).length ? btn("استعادة أسماء النمط", () => { st.custom = {}; st.editNames = false; draw(); }, "ghost") : null));
+  };
+
+  const steps = {
+    1: () => panel("بيانات المدرسة", null,
+      field("اسم المدرسة", f.name),
+      h("div", { class: "row" }, field("نوع المدرسة", f.school_type), field("الجنس", f.gender)),
+      h("div", { class: "row" }, field("الدولة", f.country), field("المدينة", f.city)),
+      h("div", { class: "row" }, field("البريد الإلكتروني", f.email), field("رقم الهاتف", f.phone)),
+      nav(false, async () => {
+        await api(`${A}/setup/profile`, {
+          name: f.name.value || undefined, school_type: f.school_type.value, gender: f.gender.value,
+          country: f.country.value || null, city: f.city.value || null,
+          email: f.email.value || "", phone: f.phone.value || "" }, "PUT");
+        go(2);
+      })),
+
+    2: () => panel("ما المراحل الموجودة في مدرستك؟", null,
+      sub("اختر المراحل فقط. لا يلزم أن تكون كلها موجودة."),
+      h("div", { class: "pick-grid" }, c.stages.map((s) =>
+        pick("checkbox", "stage", st.stages.has(s.key), s.name, `${s.grades.length} صفوف`, (on) => {
+          on ? st.stages.add(s.key) : st.stages.delete(s.key); draw(); }))),
+      btn("مدرسة شاملة (كل المراحل)", () => { for (const k of ["primary", "middle", "secondary"]) st.stages.add(k); draw(); }, "soft"),
+      sub("مرحلة أخرى غير موجودة هنا؟ تضيفها لاحقًا من: الإعدادات ← الهيكل الأكاديمي."),
+      nav(true, () => need(st.stages.size, "اختر مرحلة واحدة على الأقل") && go(3))),
+
+    3: () => panel("كيف تريد تسمية الصفوف؟", null,
+      sub("اختر النمط، وستظهر تحته قائمة كاملة بكل صفوف مدرستك."),
+      h("div", { class: "pick-grid one-col" }, c.grade_sets.map((g) => {
+        const seq = orderedStages().flatMap((s) => g.names?.[s.key] || []);
+        const ends = seq.length > 3 ? `${seq[0]} ← … ← ${seq[seq.length - 1]}` : seq.join(" ← ");
+        return pick("radio", "gs", st.gradeSet === g.key, g.name, ends, () => {
+          if (Object.keys(st.custom).length && !confirm("سيتم تجاهل تعديلاتك اليدوية على الأسماء. متابعة؟")) return draw();
+          st.gradeSet = g.key; st.custom = {}; st.editNames = false; draw();
+        });
+      })),
+      gradesPreview(),
+      sub("كل الأسماء قابلة للتعديل لاحقًا، وتغيير الاسم ينعكس على النظام كله."),
+      nav(true, () => {
+        const all = allGrades().map((x) => x.trim());
+        if (all.some((x) => !x)) return toast("يوجد اسم صف فارغ");
+        if (new Set(all).size !== all.length) return toast("يوجد اسم صف مكرر. لكل صف اسم مختلف");
+        st.editNames = false; go(4);
+      })),
+
+    4: () => {
+      const count = input({ type: "number", min: 1, max: 20, value: st.sectionCount });
+      count.addEventListener("input", () => { st.sectionCount = Number(count.value) || 1; });
+      const naming = select(c.naming.map((n) => [n.key, `${n.name} (${n.sample})`]), { value: st.naming });
+      naming.addEventListener("change", () => { st.naming = naming.value; });
+      return panel("هل تستخدم المدرسة نظام الشعب؟", null,
+        h("div", { class: "pick-grid" },
+          pick("radio", "sec", st.sections, "نعم", "أكثر من شعبة للصف الواحد (أ، ب، ج)", () => { st.sections = true; draw(); }),
+          pick("radio", "sec", !st.sections, "لا", "كل صف وحدة واحدة، ولا تظهر كلمة «شعبة»", () => { st.sections = false; draw(); })),
+        st.sections ? h("div", { class: "row" }, field("عدد الشعب لكل صف", count), field("تسمية الشعب", naming)) : null,
+        nav(true, () => go(5)));
+    },
+
+    5: () => {
+      const n = input({ value: st.year.name }), a = input({ type: "date", class: "ltr", value: st.year.start }), b = input({ type: "date", class: "ltr", value: st.year.end });
+      return panel("السنة الدراسية", null,
+        field("اسم السنة", n),
+        h("div", { class: "row" }, field("بداية السنة", a), field("نهاية السنة", b)),
+        nav(true, () => {
+          st.year = { name: n.value.trim(), start: a.value, end: b.value };
+          if (need(st.year.name && st.year.start && st.year.end, "أكمل بيانات السنة") &&
+              need(st.year.end > st.year.start, "نهاية السنة يجب أن تكون بعد بدايتها")) go(6);
+        }));
+    },
+
+    6: () => {
+      const custom = input({ type: "number", min: 1, max: 6, value: st.termCustom });
+      custom.addEventListener("input", () => { st.termCustom = Number(custom.value) || 1; });
+      const opt = (v, t, n) => pick("radio", "tm", st.termMode === v, t, n, () => { st.termMode = v; draw(); });
+      return panel("نظام الفصول الدراسية", null,
+        h("div", { class: "pick-grid" }, opt("1", "فصل واحد"), opt("2", "فصلان", "الأكثر شيوعًا"), opt("3", "ثلاثة فصول"), opt("custom", "مخصص", "حتى 6 فصول")),
+        st.termMode === "custom" ? field("عدد الفصول", custom) : null,
+        sub("تُقسّم مدة السنة على الفصول بالتساوي، وتعدّل تواريخها لاحقًا من: السنة الدراسية."),
+        nav(true, () => go(7)));
+    },
+
+    7: () => panel("أيام الدراسة", null,
+      sub("اختر أيام الدوام الأسبوعية في مدرستك."),
+      h("div", { class: "pick-grid" }, DAYS.map((name, i) =>
+        pick("checkbox", "day", st.days.has(i), name, null, (on) => { on ? st.days.add(i) : st.days.delete(i); }))),
+      nav(true, () => need(st.days.size, "اختر يومًا واحدًا على الأقل") && go(8))),
+
+    8: () => {
+      const name = input({ placeholder: "مثال: إجازة منتصف الفصل" });
+      const kind = select(Object.entries(hol.kinds));
+      const a = input({ type: "date", class: "ltr" }), b = input({ type: "date", class: "ltr" });
+      return panel("الإجازات والعطل", null,
+        sub("اختياري — تُستخدم في الحضور والجدول. تقدر تضيفها لاحقًا."),
+        st.holidays.length ? st.holidays.map((x, i) => h("div", { class: "line" },
+          h("div", {}, h("b", {}, x.name), sub(`${hol.kinds[x.kind]} — ${x.start_date} إلى ${x.end_date}`)),
+          btn("حذف", () => { st.holidays.splice(i, 1); draw(); }, "danger sm"))) : null,
+        field("اسم الإجازة", name), field("النوع", kind),
+        h("div", { class: "row" }, field("من", a), field("إلى", b)),
+        btn("إضافة الإجازة", () => {
+          if (!need(name.value.trim() && a.value && b.value, "أكمل اسم الإجازة وتاريخيها") ||
+              !need(b.value >= a.value, "نهاية الإجازة قبل بدايتها")) return;
+          st.holidays.push({ name: name.value.trim(), kind: kind.value, start_date: a.value, end_date: b.value,
+            affects_attendance: true, show_in_calendar: true });
+          draw();
+        }, "soft"),
+        nav(true, () => go(9)));
+    },
+
+    9: () => panel("المواد الدراسية", null,
+      sub("المقترح لمراحلك مفعّل مسبقًا. أزل ما لا يُدرَّس عندكم."),
+      c.subject_library.map((g) => h("section", { class: "subject-group" }, h("h3", { class: "sec-title" }, g.group),
+        h("div", { class: "subject-grid" }, g.items.map((s) => {
+          const cb = input({ type: "checkbox", checked: st.subjects.get(s.name) === true });
+          cb.addEventListener("change", () => st.subjects.set(s.name, cb.checked));
+          return h("label", { class: `subject-pick ${suggested().has(s.name) ? "suggested" : ""}` }, cb,
             h("span", {}, h("b", {}, s.name), sub(`${s.code} — ${s.weekly} حصص أسبوعيًا`)));
-        })))));
-  };
-  template.addEventListener("change", () => { chosen.clear(); drawSubjects(); draw(); });
+        })))),
+      nav(true, () => go(10))),
 
-  /* ---- العرض ---- */
-  const draw = () => {
-    const stages = stagesOfTemplate();
-    mount(box,
-      h("div", { class: "steps" }, [1, 2, 3].map((n) => h("span", { class: `step ${n === step ? "on" : n < step ? "done" : ""}` }, `${n}`))),
-
-      step === 1 ? panel("بيانات المدرسة", null,
-        field("اسم المدرسة", f.name),
-        h("div", { class: "row" }, field("نوع المدرسة", f.school_type), field("الجنس", f.gender)),
-        h("div", { class: "row" }, field("الدولة", f.country), field("المدينة", f.city)),
-        field("العنوان", f.address),
-        h("div", { class: "row" }, field("البريد الإلكتروني", f.email), field("رقم الهاتف", f.phone)),
-        sub("كل هذه البيانات قابلة للتعديل لاحقًا من الإعدادات."),
-        btn("التالي", async () => {
-          await api(`${A}/setup/profile`, {
-            name: f.name.value || undefined, school_type: f.school_type.value, gender: f.gender.value,
-            country: f.country.value || null, city: f.city.value || null, address: f.address.value || null,
-            email: f.email.value || "", phone: f.phone.value || "",
-          }, "PUT");
-          step = 2; draw();
-        })) : null,
-
-      step === 2 ? panel("المراحل والصفوف والشعب", null,
-        field("قالب المدرسة", template),
-        stages.length ? h("div", { class: "pill" }, "المراحل: ", ...stages.map((s) => badge(s, "gray"))) : sub("بدون قالب: ستبني الهيكل بنفسك."),
-        h("div", { class: "row" }, field("تسمية الصفوف", gradeSet), field("عدد الشعب لكل صف", sections), field("تسمية الشعب", naming)),
-      h("div", { class: "pill small muted" }, c.grade_sets.find((g) => g.key === gradeSet.value)?.sample || ""),
-        sub("مثال: الصف الأول مع 3 شعب ينشئ: الأول - أ، الأول - ب، الأول - ج."),
+    10: () => {
+      const line = (k, v) => h("div", { class: "line" }, h("span", {}, k), h("b", {}, v));
+      const picked = [...st.subjects.entries()].filter(([, on]) => on).map(([n]) => n);
+      return panel("المراجعة النهائية", null,
+        line("المدرسة", f.name.value || p.name || "—"),
+        line("المراحل", orderedStages().map((s) => s.name).join("، ")),
+        line("تسمية الصفوف", (Object.keys(st.custom).length ? "مخصص (عدّلته يدويًا)" : c.grade_sets.find((g) => g.key === st.gradeSet)?.name) || ""),
+        line("عدد الصفوف", `${allGrades().length}`),
+        ...orderedStages().map((s) => line(s.name, gradesOf(s.key).join("، "))),
+        line("الشعب", st.sections ? `نعم — ${st.sectionCount} لكل صف` : "لا"),
+        line("السنة الدراسية", `${st.year.name} (${st.year.start} → ${st.year.end})`),
+        line("الفصول", `${termCount()}`),
+        line("أيام الدراسة", [...st.days].sort().map((i) => DAYS[i]).join("، ")),
+        line("الإجازات", `${st.holidays.length}`),
+        line("المواد", `${picked.length}`),
         h("div", { class: "row spaced" },
-          btn("السابق", () => { step = 1; draw(); }, "ghost"),
-          btn("التالي", () => { step = 3; drawSubjects(); draw(); }))) : null,
-
-      step === 3 ? panel("المواد الدراسية", null,
-        sub("أزل علامة أي مادة لا تُدرّس عندكم. يمكنك إضافة مواد وتعديلها لاحقًا."),
-        subjectBox,
-        h("div", { class: "row spaced" },
-          btn("السابق", () => { step = 2; draw(); }, "ghost"),
-          btn("إنشاء الهيكل", async () => {
-            const picked = [...chosen.entries()].filter(([, on]) => on).map(([name]) => name);
-            const r = await api(`${A}/setup/template`, {
-              template: template.value, sections_per_grade: Number(sections.value),
-              naming: naming.value, grade_set: gradeSet.value, subjects: picked,
+          btn("السابق", () => go(9), "ghost"),
+          btn("إنهاء إعداد المدرسة", async () => {
+            const r = await api(`${A}/setup/finish`, {
+              sections_enabled: st.sections,
+              template: { template: "empty", stages: stageKeys(), grade_set: st.gradeSet,
+                sections_per_grade: st.sections ? st.sectionCount : 0, naming: st.naming, subjects: picked,
+                custom_grades: Object.keys(st.custom).length ? Object.fromEntries(stageKeys().map((k) => [k, gradesOf(k).map((x) => x.trim())])) : undefined },
+              year: { name: st.year.name, start_date: st.year.start, end_date: st.year.end, terms: termCount() },
+              days: [...st.days], holidays: st.holidays,
             });
-            await api(`${A}/setup/complete`, {});
             toast(`تم: ${r.stages} مراحل، ${r.grades} صفوف، ${r.sections} شعب، ${r.subjects} مواد`);
-            setTimeout(() => location.reload(), 900);   // تختفي تبويبة المعالج وتظهر اللوحة كاملة
-          }))) : null,
-
-      h("div", { class: "spaced" },
-        btn("تخطي المعالج والدخول للوحة", async () => {
-          await api(`${A}/setup/complete`, {});
-          location.reload();
-        }, "ghost sm"),
-        sub("يمكنك العودة للمعالج في أي وقت من: الإعدادات ← الهيكل الأكاديمي.")));
+            setTimeout(() => location.reload(), 900);
+          })));
+    },
   };
 
-  drawSubjects();
+  const draw = () => {
+    const pct = Math.round((st.step / TITLES.length) * 100);
+    mount(box,
+      h("div", { class: "wiz-progress" },
+        h("div", { class: "wiz-bar" }, h("i", { style: `width:${pct}%` })),
+        h("small", {}, `الخطوة ${st.step} من ${TITLES.length} — ${TITLES[st.step - 1]}`)),
+      steps[st.step](),
+      h("div", { class: "spaced" },
+        btn("تخطي المعالج والدخول للوحة", async () => { await api(`${A}/setup/complete`, {}); location.reload(); }, "ghost sm"),
+        sub("تعدّل أي شيء لاحقًا من: الإعدادات ← الهيكل الأكاديمي، والسنة الدراسية.")));
+  };
+
   draw();
-  return [notice("إعداد المدرسة لأول مرة: ثلاث خطوات وتصبح جاهزة.", ""), box];
+  return [notice("إعداد المدرسة الأكاديمي لأول مرة: خطوات بسيطة وتصبح المدرسة جاهزة.", ""), box];
 }

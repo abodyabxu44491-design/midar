@@ -18,7 +18,7 @@ export const profileSchema = z.object({
   phone: z.string().trim().regex(/^[0-9+ ]{0,20}$/, "رقم غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
 });
 
-export const sectionsModeSchema = z.object({ sections_enabled: z.boolean() });
+export const sectionsModeSchema = z.object({ sections_enabled: z.boolean(), confirm: z.boolean().optional() });
 
 export const stageSchema = z.object({ name: t.shortText("اسم المرحلة", 60), sort_order: z.coerce.number().int().min(0).max(99).optional() });
 export const gradeSchema = z.object({
@@ -41,9 +41,11 @@ export const templateSchema = z.object({
   template: z.enum(Object.keys(TEMPLATES)),
   sections_per_grade: z.coerce.number().int().min(0).max(20).default(1),
   naming: z.enum(["arabic", "english", "numeric"]).default("arabic"),
-  grade_set: z.enum(["arabic_full", "arabic_short", "yemen", "international"]).default("arabic_full"),
+  grade_set: z.enum(["arabic_full", "arabic_short", "arabic_basic", "yemen", "international", "international_en"]).default("arabic_full"),
   subjects: z.array(z.string().max(60)).max(120).optional(),    // أسماء المواد المختارة، فارغ = كل المقترح
   stages: z.array(z.string().max(30)).max(10).optional(),       // تخصيص المراحل بدل القالب
+  // أسماء صفوف معدَّلة يدويًا في المعاينة: { primary: ["..."], middle: [...] } وتتقدم على النمط
+  custom_grades: z.record(z.string().max(30), z.array(z.string().trim().min(1, "اسم الصف فارغ").max(60)).max(20)).optional(),
 });
 
 /* ---------- القراءة ---------- */
@@ -144,10 +146,32 @@ export async function addGrade(q, b) {
 }
 
 export async function updateGrade(q, id, b) {
+  const [old] = await q("SELECT name FROM grades WHERE id = $1", [id]);
+  if (!old) throw notFound("الصف غير موجود");
   const rows = await q(
-    "UPDATE grades SET name = COALESCE($2, name), sort_order = COALESCE($3, sort_order) WHERE id = $1 RETURNING id",
+    "UPDATE grades SET name = COALESCE($2, name), sort_order = COALESCE($3, sort_order) WHERE id = $1 RETURNING id, name",
     [id, b.name ?? null, b.sort_order ?? null]);
   if (!rows.length) throw notFound("الصف غير موجود");
+  const next = rows[0].name;
+  if (next !== old.name) await cascadeGradeRename(q, id, old.name, next);
+}
+
+/**
+ * اسم الشعبة مخزّن كنص مركّب («أول ابتدائي - أ») ويُقرأ في كل الأقسام (الطلاب، الحضور، الدرجات،
+ * التقارير...). عند تغيير اسم الصف نعيد تركيب أسماء شعبه بحيث يتغيّر الاسم في النظام كله دفعة واحدة.
+ * الربط يبقى بالمعرّف (class_id/grade_id) فلا تتأثر أي بيانات مرتبطة.
+ */
+async function cascadeGradeRename(q, gradeId, oldName, newName) {
+  const sections = await q("SELECT id, name FROM classes WHERE grade_id = $1 ORDER BY sort_order, id", [gradeId]);
+  for (const c of sections) {
+    let renamed = null;
+    if (c.name === oldName) renamed = newName;                              // شعبة افتراضية (وضع بدون شعب)
+    else if (c.name.startsWith(`${oldName} - `)) renamed = `${newName}${c.name.slice(oldName.length)}`;
+    if (!renamed) continue;                                                  // اسم مخصص يدويًا: نتركه كما وضعه المدير
+    const [clash] = await q("SELECT 1 FROM classes WHERE name = $1 AND id <> $2", [renamed, c.id]);
+    if (clash) throw conflict(`لا يمكن إعادة التسمية: يوجد فصل باسم «${renamed}» مسبقًا`);
+    await q("UPDATE classes SET name = $2 WHERE id = $1", [c.id, renamed]);
+  }
 }
 
 export async function deleteGrade(q, id) {
@@ -174,7 +198,17 @@ export async function reorderGrades(q, stageId, ids) {
  *    وأي صف بدون شعبة إطلاقًا يُنشأ له تلقائيًا "شعبة افتراضية" بنفس اسم الصف
  *    ليبقى لكل طالب class_id صالح (البنية التحتية لا تتغيّر).
  */
-export async function setSectionsMode(q, enabled) {
+export async function setSectionsMode(q, enabled, { confirm = false } = {}) {
+  if (!enabled && !confirm) {
+    // تحذير قبل الإيقاف: صفوف فيها أكثر من شعبة بها طلاب (تبقى البيانات، لكن تُخفى الشعب من الواجهة)
+    const [risk] = await q(
+      `SELECT count(*)::int AS grades, COALESCE(sum(students), 0)::int AS students FROM (
+         SELECT c.grade_id, count(DISTINCT c.id) AS sections, count(s.id) AS students
+           FROM classes c LEFT JOIN students s ON s.class_id = c.id AND s.archived_at IS NULL
+          WHERE c.grade_id IS NOT NULL GROUP BY c.grade_id HAVING count(DISTINCT c.id) > 1 AND count(s.id) > 0) x`);
+    if (risk.grades) throw conflict(
+      `يوجد ${risk.grades} صفًا فيه أكثر من شعبة، و${risk.students} طالبًا موزعين عليها. عند إيقاف الشعب ستُخفى من الواجهة وتبقى بياناتها محفوظة، ويمكن إعادة تفعيلها في أي وقت.`);
+  }
   await q("INSERT INTO school_profile (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
   await q("UPDATE school_profile SET sections_enabled = $1 WHERE tenant_id = app_tenant()", [enabled]);
   if (!enabled) {
@@ -289,6 +323,7 @@ export async function applyTemplate(q, b) {
   }
   const summary = { stages: 0, grades: 0, sections: 0, subjects: 0 };
   const gradeIdsByStage = {};
+  const seenNames = new Set();
 
   for (const [i, key] of keys.entries()) {
     const def = STAGES[key];
@@ -302,8 +337,10 @@ export async function applyTemplate(q, b) {
     }
     gradeIdsByStage[key] = [];
 
-    const names = gradeNames(key, b.grade_set);
+    const names = b.custom_grades?.[key]?.length ? b.custom_grades[key] : gradeNames(key, b.grade_set);
     for (const [gi, gradeName] of names.entries()) {
+      if (seenNames.has(gradeName)) throw badRequest(`اسم الصف «${gradeName}» مكرر. لكل صف اسم مختلف.`);
+      seenNames.add(gradeName);
       let [grade] = await q("SELECT id FROM grades WHERE stage_id = $1 AND name = $2", [stage.id, gradeName]);
       if (!grade) {
         [grade] = await q(

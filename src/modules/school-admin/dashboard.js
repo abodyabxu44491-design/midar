@@ -6,6 +6,7 @@ import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
 import { schoolTotals } from "../shared/finance.service.js";
 import { current } from "../shared/academic.service.js";
+import { dayStatus } from "../shared/attendance.service.js";
 
 const r = Router();
 
@@ -32,7 +33,8 @@ r.get("/dashboard", handle(async (req, res) => {
       (SELECT count(*) FROM attendance WHERE day = CURRENT_DATE)::int AS recorded_today,
       (SELECT count(*) FROM exams WHERE status = 'pending')::int AS pending_exams,
       (SELECT count(*) FROM payment_claims WHERE status = 'pending')::int AS pending_claims`);
-    return { ...c, ...(await schoolTotals(q)), academic: await current(q) };
+    return { ...c, ...(await schoolTotals(q)), academic: await current(q),
+      today: await dayStatus(q, new Date().toISOString().slice(0, 10)) };
   });
   res.json(data);
 }));

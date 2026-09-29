@@ -24,6 +24,8 @@ const schema = z.object({
   OWNER_PASSWORD_HASH: z.string().startsWith("scrypt$", "أنشئ OWNER_PASSWORD_HASH بالأمر: npm run owner:password"),
   OWNER_TOTP_SECRET: z.string().regex(/^[A-Z2-7]{16,64}$/).optional().or(z.literal("")),
   OWNER_ALLOWED_IPS: z.string().default(""),
+  // مفتاح تشفير كلمات المرور المؤقتة للمعلمين (64 خانة hex). بدونه لا تُحفظ نسخة قابلة للعرض ويعمل النظام كالسابق. أنشئه: npm run credential:key
+  CREDENTIAL_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "CREDENTIAL_KEY يجب أن يكون 64 خانة hex (npm run credential:key)").optional().or(z.literal("")),
   COOKIE_SECURE: bool.default("true"),
   // separate = كوكي منفصل لكل دور (سيرفر خاص) | single = كوكي واحد باسم __session (مطلوب في Firebase Hosting)
   SESSION_COOKIE_MODE: z.enum(["separate", "single"]).default("separate"),

@@ -4,6 +4,8 @@ import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as S from "../shared/structure.service.js";
+import * as academic from "../shared/academic.service.js";
+import * as gen from "../shared/timetable-gen.service.js";
 
 const r = Router();
 
@@ -26,6 +28,31 @@ r.post("/template", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => S.applyTemplate(q, b)));
 }));
 
+/**
+ * إنهاء المعالج دفعة واحدة (كلها في معاملة واحدة: إما تنجح كلها أو لا يُحفظ شيء).
+ * يستخدم نفس الخدمات التي تستخدمها شاشات الإعدادات، فلا يوجد نظام ثانٍ.
+ */
+const finishSchema = z.object({
+  sections_enabled: z.boolean().default(true),
+  template: S.templateSchema,
+  year: academic.yearSchema.omit({ make_current: true }),
+  days: z.array(z.coerce.number().int().min(0).max(6)).min(1).max(7),
+  holidays: z.array(academic.holidaySchema).max(60).default([]),
+});
+r.post("/finish", handle(async (req, res) => {
+  const b = parse(finishSchema, req.body);
+  res.json(await inTenant(req, async (q) => {
+    await S.setSectionsMode(q, b.sections_enabled);
+    const summary = await S.applyTemplate(q, b.template);
+    await academic.configureYear(q, b.year);
+    const settings = await gen.getSettings(q);
+    await gen.saveSettings(q, { ...settings, days: [...new Set(b.days)].sort() });
+    for (const h of b.holidays) await academic.addHoliday(q, h);
+    await S.completeSetup(q);
+    return summary;
+  }));
+}));
+
 r.post("/complete", handle(async (req, res) => {
   await inTenant(req, S.completeSetup);
   res.json({ ok: true });
@@ -38,8 +65,8 @@ r.post("/reopen", handle(async (req, res) => {
 
 /* ---------- وضع الشعب (نعم/لا) ---------- */
 r.put("/sections-mode", handle(async (req, res) => {
-  const { sections_enabled } = parse(S.sectionsModeSchema, req.body);
-  res.json(await inTenant(req, (q) => S.setSectionsMode(q, sections_enabled)));
+  const { sections_enabled, confirm } = parse(S.sectionsModeSchema, req.body);
+  res.json(await inTenant(req, (q) => S.setSectionsMode(q, sections_enabled, { confirm })));
 }));
 
 /* ---------- المراحل ---------- */
