@@ -306,3 +306,12 @@ test("البنك: حفظ أسئلة ملصوقة دفعة واحدة، في ما
   assert.equal((await s.t1.post(`${P}/bank/bulk`, { subject_id: s.sci, questions })).status, 403, "مادة غير مسندة للمعلم");
   assert.equal((await s.t1.post(`${P}/bank/bulk`, { subject_id: s.math, questions: [] })).status, 400);
 });
+
+test("ورقة الاختبار تعرف حالة الشعب: حقل «الشعبة» يختفي حين تكون موقوفة", async () => {
+  const ctx = async () => (await s.t1.get(`${P}/context`)).data.settings.sections_enabled;
+  assert.equal(await ctx(), true);
+  assert.equal((await A.admin.put("/api/admin/setup/sections-mode", { sections_enabled: false, confirm: true })).status, 200);
+  assert.equal(await ctx(), false);
+  assert.equal((await A.admin.put("/api/admin/setup/sections-mode", { sections_enabled: true, confirm: true })).status, 200);
+  assert.equal(await ctx(), true);
+});

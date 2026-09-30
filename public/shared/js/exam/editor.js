@@ -98,7 +98,7 @@ function imageControls(q, base, changed) {
     width.addEventListener("input", () => { q.image.width = Number(width.value); preview.style.width = `${width.value}%`; changed(); });
     const align = select([["start", "يمين"], ["center", "وسط"], ["end", "يسار"]], { value: q.image.align });
     align.addEventListener("change", () => { q.image.align = align.value; changed(); });
-    const pos = select([["before", "قبل نص السؤال"], ["after", "بعد نص السؤال"]], { value: q.image.position });
+    const pos = select([["after", "تحت السؤال"], ["side", "بجانب السؤال (يسار)"], ["before", "فوق السؤال"]], { value: q.image.position });
     pos.addEventListener("change", () => { q.image.position = pos.value; changed(); });
     mount(box, previewLink,
       h("div", { class: "row" }, field(`الحجم (${q.image.width}%)`, width), field("المحاذاة", align), field("المكان", pos)),

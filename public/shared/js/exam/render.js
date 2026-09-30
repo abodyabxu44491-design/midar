@@ -19,7 +19,8 @@ export function pageVars(layoutIn) {
   const gap = { compact: 0.55, normal: 0.9, relaxed: 1.35 }[L.spacing] || 0.9;
   return {
     L, w, h: hh,
-    style: `--pw:${w}mm;--ph:${hh}mm;--pm:${L.margins}mm;--pf:'${font}';--phf:'${head}';--pfs:${L.fontSize}pt;--pgap:${gap}em`,
+    // --pk: معامل الضغط (1 عادي) يصغّر ما قياسه بالمليمتر (أسطر الإجابة والصور) عند «ضغط الاختبار في صفحة واحدة»
+    style: `--pw:${w}mm;--ph:${hh}mm;--pm:${L.margins}mm;--pf:'${font}';--phf:'${head}';--pfs:${L.fontSize}pt;--pgap:${gap}em;--pk:${L.squeeze_k || 1}`,
     cls: `xp-page tpl-${L.template}${L.color ? "" : " xp-bw"} sp-${L.spacing}`,
   };
 }
@@ -28,6 +29,10 @@ const marksTag = (L, m) => (L.show_marks ? h("span", { class: "xp-marks" }, `(${
 
 function imageEl(q, imageUrl) {
   if (!q.image?.id) return null;
+  if (q.image.position === "side") {
+    return h("div", { class: "xp-img side", style: `width:${Math.min(55, q.image.width || 40)}%` },
+      h("img", { src: imageUrl(q.image.id), alt: "", loading: "eager", decoding: "sync" }));
+  }
   return h("div", { class: `xp-img al-${q.image.align || "center"}` },
     h("img", { src: imageUrl(q.image.id), alt: "", style: `width:${q.image.width || 60}%`, loading: "eager", decoding: "sync" }));
 }
@@ -60,47 +65,64 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   const blocks = [];
   const def = QTYPES[q.type] || QTYPES.custom;
   const img = imageEl(q, imageUrl);
-  const body = h("div", { class: `xp-q t-${q.type}`, "data-qid": q.id });
+  const side = img && q.image.position === "side";
+  const body = h("div", { class: `xp-q t-${q.type}${side ? " has-side" : ""}`, "data-qid": q.id });
+  // عمود الإجابة (صح/خطأ) والدرجة بعرض ثابت في طرف السطر، فتصطف كل الأقواس تحت بعضها
+  const tfBox = q.type === "truefalse"
+    ? h("span", { class: `xp-tf${showAnswers && typeof q.correct === "boolean" ? " filled" : ""}` },
+      h("span", {}, "("), h("span", { class: "xp-tf-in" }, showAnswers && typeof q.correct === "boolean" ? (q.correct ? "✓" : "✗") : ""), h("span", {}, ")"))
+    : null;
   const head = h("div", { class: "xp-qhead" },
     h("span", { class: "xp-no" }, `${q.no}`),
     h("div", { class: "xp-qtext" },
       q.type === "fill" ? rich(q.text, { blanks: true, answers: showAnswers ? q.answers : null }) : rich(q.text),
-      q.type === "multi" ? h("span", { class: "xp-hint" }, " (اختر كل الإجابات الصحيحة)") : null,
-      q.type === "truefalse" ? h("span", { class: `xp-tf${showAnswers && typeof q.correct === "boolean" ? " filled" : ""}` },
-        showAnswers && typeof q.correct === "boolean" ? (q.correct ? "صح" : "خطأ") : "") : null),
+      q.type === "multi" ? h("span", { class: "xp-hint" }, " (اختر كل الإجابات الصحيحة)") : null),
+    tfBox,
     marksTag(L, q.marks));
+  // الصورة بجانب السؤال: عمود للنص والخيارات وعمود للصورة
+  const main = side ? h("div", { class: "xp-q-main" }) : body;
   if (img && q.image.position === "before") body.append(img);
-  body.append(head);
-  if (img && q.image.position !== "before") body.append(img);
-  if (q.table) body.append(tableEl(q.table));
+  main.append(head);
+  if (img && !side && q.image.position !== "before") body.append(img);
+  if (q.table) main.append(tableEl(q.table));
 
   if (def.options) {
     const correct = new Set(q.correct || []);
-    body.append(h("ol", { class: `xp-opts c${optionCols(q)}` }, (q.options || []).map((o, i) =>
+    main.append(h("ol", { class: `xp-opts c${side ? Math.min(2, optionCols(q)) : optionCols(q)}` }, (q.options || []).map((o, i) =>
       h("li", { class: showAnswers && correct.has(o.id) ? "ok" : "" },
         h("span", { class: "xp-letter" }, `${OPTION_LETTERS[i]})`), h("span", {}, rich(o.text))))));
   }
-  if (q.type === "fill" && !/_{3,}/.test(q.text || "")) body.append(linesEl(1, true));
+  if (q.type === "fill" && !/_{3,}/.test(q.text || "")) main.append(linesEl(1, true));
 
+  // التوصيل: عمودان متقابلان بلا جدول. أمام كل عنصر من (أ) قوس لكتابة حرف الإجابة،
+  // ونقطتان متقابلتان لمن يفضّل التوصيل بخط.
   if (q.type === "match") {
     const order = q.rightOrder || (q.pairs || []).map((p) => p.id);
     const right = order.map((id) => (q.pairs || []).find((p) => p.id === id)).filter(Boolean);
-    body.append(h("table", { class: "xp-match" },
-      h("tr", {}, h("th", {}, "العمود (أ)"), h("th", { class: "xp-slot-h" }, ""), h("th", {}, "العمود (ب)")),
-      (q.pairs || []).map((p, i) => h("tr", {},
-        h("td", {}, h("b", {}, `${i + 1}- `), rich(p.left)),
-        h("td", { class: `xp-slot${showAnswers ? " filled" : ""}` }, showAnswers ? `${OPTION_LETTERS[order.indexOf(p.id)]}` : "(      )"),
-        h("td", {}, right[i] ? [h("b", {}, `${OPTION_LETTERS[i]}) `), rich(right[i].right)] : "")))));
+    const rows = Math.max((q.pairs || []).length, right.length);
+    main.append(h("div", { class: "xp-match" },
+      h("div", { class: "xp-m-h" }, "العمود (أ)"), h("div", {}), h("div", { class: "xp-m-h" }, "العمود (ب)"),
+      Array.from({ length: rows }, (_, i) => {
+        const p = (q.pairs || [])[i];
+        return [
+          h("div", { class: "xp-m-a" },
+            p ? [h("span", { class: `xp-m-slot${showAnswers ? " filled" : ""}` }, showAnswers ? OPTION_LETTERS[order.indexOf(p.id)] : ""),
+              h("b", { class: "xp-m-no" }, `${i + 1}-`), h("span", { class: "xp-m-t" }, rich(p.left))] : null),
+          h("div", { class: "xp-m-dots" }, h("i"), h("i")),
+          h("div", { class: "xp-m-b" }, right[i] ? [h("b", { class: "xp-m-no" }, `${OPTION_LETTERS[i]})`), h("span", { class: "xp-m-t" }, rich(right[i].right))] : null),
+        ];
+      })));
   }
 
   if (q.type === "order") {
     const shown = (q.displayOrder || (q.items || []).map((i) => i.id)).map((id) => (q.items || []).find((i) => i.id === id)).filter(Boolean);
     const rank = new Map((q.items || []).map((it, i) => [it.id, i + 1]));
-    body.append(h("ol", { class: "xp-order" }, shown.map((it, i) => h("li", {},
-      h("span", { class: `xp-slot${showAnswers ? " filled" : ""}` }, showAnswers ? `${rank.get(it.id)}` : "(    )"),
+    main.append(h("ol", { class: "xp-order" }, shown.map((it, i) => h("li", {},
+      h("span", { class: `xp-slot${showAnswers ? " filled" : ""}` }, showAnswers ? `${rank.get(it.id)}` : ""),
       h("span", { class: "xp-letter" }, `${OPTION_LETTERS[i]})`), rich(it.text)))));
   }
 
+  if (side) body.append(main, img);
   if (showAnswers && def.space && q.answer) body.append(h("div", { class: "xp-model" }, h("b", {}, "الإجابة: "), rich(q.answer)));
 
   // مساحة الإجابة: أسطر مستقلة قابلة للانتقال للصفحة التالية، والسؤال يبقى مع أول سطرين
@@ -124,36 +146,44 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
 }
 
 /* ---------- الترويسة ---------- */
-function infoLine(label, value) {
-  return h("div", { class: "xp-info" }, h("span", { class: "xp-lbl" }, `${label}: `), h("span", { class: "xp-val" }, value ?? ""));
-}
 
-export function headerBlock(paper, L, { school, logoUrl, versionCode, total }) {
+// الترويسة المختصرة: المدرسة يمينًا، الشعار في الوسط، وبيانات الاختبار يسارًا في جدول صغير متراصف،
+// ثم سطر العنوان. لا يظهر أي حقل فارغ أو غير مفعّل (الشعبة حين تكون الشعب موقوفة، الزمن بلا قيمة…).
+export function headerBlock(paper, L, { school, logoUrl, versionCode, total, sectionsEnabled = true }) {
   const logo = L.show_logo && logoUrl ? h("img", { class: "xp-logo", src: logoUrl, alt: "" }) : null;
-  const gradeText = [paper.grade_name, paper.class_name && paper.class_name !== paper.grade_name ? paper.class_name : null].filter(Boolean).join(" — ");
+  const gradeText = gradeLabel(paper, sectionsEnabled);
   const schoolSide = h("div", { class: "xp-h-school" },
-    L.header_note ? L.header_note.split("\n").map((l) => h("div", { class: "xp-note" }, l)) : null,
+    L.header_note ? L.header_note.split("\n").filter((l) => l.trim()).map((l) => h("div", { class: "xp-note" }, l)) : null,
     L.show_school && school ? h("div", { class: "xp-school" }, school) : null,
-    L.show_teacher && paper.teacher_name ? infoLine("المعلم", paper.teacher_name) : null);
-  const examSide = h("div", { class: "xp-h-exam" },
-    infoLine("المادة", paper.subject_name),
-    gradeText ? infoLine("الصف", gradeText) : null,
-    L.show_date && paper.exam_date ? infoLine("التاريخ", paper.exam_date) : null,
-    L.show_duration && paper.duration_min ? infoLine("الزمن", `${paper.duration_min} دقيقة`) : null,
-    L.show_marks ? infoLine("الدرجة النهائية", fmtNum(paper.total_marks || total)) : null);
+    L.show_teacher && paper.teacher_name ? h("div", { class: "xp-note" }, `المعلم: ${paper.teacher_name}`) : null);
+  const rows = [
+    ["المادة", paper.subject_name],
+    ["الصف", gradeText],
+    L.show_date && paper.exam_date ? ["التاريخ", paper.exam_date] : null,
+    L.show_duration && paper.duration_min ? ["الزمن", `${paper.duration_min} دقيقة`] : null,
+    L.show_marks ? ["الدرجة", fmtNum(paper.total_marks || total)] : null,
+  ].filter((r) => r && r[1]);
+  const examSide = h("div", { class: "xp-h-exam" }, rows.map(([k, v]) => [h("span", { class: "xp-lbl" }, k), h("span", { class: "xp-val" }, v)]));
+  const sub = paper.exam_type && paper.exam_type !== paper.title ? paper.exam_type : null;
   const titleRow = h("div", { class: "xp-title-row" },
-    h("div", { class: "xp-title" }, paper.title),
-    paper.exam_type && paper.exam_type !== paper.title ? h("div", { class: "xp-subtitle" }, paper.exam_type) : null,
+    h("div", { class: "xp-title" }, paper.title, sub ? h("span", { class: "xp-subtitle" }, ` — ${sub}`) : null),
     L.show_version && versionCode ? h("div", { class: "xp-version" }, `نموذج ${versionCode}`) : null);
-  return h("header", { class: "xp-header" },
+  return h("header", { class: `xp-header${logo ? "" : " no-logo"}` },
     h("div", { class: "xp-h-grid" }, schoolSide, h("div", { class: "xp-h-logo" }, logo), examSide), titleRow);
 }
 
-export function studentBlock(L, { total, student }) {
-  const fields = (L.student_fields || []).map((k) => [k, FIELD_LABEL[k]]).concat((L.extra_fields || []).map((l, i) => [`x${i}`, l]));
+// اسم الصف: بلا الشعبة إن كانت الشعب موقوفة في المدرسة
+function gradeLabel(paper, sectionsEnabled) {
+  if (!sectionsEnabled) return paper.grade_name || paper.class_name || "";
+  return [paper.grade_name, paper.class_name && paper.class_name !== paper.grade_name ? paper.class_name : null].filter(Boolean).join(" — ");
+}
+
+export function studentBlock(L, { total, student, sectionsEnabled = true, hide = [] }) {
+  const fields = (L.student_fields || []).filter((k) => FIELD_LABEL[k] && !(k === "section" && !sectionsEnabled) && !hide.includes(k))
+    .map((k) => [k, FIELD_LABEL[k]]).concat((L.extra_fields || []).filter(Boolean).map((l, i) => [`x${i}`, l]));
   if (!fields.length) return null;
   const val = (k) => (student ? { name: student.name, grade: student.grade_name, section: student.class_name, number: student.number }[k] : null);
-  return h("div", { class: "xp-student" }, fields.map(([k, label]) =>
+  return h("div", { class: `xp-student n${Math.min(fields.length, 6)}` }, fields.map(([k, label]) =>
     h("div", { class: `xp-field f-${k}` }, h("span", { class: "xp-lbl" }, `${label}:`),
       k === "score"
         ? h("span", { class: "xp-score" }, h("span", { class: "xp-u short" }), ` / ${fmtNum(total)}`)
@@ -178,12 +208,14 @@ function sectionHead(s, L) {
  * كل كتل ورقة الطالب لنموذج واحد.
  * يعيد { blocks, running } حيث running ترويسة مختصرة للصفحات التالية.
  */
-export function paperBlocks({ paper, version, layout, school, logoUrl, imageUrl, showAnswers = false }) {
+export function paperBlocks({ paper, version, layout, school, logoUrl, imageUrl, showAnswers = false, sectionsEnabled = true }) {
   const L = withLayoutDefaults(layout);
   const total = totals(paper.content).total;
   const blocks = [];
-  blocks.push({ el: headerBlock(paper, L, { school, logoUrl, versionCode: paper.versions > 1 ? version.code : null, total }), keep: true });
-  const st = studentBlock(L, { total: paper.total_marks || total, student: null });
+  blocks.push({ el: headerBlock(paper, L, { school, logoUrl, versionCode: paper.versions > 1 ? version.code : null, total, sectionsEnabled }), keep: true });
+  // تاريخ الطالب لا يتكرر إن كان تاريخ الاختبار مطبوعًا في الترويسة
+  const st = studentBlock(L, { total: paper.total_marks || total, student: null, sectionsEnabled,
+    hide: L.show_date && paper.exam_date ? ["date"] : [] });
   if (st) blocks.push({ el: st, keep: true, student: true });
   if (L.show_instructions) { const ins = instructionsBlock(paper.instructions); if (ins) blocks.push({ el: ins, keep: true }); }
   for (const s of numbered(version, L.numbering)) {
@@ -208,11 +240,12 @@ export function answerKeyBlocks({ paper, key, layout, school, logoUrl }) {
     el: h("header", { class: "xp-header xp-key-head" },
       h("div", { class: "xp-h-grid" },
         h("div", { class: "xp-h-school" }, L.show_school && school ? h("div", { class: "xp-school" }, school) : null,
-          paper.teacher_name ? infoLine("المعلم", paper.teacher_name) : null),
+          paper.teacher_name ? h("div", { class: "xp-note" }, `المعلم: ${paper.teacher_name}`) : null),
         h("div", { class: "xp-h-logo" }, L.show_logo && logoUrl ? h("img", { class: "xp-logo", src: logoUrl, alt: "" }) : null),
-        h("div", { class: "xp-h-exam" }, infoLine("المادة", paper.subject_name), infoLine("الدرجة النهائية", fmtNum(paper.total_marks || paper.computed_marks)))),
-      h("div", { class: "xp-title-row" }, h("div", { class: "xp-title" }, "نموذج الإجابة الرسمي"),
-        h("div", { class: "xp-subtitle" }, paper.title), paper.versions > 1 ? h("div", { class: "xp-version" }, `نموذج ${key.code}`) : null),
+        h("div", { class: "xp-h-exam" }, h("span", { class: "xp-lbl" }, "المادة"), h("span", { class: "xp-val" }, paper.subject_name),
+          h("span", { class: "xp-lbl" }, "الدرجة"), h("span", { class: "xp-val" }, fmtNum(paper.total_marks || paper.computed_marks)))),
+      h("div", { class: "xp-title-row" }, h("div", { class: "xp-title" }, "نموذج الإجابة الرسمي", h("span", { class: "xp-subtitle" }, ` — ${paper.title}`)),
+        paper.versions > 1 ? h("div", { class: "xp-version" }, `نموذج ${key.code}`) : null),
       h("div", { class: "xp-confidential" }, "سري — للمعلم والمصحح فقط")),
     keep: true,
   });

@@ -582,7 +582,8 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       type: "button", class: `xb-tpl${L.template === k ? " on" : ""}`, disabled: ro,
       onclick: (e) => { tpls.querySelectorAll(".xb-tpl").forEach((b) => b.classList.remove("on")); e.currentTarget.classList.add("on"); set("template", k); },
     }, h("b", {}, t.label), h("small", {}, t.note))));
-    const fields = h("div", { class: "xb-toggles" }, STUDENT_FIELDS.map(([k, label]) => h("label", {},
+    // حقل «الشعبة» لا يظهر إن كانت الشعب موقوفة في المدرسة
+    const fields = h("div", { class: "xb-toggles" }, STUDENT_FIELDS.filter(([k]) => k !== "section" || ctx.settings.sections_enabled !== false).map(([k, label]) => h("label", {},
       h("input", { type: "checkbox", checked: L.student_fields.includes(k), disabled: ro, onchange: (e) => {
         const cur = new Set(L.student_fields);
         if (e.target.checked) cur.add(k); else cur.delete(k);
@@ -608,7 +609,7 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
         mount(mini, host);
         if (paperNeedsMath(paper.content)) await loadMath();
         const { blocks, running } = paperBlocks({ paper, version: buildVersion(paper, 0), layout: L, school: ctx.school,
-          logoUrl: logoUrlFor(base, ctx.settings, L), imageUrl: imageUrlFor(base) });
+          logoUrl: logoUrlFor(base, ctx.settings, L), imageUrl: imageUrlFor(base), sectionsEnabled: ctx.settings.sections_enabled !== false });
         const pages = await paginate(host, { blocks, running, layout: L });
         pages.slice(1).forEach((p) => p.remove());
       }, 350);

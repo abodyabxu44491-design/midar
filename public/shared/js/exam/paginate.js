@@ -127,23 +127,42 @@ function setPageRule(layout) {
 /**
  * يطبع الصفحات المعطاة وحدها: تُنقل مؤقتًا إلى جذر طباعة، وكل ما عداها مخفي.
  * يعيد وعدًا يتحقق بعد إغلاق نافذة الطباعة.
+ *
+ * جذر الطباعة يبقى حتى يعود المستخدم للصفحة (لمس أو ضغطة زر): في الجوال (Chrome/Android)
+ * تُعاد صياغة معاينة الطباعة عند تغيير الورق أو الطابعة بعد أن تُرجع window.print()، ولو أُزيل الجذر
+ * مبكرًا لطُبعت واجهة المنصة بدل الاختبار (أوراق كثيرة عشوائية).
  */
+let cleanup = null;
 export function printPages(pages, layout) {
+  cleanup?.();
   setPageRule(layout);
-  const root = h("div", { class: "xp-print-root" }, pages.map((p) => p.cloneNode(true)));
+  const vars = pageVars(layout);
+  const root = h("div", { class: "xp-print-root", style: vars.style }, pages.map((p) => {
+    const c = p.cloneNode(true);
+    c.style.zoom = "";
+    return c;
+  }));
   for (const wm of root.querySelectorAll(".xp-watermark")) wm.remove();
   document.body.append(root);
   document.body.classList.add("xp-printing");
   return new Promise((resolve) => {
-    const done = () => {
-      window.removeEventListener("afterprint", done);
+    let printed = false;
+    const remove = () => {
       root.remove();
       document.body.classList.remove("xp-printing");
-      resolve();
+      for (const ev of ["pointerdown", "keydown", "scroll"]) window.removeEventListener(ev, onBack, true);
+      window.removeEventListener("afterprint", onAfter);
+      if (cleanup === remove) cleanup = null;
     };
-    window.addEventListener("afterprint", done);
-    // انتظار تحميل صور النسخة قبل فتح نافذة الطباعة
+    const onBack = () => { if (printed) { remove(); resolve(); } };
+    const onAfter = () => { printed = true; resolve(); };
+    cleanup = remove;
+    window.addEventListener("afterprint", onAfter);
+    // العودة للصفحة بعد الطباعة تزيل الجذر (بعد لحظة حتى لا تلتقط لمسة إغلاق نافذة الطباعة نفسها)
+    setTimeout(() => { for (const ev of ["pointerdown", "keydown", "scroll"]) window.addEventListener(ev, onBack, true); }, 800);
+    // انتظار تحميل صور النسخة والخطوط قبل فتح نافذة الطباعة
     const imgs = [...root.querySelectorAll("img")].filter((i) => !i.complete);
-    Promise.all(imgs.map((i) => new Promise((r) => { i.onload = r; i.onerror = r; }))).then(() => setTimeout(() => window.print(), 50));
+    Promise.all([document.fonts?.ready, ...imgs.map((i) => new Promise((r) => { i.onload = r; i.onerror = r; }))])
+      .then(() => setTimeout(() => { window.print(); }, 60));
   });
 }
