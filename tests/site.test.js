@@ -121,13 +121,17 @@ test("الجلسات: «ابقني مسجلًا» افتراضي بكوكي دا
   const res = await fetch(`${srv.base}/api/staff/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: srv.base },
     body: JSON.stringify({ school: s.id, username: "admin", password: pw }) });
   assert.equal(res.status, 200);
-  const cookie = res.headers.getSetCookie().find((c) => c.includes("midar_a"));
+  // في وضع single (Firebase) كل الأدوار في كوكي واحد __session، وله دائمًا مدة صلاحية
+  const single = process.env.SESSION_COOKIE_MODE === "single";
+  const cookieName = single ? "__session" : "midar_a";
+  const cookie = res.headers.getSetCookie().find((c) => c.includes(cookieName));
   assert.match(cookie, /Max-Age=\d+/, "البقاء مسجلًا هو الافتراضي");
   const token = cookie.split(";")[0];
 
   const res2 = await fetch(`${srv.base}/api/staff/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: srv.base },
     body: JSON.stringify({ school: s.id, username: "admin", password: pw, remember: false }) });
-  assert.doesNotMatch(res2.headers.getSetCookie().find((c) => c.includes("midar_a")), /Max-Age/, "بدون تذكر: كوكي جلسة المتصفح");
+  assert.equal(res2.status, 200);
+  if (!single) assert.doesNotMatch(res2.headers.getSetCookie().find((c) => c.includes(cookieName)), /Max-Age/, "بدون تذكر: كوكي جلسة المتصفح");
 
   // جلسة «ابقني مسجلًا» خاملة يومين: كانت تُحذف في التنظيف (خطأ سابق)
   await transaction({ platform: true }, (q) => q(
