@@ -69,6 +69,12 @@ r.put("/sections-mode", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => S.setSectionsMode(q, sections_enabled, { confirm })));
 }));
 
+/* ---------- نمط تسمية الصفوف ---------- */
+r.post("/rename-grades", handle(async (req, res) => {
+  const { grade_set } = parse(S.renamePatternSchema, req.body);
+  res.json(await inTenant(req, (q) => S.renameGradesByPattern(q, grade_set)));
+}));
+
 /* ---------- المراحل ---------- */
 r.post("/stages", handle(async (req, res) => {
   const b = parse(S.stageSchema, req.body);

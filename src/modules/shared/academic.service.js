@@ -46,13 +46,19 @@ export const rolloverSchema = z.object({
 
 export const passMarkSchema = z.object({ pass_mark: z.coerce.number().min(0).max(100) });
 
+// حالة السنة أو الفصل تُحسب من التواريخ (لا تُخزَّن فلا تتقادم): قادمة، نشطة، منتهية، أو مؤرشفة
+export const STATES = { upcoming: "قادمة", active: "نشطة", ended: "منتهية", archived: "مؤرشفة" };
+const stateSql = (a) => `CASE WHEN ${a}.start_date > current_date THEN 'upcoming' WHEN ${a}.end_date < current_date THEN 'ended' ELSE 'active' END`;
+
 export const listYears = (q) => q(
   `SELECT y.id, y.name, y.start_date, y.end_date, y.is_current, y.status, y.pass_mark,
+          CASE WHEN y.status = 'archived' THEN 'archived' ELSE ${stateSql("y")} END AS state,
           (SELECT count(*) FROM student_years sy WHERE sy.year_id = y.id)::int AS archived_students
      FROM academic_years y ORDER BY y.start_date DESC`);
 
 export const listTerms = (q, yearId = null) => q(
-  `SELECT t.id, t.year_id, t.name, t.ordinal, t.start_date, t.end_date, t.is_current, y.name AS year_name, y.is_current AS year_current
+  `SELECT t.id, t.year_id, t.name, t.ordinal, t.start_date, t.end_date, t.is_current, y.name AS year_name, y.is_current AS year_current,
+          ${stateSql("t")} AS state
      FROM terms t JOIN academic_years y ON y.id = t.year_id
     WHERE ($1::bigint IS NULL OR t.year_id = $1) ORDER BY y.start_date DESC, t.ordinal`, [yearId]);
 
@@ -154,6 +160,15 @@ export async function yearResults(q, yearId) {
       outcome: r.average === null ? "incomplete" : Number(r.average) >= pass ? "passed" : "failed",
     })),
   };
+}
+
+/** أرشفة سنة سابقة أو إعادتها. السنة الحالية لا تُؤرشف (تُؤرشف تلقائيًا عند بدء سنة جديدة). */
+export const yearStatusSchema = z.object({ status: z.enum(["active", "archived"]) });
+export async function setYearStatus(q, yearId, status) {
+  const [y] = await q("SELECT id, is_current FROM academic_years WHERE id = $1", [yearId]);
+  if (!y) throw notFound("السنة غير موجودة");
+  if (y.is_current && status === "archived") throw badRequest("لا تُؤرشف السنة الحالية. ابدأ سنة جديدة وتُؤرشف تلقائيًا.");
+  await q("UPDATE academic_years SET status = $2 WHERE id = $1", [yearId, status]);
 }
 
 export async function setPassMark(q, yearId, passMark) {

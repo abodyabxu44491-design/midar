@@ -12,13 +12,31 @@ const OUTCOME = { passed: ["ناجح", ""], failed: ["راسب", "red"], incompl
 const ACTIONS = [["promote", "ترفيع للصف التالي"], ["repeat", "إعادة السنة"], ["graduate", "تخرّج"],
   ["transfer", "نقل لمدرسة أخرى"], ["withdraw", "انسحاب"]];
 
+// الشاشة مقسّمة إلى جزأين يعيد «السجل الأكاديمي» في الإعدادات استخدامهما نفسيهما:
+// السنة والفصول، وأيام الدراسة والإجازات.
 export default async function academic({ refresh }) {
-  const [data, classes] = await Promise.all([api(`${A}/academic`), loadClasses()]);
-  const { current, years, terms } = data;
-  const currentYearTerms = terms.filter((t) => t.year_id === current?.year_id);
+  const [year, days] = await Promise.all([yearParts({ refresh }), daysParts({ refresh })]);
+  const [head, ...rest] = year;
+  return [head, rest[0], ...days, ...rest.slice(1)];
+}
 
-  const holidays = await holidaysPanel(refresh);
-  const ttSettings = (await api(`${A}/timetable/settings`).catch(() => null))?.settings;
+const STATE_COLOR = { upcoming: "blue", active: "", ended: "amber", archived: "gray" };
+const stateBadge = (states, s) => badge(states?.[s] || s, STATE_COLOR[s] ?? "gray");
+
+export async function daysParts({ refresh }) {
+  const [holidays, ttSettings] = await Promise.all([
+    holidaysPanel(refresh),
+    api(`${A}/timetable/settings`).then((r) => r.settings).catch(() => null),
+  ]);
+  return [ttSettings ? studyDaysPanel(ttSettings, refresh) : null, holidays];
+}
+
+export async function yearParts({ refresh }) {
+  const [data, classes] = await Promise.all([api(`${A}/academic`), loadClasses()]);
+  const { current, years, terms, states } = data;
+  const currentYearTerms = terms.filter((t) => t.year_id === current?.year_id);
+  const curYear = years.find((y) => y.is_current);
+
   return [
     stats([
       ["السنة الحالية", current?.year_name || "—", current ? `${fmtDate(current.year_start)} إلى ${fmtDate(current.year_end)}` : "لم تُنشأ بعد"],
@@ -29,12 +47,11 @@ export default async function academic({ refresh }) {
 
 
     yearPanel(current, currentYearTerms.length, refresh),
-    ttSettings ? studyDaysPanel(ttSettings, refresh) : null,
-    holidays,
+    curYear?.state === "ended" ? notice(`انتهت مدة ${curYear.name}. ابدأ السنة الجديدة من «السنوات الدراسية» أدناه لترفيع الطلاب.`, "warn") : null,
 
     panel("فصول السنة الحالية", null,
       currentYearTerms.length ? currentYearTerms.map((t) => line(
-        h("div", {}, h("b", {}, t.name), " ", t.is_current ? badge("الفصل الحالي") : null,
+        h("div", {}, h("b", {}, t.name), " ", t.is_current ? badge("الفصل الحالي") : stateBadge(states, t.state),
           sub(`${fmtDate(t.start_date)} إلى ${fmtDate(t.end_date)}`)),
         h("div", { class: "row", style: "flex:none" },
           t.is_current ? null : btn("اجعله الحالي", async () => {
@@ -47,13 +64,35 @@ export default async function academic({ refresh }) {
 
     passMarkPanel(current, years, refresh),
 
-    panel("السنوات الدراسية", btn("بدء سنة دراسية جديدة", () => startYear(classes, current, refresh), "sm"),
+    panel("السنوات الدراسية", h("div", { class: "row", style: "flex:none;gap:6px" },
+        btn("إضافة سنة قادمة", () => upcomingYear(refresh), "ghost sm"),
+        btn("بدء سنة دراسية جديدة", () => startYear(classes, current, refresh), "sm")),
       years.map((y) => line(
-        h("div", { class: y.is_current ? "" : "muted-row" },
-          h("b", {}, y.name), " ", y.is_current ? badge("الحالية") : badge("مؤرشفة", "gray"),
-          sub(`${fmtDate(y.start_date)} إلى ${fmtDate(y.end_date)}${y.archived_students ? ` — ${y.archived_students} طالب في سجلها` : ""}`)))),
-      sub("يحفظ سجل السنة المنتهية، ثم ينقل الطلاب.")),
+        h("div", { class: y.state === "archived" ? "muted-row" : "" },
+          h("b", {}, y.name), " ", y.is_current ? badge("الحالية") : null, " ", stateBadge(states, y.state),
+          sub(`${fmtDate(y.start_date)} إلى ${fmtDate(y.end_date)}${y.archived_students ? ` — ${y.archived_students} طالب في سجلها` : ""}`)),
+        y.is_current ? null : h("div", { class: "row", style: "flex:none" },
+          btn(y.status === "archived" ? "استعادة" : "أرشفة", async () => {
+            await api(`${A}/academic/years/${y.id}/status`, { status: y.status === "archived" ? "active" : "archived" }, "PATCH");
+            toast("تم"); refresh();
+          }, "ghost sm")))),
+      sub("سنة واحدة فقط هي الحالية. «بدء سنة جديدة» يحفظ سجل السنة المنتهية ويؤرشفها، ثم ينقل الطلاب.")),
   ];
+}
+
+// سنة قادمة تُجهَّز مسبقًا (تواريخها وفصولها) دون أن تصبح الحالية
+function upcomingYear(refresh) {
+  const y = new Date().getFullYear() + 1;
+  const name = input({ value: `${y}–${y + 1}` });
+  const a = input({ type: "date", class: "ltr", value: `${y}-09-01` }), b = input({ type: "date", class: "ltr", value: `${y + 1}-06-30` });
+  const terms = select([["1", "فصل واحد"], ["2", "فصلان"], ["3", "ثلاثة فصول"], ["4", "4 فصول"]], { value: "2" });
+  const d = dialog("إضافة سنة قادمة", h("div", {},
+    sub("تُحفظ السنة وفصولها، وتبقى السنة الحالية كما هي حتى تبدأ السنة الجديدة."),
+    field("اسم السنة", name), h("div", { class: "row" }, field("تبدأ في", a), field("تنتهي في", b)), field("نظام الفصول", terms)),
+  [btn("حفظ", async () => {
+    await api(`${A}/academic/years`, { name: name.value.trim(), start_date: a.value, end_date: b.value, terms: Number(terms.value), make_current: false });
+    d.close(); toast("أُضيفت السنة القادمة"); refresh();
+  })]);
 }
 
 // درجة النجاح المعتمدة للسنة الحالية

@@ -2,7 +2,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { waLink } from "../../shared/js/whatsapp.js";
 import syncView from "./sync.js";
-import structureView from "./structure.js";
+import academicRecord from "./academic-record.js";
 import { mySubscription } from "./my-subscription.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
@@ -12,7 +12,7 @@ import { A, directoryLink } from "./common.js";
 
 const SECTIONS = [
   { key: "modules", name: "أقسام المنصة", note: "شغّل وأوقف أقسام اللوحة" },
-  { key: "structure", name: "الهيكل الأكاديمي", note: "المراحل والصفوف والشعب" },
+  { key: "academic", name: "السجل الأكاديمي", note: "المراحل والصفوف والشعب والمواد والسنة والفصول والإجازات" },
   { key: "fields", name: "الحقول المخصصة", note: "أضف أي معلومة تحتاجها مدرستك" },
   { key: "page", name: "صفحة المدرسة العامة", note: "ما يراه أولياء الأمور" },
   { key: "payment", name: "طرق السداد", note: "الحسابات البنكية والدفع النقدي" },
@@ -27,7 +27,7 @@ const SECTIONS = [
 ];
 
 export default function settings(ctx) {
-  const views = { modules: modulesView, structure: (a) => structureView({ refresh: a.show }), fields: customFieldsView, page: pageView, payment: paymentView,
+  const views = { modules: modulesView, academic: () => academicRecord(), fields: customFieldsView, page: pageView, payment: paymentView,
     messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
     access: accessView, data: dataView,
     subscription: mySubscription, sync: syncView };

@@ -14,6 +14,7 @@ r.get("/", handle(async (req, res) => {
     current: await academic.current(q),
     years: await academic.listYears(q),
     terms: await academic.listTerms(q),
+    states: academic.STATES,
   };}));
 }));
 
@@ -64,6 +65,13 @@ r.patch("/terms/:id", handle(async (req, res) => {
 r.post("/promotion-preview", handle(async (req, res) => {
   const b = parse(academic.rolloverSchema.partial({ year: true }), req.body);
   res.json(await inTenant(req, (q) => academic.promotionPreview(q, b.moves || [])));
+}));
+
+r.patch("/years/:id/status", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const b = parse(academic.yearStatusSchema, req.body);
+  await inTenant(req, (q) => academic.setYearStatus(q, id, b.status));
+  res.json({ ok: true });
 }));
 
 r.patch("/years/:id/pass-mark", handle(async (req, res) => {

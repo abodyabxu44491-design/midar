@@ -645,6 +645,14 @@ img[loading="lazy"] { content-visibility: auto; }
 .wiz-progress { margin-bottom: 14px; }
 .wiz-bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
 .wiz-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s; }
+.setup-steps { list-style: none; display: flex; gap: 4px; padding: 0; margin: 8px 0 0; overflow-x: auto; scrollbar-width: thin; }
+.setup-steps li { flex: none; font-size: 12px; }
+.setup-steps li > * { display: block; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--muted); font: inherit; white-space: nowrap; }
+.setup-steps li.done > * { color: var(--teal); border-color: var(--teal); }
+.setup-steps li.on > * { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.setup-steps button { cursor: pointer; }
+.custom-stages { border-top: 1px dashed var(--line); margin-top: 14px; padding-top: 6px; }
+.ar-chips { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 6px 0; }
 .pick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
 .pick-card { display: flex; align-items: center; gap: 10px; padding: 14px; min-height: 56px; border: 2px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
 .pick-card.on { border-color: var(--accent); background: var(--teal-soft); }

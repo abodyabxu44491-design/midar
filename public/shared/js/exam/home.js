@@ -37,7 +37,7 @@ export async function examSection({ base, me, admin = false }) {
   const pairSelect = () => select(ctx.load.map((l) => [`${l.class_id}:${l.subject_id}`, `${l.class_name} — ${l.subject_name}`]));
   const pairOf = (el) => { const [c, s] = el.value.split(":").map(Number); return { class_id: c, subject_id: s }; };
   const typeSelect = () => select([...ctx.types.defaults, ...ctx.types.custom.filter((t) => t.is_active).map((t) => t.name)].map((t) => [t, t]));
-  const noLoad = () => (!ctx.load.length ? notice(admin ? "لا توجد صفوف ومواد بعد. أنشئ الهيكل الأكاديمي أولًا." : "لا توجد مواد مسندة لك. تواصل مع الإدارة.", "warn") : null);
+  const noLoad = () => (!ctx.load.length ? notice(admin ? "لا توجد صفوف ومواد بعد. أنشئها من: الإعدادات ← السجل الأكاديمي." : "لا توجد مواد مسندة لك. تواصل مع الإدارة.", "warn") : null);
 
   function createDialog() {
     const title = input({ placeholder: "مثل: اختبار الفصل الأول" });
