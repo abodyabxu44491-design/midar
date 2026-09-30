@@ -16,6 +16,11 @@ r.get("/", handle(async (req, res) => {
   }));
 }));
 
+r.get("/day-status", handle(async (req, res) => {
+  const { date } = parse(attendance.dayQuery, req.query);
+  res.json(await inTenant(req, (q) => attendance.dayStatus(q, date)));
+}));
+
 r.post("/", handle(async (req, res) => {
   const b = parse(attendance.markSchema, req.body);
   res.json(await inTenant(req, (q) => attendance.mark(q, b, { actor: req.actor, allowedClass: async (id) => id !== null })));

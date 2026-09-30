@@ -166,18 +166,39 @@ export const SUBJECT_LIBRARY = [
 /* أنماط تسمية الصفوف: عربية كاملة، عربية مختصرة، ودولية */
 export const GRADE_SETS = {
   arabic_full: {
-    name: "عربي كامل (الأول الابتدائي…)",
-    primary: ["الأول الابتدائي", "الثاني الابتدائي", "الثالث الابتدائي", "الرابع الابتدائي", "الخامس الابتدائي", "السادس الابتدائي"],
-    middle: ["الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"],
-    secondary: ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"],
+    name: "السعودية والخليج (أول ابتدائي…)",
+    primary: ["أول ابتدائي", "ثاني ابتدائي", "ثالث ابتدائي", "رابع ابتدائي", "خامس ابتدائي", "سادس ابتدائي"],
+    middle: ["أول متوسط", "ثاني متوسط", "ثالث متوسط"],
+    secondary: ["أول ثانوي", "ثاني ثانوي", "ثالث ثانوي"],
     kindergarten: ["البستان", "الروضة", "التمهيدي"],
   },
   arabic_short: {
-    name: "عربي مختصر (الأول، الثاني…)",
+    name: "رقمي (الأول، الثاني…)",
     primary: ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس"],
     middle: ["السابع", "الثامن", "التاسع"],
-    secondary: ["العاشر", "الحادي عشر", "الثاني عشر"],
+    secondary: ["الأول ثانوي", "الثاني ثانوي", "الثالث ثانوي"],
     kindergarten: ["البستان", "الروضة", "التمهيدي"],
+  },
+  arabic_basic: {
+    name: "الصف الأول … الصف التاسع، ثم أول ثانوي",
+    primary: ["الصف الأول", "الصف الثاني", "الصف الثالث", "الصف الرابع", "الصف الخامس", "الصف السادس"],
+    middle: ["الصف السابع", "الصف الثامن", "الصف التاسع"],
+    secondary: ["أول ثانوي", "ثاني ثانوي", "ثالث ثانوي"],
+    kindergarten: ["البستان", "الروضة", "التمهيدي"],
+  },
+  international: {
+    name: "دولي (الصف 1…)",
+    primary: ["الصف 1", "الصف 2", "الصف 3", "الصف 4", "الصف 5", "الصف 6"],
+    middle: ["الصف 7", "الصف 8", "الصف 9"],
+    secondary: ["الصف 10", "الصف 11", "الصف 12"],
+    kindergarten: ["KG1", "KG2", "KG3"],
+  },
+  international_en: {
+    name: "دولي بالإنجليزية (Grade 1…)",
+    primary: ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"],
+    middle: ["Grade 7", "Grade 8", "Grade 9"],
+    secondary: ["Grade 10", "Grade 11", "Grade 12"],
+    kindergarten: ["KG1", "KG2", "KG3"],
   },
   yemen: {
     name: "اليمن (الأساسي والثانوي)",
@@ -185,13 +206,6 @@ export const GRADE_SETS = {
     middle: ["السابع الأساسي", "الثامن الأساسي", "التاسع الأساسي"],
     secondary: ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"],
     kindergarten: ["البستان", "الروضة", "التمهيدي"],
-  },
-  international: {
-    name: "دولي (Grade 1…)",
-    primary: ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"],
-    middle: ["Grade 7", "Grade 8", "Grade 9"],
-    secondary: ["Grade 10", "Grade 11", "Grade 12"],
-    kindergarten: ["KG1", "KG2", "KG3"],
   },
 };
 
@@ -205,6 +219,7 @@ export const catalog = () => ({
   subject_library: SUBJECT_LIBRARY,
   grade_sets: Object.entries(GRADE_SETS).map(([key, g]) => ({
     key, name: g.name, sample: [g.primary[0], g.middle[0], g.secondary[0]].filter(Boolean).join(" / "),
+    names: { primary: g.primary, middle: g.middle, secondary: g.secondary, kindergarten: g.kindergarten },
   })),
   stages: Object.entries(STAGES).map(([key, s]) => ({
     key, name: s.name, grades: s.grades,

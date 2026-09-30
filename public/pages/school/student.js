@@ -5,6 +5,7 @@ import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, ke
 import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "../shared/js/format.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
+import { studentFile } from "../shared/js/student-file.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -29,97 +30,22 @@ function render(d) {
   if (d.currency) setCurrency(d.currency);
   const s = d.student, f = d.fees;
   schoolName = d.school; studentName = s.name; className = s.class_name;
-  const avg = d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
-  const count = (st) => d.attendance.filter((a) => a.status === st).length;
   document.title = `مدار — ${s.name}`;
 
-  // ملف الطالب: رأس ثابت + أقسام مستقلة، بدل صفحة واحدة طويلة
-  const sections = [
-    { key: "overview", name: "نظرة عامة", note: "البيانات والملخص" },
-    ...(d.settings.profile_show_grades ? [{ key: "grades", name: "الدرجات", note: d.academic?.term_name || "" }] : []),
-    ...(d.settings.profile_show_attendance ? [{ key: "attendance", name: "الحضور والغياب", note: `${count("absent")} غياب` }] : []),
-    ...(d.homework?.length ? [{ key: "homework", name: "الواجبات", note: `${d.homework.length} واجب` }] : []),
-    ...(d.timetable?.length ? [{ key: "timetable", name: "الجدول الدراسي", note: "حصص الأسبوع" }] : []),
-    ...(f ? [{ key: "fees", name: "الرسوم والسداد", note: f.status === "unpaid" ? money(f.remaining) : "مسدد" }] : []),
-    ...(d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
-    ...(d.announcements.length ? [{ key: "news", name: "التعاميم", note: `${d.announcements.length}` }] : []),
-  ];
-
-  const views = {
-    overview: () => [
-      section("البيانات الأساسية",
-        info("اسم الطالب", s.name), info("الفصل", s.class_name), info("ولي الأمر", s.guardian_name),
-        info("جوال ولي الأمر", s.guardian_phone, "ltr"), info("تاريخ التسجيل", fmtDate(s.since)),
-        ...(d.custom || []).map((c) => info(c.label, c.value))),
-      d.settings.profile_show_grades && d.grades.length
-        ? section("آخر الدرجات", d.grades.slice(0, 4).map(gradeLine)) : null,
-      f ? feesSection(f, true) : null,
-    ],
-    grades: () => section(d.academic?.term_name ? `الدرجات — ${d.academic.term_name}` : "الدرجات",
-      d.grades.length ? d.grades.map(gradeLine) : empty("لم تُنشر درجات بعد.")),
-    attendance: () => section("الحضور والغياب",
-      h("div", { class: "kpis inline" },
-        h("div", {}, h("b", {}, count("present")), "حاضر"),
-        h("div", {}, h("b", {}, count("absent")), "غائب"),
-        h("div", {}, h("b", {}, count("late")), "متأخر"),
-        h("div", {}, h("b", {}, count("excused")), "بعذر")),
-      d.attendance.length ? d.attendance.map((a) => line(
-        h("span", {}, fmtDate(a.day)), badge(ATTENDANCE[a.status].label, ATTENDANCE[a.status].tone)))
-        : empty("لا توجد سجلات.")),
-    homework: () => section("الواجبات", d.homework.map((w) => line(
-      h("div", {}, h("b", {}, w.title), " ", w.submitted ? badge("سُلّم") : badge("لم يُسلّم", "amber"),
-        sub(`${w.subject}${w.teacher ? ` — ${w.teacher}` : ""}${w.due_date ? ` — التسليم ${fmtDate(w.due_date)}` : ""}`),
-        w.details ? sub(w.details) : null)))),
-    timetable: () => section("الجدول الدراسي",
-      timetableGrid(d.timetable, { cell: (day, p2, sl) => (sl
-        ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
-        : h("span", { class: "muted" }, "—")) })),
-    fees: () => feesSection(f),
-    teachers: () => section("المعلمون والمواد",
-      d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher)))),
-    news: () => section("التعاميم", d.announcements.map((a) => line(
-      h("div", {}, h("b", {}, a.title), sub(fmtDate(a.created_at)), a.body ? sub(a.body) : null)))),
-  };
-
-  const body = h("div");
-  const nav = h("nav", { class: "profile-nav" });
-  const openSection = (key) => {
-    nav.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
-    mount(body, views[key]());
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  mount(nav, sections.map((sec) => {
-    const b = h("button", { type: "button", "data-k": sec.key, onclick: () => openSection(sec.key) },
-      h("span", {}, sec.name), sec.note ? h("small", {}, sec.note) : null);
-    return b;
-  }));
+  // ملف الطالب: مصدره المشترك public/shared/js/student-file.js (نفسه الذي تراه الإدارة، لكن هنا مع زر الدفع)
+  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true });
 
   mount(app,
     topbar({ school: d.school, subtitle: "ملف الطالب", onLogout: () => { sessionStorage.removeItem(KEY); back(); } }),
     h("main", { class: "profile-page" },
       h("div", { class: "toolbar" }, btn("الرجوع لقائمة الطلاب", back, "ghost sm"), btn("طباعة", () => window.print(), "ghost sm")),
-
-      h("div", { class: "profile-head" },
-        h("h1", {}, s.name),
-        h("div", { style: "opacity:.85" }, s.class_name),
-        h("div", { class: "kpis" },
-          d.settings.profile_show_grades ? h("div", {}, h("b", {}, avg === null ? "—" : `${avg}%`), "متوسط الدرجات") : null,
-          d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("absent")), "أيام الغياب") : null,
-          d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("late")), "مرات التأخر") : null,
-          f ? h("div", {}, h("b", {}, f.status === "paid" ? "مسدد" : f.status === "unpaid" ? money(f.remaining) : "—"),
-            f.status === "unpaid" ? "رسوم متبقية" : "حالة الرسوم") : null)),
-
-      h("div", { class: "profile-layout" }, nav, body)),
+      file.el),
     footer());
 
-  openSection("overview");
   showInstallBar();
 }
 
 // سطر درجة واحد
-const gradeLine = (g) => line(
-  h("div", {}, h("b", {}, g.subject), sub(`${g.title}${g.exam_date ? ` — ${fmtDate(g.exam_date)}` : ""}`)),
-  h("b", {}, `${g.score} / ${g.max_score}`));
 
 let schoolName = "", studentName = "", className = "";
 

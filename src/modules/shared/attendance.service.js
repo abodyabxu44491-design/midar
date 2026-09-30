@@ -6,12 +6,27 @@ export const STATUSES = ["present", "absent", "late", "excused"];
 const LABEL = { present: "حاضر", absent: "غائب", late: "متأخر", excused: "غياب بعذر" };
 
 export const listQuery = z.object({ class_id: t.id, date: t.date });
+export const dayQuery = z.object({ date: t.date });
 export const markSchema = z.object({
   date: t.date,
   reason: t.optText(300),
   // يمكن تسجيل طالب واحد أو فصل كامل دفعة واحدة
   entries: z.array(z.object({ student_id: t.id, status: z.enum(STATUSES) })).min(1).max(500),
 });
+
+/**
+ * حالة يوم من ناحية الدراسة: هل هو إجازة تؤثر على الحضور (من جدول الإجازات)،
+ * وهل هو من أيام الدراسة الأسبوعية المضبوطة. مصدر واحد يقرأه الحضور والواجهات.
+ */
+export async function dayStatus(q, date) {
+  const [holiday] = await q(
+    `SELECT name, kind FROM holidays WHERE affects_attendance AND $1::date BETWEEN start_date AND end_date
+      ORDER BY start_date LIMIT 1`, [date]);
+  const [cfg] = await q("SELECT days FROM timetable_settings WHERE tenant_id = app_tenant()");
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();        // 0 = الأحد
+  const studyDay = cfg ? cfg.days.map(Number).includes(dow) : dow <= 4;
+  return { date, holiday: holiday || null, study_day: studyDay };
+}
 
 // withContact: جوال ولي الأمر لأزرار التنبيه (للإدارة فقط، لا يُرسل لبوابة المعلم)
 export async function listForClass(q, classId, day, { withContact = false } = {}) {
@@ -30,6 +45,8 @@ export async function listForClass(q, classId, day, { withContact = false } = {}
  */
 export async function mark(q, { date, reason, entries }, { actor, allowedClass }) {
   if (date > new Date(Date.now() + 86400000).toISOString().slice(0, 10)) throw badRequest("لا يمكن تسجيل حضور لتاريخ مستقبلي");
+  const day = await dayStatus(q, date);
+  if (day.holiday) throw badRequest(`هذا اليوم إجازة (${day.holiday.name}) ولا يُسجَّل فيه حضور`);
   const ids = entries.map((e) => e.student_id);
   const students = await q("SELECT id, class_id, full_name FROM students WHERE id = ANY($1::bigint[]) AND archived_at IS NULL", [ids]);
   if (students.length !== new Set(ids).size) throw notFound("أحد الطلاب غير موجود");

@@ -64,6 +64,8 @@ export function createApp() {
       /^\/(admin|accountant)\/ledger\/entries\/\d+\/attachments$/.test(req.path)
       || /^\/(admin|teacher)\/papers\/images$/.test(req.path)
       || req.path === "/admin/papers-settings/logo"
+      || /^\/admin\/students\/\d+\/photo$/.test(req.path)
+      || /^\/admin\/teachers\/\d+\/photo$/.test(req.path)
       || /^\/(admin|teacher)\/papers\/import$/.test(req.path)))
     || (req.method === "PUT" && /^\/(admin|teacher)\/papers\/\d+$/.test(req.path));
   // كل استجابة API تحمل رقم الإصدار: إن اختلف عن إصدار الصفحة المفتوحة تعرف الواجهة أن هناك تحديثًا

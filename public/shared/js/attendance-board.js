@@ -9,6 +9,12 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
   const source = typeof endpoint === "object" ? endpoint : {
     list: (classId, date) => api(`${endpoint}?class_id=${classId}&date=${date}`),
     save: (date, reason, entries) => api(endpoint, { date, reason, entries }),
+    dayStatus: (date) => api(`${endpoint}/day-status?date=${date}`),
+  };
+  // المعلم دون اتصال: مصدره المحلي لا يعرف الإجازات، فنسأل الخادم إن أمكن ونتجاهل الفشل
+  const dayStatus = async (d) => {
+    try { return source.dayStatus ? await source.dayStatus(d) : (navigator.onLine ? await api(`/api/teacher/attendance/day-status?date=${d}`) : null); }
+    catch { return null; }
   };
   if (!classes.length) return panel("تسجيل الحضور", null, empty("لا توجد فصول."));
   const cls = select(classes.map((c) => [c.id, c.name]), initialClassId ? { value: initialClassId } : {});
@@ -61,11 +67,14 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
   async function load() {
     mount(box, empty("جارٍ التحميل…"));
     try {
+      const day = await dayStatus(date.value);
+      if (day?.holiday) return mount(box, notice(`هذا اليوم إجازة: ${day.holiday.name}. لا يُسجَّل فيه حضور.`, "warn"));
       const rows = await source.list(cls.value, date.value);
       if (!rows.length) return mount(box, empty("لا يوجد طلاب في هذا الفصل."));
       if (quickMode) return mount(box, quickView(rows));
       const pending = rows.filter((r) => !r.status);
       mount(box,
+        day && !day.study_day ? notice("هذا اليوم ليس من أيام الدراسة المضبوطة في الإعدادات.", "warn") : null,
         pending.length ? btn(`تحديد الباقين حاضرين (${pending.length})`, () => save(pending.map((r) => ({ student_id: r.id, status: "present" }))), "soft sm") : null,
         rows.map((r) => line(
           h("div", { class: "pill" }, h("b", {}, r.name), r.pending ? h("span", { class: "pending-dot", title: "محفوظ على الجهاز، بانتظار المزامنة" }, "بانتظار المزامنة") : null,

@@ -6,7 +6,7 @@ export const yearSchema = z.object({
   name: t.shortText("اسم السنة", 40),
   start_date: t.date,
   end_date: t.date,
-  terms: z.coerce.number().int().min(2).max(3).default(2),
+  terms: z.coerce.number().int().min(1).max(6).default(2),
   make_current: z.boolean().default(true),
 });
 export const termSchema = z.object({
@@ -76,7 +76,7 @@ export async function current(q) {
   return row || null;
 }
 
-const TERM_NAMES = ["الفصل الأول", "الفصل الثاني", "الفصل الثالث"];
+const TERM_NAMES = ["الفصل الأول", "الفصل الثاني", "الفصل الثالث", "الفصل الرابع", "الفصل الخامس", "الفصل السادس"];
 
 // إنشاء سنة وفصولها بتواريخ موزعة تلقائيًا
 export async function createYear(q, b) {
@@ -237,4 +237,81 @@ export async function startNewYear(q, b) {
 
   summary.year = await createYear(q, { ...b.year, make_current: true });
   return summary;
+}
+
+
+/**
+ * إعداد السنة الدراسية من المعالج أو الإعدادات (نفس الدالة للاثنين):
+ * لا سنة ← تُنشأ؛ توجد سنة ← تُحدَّث بياناتها، وتُعاد قسمة الفصول إن لم تكن مرتبطة باختبارات أو فواتير.
+ */
+export async function configureYear(q, b) {
+  const [cur] = await q("SELECT id FROM academic_years WHERE is_current");
+  if (!cur) return createYear(q, { ...b, make_current: true });
+  if (b.end_date <= b.start_date) throw badRequest("نهاية السنة يجب أن تكون بعد بدايتها");
+  const [dup] = await q("SELECT 1 FROM academic_years WHERE name = $1 AND id <> $2", [b.name, cur.id]);
+  if (dup) throw conflict("يوجد سنة بنفس الاسم");
+  await q("UPDATE academic_years SET name = $2, start_date = $3, end_date = $4 WHERE id = $1", [cur.id, b.name, b.start_date, b.end_date]);
+  const [n] = await q("SELECT count(*)::int AS n FROM terms WHERE year_id = $1", [cur.id]);
+  const [used] = await q(
+    `SELECT (EXISTS (SELECT 1 FROM exams e JOIN terms t ON t.id = e.term_id WHERE t.year_id = $1)
+          OR EXISTS (SELECT 1 FROM invoices i JOIN terms t ON t.id = i.term_id WHERE t.year_id = $1)) AS used`, [cur.id]);
+  if (n.n !== b.terms) {
+    if (used.used) throw badRequest("لا يمكن تغيير عدد الفصول: توجد اختبارات أو فواتير مرتبطة بها.");
+    await q("DELETE FROM terms WHERE year_id = $1", [cur.id]);
+  } else if (used.used) return { id: cur.id };
+  else await q("DELETE FROM terms WHERE year_id = $1", [cur.id]);
+  const start = new Date(b.start_date), end = new Date(b.end_date), span = (end - start) / b.terms;
+  for (let i = 0; i < b.terms; i++) {
+    const s = new Date(start.getTime() + span * i);
+    const e = i === b.terms - 1 ? end : new Date(start.getTime() + span * (i + 1) - 86400000);
+    await q(
+      `INSERT INTO terms (tenant_id, year_id, name, ordinal, start_date, end_date, is_current)
+       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)`,
+      [cur.id, TERM_NAMES[i], i + 1, s.toISOString().slice(0, 10), e.toISOString().slice(0, 10), i === 0]);
+  }
+  return { id: cur.id };
+}
+
+/* ---------- الإجازات والعطل ---------- */
+export const HOLIDAY_KINDS = {
+  official: "إجازة رسمية", mid_term: "إجازة منتصف الفصل", term_end: "إجازة نهاية الفصل",
+  eid: "إجازة عيد", emergency: "إجازة طارئة", school: "إجازة خاصة بالمدرسة", custom: "عطلة مخصصة",
+};
+export const holidaySchema = z.object({
+  name: t.shortText("اسم الإجازة", 80),
+  kind: z.enum(Object.keys(HOLIDAY_KINDS)).default("official"),
+  start_date: t.date,
+  end_date: t.date,
+  notes: t.optText(300),
+  affects_attendance: z.boolean().default(true),
+  show_in_calendar: z.boolean().default(true),
+});
+export const listHolidays = (q) => q(
+  `SELECT id, name, kind, start_date::text, end_date::text, notes, affects_attendance, show_in_calendar
+     FROM holidays ORDER BY start_date, id`);
+export async function addHoliday(q, b) {
+  if (b.end_date < b.start_date) throw badRequest("نهاية الإجازة يجب ألا تسبق بدايتها");
+  const [row] = await q(
+    `INSERT INTO holidays (tenant_id, name, kind, start_date, end_date, notes, affects_attendance, show_in_calendar)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [b.name, b.kind, b.start_date, b.end_date, b.notes ?? null, b.affects_attendance, b.show_in_calendar]);
+  return row;
+}
+export async function updateHoliday(q, id, b) {
+  if (b.end_date < b.start_date) throw badRequest("نهاية الإجازة يجب ألا تسبق بدايتها");
+  const rows = await q(
+    `UPDATE holidays SET name = $2, kind = $3, start_date = $4, end_date = $5, notes = $6,
+        affects_attendance = $7, show_in_calendar = $8 WHERE id = $1 RETURNING id`,
+    [id, b.name, b.kind, b.start_date, b.end_date, b.notes ?? null, b.affects_attendance, b.show_in_calendar]);
+  if (!rows.length) throw notFound("الإجازة غير موجودة");
+}
+export async function deleteHoliday(q, id) {
+  const rows = await q("DELETE FROM holidays WHERE id = $1 RETURNING id", [id]);
+  if (!rows.length) throw notFound("الإجازة غير موجودة");
+}
+/** هل هذا التاريخ ضمن إجازة تؤثر على الحضور؟ (يستخدمها الحضور والجدول) */
+export async function holidayOn(q, date) {
+  const [row] = await q(
+    "SELECT id, name FROM holidays WHERE affects_attendance AND $1::date BETWEEN start_date AND end_date LIMIT 1", [date]);
+  return row || null;
 }

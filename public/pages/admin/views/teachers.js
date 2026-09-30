@@ -1,113 +1,385 @@
-// تبويب المعلمين
+// تبويب المعلمين: صفحة رئيسية بسيطة (إحصائيات + بحث + بطاقات). التفاصيل في نوافذ: إضافة، وملف المعلم الكامل.
 import { h, mount } from "../../shared/js/dom.js";
-import { icons } from "../../shared/js/icons.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction } from "../../shared/js/ui.js";
-import { fmtDateTime, csv } from "../../shared/js/format.js";
-import { A, loadClasses, loadSubjects, staffLink } from "./common.js";
+import { field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction, skeleton,
+  stats as statCards } from "../../shared/js/ui.js";
+import { fmtDate, fmtDateTime, csv, EXAM } from "../../shared/js/format.js";
+import { timetableGrid } from "../../shared/js/timetable.js";
+import { A, loadClasses, loadSubjects, staffLink, rememberField, filterReset } from "./common.js";
+import { openTeacherImport } from "./teacher-import.js";
+import { gradePicker } from "./grade-picker.js";
+
+const GENDER = { male: "ذكر", female: "أنثى" };
+const EMPLOYMENT = { full_time: "دوام كامل", part_time: "دوام جزئي", contract: "عقد", volunteer: "تطوع" };
+const STATE_TONE = { inactive: "red", locked: "red", not_activated: "amber", initial: "amber", password_changed: "", username_changed: "", credentials_changed: "" };
+const STATE_LABEL = { inactive: "الحساب غير فعال", locked: "الحساب مقفل مؤقتًا", not_activated: "حساب لم يتم تفعيله",
+  initial: "بيانات الدخول الأولية ما زالت مستخدمة", password_changed: "تم تغيير كلمة المرور",
+  username_changed: "تم تغيير اسم المستخدم", credentials_changed: "تم تغيير بيانات الدخول" };
+
+const photoUrl = (t) => `${A}/teachers/${t.id}/photo?v=${encodeURIComponent(t.updated_at || 0)}`;
+const initial = (name) => [...(name || "؟")][0];
+const avatar = (t, big = false) => (t.has_photo
+  ? h("img", { class: `s-photo${big ? " lg" : ""}`, src: photoUrl(t), alt: "", loading: "lazy" })
+  : h("span", { class: `s-photo ph${big ? " lg" : ""}`, "aria-hidden": "true" }, initial(t.name)));
+const bigDialog = (title, body, actions) => { const d = dialog(title, body, actions); d.classList.add("dialog-lg"); return d; };
+const uniq = (list, key) => [...new Set(list.map((t) => (t[key] || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
+const kv = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
+
+// تصغير صورة المعلم في المتصفح (الكاميرا أو الملفات) قبل الرفع
+async function resizePhoto(file) {
+  if (!/^image\//.test(file.type)) throw new Error("اختر صورة");
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 320 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.82);
+}
 
 export default async function teachers({ me, refresh }) {
-  const [classes, subjects, list] = await Promise.all([loadClasses(), loadSubjects(), api(`${A}/teachers`)]);
-  const f = {
-    name: input(), user: input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" }),
-    phone: input({ class: "ltr", inputMode: "tel" }), email: input({ class: "ltr", type: "email" }),
-    employee_no: input({ class: "ltr" }), national_id: input({ class: "ltr", inputMode: "numeric" }),
-    specialty: input({ placeholder: "مثل: رياضيات" }), department: input(),
+  const [classes, subjects, list, setup] = await Promise.all([loadClasses(), loadSubjects(), api(`${A}/teachers`), api(`${A}/setup`)]);
+  const structure = setup.structure, sectionsOn = structure.sections_enabled;
+  // الفصل ← المرحلة/الصف/الشعبة من الهيكل الأكاديمي المركزي (لا أسماء صفوف مكتوبة هنا)
+  const info = new Map();
+  for (const stg of structure.stages) for (const g of stg.grades) for (const c of g.sections) info.set(Number(c.id), { stage: stg, grade: g, cls: c });
+  const placesOf = (t) => {
+    const places = t.load.map((l) => info.get(Number(l.class_id))).filter(Boolean);
+    const names = (arr) => [...new Set(arr)];
+    return { stages: names(places.map((p) => p.stage.name)), grades: names(places.map((p) => p.grade.name)),
+      sections: sectionsOn ? names(places.filter((p) => p.grade.sections.length > 1).map((p) => p.cls.name)) : [] };
   };
-  const picker = loadPicker(classes, subjects);
-  const hint = h("div");
+  const active = list.filter((t) => t.is_active).length;
+  const unassigned = list.filter((t) => !t.load.length).length;
+  const pending = list.filter((t) => ["not_activated", "initial"].includes(t.account_state) && t.is_active).length;
 
-  // اقتراح المواد حسب التخصص: يقترح ولا يفرض
-  f.specialty.addEventListener("input", () => {
-    const term = f.specialty.value.trim();
-    if (term.length < 3) return mount(hint);
-    const matched = subjects.filter((s2) => s2.name.includes(term) || term.includes(s2.name));
-    if (!matched.length) return mount(hint);
-    mount(hint, notice(`مواد مقترحة لتخصص «${term}»: ${matched.map((m) => m.name).join("، ")}`, ""),
-      h("div", { class: "row spaced" },
-        btn("ربطه بها في كل الفصول", () => {
-          picker.setSubjects(matched.map((m) => m.id));
-          toast("أُضيفت المواد المقترحة — عدّل الفصول كما تريد");
-        }, "soft sm"),
-        btn("تخطي", () => mount(hint), "ghost sm")));
-  });
+  /* ---------- البحث والفلاتر (في المتصفح: عدد المعلمين صغير) ---------- */
+  const q = rememberField("teachers-q", input({ placeholder: "ابحث بالاسم أو الرقم الوظيفي أو اسم المستخدم أو الهوية أو البريد أو الجوال…", type: "search", "aria-label": "بحث" }));
+  const picker = gradePicker(structure, { sectionsOn, onChange: () => draw() });
+  const subjectSel = select([["", "كل المواد"], ...subjects.map((s) => [s.id, s.name])]);
+  const specialty = select([["", "كل التخصصات"], ...uniq(list, "specialty").map((x) => [x, x])]);
+  const status = select([["active", "نشط"], ["inactive", "موقوف"], ["pending", "لم يفعّل حسابه"], ["all", "كل الحالات"]]);
+  const box = h("div", { class: "s-list" });
+  const count = h("span", { class: "sub" });
 
-  return [
-    panel("إضافة معلم", btn("تصدير المعلمين", () => exportTeachers(list), "ghost sm"),
-      h("div", { class: "row" }, field("الاسم", f.name), field("اسم المستخدم", f.user), field("الجوال", f.phone)),
-      h("div", { class: "row" }, field("الرقم الوظيفي", f.employee_no), field("رقم الهوية", f.national_id), field("البريد", f.email)),
-      h("div", { class: "row" }, field("التخصص", f.specialty), field("القسم", f.department)),
+  const norm = (v) => String(v || "").toLowerCase();
+  const classIdsFilter = () => (picker.stageId || picker.classId) ? new Set(picker.classIds()) : null;
+  const matches = (t, ids) => {
+    const term = norm(q.value.trim());
+    if (term && ![t.name, t.username, t.employee_no, t.national_id, t.email, t.phone, t.specialty].some((v) => norm(v).includes(term))) return false;
+    if (status.value === "active" && !t.is_active) return false;
+    if (status.value === "inactive" && t.is_active) return false;
+    if (status.value === "pending" && !(t.is_active && ["not_activated", "initial"].includes(t.account_state))) return false;
+    if (specialty.value && (t.specialty || "").trim() !== specialty.value) return false;
+    if (subjectSel.value && !t.load.some((l) => String(l.subject_id) === subjectSel.value)) return false;
+    if (ids && !t.load.some((l) => ids.has(Number(l.class_id)))) return false;
+    return true;
+  };
+
+  const card = (t) => {
+    const pl = placesOf(t);
+    const subs = [...new Set(t.load.map((l) => l.subject_name))];
+    const open = () => openFile(t);
+    return h("div", { class: "s-card", role: "button", tabindex: "0", onclick: open,
+      onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } },
+      avatar(t),
+      h("div", { class: "s-main" },
+        h("b", { class: "s-title" }, t.name),
+        h("span", { class: "sub" }, [t.employee_no ? `رقم وظيفي: ${t.employee_no}` : null, `@${t.username}`].filter(Boolean).join(" • ")),
+        h("span", { class: "sub" }, [t.specialty, subs.length ? subs.join("، ") : "بدون مواد"].filter(Boolean).join(" • ")),
+        h("span", { class: "s-meta" }, [pl.stages.join("، "), pl.grades.length ? `الصفوف: ${pl.grades.join("، ")}` : null,
+          pl.sections.length ? `الشعب: ${pl.sections.length}` : null].filter(Boolean).join(" • ") || "بدون إسناد"),
+        h("span", { class: "sub" }, t.last_login_at ? `آخر دخول: ${fmtDateTime(t.last_login_at)}` : "لم يدخل بعد")),
+      t.is_active ? (["not_activated", "initial"].includes(t.account_state) ? badge("لم يفعّل", "amber") : badge("نشط")) : badge("موقوف", "red"));
+  };
+  const setVal = (el, v, ev) => { el.value = v; el.dispatchEvent(new Event(ev)); };
+  const filters = filterReset([
+    { active: () => Boolean(picker.stageId), reset: () => picker.clear() },
+    { active: () => Boolean(subjectSel.value), reset: () => { subjectSel.value = ""; } },
+    { active: () => Boolean(specialty.value), reset: () => { specialty.value = ""; } },
+    { active: () => status.value !== "active", reset: () => { status.value = "active"; } },
+    { active: () => Boolean(q.value.trim()), reset: () => setVal(q, "", "input") },
+  ], () => draw());
+  const draw = () => {
+    filters.update();
+    const ids = classIdsFilter();
+    const rows = list.filter((t) => matches(t, ids));
+    count.textContent = `${rows.length} من ${list.length}`;
+    mount(box, rows.length ? rows.map(card) : empty(list.length ? "لا يوجد معلم مطابق." : "لا يوجد معلمون بعد. ابدأ بإضافة معلم."));
+  };
+  q.addEventListener("input", draw);
+  for (const el of [subjectSel, specialty, status]) el.addEventListener("change", draw);
+  draw();
+
+  /* ---------- ملف المعلم الكامل ---------- */
+  async function openFile(t0) {
+    const body = h("div", { class: "teacher-file" }, skeleton(4));
+    const d = bigDialog("ملف المعلم", body);
+    let data;
+    try { data = await api(`${A}/teachers/${t0.id}/file`); } catch (e) { return mount(body, notice(e.message, "err")); }
+    const t = data.teacher, acc = data.account;
+    const cur = { ...t };
+    const done = (msg) => { d.close(); toast(msg); refresh(); };
+    const base = () => ({ name: cur.name, phone: cur.phone || null, employee_no: cur.employee_no || null, national_id: cur.national_id || "",
+      email: cur.email || "", specialty: cur.specialty || null, department: cur.department || null,
+      short_name: cur.short_name || null, gender: cur.gender || "", birth_date: cur.birth_date ? String(cur.birth_date).slice(0, 10) : "",
+      job_title: cur.job_title || null, qualification: cur.qualification || null, hire_date: cur.hire_date ? String(cur.hire_date).slice(0, 10) : "",
+      employment_type: cur.employment_type || "", address: cur.address || null, emergency_name: cur.emergency_name || null, emergency_phone: cur.emergency_phone || null });
+    const save = async (changes) => { if (changes.name !== undefined && !String(changes.name).trim()) throw new Error("اسم المعلم مطلوب");
+      await api(`${A}/teachers/${t.id}`, { ...base(), ...changes }, "PATCH"); done("حُفظ الملف"); };
+
+    const tabs = [["overview", "نظرة عامة"], ["personal", "البيانات الشخصية"], ["job", "البيانات الوظيفية"], ["load", "المواد والصفوف"],
+      ["timetable", "الجدول الدراسي"], ["exams", "الاختبارات والدرجات"], ["homework", "الواجبات"], ["activity", "سجل النشاط"], ["account", "حساب الدخول"]];
+    const nav = h("div", { class: "chips tabs-scroll" });
+    const pane = h("div");
+    const views = {};
+    const show = (key) => { nav.querySelectorAll(".tab-chip").forEach((s) => s.classList.toggle("on", s.dataset.k === key)); mount(pane, views[key]()); };
+    mount(nav, tabs.map(([k, label]) => h("span", { "data-k": k, class: "tab-chip", role: "button", tabindex: "0", onclick: () => show(k),
+      onkeydown: (e) => { if (e.key === "Enter") show(k); } }, label)));
+
+    const subjectNames = [...new Set(data.load.map((l) => l.subject_name))];
+    const pl = placesOf({ load: data.load });
+
+    views.overview = () => h("div", {},
+      h("div", { class: "kpis-row" },
+        h("div", { class: "kpi" }, h("b", {}, data.summary.subjects), "مواد"), h("div", { class: "kpi" }, h("b", {}, data.summary.classes), "فصول"),
+        h("div", { class: "kpi" }, h("b", {}, data.summary.periods_per_week), "حصص أسبوعيًا"), h("div", { class: "kpi" }, h("b", {}, data.summary.homework), "واجبات")),
+      h("h3", { class: "sec-title first" }, "ملخص"),
+      kv("الرقم الوظيفي", t.employee_no), kv("التخصص", t.specialty), kv("المسمى الوظيفي", t.job_title),
+      kv("المواد", subjectNames.join("، ")), kv("المرحلة", pl.stages.join("، ")), kv("الصفوف", pl.grades.join("، ")),
+      sectionsOn ? kv("الشعب", pl.sections.join("، ")) : null,
+      kv("اسم المستخدم", acc?.username, "ltr"),
+      line(h("span", { class: "sub" }, "حالة الحساب"), acc ? badge(STATE_LABEL[acc.state], STATE_TONE[acc.state]) : "—"),
+      kv("آخر دخول", acc?.last_login_at ? fmtDateTime(acc.last_login_at) : "لم يدخل بعد"));
+
+    const formPane = (title, fields, keys, note) => {
+      const f = Object.fromEntries(Object.entries(fields).map(([k, [, el]]) => [k, el]));
+      return h("div", {}, h("h3", { class: "sec-title first" }, title), note ? sub(note) : null,
+        h("div", { class: "form-grid" }, Object.values(fields).map(([label, el]) => field(label, el))),
+        h("div", { class: "row spaced" }, btn("حفظ", async () => {
+          try { await save(Object.fromEntries(keys.map((k) => [k, f[k].value]))); } catch (e) { toast(e.message, true); } })));
+    };
+    const dateVal = (v) => (v ? String(v).slice(0, 10) : "");
+    views.personal = () => formPane("البيانات الشخصية", {
+      name: ["الاسم الكامل *", input({ value: t.name })], short_name: ["الاسم المختصر", input({ value: t.short_name || "" })],
+      gender: ["الجنس", select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]], { value: t.gender || "" })],
+      birth_date: ["تاريخ الميلاد", input({ type: "date", value: dateVal(t.birth_date) })],
+      national_id: ["رقم الهوية", input({ class: "ltr", inputMode: "numeric", value: t.national_id || "" })],
+      phone: ["الجوال", input({ class: "ltr", inputMode: "tel", value: t.phone || "" })],
+      email: ["البريد الإلكتروني", input({ class: "ltr", type: "email", value: t.email || "" })],
+      address: ["العنوان", input({ value: t.address || "" })],
+      emergency_name: ["جهة اتصال الطوارئ", input({ value: t.emergency_name || "" })],
+      emergency_phone: ["جوال الطوارئ", input({ class: "ltr", inputMode: "tel", value: t.emergency_phone || "" })],
+    }, ["name", "short_name", "gender", "birth_date", "national_id", "phone", "email", "address", "emergency_name", "emergency_phone"]);
+    views.job = () => formPane("البيانات الوظيفية", {
+      employee_no: ["الرقم الوظيفي", input({ class: "ltr", value: t.employee_no || "" })],
+      job_title: ["المسمى الوظيفي", input({ value: t.job_title || "" })],
+      specialty: ["التخصص", input({ value: t.specialty || "" })],
+      qualification: ["المؤهل", input({ value: t.qualification || "" })],
+      department: ["القسم", input({ value: t.department || "" })],
+      hire_date: ["تاريخ التعيين", input({ type: "date", value: dateVal(t.hire_date) })],
+      employment_type: ["نوع التوظيف", select([["", "—"], ...Object.entries(EMPLOYMENT)], { value: t.employment_type || "" })],
+    }, ["employee_no", "job_title", "specialty", "qualification", "department", "hire_date", "employment_type"],
+    "المرحلة والصفوف والشعب والمواد تُدار من تبويب «المواد والصفوف» وترتبط بالهيكل الأكاديمي.");
+
+    views.load = () => {
+      const picker = loadPicker(classes, subjects, data.load);
+      return h("div", {}, sub("الفصول والمواد من الهيكل الأكاديمي المركزي. تغيير اسم صف أو مادة ينعكس هنا تلقائيًا، ولا يتكرر الإسناد نفسه."),
+        picker.el,
+        h("div", { class: "row spaced" }, btn("حفظ الإسناد", async () => {
+          await api(`${A}/teachers/${t.id}`, { load: picker.value() }, "PATCH"); done("حُفظ الإسناد"); })));
+    };
+
+    views.timetable = () => (data.timetable.length
+      ? h("div", {}, sub(`${data.timetable.length} حصة أسبوعيًا`),
+        timetableGrid(data.timetable, { cell: (day, p, s) => (s
+          ? [h("b", { class: "small" }, s.subject_name), h("div", { class: "small muted" }, s.class_name), s.room ? h("div", { class: "small muted" }, s.room) : null]
+          : h("span", { class: "muted" }, "—")) }))
+      : empty("لا توجد حصص في الجدول لهذا المعلم بعد."));
+
+    views.exams = () => (data.exams.length
+      ? h("div", {}, sub("اختبارات فصوله ومواده المسندة"), data.exams.map((e) => line(
+        h("div", {}, h("b", {}, e.title), " ", badge(EXAM[e.status]?.[0] || e.status, EXAM[e.status]?.[1] || "gray"),
+          sub(`${e.subject_name} — ${e.class_name}${e.exam_date ? ` — ${fmtDate(e.exam_date)}` : ""}`)),
+        h("div", { class: "sub" }, `${e.scored} درجة${e.avg_percent !== null ? ` — متوسط ${e.avg_percent}%` : ""}`))))
+      : empty("لا توجد اختبارات لفصوله ومواده بعد."));
+
+    views.homework = () => (data.homework.length
+      ? h("div", {}, data.homework.map((w) => line(h("div", {}, h("b", {}, w.title),
+        sub(`${w.subject_name} — ${w.class_name}${w.due_date ? ` — التسليم ${fmtDate(w.due_date)}` : ""}`)))))
+      : empty("لم يضف هذا المعلم واجبات بعد."));
+
+    views.activity = () => (data.activity.length
+      ? h("div", {}, data.activity.map((a) => line(h("div", {}, h("b", {}, a.text),
+        sub(`${fmtDateTime(a.at)} — بواسطة ${a.actor}`),
+        a.changes?.length ? sub(a.changes.map((c) => `${c.field}: ${c.from ?? "—"} ← ${c.to ?? "—"}`).join(" | ")) : null))))
+      : empty("لا يوجد نشاط مسجّل."));
+
+    views.account = () => {
+      if (!acc) return empty("لا يوجد حساب دخول لهذا المعلم.");
+      return h("div", {},
+        line(h("span", { class: "sub" }, "الحالة"), badge(acc.state_label, STATE_TONE[acc.state])),
+        kv("اسم المستخدم", acc.username, "ltr"), kv("رابط الدخول", staffLink(me), "ltr"),
+        kv("آخر دخول", acc.last_login_at ? fmtDateTime(acc.last_login_at) : "لم يدخل بعد"),
+        kv("تاريخ إنشاء الحساب", fmtDateTime(acc.created_at)),
+        acc.password_changed_at && !acc.initial_password_active ? kv("آخر تغيير لكلمة المرور", fmtDateTime(acc.password_changed_at)) : null,
+        acc.username_changed_at ? kv("آخر تغيير لاسم المستخدم", fmtDateTime(acc.username_changed_at)) : null,
+        acc.locked_until ? kv("مقفل حتى", fmtDateTime(acc.locked_until)) : null,
+        acc.initial_password_available
+          ? h("div", {}, notice("لم يغيّر المعلم كلمة المرور المؤقتة بعد، فيمكنك عرض بيانات دخوله الأولية. تختفي تلقائيًا فور تغييره لها، ويُسجَّل كل عرض في سجل النشاط.", "warn"),
+            btn("إظهار بيانات الدخول الأولية", async () => {
+              try {
+                const c = await api(`${A}/teachers/${t.id}/initial-credentials`, {});
+                showCredentials("بيانات الدخول الأولية", c, "الحالة: لم يتم تغيير بيانات الدخول. سيُطلب من المعلم تغيير كلمة المرور عند أول دخول.");
+              } catch (e) { toast(e.message, true); }
+            }, "soft"))
+          : acc.initial_password_active
+            ? notice(acc.initial_password_supported
+              ? "ما زال المعلم يستخدم كلمة مؤقتة، لكنها غير محفوظة للعرض (أُنشئ الحساب قبل تفعيل الميزة). أنشئ كلمة مؤقتة جديدة لتظهر لك."
+              : "ما زال المعلم يستخدم كلمة مؤقتة، لكن عرضها غير مفعّل على الخادم (لم يُضبط CREDENTIAL_KEY). أنشئ كلمة مؤقتة جديدة عند الحاجة.", "warn")
+            : notice("تم تغيير بيانات الدخول من قبل المعلم. كلمة المرور الحالية لا تظهر لأحد.", ""),
+        h("h3", { class: "sec-title" }, "إجراءات الحساب"),
+        h("div", { class: "row", style: "justify-content:flex-start" },
+          btn("كلمة مرور مؤقتة جديدة", async () => {
+            if (!confirmAction(`إنشاء كلمة مرور مؤقتة جديدة لـ ${t.name}؟ ستنتهي جلساته الحالية ويُطلب منه تغييرها عند أول دخول.`)) return;
+            showCredentials("كلمة مرور مؤقتة جديدة", (await api(`${A}/teachers/${t.id}/reset-password`, {})).credentials);
+            refresh();
+          }, "ghost sm"),
+          btn("تغيير اسم المستخدم", () => {
+            const u = input({ class: "ltr", value: acc.username });
+            const dd = dialog("تغيير اسم المستخدم", h("div", {}, field("اسم المستخدم الجديد", u), sub("تنتهي جلسات المعلم الحالية، ويسجَّل التغيير في سجل النشاط.")),
+              [btn("حفظ", async () => { try { await api(`${A}/teachers/${t.id}/username`, { username: u.value.trim().toLowerCase() }, "PATCH"); dd.close(); done("تغيّر اسم المستخدم"); } catch (e) { toast(e.message, true); } })]);
+          }, "ghost sm"),
+          btn(acc.is_active ? "إيقاف الحساب" : "تفعيل الحساب", async () => {
+            if (acc.is_active && !confirmAction(`إيقاف حساب ${t.name}؟ لن يستطيع الدخول حتى تعيد تفعيله.`)) return;
+            await api(`${A}/teachers/${t.id}/active`, { active: !acc.is_active }, "PATCH"); done(acc.is_active ? "أُوقف الحساب" : "فُعّل الحساب");
+          }, acc.is_active ? "danger sm" : "soft sm")));
+    };
+
+    // رأس الملف والصورة
+    let photoBox = h("div");
+    const drawPhoto = (src) => mount(photoBox, src ? h("img", { class: "s-photo lg", src, alt: "" }) : avatar({ ...t, has_photo: false }, true));
+    drawPhoto(t.has_photo ? photoUrl({ id: t.id, updated_at: t.updated_at }) : null);
+    const file = input({ type: "file", accept: "image/*", hidden: true });
+    file.addEventListener("change", async () => {
+      try { const url = await resizePhoto(file.files[0]); await api(`${A}/teachers/${t.id}/photo`, { data_url: url }, "PUT"); drawPhoto(url); refresh(); toast("حُفظت الصورة"); }
+      catch (e) { toast(e.message, true); }
+    });
+    mount(body,
+      h("div", { class: "row", style: "justify-content:flex-start;gap:12px;align-items:center" }, photoBox,
+        h("div", {}, h("h2", { style: "margin:0" }, t.name),
+          sub([t.specialty, t.job_title].filter(Boolean).join(" • ") || "بدون تخصص"),
+          h("div", { class: "row", style: "justify-content:flex-start;gap:6px;margin-top:6px" }, btn(t.has_photo ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
+            t.has_photo ? btn("حذف", async () => { await api(`${A}/teachers/${t.id}/photo`, null, "DELETE"); drawPhoto(null); refresh(); }, "ghost sm") : null))),
+      nav, pane);
+    show("overview");
+  }
+
+  /* ---------- نافذة إضافة معلم ---------- */
+  function addDialog() {
+    const f = {
+      name: input(), short_name: input(), gender: select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]]), birth_date: input({ type: "date" }),
+      user: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة وأرقام" }),
+      phone: input({ class: "ltr", inputMode: "tel" }), email: input({ class: "ltr", type: "email" }), address: input(),
+      emergency_name: input(), emergency_phone: input({ class: "ltr", inputMode: "tel" }),
+      employee_no: input({ class: "ltr" }), national_id: input({ class: "ltr", inputMode: "numeric" }),
+      job_title: input(), qualification: input(), hire_date: input({ type: "date" }),
+      employment_type: select([["", "—"], ...Object.entries(EMPLOYMENT)]),
+      specialty: input({ placeholder: "مثل: رياضيات" }), department: input(),
+    };
+    let photoData = null;
+    const preview = h("div", { class: "photo-prev" }, h("span", { class: "s-photo lg ph" }, "؟"));
+    const file = input({ type: "file", accept: "image/*", hidden: true });
+    file.addEventListener("change", async () => {
+      try { photoData = await resizePhoto(file.files[0]); mount(preview, h("img", { class: "s-photo lg", src: photoData, alt: "" })); } catch (e) { toast(e.message, true); }
+    });
+    const picker = loadPicker(classes, subjects);
+    const hint = h("div");
+    f.specialty.addEventListener("input", () => {
+      const term = f.specialty.value.trim();
+      if (term.length < 3) return mount(hint);
+      const matched = subjects.filter((s2) => s2.name.includes(term) || term.includes(s2.name));
+      if (!matched.length) return mount(hint);
+      mount(hint, notice(`مواد مقترحة لتخصص «${term}»: ${matched.map((m) => m.name).join("، ")}`, ""),
+        h("div", { class: "row spaced" },
+          btn("ربطه بها في كل الفصول", () => { picker.setSubjects(matched.map((m) => m.id)); toast("أُضيفت المواد المقترحة — عدّل الفصول كما تريد"); }, "soft sm"),
+          btn("تخطي", () => mount(hint), "ghost sm")));
+    });
+    const grid = (...k) => h("div", { class: "form-grid" }, ...k);
+    const d = bigDialog("إضافة معلم", h("div", { class: "student-form" },
+      h("h3", { class: "sec-title first" }, "البيانات الأساسية"),
+      h("div", { class: "photo-row" }, preview, h("div", {}, btn("إضافة صورة", () => file.click(), "ghost sm"), file)),
+      grid(field("الاسم الكامل *", f.name), field("الاسم المختصر", f.short_name), field("الجنس", f.gender), field("تاريخ الميلاد", f.birth_date),
+        field("رقم الهوية", f.national_id)),
+      h("h3", { class: "sec-title" }, "بيانات التواصل"),
+      grid(field("رقم الجوال", f.phone), field("البريد الإلكتروني", f.email), field("العنوان", f.address),
+        field("جهة اتصال الطوارئ", f.emergency_name), field("جوال الطوارئ", f.emergency_phone)),
+      h("h3", { class: "sec-title" }, "البيانات الوظيفية"),
+      grid(field("الرقم الوظيفي", f.employee_no), field("المسمى الوظيفي", f.job_title), field("التخصص", f.specialty), field("المؤهل", f.qualification),
+        field("القسم", f.department), field("تاريخ التعيين", f.hire_date), field("نوع التوظيف", f.employment_type)),
       hint,
-      sub("الفصول والمواد التي يراها هذا المعلم"), picker.el,
-      btn("إضافة المعلم", async () => {
+      h("h3", { class: "sec-title" }, "حساب الدخول"),
+      grid(field("اسم المستخدم *", f.user)),
+      sub("يُنشأ الحساب تلقائيًا بكلمة مرور مؤقتة تظهر لك الآن فقط، ويُطلب من المعلم تغييرها عند أول دخول."),
+      h("h3", { class: "sec-title" }, "المواد والصفوف (اختياري)"),
+      sub("من الهيكل الأكاديمي المركزي — يمكن تعديلها لاحقًا."), picker.el),
+    [btn("حفظ المعلم", async () => {
+      if (!f.name.value.trim() || !f.user.value.trim()) return toast("الاسم واسم المستخدم مطلوبان", true);
+      try {
         const r = await api(`${A}/teachers`, {
-          name: f.name.value, username: f.user.value, phone: f.phone.value || null,
-          email: f.email.value || "", employee_no: f.employee_no.value || null,
-          national_id: f.national_id.value || "", specialty: f.specialty.value || null,
-          department: f.department.value || null, load: picker.value(),
-        });
+          name: f.name.value, username: f.user.value.trim().toLowerCase(), phone: f.phone.value || null, email: f.email.value || "",
+          employee_no: f.employee_no.value || null, national_id: f.national_id.value || "", specialty: f.specialty.value || null,
+          department: f.department.value || null, short_name: f.short_name.value || null, gender: f.gender.value, birth_date: f.birth_date.value,
+          job_title: f.job_title.value || null, qualification: f.qualification.value || null, hire_date: f.hire_date.value,
+          employment_type: f.employment_type.value, address: f.address.value || null, emergency_name: f.emergency_name.value || null,
+          emergency_phone: f.emergency_phone.value || null, load: picker.value() });
+        if (photoData) { try { await api(`${A}/teachers/${r.id}/photo`, { data_url: photoData }, "PUT"); } catch (e) { toast(`تم الحفظ لكن تعذر رفع الصورة: ${e.message}`, true); } }
+        d.close();
         showCredentials("تمت إضافة المعلم", r.credentials, `يدخل المعلم من: ${staffLink(me)} — وسيُطلب منه تغيير كلمة المرور.`);
         refresh();
-      })),
+      } catch (e) { toast(e.message, true); }
+    })]);
+  }
 
-    panel("المعلمون", null, list.length ? list.map((t) => line(
-      h("div", {}, h("b", {}, t.name), " ", t.is_active ? null : badge("موقوف", "red"),
-        t.specialty ? badge(t.specialty, "gray") : null,
-        sub(t.load.map((l) => `${l.subject_name} (${l.class_name})`).join("، ") || "بدون إسناد"),
-        sub(`اسم المستخدم: ${t.username}${t.employee_no ? ` — الرقم الوظيفي: ${t.employee_no}` : ""}${t.phone ? ` — ${t.phone}` : ""}`),
-        sub(`آخر دخول: ${t.last_login_at ? fmtDateTime(t.last_login_at) : "لم يدخل بعد"}`)),
-      h("div", { class: "row", style: "flex:none" },
-        btn("الملف", () => profileDialog(t, refresh), "ghost sm"),
-        btn("الإسناد", () => assignDialog(t, classes, subjects, refresh), "ghost sm"),
-        btn("كلمة مرور جديدة", async () => {
-          if (!confirmAction(`إنشاء كلمة مرور جديدة لـ ${t.name}؟`)) return;
-          showCredentials("كلمة مرور جديدة", (await api(`${A}/teachers/${t.id}/reset-password`, {})).credentials);
-        }, "ghost sm"),
-        btn(t.is_active ? "إيقاف" : "تفعيل", async () => {
-          await api(`${A}/teachers/${t.id}/active`, { active: !t.is_active }, "PATCH"); refresh();
-        }, "ghost sm")))) : empty("لا يوجد معلمون بعد.")),
+  const actions = h("div", { class: "s-actions-top" },
+    btn("+ إضافة معلم", addDialog),
+    btn("استيراد المعلمين", () => openTeacherImport({ onDone: refresh }), "soft"),
+    btn("تصدير", () => exportMenu(list), "ghost"),
+    btn("المزيد ⋮", () => moreMenu(setStatus), "ghost"));
+  const setStatus = (v) => { status.value = v; draw(); };
+
+  return [
+    h("div", { class: "panel s-head" },
+      h("div", { class: "section-head" }, h("h2", {}, "المعلمون"), sub(`${active} نشطًا من ${list.length}`)),
+      statCards([["إجمالي المعلمين", list.length], ["النشطون", active], ["بدون إسناد", unassigned, unassigned ? "يحتاجون فصولًا ومواد" : ""],
+        ["لم يفعّلوا حساباتهم", pending]]),
+      actions),
+    h("div", { class: "panel" },
+      h("div", { class: "search-row" }, q),
+      h("div", { class: "filters" }, picker.el, subjectSel, specialty, status), filters.el,
+      h("div", { class: "toolbar" }, count), box),
   ];
 }
 
-/* ---------- ملف المعلم ---------- */
-function profileDialog(t, refresh) {
-  const f = {
-    name: input({ value: t.name }), phone: input({ class: "ltr", value: t.phone || "" }),
-    employee_no: input({ class: "ltr", value: t.employee_no || "" }),
-    national_id: input({ class: "ltr", value: t.national_id || "" }),
-    email: input({ class: "ltr", type: "email", value: t.email || "" }),
-    specialty: input({ value: t.specialty || "" }), department: input({ value: t.department || "" }),
-  };
-  const d = dialog(`ملف ${t.name}`, h("div", {},
-    h("div", { class: "row" }, field("الاسم", f.name), field("الجوال", f.phone)),
-    h("div", { class: "row" }, field("الرقم الوظيفي", f.employee_no), field("رقم الهوية", f.national_id)),
-    field("البريد", f.email),
-    h("div", { class: "row" }, field("التخصص", f.specialty), field("القسم", f.department))),
-  [btn("حفظ", async () => {
-    await api(`${A}/teachers/${t.id}`, {
-      name: f.name.value, phone: f.phone.value || null, employee_no: f.employee_no.value || null,
-      national_id: f.national_id.value || "", email: f.email.value || "",
-      specialty: f.specialty.value || null, department: f.department.value || null,
-    }, "PATCH");
-    d.close(); toast("حُفظ الملف"); refresh();
-  })]);
+function exportMenu(list) {
+  const d = dialog("تصدير المعلمين", h("div", { class: "more-list" },
+    sub("لا تتضمن الملفات كلمات مرور ولا أي بيانات أمنية."),
+    btn("Excel (.xlsx)", () => { d.close(); location.href = `${A}/import/teachers/export`; }, ""),
+    btn("CSV", () => { d.close(); exportTeachers(list); }, "ghost")));
 }
 
-/* ---------- الإسناد ---------- */
-function assignDialog(t, classes, subjects, refresh) {
-  const picker = loadPicker(classes, subjects, t.load);
-  const d = dialog(`إسناد ${t.name}`, h("div", {}, sub("الفصول والمواد التي يراها هذا المعلم"), picker.el),
-    [btn("حفظ الإسناد", async () => {
-      await api(`${A}/teachers/${t.id}`, { load: picker.value() }, "PATCH");
-      d.close(); toast("حُفظ الإسناد"); refresh();
-    })]);
+function moreMenu(setStatus) {
+  const d = dialog("المزيد", h("div", { class: "more-list" },
+    btn("المعلمون الموقوفون", () => { d.close(); setStatus("inactive"); }, "ghost"),
+    btn("لم يفعّلوا حساباتهم بعد", () => { d.close(); setStatus("pending"); }, "ghost"),
+    btn("كل الحالات", () => { d.close(); setStatus("all"); }, "ghost")));
 }
 
+// التصدير لا يتضمن كلمات مرور ولا hash ولا أي سر
 function exportTeachers(list) {
   csv("المعلمون.csv", [
-    ["الاسم", "اسم المستخدم", "الرقم الوظيفي", "رقم الهوية", "الجوال", "البريد", "التخصص", "القسم", "الإسناد"],
+    ["الاسم", "اسم المستخدم", "الرقم الوظيفي", "رقم الهوية", "الجوال", "البريد", "التخصص", "المسمى الوظيفي", "القسم", "نوع التوظيف", "الحالة", "الإسناد"],
     ...list.map((t) => [t.name, t.username, t.employee_no || "", t.national_id || "", t.phone || "",
-      t.email || "", t.specialty || "", t.department || "",
+      t.email || "", t.specialty || "", t.job_title || "", t.department || "", EMPLOYMENT[t.employment_type] || "", t.is_active ? "نشط" : "موقوف",
       t.load.map((l) => `${l.subject_name} (${l.class_name})`).join(" | ")]),
   ]);
 }
