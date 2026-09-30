@@ -23,6 +23,6 @@ ALTER TABLE teachers
 ALTER TABLE users ADD COLUMN username_changed_at timestamptz;
 
 -- بحث الرقم الوظيفي وتنبيه التكرار
-CREATE INDEX teachers_employee_no ON teachers (tenant_id, employee_no) WHERE employee_no IS NOT NULL;
+CREATE INDEX IF NOT EXISTS teachers_employee_no ON teachers (tenant_id, employee_no) WHERE employee_no IS NOT NULL;
 
 -- لقطة التدقيق لا تحفظ الصورة (بيانات ثنائية كبيرة). الدالة نفسها من 0039 مع استثناء 'photo' (موجود أصلًا).
