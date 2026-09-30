@@ -35,6 +35,8 @@ export const icons = {
     "M22 19v-2a4 4 0 00-3-3.9", "M16 1.1a4 4 0 010 7.8"], o),
   calendar: (o) => svg(["M3 5h18v16H3z", "M8 2v4", "M16 2v4", "M3 10h18"], o),
   money: (o) => svg(["M2 6h20v12H2z", "M12 15a3 3 0 100-6 3 3 0 000 6", "M6 9h.01", "M18 15h.01"], o),
+  alert: (o) => svg(["M12 3l10 18H2L12 3z", "M12 10v5", "M12 18h.01"], o),
+  minus: (o) => svg("M5 12h14", o),
   lock: (o) => svg(["M5 11h14v10H5z", "M8 11V7a4 4 0 118 0v4"], o),
   grip: (o) => svg(["M9 5h.01", "M15 5h.01", "M9 12h.01", "M15 12h.01", "M9 19h.01", "M15 19h.01"], { stroke: 3, ...o }),
   edit: (o) => svg(["M4 20h4L19 9l-4-4L4 16v4z", "M13.5 6.5l4 4"], o),

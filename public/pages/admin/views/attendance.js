@@ -8,6 +8,7 @@ import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { alertDialog } from "../../shared/js/student-alerts.js";
 import { ATTENDANCE, today, fmtDay, fmtDateTime, csv } from "../../shared/js/format.js";
 import { A, loadClasses, optional } from "./common.js";
+import { icons } from "../../shared/js/icons.js";
 
 const PARTS = [["today", "متابعة اليوم"], ["record", "تسجيل الحضور"], ["excuses", "الأعذار"], ["reports", "التقارير"], ["settings", "الإعدادات"]];
 const shift = (d, days) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + days); return x.toISOString().slice(0, 10); };
@@ -84,8 +85,9 @@ export default async function attendance({ me }) {
         state.date !== today() ? btn("اليوم", () => { state.date = today(); show("today"); }, "soft sm") : null),
       d.day.holiday ? notice(`هذا اليوم إجازة: ${d.day.holiday.name}. لا يُسجَّل فيه حضور.`, "warn")
         : !d.day.study_day ? notice("هذا اليوم ليس من أيام الدراسة المضبوطة في الإعدادات.", "warn") : null,
-      d.pending_excuses ? h("div", { class: "file-banner info" }, h("b", {}, plural(d.pending_excuses, "عذر جديد من ولي أمر", "أعذار جديدة", "عذرًا جديدًا")),
-        h("span", {}, "بانتظار قبولك أو رفضك"), btn("مراجعة الأعذار", () => show("excuses"), "ghost sm")) : null,
+      d.pending_excuses ? h("div", { class: "sub-banner trial" }, icons.clipboard({ size: 20 }),
+        h("div", {}, h("b", {}, plural(d.pending_excuses, "عذر جديد من ولي أمر", "أعذار جديدة", "عذرًا جديدًا")), h("small", {}, "بانتظار قبولك أو رفضك")),
+        btn("مراجعة الأعذار", () => show("excuses"), "ghost sm")) : null,
       h("div", { class: "att-kpis big" },
         h("div", { class: "s-rate" }, h("b", {}, T.rate === null ? "—" : `${T.rate}%`), "نسبة الحضور"),
         h("div", { class: "s-present" }, h("b", {}, T.present), "حاضر"),

@@ -4,6 +4,7 @@ import { h, mount } from "./dom.js";
 import { empty, badge, line, sub, teacherCards, btn, dialog, field, textarea, toast } from "./ui.js";
 import { money, fmtDate, fmtDay, ATTENDANCE } from "./format.js";
 import { alertCard } from "./student-alerts.js";
+import { icons } from "./icons.js";
 import { timetableGrid } from "./timetable.js";
 
 export const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
@@ -44,13 +45,13 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   const rate = counted > 0 ? Math.round(((count("present") + count("late")) / counted) * 100) : null;
   // التنبيهات أعلى الملف: غياب بلغ الحد، وتنبيهات لم يطّلع عليها ولي الأمر
   const banners = () => [
-    d.absence_warning ? h("div", { class: "file-banner warn", role: "alert" },
-      h("b", {}, "تنبيه غياب"),
-      h("span", {}, `غاب الطالب ${d.absence_warning.absent} ${d.absence_warning.absent >= 3 && d.absence_warning.absent <= 10 ? "أيام" : "يومًا"} بلا عذر خلال آخر 30 يومًا.`),
+    d.absence_warning ? h("div", { class: "sub-banner warn", role: "alert" }, icons.alert({ size: 20 }),
+      h("div", {}, h("b", {}, "تنبيه غياب"),
+        h("small", {}, `غاب الطالب ${d.absence_warning.absent} ${d.absence_warning.absent >= 3 && d.absence_warning.absent <= 10 ? "أيام" : "يومًا"} بلا عذر خلال آخر 30 يومًا.`)),
       btn("عرض الأيام", () => open("attendance"), "ghost sm")) : null,
-    !d.admin && unread ? h("div", { class: "file-banner info" },
-      h("b", {}, unread === 1 ? "تنبيه جديد من المدرسة" : `${unread} تنبيهات جديدة من المدرسة`),
-      h("span", {}, alerts.find((a) => !a.acknowledged_at)?.title || ""),
+    !d.admin && unread ? h("div", { class: "sub-banner trial" }, icons.megaphone({ size: 20 }),
+      h("div", {}, h("b", {}, unread === 1 ? "تنبيه جديد من المدرسة" : `${unread} تنبيهات جديدة من المدرسة`),
+        h("small", {}, alerts.find((a) => !a.acknowledged_at)?.title || "")),
       btn("عرض", () => open("alerts"), "ghost sm")) : null,
   ];
 
@@ -111,7 +112,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     const STATE = { pending: ["عذرك قيد المراجعة", "amber"], accepted: ["قُبل العذر", ""], rejected: ["لم يُقبل العذر", "red"] };
     return section("الحضور والغياب",
       banners()[0],
-      h("div", { class: "att-kpis" },
+      h("div", { class: "kpis inline att-inline" },
         h("div", { class: "s-present" }, h("b", {}, count("present")), "حاضر"), h("div", { class: "s-absent" }, h("b", {}, count("absent")), "غائب"),
         h("div", { class: "s-late" }, h("b", {}, count("late")), "متأخر"), h("div", { class: "s-excused" }, h("b", {}, count("excused")), "بعذر"),
         h("div", { class: "s-rate" }, h("b", {}, rate === null ? "—" : `${rate}%`), "نسبة الحضور")),

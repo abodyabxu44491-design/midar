@@ -21,7 +21,6 @@ import { sectionTitleFor } from "./parse.js";
 
 // الأنواع في شريط الإضافة بالترتيب الأكثر استخدامًا
 const ADD_TYPES = ["mcq", "truefalse", "fill", "short", "essay", "match", "order", "multi", "math", "image", "table"];
-const TYPE_ICON = { mcq: "أ ب ج", multi: "✓✓", truefalse: "✓ ✗", fill: "___", short: "✎", essay: "¶", match: "⇄", order: "1 2 3", math: "∑", image: "▣", table: "⊞", custom: "?" };
 const PH = {
   mcq: "اكتب السؤال هنا… (مثال: عاصمة المملكة العربية السعودية هي:)", multi: "اكتب السؤال… (اختر كل الإجابات الصحيحة)",
   truefalse: "اكتب العبارة هنا… (مثال: الشمس نجم)", fill: "اكتب الجملة، وضع ____ مكان الفراغ", short: "اكتب السؤال هنا…",
@@ -190,8 +189,8 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
       type,
       space,
       img ? [
-        tool(h("b", {}, "−"), "تصغير الصورة", () => { img.width = Math.max(10, (img.width || 30) - 5); changed(); draw(); }),
-        tool(h("b", {}, "+"), "تكبير الصورة", () => { img.width = Math.min(img.position === "side" ? 55 : 100, (img.width || 30) + 5); changed(); draw(); }),
+        tool(icons.minus({ size: 16 }), "تصغير الصورة", () => { img.width = Math.max(10, (img.width || 30) - 5); changed(); draw(); }),
+        tool(icons.plus({ size: 16 }), "تكبير الصورة", () => { img.width = Math.min(img.position === "side" ? 55 : 100, (img.width || 30) + 5); changed(); draw(); }),
         tool(h("span", { class: "small" }, img.position === "side" ? "تحت" : "بجانب"), "مكان الصورة", () => { img.position = img.position === "side" ? "after" : "side"; changed(); draw(); }),
         tool(icons.close({ size: 14 }), "إزالة الصورة", () => { q.image = null; changed(); draw(); }),
       ] : tool(icons.image({ size: 16 }), "إضافة صورة", () => { imageFor = q; fileIn.click(); }),
@@ -364,14 +363,14 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
           }, "danger"))),
       s.questions.map((q) => questionEl(q, s, nextNo(), L)),
       ro ? null : h("div", { class: "xs-sec-add" },
-        lastType ? h("button", { type: "button", class: "xs-add-same", onclick: () => addQuestion(lastType, s) }, `+ ${QTYPES[lastType].label}`) : null,
+        lastType ? h("button", { type: "button", class: "btn soft sm", onclick: () => addQuestion(lastType, s) }, icons.plus({ size: 14 }), QTYPES[lastType].label) : null,
         typeMenu((type) => addQuestion(type, s), lastType ? "نوع آخر في هذا القسم" : "أضف سؤالًا لهذا القسم")));
   }
 
   function typeMenu(onPick, label) {
     const d = h("details", { class: "xs-menu" }, h("summary", {}, label),
       h("div", { class: "xs-menu-list" }, ADD_TYPES.map((k) => h("button", { type: "button", onclick: () => { d.open = false; onPick(k); } },
-        h("span", { class: "xs-ti" }, TYPE_ICON[k]), QTYPES[k].label))));
+        QTYPES[k].label))));
     return d;
   }
 
@@ -391,10 +390,10 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     const addBar = ro ? null : h("div", { class: "xs-addbar" },
       h("div", { class: "xs-add-mobile" }, typeMenu((k) => addQuestion(k), "+ أضف سؤالًا")),
       h("b", { class: "xs-add-label" }, "أضف سؤالًا:"),
-      h("div", { class: "xs-add-types" }, ADD_TYPES.slice(0, 7).map((k) => h("button", { type: "button", class: "xs-add-t", onclick: () => addQuestion(k) },
-        h("span", { class: "xs-ti" }, TYPE_ICON[k]), QTYPES[k].label)),
+      h("div", { class: "xs-add-types" }, ADD_TYPES.slice(0, 7).map((k) => h("button", { type: "button", class: "btn ghost sm xs-add-t", onclick: () => addQuestion(k) }, icons.plus({ size: 14 }),
+        QTYPES[k].label)),
       typeMenu((k) => addQuestion(k), "أنواع أخرى")),
-      h("button", { type: "button", class: "xs-add-sec", onclick: addSection }, "+ قسم جديد"));
+      h("button", { type: "button", class: "btn soft sm", onclick: addSection }, icons.plus({ size: 14 }), "قسم جديد"));
     mount(sheet, page, addBar, fileIn);
     if (focusKey) {
       const el = sheet.querySelector(`[data-key="${CSS.escape(focusKey)}"]`);

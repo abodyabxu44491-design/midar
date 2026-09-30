@@ -17,14 +17,14 @@ export function alertCard(a, { onAck = null, onDelete = null, staff = false } = 
     a.body ? h("p", { class: "sa-body" }, a.body) : null,
     h("div", { class: "sa-foot" },
       staff ? h("small", {}, [a.created_by ? `بواسطة ${a.created_by}` : null, a.for_parent ? "يظهر لولي الأمر" : "داخلي فقط",
-        a.for_parent ? (a.acknowledged_at ? "✓ اطّلع ولي الأمر" : "لم يطّلع بعد") : null].filter(Boolean).join(" · ")) : null,
+        a.for_parent ? (a.acknowledged_at ? "اطّلع ولي الأمر" : "لم يطّلع بعد") : null].filter(Boolean).join(" · ")) : null,
       onAck && !a.acknowledged_at ? btn("تم الاطلاع", async (e) => {
         const el = e.currentTarget;   // يصبح null بعد أول await
         el.disabled = true;
-        try { await onAck(a); a.acknowledged_at = new Date().toISOString(); el.replaceWith(h("small", { class: "ok-text" }, "✓ شكرًا، تم تأكيد الاطلاع")); }
+        try { await onAck(a); a.acknowledged_at = new Date().toISOString(); el.replaceWith(h("small", { class: "ok-text" }, "شكرًا، تم تأكيد الاطلاع")); }
         catch (err) { toast(err.message, true); el.disabled = false; }
       }, "soft sm") : null,
-      onAck && a.acknowledged_at ? h("small", { class: "ok-text" }, "✓ تم الاطلاع") : null,
+      onAck && a.acknowledged_at ? h("small", { class: "ok-text" }, "تم الاطلاع") : null,
       onDelete ? btn("حذف", () => onDelete(a), "ghost sm") : null));
 }
 

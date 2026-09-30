@@ -5,6 +5,7 @@ import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { btn, field, input, select, notice, toast, badge, empty, sub, passwordInput } from "./ui.js";
 import { fmtDateTime } from "./format.js";
+import { icons } from "./icons.js";
 
 const SEV = { low: ["آمنة", ""], medium: ["حساسة", "amber"], high: ["خطيرة", "red"], critical: ["شديدة الخطورة", "red"] };
 const STATUS = { planned: ["بانتظار التنفيذ", "gray"], approved: ["قيد التنفيذ", "amber"], executed: ["نُفذت", ""], failed: ["فشلت — لم يتغير شيء", "red"], cancelled: ["أُلغيت", "gray"] };
@@ -23,11 +24,11 @@ export async function dangerZone({ base, scope }) {
   const box = h("div");
   let tab = "new";
 
-  const hero = h("div", { class: "dz-hero", role: "note" },
-    h("b", {}, "⚠️ منطقة الحذر"),
-    h("p", {}, owner
+  const hero = h("div", { class: "sub-banner warn dz-hero", role: "note" },
+    icons.alert({ size: 22 }),
+    h("div", {}, h("b", {}, "منطقة الحذر"), h("span", {}, owner
       ? "عمليات استثنائية قد تغيّر بيانات المدرسة أو تعيد تهيئتها. لا شيء يُنفذ بضغطة واحدة: كل عملية تمر بالشرح وعرض ما سيتأثر ونسخة احتياطية ومراجعة وتأكيد برمز المدرسة وإعادة التحقق من هويتك، وتُسجَّل كاملة. الاشتراكات والباقات والفواتير ليست هنا."
-      : "عمليات حساسة لمدرستك حسب صلاحياتك: إيقاف الجلسات، إعادة ضبط الحسابات، النسخ الاحتياطي، إعادة ضبط الإعدادات، وحذف فئات محددة. كل عملية بمراحل وتأكيد بكلمة مرورك، وتُسجَّل كاملة."));
+      : "عمليات حساسة لمدرستك حسب صلاحياتك: إيقاف الجلسات، إعادة ضبط الحسابات، النسخ الاحتياطي، إعادة ضبط الإعدادات، وحذف فئات محددة. كل عملية بمراحل وتأكيد بكلمة مرورك، وتُسجَّل كاملة.")));
 
   if (!owner && !cat.allowed) {
     return h("div", { class: "dz" }, hero, notice("ليست لديك صلاحية «منطقة الحذر». هذه الصلاحية للمدير الرئيسي للمدرسة، ويمنحها مالك المنصة.", "warn"));
@@ -49,7 +50,7 @@ export async function dangerZone({ base, scope }) {
     const stepsEl = h("ol", { class: "dz-steps" });
     const body = h("div", { class: "dz-body" });
     const paintSteps = () => mount(stepsEl, STEPS.map((l, i) => h("li", { class: i === st.step ? "on" : i < st.step ? "done" : "" },
-      h("span", {}, i < st.step ? "✓" : i + 1), l)));
+      h("span", {}, i < st.step ? icons.check({ size: 14 }) : i + 1), l)));
     const go = async (i) => {
       st.step = i; paintSteps();
       mount(body, empty("جارٍ التحميل…"));
@@ -214,7 +215,7 @@ export async function dangerZone({ base, scope }) {
         } catch (e) { make.disabled = false; mount(out, notice(e.message, "err")); }
       });
       const paint = () => mount(out, st.backup
-        ? h("div", { class: "dz-ok" }, h("b", {}, `✓ النسخة الاحتياطية #${st.backup.id} جاهزة`),
+        ? h("div", { class: "dz-ok" }, h("b", {}, icons.check({ size: 16 }), ` النسخة الاحتياطية #${st.backup.id} جاهزة`),
           h("small", {}, `${fmtDateTime(st.backup.created_at)} · ${kb(st.backup.size_bytes)} · ${num(Object.values(st.backup.tables).reduce((a, n) => a + n, 0))} سجل`),
           sub("محفوظة على الخادم ببصمة تحقق، ويمكن استعادتها من «منطقة الحذر» في أي وقت."))
         : null);
@@ -277,7 +278,7 @@ export async function dangerZone({ base, scope }) {
       const deleted = res.deleted ? Object.values(res.deleted).reduce((a, n) => a + n, 0) : 0;
       const creds = res.credentials || [];
       return [
-        h("div", { class: "dz-ok big" }, h("b", {}, `✓ نُفذت العملية: ${r.label}`),
+        h("div", { class: "dz-ok big" }, h("b", {}, icons.check({ size: 18 }), ` نُفذت العملية: ${r.label}`),
           h("small", {}, [`رقم العملية #${r.id}`, r.backup_id ? `النسخة الاحتياطية #${r.backup_id}` : null].filter(Boolean).join(" · "))),
         deleted ? h("p", {}, `حُذف ${num(deleted)} سجل.`) : null,
         res.backup_id && !r.backup_id ? h("p", {}, `النسخة الاحتياطية #${res.backup_id} (${kb(res.size_bytes)}) محفوظة، ويمكن استعادتها من منطقة الحذر.`) : null,
