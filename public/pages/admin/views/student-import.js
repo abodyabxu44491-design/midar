@@ -6,6 +6,7 @@ import { field, input, select, btn, sub, notice, badge, dialog, toast, textarea 
 import { parseCsv, csv } from "../../shared/js/format.js";
 import { readXlsx } from "../../shared/js/xlsx-read.js";
 import { A } from "./common.js";
+import { runJob } from "../../shared/js/job.js";
 
 const MAX_ROWS = 2000;
 const download = (url) => { location.href = url; };
@@ -186,7 +187,10 @@ export async function openStudentImport({ structure, onDone } = {}) {
         btn("رجوع", () => stepAnalyze(), "ghost"),
         btn(`تأكيد استيراد ${total} طالبًا`, async function () {
           if (!total) return toast("لا يوجد ما يُستورد", true);
-          try { const r = await api(`${A}/import/students/commit`, payload()); stepResult(r); onDone?.({ changed: true }); }
+          try {
+            const { summary } = await runJob(`${A}/import/students/commit`, payload(), { title: `استيراد ${total} طالبًا`, jobsBase: `${A}/jobs` });
+            stepResult(summary); onDone?.({ changed: true });
+          }
           catch (e) { toast(e.message, true); }
         })));
   }

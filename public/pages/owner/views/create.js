@@ -2,6 +2,7 @@ import { api } from "/shared/js/api.js";
 import { panel, field, input, select, btn, dialog, line, sub, keyText, notice, toast, brandLogo } from "/shared/js/ui.js";
 import { h } from "/shared/js/dom.js";
 import { loadRefs, subForm } from "./sub-form.js";
+import { runJob } from "/shared/js/job.js";
 
 export default async function create({ refresh }) {
   const refs = await loadRefs();
@@ -24,20 +25,19 @@ function showcasePanel(refresh) {
   const f = { name: input({ value: "مجمع مدارس الرواد الأهلية للبنين" }), id: input({ class: "ltr", value: "alrowad" }) };
   return panel("مدرسة عرض كاملة", null,
     sub("تُنشأ مدرسة بنين شاملة كأنها تعمل منذ بداية الفصل: 24 شعبة بالمراحل الثلاث، قرابة 50 معلمًا بجداولهم، قرابة 570 طالبًا بأولياء أمورهم، "
-      + "الحضور اليومي، الاختبارات والدرجات، الواجبات، الرسوم والسداد، والتعاميم. تستغرق نحو 15 ثانية."),
+      + "الحضور اليومي، الاختبارات والدرجات، الواجبات، الرسوم والسداد، والتعاميم. تعمل في الخلفية مع شريط تقدم."),
     h("div", { class: "form-grid" }, field("اسم المدرسة", f.name), field("رمز المدرسة", f.id)),
-    btn("إنشاء مدرسة العرض", async (e) => {
-      const b = e.currentTarget; b.textContent = "جارٍ الإنشاء...";
-      try {
-        const r = await api("/api/owner/tenants/showcase", { name: f.name.value, id: f.id.value });
-        const s = r.summary;
-        handoverCard(r, [
-          ["الطلاب", s.students], ["المعلمون", s.teachers], ["الشعب", s.structure.sections], ["أيام الدوام المسجلة", s.school_days],
-          ...s.teacher_samples.map((t) => [`معلم (${t.subject}) — ${t.username}`, t.password]),
-          ...s.parent_samples.map((p) => [`ولي أمر: ${p.name}`, p.access_key]),
-        ]);
-        refresh();
-      } finally { b.textContent = "إنشاء مدرسة العرض"; }
+    btn("إنشاء مدرسة العرض", async () => {
+      const { secret: r } = await runJob("/api/owner/tenants/showcase", { name: f.name.value, id: f.id.value },
+        { title: "إنشاء مدرسة العرض", jobsBase: "/api/owner/jobs" });
+      if (!r) { toast("اكتملت المدرسة، لكن انتهت صلاحية عرض بيانات الدخول. أصدر كلمة مرور جديدة للمدير من صفحة المدرسة.", true); refresh(); return; }
+      const s = r.summary;
+      handoverCard(r, [
+        ["الطلاب", s.students], ["المعلمون", s.teachers], ["الشعب", s.structure.sections], ["أيام الدوام المسجلة", s.school_days],
+        ...s.teacher_samples.map((t) => [`معلم (${t.subject}) — ${t.username}`, t.password]),
+        ...s.parent_samples.map((p) => [`ولي أمر: ${p.name}`, p.access_key]),
+      ]);
+      refresh();
     }));
 }
 

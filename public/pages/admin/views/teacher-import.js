@@ -5,6 +5,7 @@ import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, sub, notice, badge, dialog, toast } from "../../shared/js/ui.js";
 import { csv } from "../../shared/js/format.js";
 import { A, loadSubjects } from "./common.js";
+import { runJob } from "../../shared/js/job.js";
 import { readTable, problemsTable } from "./student-import.js";
 
 const MAX = 200;
@@ -145,7 +146,10 @@ export async function openTeacherImport({ onDone } = {}) {
       h("div", { class: "row spaced" }, btn("رجوع", () => stepAnalyze(), "ghost"),
         btn(`تأكيد استيراد ${total} معلمًا`, async () => {
           if (!total) return toast("لا يوجد ما يُستورد", true);
-          try { stepResult(await api(`${A}/import/teachers/commit`, payload())); onDone?.(); } catch (e) { toast(e.message, true); }
+          try {
+            const { summary, secret } = await runJob(`${A}/import/teachers/commit`, payload(), { title: `استيراد ${total} معلمًا`, jobsBase: `${A}/jobs` });
+            stepResult({ ...summary, credentials: secret?.credentials || [] }); onDone?.();
+          } catch (e) { toast(e.message, true); }
         })));
   }
 

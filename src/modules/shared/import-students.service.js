@@ -207,17 +207,21 @@ export async function commit(q, tenant, rawRows, opts = {}) {
   const creates = rows.filter((r) => r.status === "ok" && r.action === "create");
   const updates = rows.filter((r) => r.status === "ok" && r.action === "update");
 
+  const total = creates.length + updates.length;
+  const report = (n) => opts.onProgress?.(n, total);
   const createdRows = creates.length ? await students.create(q, tenant, creates.map((r) => ({
     name: r.data.name, class_id: r.data.class_id ?? null, guardian_name: r.data.guardian_name ?? null, guardian_phone: r.data.guardian_phone ?? null,
     fees_enabled: r.data.fees_enabled ?? false, student_no: r.student_no, birth_date: r.data.birth_date ?? null, gender: r.data.gender ?? null,
-    student_phone: r.data.student_phone ?? null }))) : [];
+    student_phone: r.data.student_phone ?? null })), report) : [];
 
   const COLUMN = { name: "full_name", class_id: "class_id", guardian_name: "guardian_name", guardian_phone: "guardian_phone", birth_date: "birth_date",
     gender: "gender", student_phone: "student_phone", fees_enabled: "fees_enabled" };
+  let updated = 0;
   for (const r of updates) {
     const sets = [], vals = [r.existing_id];
     for (const [k, v] of Object.entries(r.data.__changes)) { vals.push(v); sets.push(`${COLUMN[k]} = $${vals.length}`); }
     await q(`UPDATE students SET ${sets.join(", ")} WHERE id = $1`, vals);
+    report(createdRows.length + ++updated);
   }
 
   const failed = rows.filter((r) => r.status !== "ok");

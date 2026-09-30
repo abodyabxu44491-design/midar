@@ -112,13 +112,13 @@ export async function guardianByPhone(q, phone) {
   return { phone: p, guardian_name: rows[0]?.guardian_name || null, siblings: rows.map(({ id, name, class_name }) => ({ id, name, class_name })) };
 }
 
-export async function create(q, tenant, list) {
+export async function create(q, tenant, list, onEach = null) {
   // قفل صف المدرسة حتى لا تتجاوز عمليتان متزامنتان حد الباقة
   await q("SELECT id FROM tenants WHERE id = app_tenant() FOR UPDATE");
   await ensureCapacity(q, tenant, list.length);
   await ensureStudentNos(q, list.map((x) => x.student_no));
   const out = [];
-  for (const s of list) out.push(await insertOne(q, s));
+  for (const s of list) { out.push(await insertOne(q, s)); onEach?.(out.length, list.length); }
   return out;
 }
 

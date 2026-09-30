@@ -32,6 +32,15 @@ function fromDatabase(err) {
   }
 }
 
+/** رسالة الخطأ كما تُعرض للمستخدم (للعمليات التي تعمل خارج الطلب، مثل عمليات الخلفية) */
+export function publicError(err) {
+  const known = err instanceof AppError ? err : fromDatabase(err);
+  if (known) return { message: known.message, status: known.status, details: known.details || null };
+  const ref = Math.random().toString(36).slice(2, 10);
+  console.error(`[error ${ref}] background job`, err);
+  return { message: `حدث خطأ في الخادم (مرجع ${ref})`, status: 500, details: null };
+}
+
 export function errorHandler(err, req, res, _next) {
   const known = err instanceof AppError ? err : fromDatabase(err);
   if (known) return res.status(known.status).json({ error: known.message, code: known.code, ...(known.details || {}) });

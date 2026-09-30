@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { getPool, closePool, healthCheck } from "./core/db/pool.js";
 import { runMaintenance } from "./core/auth/sessions.js";
+import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
 
 try {
   await healthCheck();
@@ -12,6 +13,8 @@ try {
   console.error("✗ تعذر الاتصال بقاعدة البيانات:", e.message);
   process.exit(1);
 }
+
+await failInterruptedJobs();   // عمليات خلفية انقطعت بإعادة التشغيل
 
 const server = createApp().listen(env.PORT, () => {
   console.log(`✓ مدار يعمل على المنفذ ${env.PORT}`);
@@ -30,10 +33,11 @@ async function shutdown(signal) {
   closing = true;
   console.log(`\n${signal}: إيقاف آمن...`);
   server.close(async () => {
+    await drainJobs();          // لا تُقطع عملية خلفية في منتصفها (الاستيراد في معاملة واحدة، فلا يبقى نصفه)
     await closePool().catch(() => {});
     process.exit(0);
   });
-  setTimeout(() => process.exit(1), 15_000).unref();
+  setTimeout(() => process.exit(1), 30_000).unref();
 }
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));

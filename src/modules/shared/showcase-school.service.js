@@ -35,7 +35,7 @@ const addDays = (d, n) => { const x = new Date(d); x.setUTCDate(x.getUTCDate() +
  * يبني المدرسة كاملة داخل مدرسة موجودة فارغة (أنشأها createTenant للتو).
  * @returns ملخص الأرقام وحسابات عيّنة للدخول
  */
-export async function buildShowcase(tid, { actor = "إعداد مدرسة العرض", ip = null, perSection = 24, seed = 2026 } = {}) {
+export async function buildShowcase(tid, { actor = "إعداد مدرسة العرض", ip = null, perSection = 24, seed = 2026, progress = () => {} } = {}) {
   const R = rng(seed);
   const pick = (arr) => arr[Math.floor(R() * arr.length)];
   const chance = (p) => R() < p;
@@ -48,6 +48,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     await q("SET LOCAL statement_timeout = '120s'");
     const out = {};
 
+    progress(5, 100, "الهيكل والسنة الدراسية");
     /* 1) ملف المدرسة والهيكل (قالب «مدرسة شاملة»، شعبتان لكل صف، ربط المواد الذكي) */
     await q(`INSERT INTO school_profile (tenant_id, school_type, gender, country, city, address, email, phone, template)
              VALUES (app_tenant(), 'private', 'boys', 'المملكة العربية السعودية', 'الرياض', 'حي النرجس، طريق أنس بن مالك', 'info@alrowad-school.sa', '0112345678', 'full')
@@ -75,6 +76,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     const subjects = await q(`SELECT s.id, s.name, s.weekly_periods, array_agg(sg.grade_id) AS grades
                                 FROM subjects s JOIN subject_grades sg ON sg.subject_id = s.id WHERE s.is_active GROUP BY s.id ORDER BY s.sort_order, s.id`);
 
+    progress(12, 100, "المعلمون وإسناد المواد");
     /* 2) المعلمون: لكل مادة ومرحلة معلمون متخصصون بنصاب لا يتجاوز 20 حصة أسبوعيًا */
     const pairs = [];
     for (const c of classes) for (const s of subjects) if (s.grades.map(Number).includes(Number(c.grade_id))) pairs.push({ c, s });
@@ -126,6 +128,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       [assignments.map((a) => a.t.id), assignments.map((a) => a.class_id), assignments.map((a) => a.subject_id)]);
     out.teachers = teachers.length;
 
+    progress(22, 100, "الجدول الدراسي");
     /* 3) الجدول الدراسي: مولّد المنصة نفسه، ثم حفظ مجمّع */
     const draft = await gen.generate(q, { replace: true });
     fillGaps(draft.slots, pairs, assignments, draft.settings);
@@ -136,6 +139,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
        draft.slots.map((s) => s.subject_id), draft.slots.map((s) => s.teacher_id), draft.slots.map((s) => rooms.get(Number(s.class_id)))]);
     out.periods = draft.slots.length;
 
+    progress(30, 100, "الطلاب وأولياء الأمور");
     /* 4) الطلاب: أعمار مناسبة لكل صف، إخوة بجوال ولي أمر واحد، أرقام طلاب متسلسلة */
     const students = [];
     const keys = new Set();
@@ -171,6 +175,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     students.forEach((s, i) => { s.id = ids[i].id; });
     out.students = students.length;
 
+    progress(38, 100, "الحضور اليومي");
     /* 5) الحضور لكل يوم دراسي من بداية الفصل حتى اليوم (بلا الإجازات)، مع أسباب لبعض الغياب */
     const REASONS = ["مراجعة طبية", "ظرف عائلي", "مرض", "سفر مع الأسرة", "موعد في المستشفى"];
     const off = new Set();
@@ -193,9 +198,11 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
                SELECT app_tenant(), sid, $1::date, st, ex, rb FROM unnest($2::bigint[], $3::text[], $4::text[], $5::text[]) AS x(sid, st, ex, rb)`,
         [iso(d), rows.id, rows.st, rows.ex, rows.by]);
       attRows += rows.id.length;
+      progress(38 + Math.min(16, days / 4), 100);
     }
     out.school_days = days; out.attendance = attRows;
 
+    progress(55, 100, "الاختبارات والدرجات");
     /* 6) الاختبارات والدرجات: اختبار قصير وشهري لكل مادة في كل شعبة، منشورة، والدرجة حسب مستوى الطالب */
     const byClass = new Map();
     for (const s of students) { if (!byClass.has(Number(s.class_id))) byClass.set(Number(s.class_id), []); byClass.get(Number(s.class_id)).push(s); }
@@ -216,6 +223,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         await q(`INSERT INTO scores (tenant_id, exam_id, student_id, score, updated_by)
                  SELECT app_tenant(), $1, sid, sc, $2 FROM unnest($3::bigint[], $4::numeric[]) AS x(sid, sc)`, [e.id, a.t.name, kids.map((k) => k.id), sc]);
         exams++; scoreRows += kids.length;
+        progress(55 + (20 * exams) / (assignments.length * examPlan.length), 100);
       }
     }
     // النشر بعد إدخال الدرجات (الدرجات تُقفل عند النشر)، ثم تاريخ النشر يوم الاختبار
@@ -223,6 +231,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     await q("UPDATE exams SET published_at = exam_date + time '13:00' WHERE id = ANY($1::bigint[])", [examIds]);
     out.exams = exams; out.scores = scoreRows;
 
+    progress(75, 100, "الواجبات");
     /* 7) الواجبات: واجبان لكل شعبة في مادتين أساسيتين، مع التسليم */
     let hw = 0;
     const HW = ["حل تمارين الدرس", "مراجعة الوحدة الأولى", "بحث قصير", "ورقة عمل", "تلخيص الدرس"];
@@ -242,6 +251,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
     out.homework = hw;
 
+    progress(80, 100, "الرسوم والسداد");
     /* 8) الرسوم: فاتورة الفصل لكل طالب حسب المرحلة، وسداد واقعي (كامل، جزئي، لم يسدد) بإيصالات وقيود */
     const FEES = { primary: 8500, middle: 9500, secondary: 11000 };
     await q(`INSERT INTO payment_accounts (tenant_id, bank_name, account_holder, iban) VALUES (app_tenant(), 'مصرف الراجحي', 'مجمع مدارس الرواد الأهلية', 'SA0380000000608010167519')`);
@@ -251,12 +261,14 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       [students.map((s) => s.id), students.map((s) => FEES[s.stage] ?? 9000), iso(addDays(termStart, 45)), term.id]);
     let paid = 0, partial = 0;
     for (const [i, inv] of invIds.entries()) {
+      progress(80 + (15 * i) / invIds.length, 100);
       const r = R();
       if (r < 0.7) { paid++; await finance.recordPayment(q, { invoiceId: inv.id, amount: inv.amount, method: pick(["transfer", "cash", "card"]), note: null, idempotencyKey: `showcase-${tid}-${i}-a`, actor: "المحاسب" }); }
       else if (r < 0.88) { partial++; await finance.recordPayment(q, { invoiceId: inv.id, amount: Math.round(inv.amount / 2), method: pick(["transfer", "cash"]), note: "الدفعة الأولى", idempotencyKey: `showcase-${tid}-${i}-b`, actor: "المحاسب" }); }
     }
     out.invoices = invIds.length; out.paid = paid; out.partial = partial;
 
+    progress(95, 100, "التعاميم والتنبيهات");
     /* 9) التعاميم والتنبيهات */
     const ANN = [
       ["بداية الفصل الدراسي", "نرحب بأبنائنا الطلاب في بداية الفصل الدراسي، ونتمنى لهم عامًا حافلًا بالتميز."],
@@ -273,6 +285,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     for (const s of risky) await q(`INSERT INTO student_alerts (tenant_id, student_id, kind, level, title, body, for_parent, created_by)
       VALUES (app_tenant(), $1, 'attendance', 'warning', 'تكرار الغياب', 'نأمل متابعة انتظام الطالب في الحضور والتواصل مع المرشد الطلابي.', true, 'المرشد الطلابي')`, [s.id]);
 
+    progress(98, 100, "صفحة المدرسة");
     /* 10) صفحة المدرسة العامة وقوالب الرسائل */
     await q(`INSERT INTO school_public_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING`);
     await q(`UPDATE school_public_settings SET show_classes = true, show_teachers = true, show_announcements = true, show_timetable = true,

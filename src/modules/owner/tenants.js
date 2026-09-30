@@ -11,6 +11,7 @@ import { clearLoginFailures } from "../../core/audit.js";
 import { activate, activateSchema } from "../shared/subscription.service.js";
 import { schoolLinks } from "../../core/links.js";
 import { buildShowcase } from "../shared/showcase-school.service.js";
+import { startJob } from "../../core/jobs.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -103,13 +104,22 @@ const showcaseSchema = z.object({
   name: t.shortText("اسم المدرسة", 150).default("مجمع مدارس الرواد الأهلية للبنين"),
   per_section: z.coerce.number().int().min(5).max(35).default(24),
 });
-export async function createShowcase(req, b) {
+export async function createShowcase(req, b, progress) {
   const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله بن سعد القحطاني", plan: "enterprise", max_students: 2000, currency: "SAR" });
-  const summary = await buildShowcase(b.id, { actor: req.actor, ip: req.ip, perSection: b.per_section });
+  const summary = await buildShowcase(b.id, { actor: req.actor, ip: req.ip, perSection: b.per_section, progress });
   return { ...created, summary, links: schoolLinks(req, b.id) };
 }
+// في الخلفية (تستغرق ثواني طويلة): يُرد برقم العملية، وبيانات الدخول تُسلَّم للمالك من الذاكرة عند الانتهاء ولا تُحفظ في jobs
 r.post("/showcase", handle(async (req, res) => {
-  res.status(201).json(await createShowcase(req, parse(showcaseSchema, req.body || {})));
+  const b = parse(showcaseSchema, req.body || {});
+  const [taken] = await platform(req, (q) => q("SELECT 1 FROM tenants WHERE id = $1", [b.id]));
+  if (taken) throw conflict("هذا الرمز مستخدم لمدرسة أخرى");
+  const links = schoolLinks(req, b.id);
+  res.status(202).json(await startJob({ kind: "showcase_school", total: 100, step: "إنشاء المدرسة", req }, async ({ progress }) => {
+    const r = await createShowcase(req, b, progress);
+    const { teacher_samples, parent_samples, ...counts } = r.summary;
+    return { summary: { school: r.school, counts }, secret: { ...r, links } };
+  }));
 }));
 
 r.patch("/:id", handle(async (req, res) => {

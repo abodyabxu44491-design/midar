@@ -1,6 +1,7 @@
 // الاستيراد من ملفات: تنزيل القالب، معاينة الملف، ثم الاستيراد
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
+import { startJob } from "../../core/jobs.js";
 import { handle, badRequest } from "../../core/http/errors.js";
 import { parse, z } from "../../core/http/validate.js";
 import { KINDS, template, importRows, rowsSchema } from "../shared/import.service.js";
@@ -48,9 +49,13 @@ r.post("/students/analyze", handle(async (req, res) => {
 }));
 
 // التنفيذ: يعيد التحليل في الخادم ثم يكتب الأسطر الصحيحة كلها في معاملة واحدة
+// يعمل في الخلفية ويُرجع رقم العملية فورًا، والتقدم من /api/admin/jobs/:id (الملف الكبير لا ينقطع بمهلة الطلب)
 r.post("/students/commit", handle(async (req, res) => {
   const b = parse(studentsRows, req.body);
-  res.json(await inTenant(req, (q) => studentsImport.commit(q, req.tenant, b.rows, { gradeMap: b.grade_map, includeDuplicates: b.include_duplicates })));
+  const tenant = req.tenant;
+  res.status(202).json(await startJob({ tenantId: req.tenantId, kind: "import_students", total: b.rows.length, step: "استيراد الطلاب", req },
+    async ({ progress }) => ({ summary: await inTenant(req, (q) => studentsImport.commit(q, tenant, b.rows,
+      { gradeMap: b.grade_map, includeDuplicates: b.include_duplicates, onProgress: (n, total) => progress(n, total) })) })));
 }));
 
 /* ---------- استيراد المعلمين (Excel/CSV): مطابقة أعمدة، تحليل، تنفيذ، قالب، تصدير ---------- */
@@ -85,10 +90,16 @@ r.post("/teachers/analyze", handle(async (req, res) => {
   const { _internal, ...out } = a;
   res.json(out);
 }));
+// في الخلفية: تجزئة كلمات المرور بطيئة عمدًا. كلمات المرور المؤقتة تُسلَّم من الذاكرة لمن بدأ الاستيراد فقط ولا تُحفظ في jobs
 r.post("/teachers/commit", handle(async (req, res) => {
   const b = parse(teachersRows, req.body);
-  res.set("Cache-Control", "no-store");   // الاستجابة فيها كلمات مرور مؤقتة: لا تُخزَّن
-  res.json(await inTenant(req, (q) => teachersImport.commit(q, req.tenantId, b.rows, { gradeMap: b.grade_map, maxTeachers: req.subscription?.max_teachers ?? null })));
+  const maxTeachers = req.subscription?.max_teachers ?? null;
+  res.status(202).json(await startJob({ tenantId: req.tenantId, kind: "import_teachers", total: b.rows.length, step: "استيراد المعلمين", req },
+    async ({ progress }) => {
+      const { credentials, ...summary } = await inTenant(req, (q) => teachersImport.commit(q, req.tenantId, b.rows,
+        { gradeMap: b.grade_map, maxTeachers, onProgress: (n, total) => progress(n, total) }));
+      return { summary, secret: { credentials } };
+    }));
 }));
 
 // تنزيل القالب جاهزًا للتعبئة في Excel

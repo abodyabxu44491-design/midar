@@ -6,7 +6,7 @@ import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
-let srv, owner, r;
+let srv, owner, r, jobId;
 const id = `sc-${uid()}`.slice(0, 28);
 
 before(async () => {
@@ -14,10 +14,23 @@ before(async () => {
   owner = client(srv.base);
   const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
   assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
-  r = await owner.post("/api/owner/tenants/showcase", { id, name: "مجمع اختبار العرض", per_section: 6 });
-  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const start = await owner.post("/api/owner/tenants/showcase", { id, name: "مجمع اختبار العرض", per_section: 6 });
+  assert.equal(start.status, 202, JSON.stringify(start.data));
+  jobId = start.data.id;
+  const job = await waitJob(owner, `/api/owner/jobs/${jobId}`);
+  assert.equal(job.status, "done", JSON.stringify(job));
+  r = { data: job.secret };
 });
 after(async () => { await srv.close(); await endPool(); });
+
+async function waitJob(c, url) {
+  for (let i = 0; i < 300; i++) {
+    const j = (await c.get(url)).data;
+    if (j.status !== "running") return j;
+    await new Promise((res) => setTimeout(res, 200));
+  }
+  throw new Error("job timeout");
+}
 
 const q1 = (sql, p = []) => transaction({ tenantId: id }, async (q) => (await q(sql, p))[0]);
 
@@ -68,7 +81,15 @@ test("المدير يدخل ويرى المدرسة، والمعلم يرى جد
   assert.ok(JSON.stringify(pr.data).includes("اختبار"), "درجات منشورة");
 });
 
-test("لا تُنشأ مرتين بنفس الرمز", async () => {
+test("لا تُنشأ مرتين بنفس الرمز، وكلمات المرور لا تُحفظ في سجل العمليات وتُسلَّم مرة واحدة", async () => {
   const again = await owner.post("/api/owner/tenants/showcase", { id, name: "مكرر" });
   assert.equal(again.status, 409);
+  const row = await transaction({ platform: true }, async (q) => (await q("SELECT * FROM jobs WHERE id = $1", [jobId]))[0]);
+  assert.equal(row.status, "done");
+  assert.ok(!JSON.stringify(row).includes(r.data.credentials.password), "لا كلمة مرور في jobs");
+  assert.ok(!JSON.stringify(row).includes(r.data.summary.teacher_samples[0].password));
+  const second = (await owner.get(`/api/owner/jobs/${jobId}`)).data;
+  assert.equal(second.status, "done");
+  assert.equal(second.secret, undefined, "النتيجة السرية تُسلَّم مرة واحدة");
+  assert.equal(second.summary.counts.students, r.data.summary.students);
 });
