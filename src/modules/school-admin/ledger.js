@@ -109,8 +109,32 @@ r.post("/donations", requireModule("donations"), handle(async (req, res) => {
   res.status(201).json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return donations.add(q, b, req.actor); }));
 }));
 
+/* ---------- نظرة عامة: كل المالية في شاشة واحدة ---------- */
+// الأرصدة وحركة الفترة، والرسوم، ورواتب الشهر الحالي وحالة مسيره، وما ينتظر الاعتماد
+r.get("/overview", handle(async (req, res) => {
+  const f = parse(period, req.query);
+  res.json(await inTenant(req, async (q) => {
+    await ledger.ensureDefaults(q);
+    const s = await ledger.summary(q, { from: f.from || monthStart(), to: f.to || today() });
+    const payrollOn = req.modules?.payroll !== false;
+    return {
+      ...s,
+      staff: payrollOn ? await payroll.staffSummary(q) : null,
+      payroll: payrollOn ? await payroll.month(q, today()) : null,
+    };
+  }));
+}));
+
 /* ---------- الموظفون ---------- */
-r.get("/staff", requireModule("payroll"), handle(async (req, res) => res.json(await inTenant(req, payroll.listStaff))));
+r.get("/staff", requireModule("payroll"), handle(async (req, res) => res.json(await inTenant(req, async (q) => ({
+  staff: await payroll.listStaff(q), summary: await payroll.staffSummary(q), categories: payroll.CATEGORIES,
+})))));
+r.patch("/staff/:id/salary", requireModule("payroll"), canPayroll, handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const b = parse(payroll.salarySchema, req.body);
+  await inTenant(req, (q) => payroll.setSalary(q, id, b));
+  res.json({ ok: true });
+}));
 r.post("/staff", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const b = parse(payroll.staffSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => payroll.addStaff(q, b)));
@@ -133,6 +157,16 @@ r.post("/staff/import-teachers", requireModule("payroll"), canPayroll, handle(as
 
 /* ---------- مسير الرواتب ---------- */
 r.get("/payroll", requireModule("payroll"), handle(async (req, res) => res.json(await inTenant(req, payroll.listRuns))));
+// شهر واحد: المسير وسطوره، أو معاينة قبل إنشائه
+r.get("/payroll/month", requireModule("payroll"), handle(async (req, res) => {
+  const { period: p } = parse(z.object({ period: t.date.optional() }), req.query);
+  res.json(await inTenant(req, (q) => payroll.month(q, p || today())));
+}));
+r.delete("/payroll/:id", requireModule("payroll"), canPayroll, handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  await inTenant(req, (q) => payroll.deleteDraft(q, id));
+  res.json({ ok: true });
+}));
 r.post("/payroll", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const b = parse(payroll.runSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => payroll.createRun(q, b, req.actor)));
@@ -154,7 +188,7 @@ r.post("/payroll/:id/approve", requireModule("payroll"), canPayroll, handle(asyn
 r.post("/payroll/:id/pay", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(payroll.paySchema, req.body);
-  res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return payroll.payRun(q, id, b.method, req.actor); }));
+  res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return payroll.payRun(q, id, b, req.actor); }));
 }));
 
 /* ---------- المرفقات ---------- */

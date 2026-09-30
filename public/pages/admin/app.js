@@ -67,12 +67,21 @@ export async function startAdmin() {
     ["announcements", "التعاميم"], ["subscription", "اشتراكي"],
     ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
-    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
+    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]])
+    // مع النظام المالي تصبح «الرسوم» جزءًا من «المالية» (تبويب واحد لكل المال)
+    .filter(([key]) => !(key === "finance" && me.modules?.finance));
 
   const ctx = { me };
   const t = tabs(allTabs,
     { dashboard, assistant, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
-  ctx.goTo = (key) => t.show(key);
+  ctx.goTo = (key) => {
+    // روابط «الرسوم» القديمة (من الرئيسية والتنبيهات) تفتح قسم الرسوم داخل المالية
+    if (key === "finance" && me.modules?.finance) {
+      try { sessionStorage.setItem("midar_finance_part", "fees"); } catch { /* تجاهل */ }
+      key = "ledger";
+    }
+    return t.show(key);
+  };
 
   mount(app,
     topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,

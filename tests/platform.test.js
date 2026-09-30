@@ -581,7 +581,10 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   assert.equal((await A.admin.post("/api/admin/ledger/donations", { anonymous: false, amount: 50, method: "cash", received_on: "2026-09-02" })).status, 400, "اسم المتبرع مطلوب");
 
   // الرواتب: مسير ← اعتماد ← صرف ينشئ حركات
-  assert.ok((await A.admin.post("/api/admin/ledger/staff/import-teachers", {})).data.added >= 1);
+  // المعلمون موظفون تلقائيًا (بلا استيراد يدوي)، ويظهرون في المالية
+  const staffList = (await A.admin.get("/api/admin/ledger/staff")).data;
+  assert.ok(staffList.staff.some((x) => x.teacher_id && x.category === "teacher"), "المعلم يظهر في الموظفين تلقائيًا");
+  assert.equal((await A.admin.post("/api/admin/ledger/staff/import-teachers", {})).data.added, 0, "لا تكرار");
   await A.admin.post("/api/admin/ledger/staff", { full_name: "موظف إداري", category: "admin", base_salary: 3000 });
   const run = await A.admin.post("/api/admin/ledger/payroll", { period: "2026-09-01" });
   assert.equal(run.status, 201, JSON.stringify(run.data));

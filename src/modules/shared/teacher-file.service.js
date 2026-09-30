@@ -77,7 +77,8 @@ export async function get(q, id) {
   const [t] = await q(
     `SELECT t.id, t.full_name AS name, t.short_name, t.phone, t.employee_no, t.national_id, t.email, t.specialty, t.department,
             t.gender, t.birth_date, t.job_title, t.qualification, t.hire_date, t.employment_type, t.address,
-            t.emergency_name, t.emergency_phone, (t.photo IS NOT NULL) AS has_photo, t.created_at, t.updated_at
+            t.emergency_name, t.emergency_phone, (t.photo IS NOT NULL) AS has_photo, t.created_at, t.updated_at,
+            (SELECT s.base_salary + s.allowance FROM staff s WHERE s.teacher_id = t.id AND s.is_active) AS monthly_salary
        FROM teachers t WHERE t.id = $1`, [id]);
   if (!t) throw notFound("المعلم غير موجود");
   return t;

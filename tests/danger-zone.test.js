@@ -41,6 +41,9 @@ const run = async (o, op, params = {}, extra = {}) => {
 };
 
 before(async () => {
+  // محاولات التحقق الخاطئة المقصودة في هذا الملف تُحسب على «المالك» 15 دقيقة؛ تشغيل الحزمة مرتين متتاليتين
+  // كان يقفل التحقق في التشغيل الثاني. نبدأ كل تشغيل بعدّاد نظيف (الحماية نفسها يختبرها الاختبار أدناه).
+  await transaction({ platform: true }, (q) => q("DELETE FROM security_events WHERE kind = 'danger_reauth_failed'"));
   srv = await startServer();
   owner = client(srv.base);
   const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;

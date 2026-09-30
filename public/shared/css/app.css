@@ -1097,3 +1097,35 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   .as-grid tr.as-flag { background: var(--amber-soft); }
   .as-grid tr.as-changed { background: var(--teal-soft); }
 }
+
+/* المالية: شريط الأقسام، والبطاقات المختصرة، والموظفون، والرواتب */
+.fin-parts { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 6px 0; }
+.fin-range { align-items: end; margin-bottom: 10px; }
+.fin-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.fin-card { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.fin-card h3 { margin: 0 0 4px; font-size: 16px; }
+.fin-card.amber { border-color: var(--amber); }
+.fin-card .btn { align-self: flex-start; margin-top: auto; }
+.fin-row { display: flex; justify-content: space-between; gap: 8px; }
+.st-row { display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(260px, 1.6fr) auto; gap: 12px; align-items: center;
+  padding: 12px 0; border-top: 1px solid var(--line); }
+.st-who { min-width: 0; }
+.st-pay { display: flex; gap: 8px; align-items: end; }
+.st-pay .field { margin: 0; flex: 1; min-width: 90px; }
+.st-total { display: flex; flex-direction: column; min-width: 90px; }
+.st-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pay-list { border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; margin: 8px 0 12px; max-height: 420px; overflow: auto; }
+.pay-line { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.pay-line:first-child { border-top: 0; }
+.pay-item { display: grid; grid-template-columns: minmax(170px, 1.2fr) 2fr minmax(110px, auto); gap: 12px; align-items: end;
+  padding: 12px 0; border-top: 1px solid var(--line); }
+.pay-fields { display: grid; grid-template-columns: repeat(4, minmax(70px, 1fr)); gap: 8px; }
+.pay-fields .field { margin: 0; }
+.pay-net { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+@media (max-width: 760px) {
+  .st-row, .pay-item { grid-template-columns: 1fr; }
+  .st-acts { justify-content: flex-start; }
+  .pay-fields { grid-template-columns: repeat(2, 1fr); }
+  .pay-net { flex-direction: row; align-items: center; }
+}
+input.num { text-align: left; font-variant-numeric: tabular-nums; }

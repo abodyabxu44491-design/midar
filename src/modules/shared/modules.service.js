@@ -22,7 +22,7 @@ export const MODULES = [
 export const KEYS = MODULES.map((m) => m.key);
 
 // القيم الافتراضية إذا لم يُنشأ صف المدرسة بعد
-export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, !["donations", "payroll"].includes(k)]));
+export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, k !== "donations"]));
 
 export const modulesSchema = z.object(Object.fromEntries(KEYS.map((k) => [k, z.boolean()]))).partial();
 
