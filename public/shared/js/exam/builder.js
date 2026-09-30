@@ -7,8 +7,9 @@ import { icons } from "../icons.js";
 import { sortable } from "../sortable.js";
 import {
   QTYPES, DIFFICULTY, STATUS, PAPER_TEMPLATES, FONTS, STUDENT_FIELDS, ORDINALS, VERSION_CODES,
-  newQuestion, newSection, totals, checkPaper, sectionSummary, fmtNum, withLayoutDefaults, buildVersion, uid,
+  newQuestion, newSection, totals, checkPaper, sectionSummary, fmtNum, withLayoutDefaults, buildVersion, uid, SECTION_TITLES, OPTION_LETTERS,
 } from "./engine.js";
+import { parseQuestions, sectionTitleFor } from "./parse.js";
 import { questionEditor } from "./editor.js";
 import { rich, loadMath, paperNeedsMath } from "./math.js";
 import { previewPanel, imageUrlFor, logoUrlFor } from "./preview.js";
@@ -228,6 +229,7 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
     if (paperNeedsMath(paper.content)) await loadMath();
     const wrap = h("div");
     const S = () => paper.content.sections;
+    const checkBox = h("div");
 
     const redraw = () => {
       let n = 0;
@@ -235,16 +237,35 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       mount(wrap, S().length ? S().map((s, si) => {
         if (numbering === "per_section") n = 0;
         return sectionEl(s, si, () => ++n);
-      }) : empty("لا توجد أقسام بعد. أضف قسمًا أو ولّد الأسئلة من البنك."),
-      ro ? null : h("div", { class: "xb-add" },
-        btn("+ قسم جديد", () => { S().push(newSection(`السؤال ${ORDINALS[S().length] || S().length + 1}`)); queue("content"); redraw(); }, "ghost"),
-        btn("توليد تلقائي من بنك الأسئلة", () => generateDialog(), "soft"),
-        btn("حفظ أسئلتي الجديدة في البنك", saveAllToBank, "ghost")));
+      }) : startEl(),
+      ro || !S().length ? null : h("div", { class: "xb-add xb-add-section" },
+        btn("+ قسم جديد", () => { S().push(newSection(`السؤال ${ORDINALS[S().length] || S().length + 1}`)); queue("content"); redraw(); scrollToLast(); }, "ghost")));
       // السحب والإفلات بين الأسئلة وبين الأقسام
       if (!ro) for (const list of wrap.querySelectorAll(".xb-qlist")) {
         sortable(list, { item: ".xb-q", handle: ".xb-handle", group: `q-${paper.id}`, onDrop: () => { syncFromDom(); queue("content"); redraw(); } });
       }
+      drawCheck();
     };
+    const scrollToLast = () => requestAnimationFrame(() => wrap.querySelector(".xb-section:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+
+    // تنبيهات المراجعة تتحدث مع كل تعديل
+    const drawCheck = () => {
+      const c = checkPaper(paper);
+      mount(checkBox, !c.issues.length ? null : h("details", { class: "xb-check" },
+        h("summary", {}, `${c.blocking ? "⚠" : "•"} تنبيهات المراجعة (${c.issues.length})`),
+        c.issues.map((i) => notice(i.text, i.level === "error" ? "err" : "warn"))));
+    };
+
+    // بداية فارغة: ثلاث طرق واضحة
+    const startEl = () => (ro ? empty("لا توجد أسئلة.") : h("div", { class: "xb-start" },
+      h("b", {}, "كيف تريد إضافة الأسئلة؟"),
+      h("div", { class: "xb-start-grid" },
+        h("button", { type: "button", class: "xb-action primary", onclick: () => pasteDialog(null) },
+          h("b", {}, "لصق أسئلة جاهزة"), h("small", {}, "انسخ أسئلتك من Word أو أي ملف، والنظام يرتبها ويتعرف على أنواعها")),
+        h("button", { type: "button", class: "xb-action", onclick: () => { S().push(newSection("السؤال الأول")); queue("content"); redraw(); } },
+          h("b", {}, "كتابة الأسئلة هنا"), h("small", {}, "أضف الأسئلة واحدًا واحدًا واختر نوع كل سؤال")),
+        h("button", { type: "button", class: "xb-action", onclick: () => generateDialog() },
+          h("b", {}, "من بنك الأسئلة"), h("small", {}, "حدد عدد كل نوع ويسحبها النظام تلقائيًا")))));
 
     const syncFromDom = () => {
       const all = new Map(S().flatMap((s) => s.questions).map((q) => [q.id, q]));
@@ -254,6 +275,24 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       }
     };
 
+    // إضافة سؤال لقسم؛ القسم الذي بلا عنوان وصفي يأخذ عنوان نوع أول سؤال فيه
+    const addQuestion = (s, type, afterFocus = true) => {
+      const last = s.questions[s.questions.length - 1];
+      const q = newQuestion(type, last ? last.marks : 1);
+      if (!s.questions.length && /^السؤال \S+( \S+)?$/.test(s.title.trim()) && SECTION_TITLES[type]) s.title = `${s.title.trim()}: ${SECTION_TITLES[type]}`;
+      s.questions.push(q);
+      openEditors.clear();
+      openEditors.add(q.id);
+      queue("content"); redraw();
+      if (afterFocus) requestAnimationFrame(() => {
+        const el = wrap.querySelector(`[data-id="${q.id}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        el?.querySelector(".xb-editor textarea")?.focus({ preventScroll: true });
+      });
+      return q;
+    };
+
+    const MAIN_TYPES = ["mcq", "truefalse", "fill", "short", "essay", "match"];
     function sectionEl(s, si, nextNo) {
       const title = input({ value: s.title, placeholder: "عنوان القسم (مثل: السؤال الأول: اختر الإجابة الصحيحة)", disabled: ro });
       const sum = h("span", { class: "xb-s-sum" }, sectionSummary(s));
@@ -262,28 +301,39 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       ins.addEventListener("input", () => { s.instructions = ins.value; queue("content"); });
       const mv = (d) => { const j = si + d; if (j < 0 || j >= S().length) return; [S()[si], S()[j]] = [S()[j], S()[si]]; queue("content"); redraw(); };
       const list = h("div", { class: "xb-qlist" }, s.questions.map((q) => questionCard(q, s, nextNo(), sum)));
-      const addType = select([["", "+ إضافة سؤال…"], ...Object.entries(QTYPES).map(([k, v]) => [k, v.label])], { disabled: ro });
-      addType.addEventListener("change", () => {
-        if (!addType.value) return;
-        const last = s.questions[s.questions.length - 1];
-        const q = newQuestion(addType.value, last?.type === addType.value ? last.marks : 1);
-        s.questions.push(q);
-        openEditors.add(q.id);
-        queue("content"); redraw();
-        requestAnimationFrame(() => wrap.querySelector(`[data-id="${q.id}"] textarea`)?.focus());
-      });
+      const lastType = s.questions[s.questions.length - 1]?.type;
+      // قسم فيه أسئلة: زر واحد لسؤال من نفس النوع، وباقي الأنواع في قائمة. قسم فارغ: كل الأنواع الأساسية ظاهرة.
+      const more = select([["", lastType ? "نوع آخر…" : "أنواع أخرى…"], ...Object.entries(QTYPES).filter(([k]) => lastType || !MAIN_TYPES.includes(k)).map(([k, v]) => [k, v.label])], { disabled: ro });
+      more.addEventListener("change", () => { if (more.value) addQuestion(s, more.value); });
+      const insBox = h("div", { class: s.instructions ? "" : "hidden", style: "flex:1;min-width:180px;display:flex" }, ins);
+      const insLink = s.instructions || ro ? null : h("button", { type: "button", class: "gate-link small", onclick: (e) => { insBox.classList.remove("hidden"); e.currentTarget.remove(); ins.focus(); } }, "+ تعليمات للقسم");
+      const sameMarks = () => {
+        if (!s.questions.length) return toast("لا توجد أسئلة في القسم", true);
+        const v = Number(String(prompt("درجة كل سؤال في هذا القسم", s.questions[0].marks) || "").replace(",", "."));
+        if (!(v > 0)) return;
+        for (const q of s.questions) q.marks = v;
+        queue("content"); redraw(); toast(`كل أسئلة القسم بدرجة ${fmtNum(v)}`);
+      };
       return h("section", { class: "xb-section", "data-sid": s.id },
         h("div", { class: "xb-s-head" }, title,
           ro ? null : h("div", { class: "xb-q-acts" },
-            h("button", { type: "button", class: "xb-icon", "aria-label": "تحريك القسم لأعلى", onclick: () => mv(-1) }, icons.up({ size: 16 })),
-            h("button", { type: "button", class: "xb-icon", "aria-label": "تحريك القسم لأسفل", onclick: () => mv(1) }, icons.down({ size: 16 })),
-            h("button", { type: "button", class: "xb-icon danger", "aria-label": "حذف القسم", onclick: () => {
+            h("button", { type: "button", class: "xb-icon", "aria-label": "تحريك القسم لأعلى", title: "تحريك القسم لأعلى", onclick: () => mv(-1) }, icons.up({ size: 16 })),
+            h("button", { type: "button", class: "xb-icon", "aria-label": "تحريك القسم لأسفل", title: "تحريك القسم لأسفل", onclick: () => mv(1) }, icons.down({ size: 16 })),
+            h("button", { type: "button", class: "xb-icon danger", "aria-label": "حذف القسم", title: "حذف القسم", onclick: () => {
               if (s.questions.length && !confirmAction(`حذف القسم وأسئلته (${s.questions.length})؟`)) return;
               S().splice(si, 1); queue("content"); redraw();
             } }, icons.trash({ size: 16 })))),
-        h("div", { class: "row", style: "align-items:center" }, ins, sum),
+        h("div", { class: "xb-s-meta" }, sum, ro || !s.questions.length ? null : h("button", { type: "button", class: "gate-link small", onclick: sameMarks }, "توحيد الدرجات"), insLink, insBox),
         list,
-        ro ? null : h("div", { class: "xb-add" }, addType, btn("إضافة من بنك الأسئلة", () => bankDialog(s), "ghost sm")));
+        ro ? null : h("div", { class: "xb-addq" },
+          lastType
+            ? h("button", { type: "button", class: "xb-qtype on", onclick: () => addQuestion(s, lastType) }, `+ سؤال ${QTYPES[lastType].label}`)
+            : [h("span", { class: "xb-addq-l" }, "اختر نوع أول سؤال:"),
+              MAIN_TYPES.map((k) => h("button", { type: "button", class: "xb-qtype", onclick: () => addQuestion(s, k) }, `+ ${QTYPES[k].label}`))],
+          more,
+          h("span", { class: "xb-addq-sep" }),
+          btn("لصق أسئلة", () => pasteDialog(s), "ghost sm"),
+          btn("من البنك", () => bankDialog(s), "ghost sm")));
     }
 
     function questionCard(q, s, no, sectionSum) {
@@ -292,10 +342,10 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       const paintPrev = () => {
         const txt = q.text || (q.type === "match" ? (q.pairs || []).map((p) => p.left).filter(Boolean).join(" — ") : q.type === "order" ? (q.items || []).map((i) => i.text).join(" — ") : "");
         prev.classList.toggle("empty-q", !String(txt).trim() && !q.image);
-        mount(prev, String(txt).trim() ? rich(txt, { blanks: true }) : q.image ? "(سؤال بصورة)" : "اكتب نص السؤال…");
+        mount(prev, String(txt).trim() ? rich(txt, { blanks: true }) : q.image ? "(سؤال بصورة)" : "اضغط لكتابة السؤال…");
       };
       paintPrev();
-      const marks = input({ type: "number", class: "xb-marks", min: 0.25, step: 0.25, value: q.marks, "aria-label": "الدرجة", disabled: ro });
+      const marks = input({ type: "number", class: "xb-marks", min: 0.25, step: 0.25, value: q.marks, "aria-label": "الدرجة", title: "الدرجة", disabled: ro });
       marks.addEventListener("input", () => { q.marks = Number(marks.value) || 0; sectionSum.textContent = sectionSummary(s); queue("content"); });
       const edBox = h("div", { class: "xb-editor" });
       const toggle = () => {
@@ -305,19 +355,21 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       };
       const drawEditor = () => mount(edBox, questionEditor(q, {
         base,
-        onChange: () => { marks.value = q.marks; paintPrev(); sectionSum.textContent = sectionSummary(s); queue("content"); },
+        onChange: () => { marks.value = q.marks; paintPrev(); sectionSum.textContent = sectionSummary(s); queue("content"); drawCheck(); },
         onTypeChange: () => { typeBadge.textContent = QTYPES[q.type].short; },
-      }));
+      }), h("div", { class: "xb-ed-foot" },
+        btn("تم", toggle, "ghost sm"),
+        btn(`+ سؤال ${QTYPES[q.type].short} جديد`, () => addQuestion(s, q.type), "sm")));
       const typeBadge = h("span", { class: "xb-type" }, QTYPES[q.type].short);
       const idx = () => s.questions.indexOf(q);
       const act = (icon, label, fn, cls = "") => h("button", { type: "button", class: `xb-icon ${cls}`, "aria-label": label, title: label, onclick: fn }, icon);
+      const menuItem = (label, fn) => h("button", { type: "button", onclick: (e) => { e.currentTarget.closest("details").open = false; fn(); } }, label);
+      const moveTo = (d) => { const i = idx(); const j = i + d; if (j < 0 || j >= s.questions.length) return; [s.questions[i], s.questions[j]] = [s.questions[j], s.questions[i]]; queue("content"); redraw(); };
       card.append(h("div", { class: "xb-q-row" },
         ro ? null : h("span", { class: "xb-handle", title: "اسحب لتغيير الترتيب", "aria-label": "اسحب لتغيير الترتيب" }, icons.grip({ size: 18 })),
         h("span", { class: "xb-qno" }, no), typeBadge, prev, marks,
         ro ? null : h("div", { class: "xb-q-acts" },
-          act(icons.edit({ size: 16 }), "تعديل", toggle),
-          act(icons.up({ size: 16 }), "لأعلى", () => { const i = idx(); if (i > 0) { [s.questions[i - 1], s.questions[i]] = [s.questions[i], s.questions[i - 1]]; queue("content"); redraw(); } }),
-          act(icons.down({ size: 16 }), "لأسفل", () => { const i = idx(); if (i < s.questions.length - 1) { [s.questions[i + 1], s.questions[i]] = [s.questions[i], s.questions[i + 1]]; queue("content"); redraw(); } }),
+          act(icons.edit({ size: 16 }), openEditors.has(q.id) ? "إغلاق" : "تعديل", toggle),
           act(icons.copy({ size: 16 }), "تكرار السؤال", () => {
             const c = structuredClone(q); c.id = uid("q"); c.bank_id = null;
             for (const k of ["options", "pairs", "items"]) if (c[k]) {
@@ -327,11 +379,122 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
             }
             s.questions.splice(idx() + 1, 0, c); queue("content"); redraw();
           }),
-          act(icons.refresh({ size: 16 }), "استبدال بسؤال آخر من البنك", () => replaceFromBank(q, s)),
-          act(icons.bank({ size: 16 }), "حفظ في بنك الأسئلة", () => saveToBank([q.id])),
-          act(icons.trash({ size: 16 }), "حذف", () => { if (!confirmAction("حذف السؤال؟")) return; s.questions.splice(idx(), 1); queue("content"); redraw(); }, "danger"))));
+          act(icons.trash({ size: 16 }), "حذف", () => { if (!confirmAction("حذف السؤال؟")) return; s.questions.splice(idx(), 1); queue("content"); redraw(); }, "danger"),
+          h("details", { class: "xb-menu" }, h("summary", { class: "xb-icon", "aria-label": "المزيد", title: "المزيد" }, "⋯"),
+            h("div", { class: "xb-menu-list" },
+              menuItem("تحريك لأعلى", () => moveTo(-1)),
+              menuItem("تحريك لأسفل", () => moveTo(1)),
+              S().length > 1 ? menuItem("نقل لقسم آخر…", () => moveToSection(q, s)) : null,
+              menuItem("استبدال بسؤال آخر من البنك", () => replaceFromBank(q, s)),
+              menuItem("حفظ في بنك الأسئلة", () => saveToBank([q.id])))))));
       if (openEditors.has(q.id)) { drawEditor(); card.append(edBox); }
       return card;
+    }
+
+    function moveToSection(q, from) {
+      const others = S().filter((x) => x !== from);
+      const pick = select(others.map((x) => [x.id, x.title || "(قسم بلا عنوان)"]));
+      const d = dialog("نقل السؤال لقسم آخر", field("القسم", pick), [btn("نقل", () => {
+        const to = S().find((x) => x.id === pick.value);
+        from.questions.splice(from.questions.indexOf(q), 1); to.questions.push(q);
+        queue("content"); d.close(); redraw(); toast("نُقل السؤال");
+      })]);
+    }
+
+    // ترتيب تلقائي: كل نوع في قسم مستقل بعنوان جاهز، بنفس ترتيب ظهور الأنواع
+    function autoArrange() {
+      const all = S().flatMap((s) => s.questions);
+      if (!all.length) return toast("لا توجد أسئلة", true);
+      const groups = new Map();
+      for (const q of all) groups.set(q.type, [...(groups.get(q.type) || []), q]);
+      if (!confirmAction(`ترتيب ${all.length} سؤال في ${groups.size} ${groups.size > 2 && groups.size < 11 ? "أقسام" : "قسم"} حسب النوع، بعناوين جاهزة؟ (تعليمات الأقسام الحالية تُحذف)`)) return;
+      paper.content.sections = [...groups.entries()].map(([type, qs], i) => ({ ...newSection(sectionTitleFor(ORDINALS[i] || i + 1, type)), questions: qs }));
+      queue("content"); redraw(); toast("رُتبت الأسئلة حسب النوع");
+    }
+
+    /* ----- لصق أسئلة جاهزة ----- */
+    function pasteDialog(target) {
+      const ta = textarea({ rows: 14, dir: "auto", class: "xb-paste",
+        placeholder: "الصق أسئلتك هنا، مثل:\n\n1- عاصمة المملكة العربية السعودية هي:\nأ) الرياض *\nب) جدة\nج) مكة\n\n2- الشمس نجم (صح)\n3- عاصمة مصر هي ______ (القاهرة)" });
+      const marksIn = input({ type: "number", min: 0.25, step: 0.25, value: 1, style: "max-width:90px" });
+      const where = select([
+        ...(target ? [["here", `إلى القسم: ${target.title || "الحالي"}`]] : []),
+        ["new", "أقسام جديدة (قسم لكل عنوان أو نوع)"],
+        ...(!target ? S().map((x) => [x.id, `إلى القسم: ${x.title || "(بلا عنوان)"}`]) : []),
+      ]);
+      const out = h("div", { class: "xb-paste-prev" });
+      let parsed = { sections: [], count: 0, warnings: [] };
+      const TYPE_BADGE = (q) => h("span", { class: "xb-type" }, QTYPES[q.type].short);
+      const answerText = (q) => {
+        if (q.options) { const c = q.options.filter((o) => (q.correct || []).includes(o.id)).map((o) => o.text); return c.length ? `✓ ${c.join("، ")}` : "⚠ بدون إجابة صحيحة"; }
+        if (q.type === "truefalse") return q.correct === true ? "✓ صح" : q.correct === false ? "✓ خطأ" : "⚠ حدد صح أو خطأ";
+        if (q.type === "fill") return q.answers?.length ? `✓ ${q.answers.join("، ")}` : "";
+        if (q.type === "match") return `${q.pairs.length} أزواج`;
+        return q.answer ? `✓ ${q.answer}` : "";
+      };
+      const paint = async () => {
+        parsed = parseQuestions(ta.value, { marks: Number(marksIn.value) || 1 });
+        if (/\$/.test(ta.value)) await loadMath();
+        let n = 0;
+        mount(out, !parsed.count ? empty(ta.value.trim() ? "لم يُتعرّف على أسئلة. رقّم الأسئلة (1- 2- …) أو افصل بينها بسطر فارغ." : "المعاينة تظهر هنا أثناء اللصق.")
+          : [h("div", { class: "xb-paste-sum" }, `تعرّفنا على ${parsed.count} سؤال`,
+              ...Object.entries(parsed.sections.flatMap((x) => x.questions).reduce((a, q) => ({ ...a, [q.type]: (a[q.type] || 0) + 1 }), {}))
+                .map(([k, c]) => h("span", { class: "xb-type" }, `${QTYPES[k].short} ${c}`))),
+            parsed.sections.map((sec) => h("div", {},
+              sec.title ? h("div", { class: "xb-paste-sec" }, sec.title) : null,
+              sec.questions.map((q) => h("div", { class: "xb-paste-q" },
+                h("span", { class: "xb-qno" }, ++n), TYPE_BADGE(q),
+                h("div", {}, h("div", {}, q.text ? rich(q.text, { blanks: true }) : q.type === "match" ? q.pairs.map((p) => `${p.left} ← ${p.right}`).join(" · ") : "—"),
+                  q.options ? h("div", { class: "small muted" }, q.options.map((o, i) => `${OPTION_LETTERS[i]}) ${o.text}`).join("   ")) : null,
+                  h("div", { class: `small ${/⚠/.test(answerText(q)) ? "xb-warn-t" : "xb-ok-t"}` }, answerText(q))),
+                h("span", { class: "small muted" }, `${fmtNum(q.marks)} د`))))),
+            parsed.warnings.map((w) => notice(w, "warn"))]);
+      };
+      ta.addEventListener("input", () => { clearTimeout(ta._t); ta._t = setTimeout(paint, 250); });
+      marksIn.addEventListener("input", paint);
+      const add = () => {
+        if (!parsed.count) return toast("الصق الأسئلة أولًا", true);
+        const w = where.value;
+        if (w === "new") {
+          // الأسئلة بلا عنوان قسم تُقسّم حسب النوع
+          const secs = [];
+          for (const sec of parsed.sections) {
+            if (sec.title) { secs.push({ ...newSection(sec.title), questions: sec.questions }); continue; }
+            const byType = new Map();
+            for (const q of sec.questions) byType.set(q.type, [...(byType.get(q.type) || []), q]);
+            for (const [type, qs] of byType) secs.push({ ...newSection(""), type, questions: qs });
+          }
+          const base0 = S().length;
+          secs.forEach((x, i) => { if (!x.title) x.title = sectionTitleFor(ORDINALS[base0 + i] || base0 + i + 1, x.type); delete x.type; });
+          S().push(...secs);
+        } else {
+          const to = w === "here" ? target : S().find((x) => x.id === w);
+          const qs = parsed.sections.flatMap((x) => x.questions);
+          if (!to.questions.length && /^السؤال \S+( \S+)?$/.test(to.title.trim()) && new Set(qs.map((q) => q.type)).size === 1 && SECTION_TITLES[qs[0].type]) {
+            to.title = `${to.title.trim()}: ${SECTION_TITLES[qs[0].type]}`;
+          }
+          to.questions.push(...qs);
+        }
+        queue("content"); d.close(); redraw();
+        toast(`أُضيف ${parsed.count} سؤال. راجع الأسئلة التي عليها تنبيه.`);
+      };
+      const help = h("details", { class: "xb-paste-help" }, h("summary", {}, "كيف أكتب الأسئلة ليتعرّف عليها النظام؟"),
+        h("ul", {},
+          h("li", {}, "رقّم الأسئلة: 1- أو 1) أو 1. — أو افصل بين الأسئلة بسطر فارغ."),
+          h("li", {}, "اختيار من متعدد: الخيارات في أسطر تبدأ بـ أ) ب) ج) — وضع ", h("b", {}, "*"), " بعد الإجابة الصحيحة، أو سطر «الإجابة: ب»."),
+          h("li", {}, "صح أو خطأ: اكتب (صح) أو (خطأ) في آخر العبارة."),
+          h("li", {}, "أكمل الفراغ: اكتب ____ أو ..... مكان الفراغ، والإجابة بين قوسين في آخر السطر."),
+          h("li", {}, "توصيل: كل زوج في سطر: الماء = H2O"),
+          h("li", {}, "عنوان قسم: سطر يبدأ بـ «السؤال الأول:» أو «السؤال الثاني:»."),
+          h("li", {}, "الدرجة: اكتب (2 درجة) في آخر السؤال، وإلا تُستخدم الدرجة الافتراضية.")));
+      const d = dialog("لصق أسئلة جاهزة", h("div", { class: "xb-paste-grid" },
+        h("div", {}, ta, help,
+          h("div", { class: "row", style: "align-items:end" }, field("درجة كل سؤال (افتراضيًا)", marksIn), field("إضافة", where))),
+        h("div", {}, h("b", { class: "small" }, "المعاينة"), out)),
+      [btn("إضافة الأسئلة", add)]);
+      d.classList.add("xb-xwide");
+      paint();
+      ta.focus();
     }
 
     /* ----- البنك ----- */
@@ -443,12 +606,13 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
     }
 
     redraw();
-    const check = checkPaper(paper);
-    return [lockedNote(),
-      check.issues.length ? h("details", { class: "spaced", style: "margin-bottom:10px" },
-        h("summary", { class: "small", style: "cursor:pointer" }, `تنبيهات المراجعة (${check.issues.length})`),
-        check.issues.map((i) => notice(i.text, i.level === "error" ? "err" : "warn"))) : null,
-      sub("اسحب السؤال من المقبض لتغيير ترتيبه أو نقله لقسم آخر، أو استخدم أزرار الأعلى والأسفل."),
+    const tools = ro ? null : h("div", { class: "xb-tools" },
+      btn("لصق أسئلة جاهزة", () => pasteDialog(null), "sm"),
+      btn("ترتيب تلقائي حسب النوع", autoArrange, "ghost sm"),
+      btn("توليد من بنك الأسئلة", () => generateDialog(), "ghost sm"),
+      btn("حفظ أسئلتي الجديدة في البنك", saveAllToBank, "ghost sm"));
+    return [lockedNote(), tools, checkBox,
+      S().length && !ro ? sub("اضغط على السؤال لتعديله. اسحب من المقبض ⋮⋮ لتغيير الترتيب أو لنقله لقسم آخر.") : null,
       h("div", { class: "spaced" }), wrap,
       h("div", { class: "row spaced", style: "justify-content:space-between" }, btn("السابق", () => show("info"), "ghost"), btn("التالي: تصميم الورقة", () => show("design")))];
   }

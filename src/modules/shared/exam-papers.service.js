@@ -6,7 +6,7 @@ import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { matchesMime } from "./attachments.service.js";
 import {
-  totals, checkPaper, stripAnswers, DEFAULT_EXAM_TYPES, ORDINALS, QTYPES, newQuestion, withLayoutDefaults,
+  totals, checkPaper, stripAnswers, DEFAULT_EXAM_TYPES, ORDINALS, QTYPES, newQuestion, withLayoutDefaults, SECTION_TITLES,
 } from "../../../public/shared/js/exam/engine.js";
 import { paperQuestion, normalizeQuestion, newItemId, pick } from "./question-bank.service.js";
 
@@ -482,11 +482,7 @@ export async function importPaper(q, who, b, actor) {
 }
 
 /* ---------- الإنشاء السريع ومن البنك ---------- */
-export const SECTION_TITLES = {
-  mcq: "اختر الإجابة الصحيحة", multi: "اختر جميع الإجابات الصحيحة", truefalse: "ضع كلمة (صح) أمام العبارة الصحيحة وكلمة (خطأ) أمام الخاطئة",
-  fill: "أكمل الفراغات التالية", short: "أجب عن الأسئلة التالية بإيجاز", essay: "أجب عمّا يلي", match: "صِل العمود (أ) بما يناسبه من العمود (ب)",
-  order: "رتّب ما يلي ترتيبًا صحيحًا", image: "تأمل الشكل ثم أجب", table: "أجب مستعينًا بالجدول", math: "حل المسائل التالية", custom: "أجب عمّا يلي",
-};
+export { SECTION_TITLES };
 const sectionTitle = (i, type) => `السؤال ${ORDINALS[i] || i + 1}: ${SECTION_TITLES[type] || QTYPES[type].label}`;
 
 // توزيع مجموع الدرجات على عدد الأسئلة لأقرب ربع درجة

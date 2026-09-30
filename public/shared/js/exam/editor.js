@@ -164,6 +164,11 @@ export function tableEditor(table, changed) {
 }
 
 /* ---------- المحرر ---------- */
+const PLACEHOLDER = {
+  mcq: "مثال: عاصمة المملكة العربية السعودية هي:", multi: "مثال: من الأعداد الأولية:", truefalse: "مثال: الشمس نجم",
+  fill: "مثال: عاصمة مصر هي ____", short: "مثال: عرّف التمثيل الضوئي", essay: "مثال: اكتب فقرة عن…",
+  match: "مثال: صِل كل مادة برمزها الكيميائي", order: "مثال: رتّب مراحل نمو النبات", math: "مثال: حل المعادلة $2x+3=7$",
+};
 export function questionEditor(q, { base, onChange, onTypeChange, bankFields = null }) {
   const root = h("div");
   const changed = () => onChange?.(q);
@@ -184,38 +189,38 @@ export function questionEditor(q, { base, onChange, onTypeChange, bankFields = n
     const diff = select(Object.entries(DIFFICULTY), { value: q.difficulty || "medium" });
     diff.addEventListener("change", () => { q.difficulty = diff.value; changed(); });
 
+    // الأساسي فقط ظاهر: النوع والدرجة، نص السؤال، الخيارات والإجابة. الباقي في «خيارات إضافية».
     const parts = [
-      h("div", { class: "row" }, field("نوع السؤال", type), field("الدرجة", marks), field("الصعوبة", diff)),
+      h("div", { class: "xb-ed-top" }, field("نوع السؤال", type), field("الدرجة", marks)),
       bankFields,
-      field(q.type === "fill" ? "نص السؤال (اكتب ____ مكان كل فراغ)" : q.type === "truefalse" ? "العبارة" : "نص السؤال",
-        richInput(q.text, (v) => { q.text = v; changed(); }, { rows: q.type === "essay" ? 3 : 2 })),
+      field(q.type === "fill" ? "نص السؤال — اكتب ____ مكان كل فراغ" : q.type === "truefalse" ? "العبارة" : q.type === "match" ? "نص السؤال (اختياري)" : "نص السؤال",
+        richInput(q.text, (v) => { q.text = v; changed(); }, { rows: q.type === "essay" ? 3 : 2, placeholder: PLACEHOLDER[q.type] || "اكتب السؤال هنا…" })),
     ];
-    if (q.type === "fill") parts.push(btn("إدراج فراغ", () => {
+    if (q.type === "fill") parts.push(btn("إدراج فراغ ____", () => {
       const ta = root.querySelector("textarea");
       insertPlain(ta, " ________ ");
     }, "ghost sm"));
 
     parts.push(typeBody(q, changed, draw));
-    parts.push(h("details", { open: !!(q.image || q.table) || q.type === "image" || q.type === "table" },
-      h("summary", { class: "small", style: "cursor:pointer;margin:8px 0" }, "صورة أو جدول داخل السؤال"),
-      imageControls(q, base, changed),
-      q.table ? h("div", { class: "spaced" }, tableEditor(q.table, changed),
-        q.type !== "table" ? btn("إزالة الجدول", () => { q.table = null; changed(); draw(); }, "danger sm") : null)
-        : btn("إضافة جدول", () => { q.table = newTable(); changed(); draw(); }, "ghost sm")));
+    if (def.space) parts.push(h("div", { class: "xb-teacher-only" }, h("b", {}, "الإجابة الصحيحة — للمعلم فقط، لا تظهر في ورقة الطالب"),
+      richInput(q.answer, (v) => { q.answer = v; changed(); }, { rows: q.type === "essay" ? 2 : 1, placeholder: q.type === "essay" ? "عناصر الإجابة المتوقعة" : "الإجابة (تظهر في نموذج الإجابة)" })));
 
-    if (def.space) {
-      const space = select(Object.entries(ANSWER_SPACE).map(([k, [l]]) => [k, l]), { value: q.space || "auto" });
-      space.addEventListener("change", () => { q.space = space.value; changed(); });
-      const lined = h("input", { type: "checkbox", checked: q.lined !== false, onchange: (e) => { q.lined = e.target.checked; changed(); } });
-      parts.push(h("div", { class: "row" }, field("مساحة الإجابة في الورقة", space),
-        h("label", { class: "row", style: "align-items:center;gap:6px;flex:none;margin-bottom:12px" }, lined, "خطوط للكتابة")));
-    }
-
-    parts.push(h("div", { class: "xb-teacher-only" }, h("b", {}, "للمعلم فقط — لا تظهر في ورقة الطالب"),
-      def.space ? field(q.type === "essay" ? "عناصر الإجابة المتوقعة" : "الإجابة الصحيحة",
-        richInput(q.answer, (v) => { q.answer = v; changed(); }, { rows: 2 })) : null,
-      field("الحل النموذجي", richInput(q.solution, (v) => { q.solution = v; changed(); }, { rows: 2 })),
-      field("ملاحظات التصحيح", richInput(q.notes, (v) => { q.notes = v; changed(); }, { rows: 1, math: false }))));
+    const extraOpen = !!(q.image || q.table || q.solution || q.notes) || q.type === "image" || q.type === "table";
+    const space = def.space ? select(Object.entries(ANSWER_SPACE).map(([k, [l]]) => [k, l]), { value: q.space || "auto" }) : null;
+    space?.addEventListener("change", () => { q.space = space.value; changed(); });
+    const lined = def.space ? h("input", { type: "checkbox", checked: q.lined !== false, onchange: (e) => { q.lined = e.target.checked; changed(); } }) : null;
+    parts.push(h("details", { class: "xb-more", open: extraOpen },
+      h("summary", {}, "خيارات إضافية", h("small", {}, " — الصعوبة، صورة أو جدول، مساحة الإجابة، الحل النموذجي")),
+      h("div", { class: "row" }, field("الصعوبة", diff),
+        def.space ? field("مساحة الإجابة في الورقة", space) : null,
+        def.space ? h("label", { class: "row", style: "align-items:center;gap:6px;flex:none;margin-bottom:12px" }, lined, "خطوط للكتابة") : null),
+      h("div", { class: "xb-more-media" }, imageControls(q, base, changed),
+        q.table ? h("div", { class: "spaced" }, tableEditor(q.table, changed),
+          q.type !== "table" ? btn("إزالة الجدول", () => { q.table = null; changed(); draw(); }, "danger sm") : null)
+          : btn("إضافة جدول", () => { q.table = newTable(); changed(); draw(); }, "ghost sm")),
+      h("div", { class: "xb-teacher-only" }, h("b", {}, "للمعلم فقط — لا تظهر في ورقة الطالب"),
+        field("الحل النموذجي", richInput(q.solution, (v) => { q.solution = v; changed(); }, { rows: 2 })),
+        field("ملاحظات التصحيح", richInput(q.notes, (v) => { q.notes = v; changed(); }, { rows: 1, math: false })))));
     mount(root, parts);
   };
   draw();
@@ -234,9 +239,13 @@ function typeBody(q, changed, redraw) {
   switch (q.type) {
     case "mcq": case "multi": return optionsEditor(q, changed, redraw);
     case "truefalse": {
-      const mk = (val, label) => h("label", { class: "row", style: "align-items:center;gap:6px;flex:none" },
-        h("input", { type: "radio", name: `tf-${q.id}`, checked: q.correct === val, onchange: () => { q.correct = val; changed(); } }), label);
-      return field("الإجابة الصحيحة", h("div", { class: "row", style: "gap:18px" }, mk(true, "صح"), mk(false, "خطأ")));
+      const box = h("div", { class: "xb-tf" });
+      const paint = () => mount(box, [[true, "✓ صح"], [false, "✗ خطأ"]].map(([val, label]) => h("button", {
+        type: "button", class: `xb-tf-btn${q.correct === val ? " on" : ""}${val ? "" : " no"}`, "aria-pressed": String(q.correct === val),
+        onclick: () => { q.correct = val; changed(); paint(); },
+      }, label)));
+      paint();
+      return field("الإجابة الصحيحة", box);
     }
     case "fill": {
       const n = Math.max(1, countBlanks(q.text));
@@ -289,25 +298,51 @@ function typeBody(q, changed, redraw) {
 function optionsEditor(q, changed) {
   const box = h("div");
   const multi = q.type === "multi";
+  const focusOpt = (i) => box.querySelector(`[data-opt="${i}"]`)?.focus();
   const draw = () => {
     const correct = new Set(q.correct || []);
     const cols = select([["", "ترتيب تلقائي"], ["1", "عمود واحد"], ["2", "عمودان"], ["4", "أربعة أعمدة"]], { value: q.cols || "" });
     cols.addEventListener("change", () => { if (cols.value) q.cols = Number(cols.value); else delete q.cols; changed(); });
     mount(box,
-      h("small", { class: "sub" }, multi ? "حدد كل الإجابات الصحيحة" : "حدد الإجابة الصحيحة"),
+      h("small", { class: "sub" }, multi ? "علّم كل الإجابات الصحيحة بالدائرة بجانبها. Enter ينقلك للخيار التالي." : "علّم الإجابة الصحيحة بالدائرة بجانبها. Enter ينقلك للخيار التالي، ويمكنك لصق كل الخيارات مرة واحدة."),
       (q.options || []).map((o, i) => {
         const mark = h("input", { type: multi ? "checkbox" : "radio", name: `opt-${q.id}`, checked: correct.has(o.id), "aria-label": "إجابة صحيحة" });
         mark.addEventListener("change", () => {
           if (multi) q.correct = mark.checked ? [...new Set([...(q.correct || []), o.id])] : (q.correct || []).filter((x) => x !== o.id);
           else q.correct = [o.id];
-          changed();
+          changed(); draw();
         });
-        const text = input({ type: "text", value: o.text, placeholder: `الخيار ${OPTION_LETTERS[i]}`, dir: "auto" });
+        const text = input({ type: "text", value: o.text, placeholder: `الخيار ${OPTION_LETTERS[i]}`, dir: "auto", "data-opt": i });
         const shown = h("span", { class: "xb-opt-math" });
         const paint = async () => { if (hasMath(o.text)) { await loadMath(); mount(shown, rich(o.text)); } else shown.replaceChildren(); };
         text.addEventListener("input", () => { o.text = text.value; changed(); paint(); });
+        // Enter ينقل للخيار التالي (ويضيف خيارًا جديدًا عند آخر خيار)
+        text.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter" || e.isComposing) return;
+          e.preventDefault();
+          if (i === q.options.length - 1) {
+            if (q.options.length >= 8 || !text.value.trim()) return;
+            q.options.push({ id: uid("o"), text: "" }); changed(); draw();
+          }
+          focusOpt(i + 1);
+        });
+        // لصق عدة أسطر في خانة واحدة: كل سطر خيار، والنجمة * تحدد الإجابة الصحيحة
+        text.addEventListener("paste", (e) => {
+          const lines = (e.clipboardData?.getData("text") || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          if (lines.length < 2) return;
+          e.preventDefault();
+          const strip = (l) => l.replace(/^[(\[]?\s*(هـ|[أابجدهوزح]|[a-hA-H])\s*[)\]\-.:]\s+/, "").replace(/^[•●\-]\s*/, "");
+          lines.slice(0, 8 - i).forEach((l, k) => {
+            const star = /(\*|✓|✔)\s*$|^\s*(\*|✓|✔)/.test(l);
+            const t = strip(l).replace(/\s*(\*|✓|✔)\s*$/, "").replace(/^\s*(\*|✓|✔)\s*/, "");
+            if (!q.options[i + k]) q.options.push({ id: uid("o"), text: "" });
+            q.options[i + k].text = t;
+            if (star) q.correct = multi ? [...new Set([...(q.correct || []), q.options[i + k].id])] : [q.options[i + k].id];
+          });
+          changed(); draw(); focusOpt(Math.min(q.options.length - 1, i + lines.length - 1));
+        });
         paint();
-        return h("div", { class: "xb-opt" }, mark, h("span", { class: "letter" }, OPTION_LETTERS[i]), text, shown,
+        return h("div", { class: `xb-opt${correct.has(o.id) ? " ok" : ""}` }, mark, h("span", { class: "letter" }, OPTION_LETTERS[i]), text, shown,
           h("button", { type: "button", class: "xb-icon danger", "aria-label": "حذف الخيار", onclick: () => {
             q.options.splice(i, 1); q.correct = (q.correct || []).filter((x) => x !== o.id); changed(); draw();
           } }, icons.trash({ size: 16 })));
