@@ -16,9 +16,9 @@ export default async function dashboard({ me, goTo }) {
   const c = alerts.counts;
 
   const LEVELS = {
-    urgent: { name: "عاجل", cls: "bad" },
-    action: { name: "يحتاج إجراء", cls: "warn" },
-    info: { name: "معلومات", cls: "" },
+    urgent: { name: "عاجل", dot: "🔴", cls: "bad" },
+    action: { name: "يحتاج إجراء", dot: "🟠", cls: "warn" },
+    info: { name: "معلومات", dot: "🟢", cls: "" },
   };
 
   // مركز التنبيهات: مرتبة بالأهمية، والضغط ينقلك للقسم
@@ -29,7 +29,7 @@ export default async function dashboard({ me, goTo }) {
         const rows = data.items.filter((x) => x.level === level);
         if (!rows.length) return null;
         return h("div", { class: "notif-group" },
-          h("h3", { class: "sec-title" }, h("span", { class: `lvl-dot ${LEVELS[level].cls}`, "aria-hidden": "true" }), LEVELS[level].name),
+          h("h3", { class: "sec-title" }, `${LEVELS[level].dot} ${LEVELS[level].name}`),
           rows.map((x) => h("button", { class: `notif ${LEVELS[level].cls}`, type: "button",
             onclick: () => goTo(x.tab) },
             h("span", { class: "notif-count" }, x.count),
@@ -74,19 +74,18 @@ export default async function dashboard({ me, goTo }) {
   ];
 }
 
-// اختصارات لأكثر المهام اليومية استخدامًا، مرتبة حسب تسلسل يوم العمل: الحضور ثم الطلاب ثم الرسوم ثم التعاميم.
-// الأول (الأكثر استخدامًا يوميًا) بلون أساسي، والبقية بلون هادئ. بلا رموز تعبيرية.
+// اختصارات لأكثر المهام اليومية استخدامًا — تفتح القسم مباشرة بدل البحث عنه بالقائمة
 function quickActions(goTo, me) {
   const on = (k) => me.modules?.[k] !== false;
   const items = [
-    ["attendance", "تسجيل الحضور", on("attendance")],
-    ["students", "إضافة طالب", true],
-    ["finance", "متابعة الرسوم", on("fees")],
-    ["announcements", "إرسال تعميم", on("announcements")],
+    ["students", "➕ إضافة طالب", true],
+    ["attendance", "✅ تسجيل الحضور", on("attendance")],
+    ["announcements", "📢 إرسال تعميم", on("announcements")],
+    ["finance", "💰 متابعة الرسوم", on("fees")],
   ].filter((x) => x[2]);
   if (!items.length) return null;
-  return h("div", { class: "quick-actions" },
-    items.map(([tab, label], i) => h("button", { class: `btn ${i === 0 ? "" : "soft"}`, type: "button", onclick: () => goTo(tab) }, label)));
+  return h("div", { class: "row quick-actions" },
+    items.map(([tab, label]) => h("button", { class: "btn soft", type: "button", onclick: () => goTo(tab) }, label)));
 }
 
 // بحث سريع في الطلاب والمعلمين والفواتير

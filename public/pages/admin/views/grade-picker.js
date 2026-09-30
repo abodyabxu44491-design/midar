@@ -29,7 +29,7 @@ export function gradePicker(structure, { sectionsOn = true, onChange } = {}) {
     if (state.stageId) return stageOf()?.name || "";
     return "كل المراحل والصفوف";
   };
-  const paint = () => { btnEl.textContent = label(); btnEl.classList.toggle("has-value", Boolean(state.stageId)); };
+  const paint = () => { btnEl.textContent = `📚 ${label()}`; btnEl.classList.toggle("has-value", Boolean(state.stageId)); };
   paint();
 
   const choose = (patch) => { Object.assign(state, { stageId: "", gradeId: "", classId: "", ...patch }); paint(); onChange?.(state); };
@@ -65,7 +65,5 @@ export function gradePicker(structure, { sectionsOn = true, onChange } = {}) {
     classIds,
     set: (patch) => choose(patch),
     reset: () => choose({}),
-    // مسح صامت: يغيّر الاختيار والزر دون استدعاء onChange (للاستخدام مع «مسح الفلاتر»)
-    clear: () => { Object.assign(state, { stageId: "", gradeId: "", classId: "" }); paint(); },
   };
 }

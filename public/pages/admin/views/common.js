@@ -29,28 +29,3 @@ export function rememberField(key, el, { event = "input" } = {}) {
   });
   return el;
 }
-
-/**
- * شارة «فلاتر مفعّلة» وزر «مسح الكل»: يظهران فقط لما يكون فيه فلتر خارج قيمته الافتراضية،
- * حتى لا ينسى المستخدم أنه يرى قائمة مصفّاة. تُستدعى update() بعد كل تغيير في الفلاتر.
- *  items: [{ active: () => boolean, reset: () => void }]
- */
-export function filterReset(items, onReset) {
-  const bar = document.createElement("div");
-  bar.className = "filter-reset";
-  bar.hidden = true;
-  const label = document.createElement("span");
-  label.className = "sub";
-  const clear = document.createElement("button");
-  clear.type = "button";
-  clear.className = "btn ghost sm";
-  clear.textContent = "مسح الفلاتر";
-  clear.addEventListener("click", () => { for (const it of items) it.reset(); update(); onReset(); });
-  bar.append(label, clear);
-  function update() {
-    const n = items.filter((it) => it.active()).length;
-    bar.hidden = n === 0;
-    label.textContent = n ? `${n} ${n === 1 ? "فلتر مفعّل" : n === 2 ? "فلتران مفعّلان" : "فلاتر مفعّلة"}` : "";
-  }
-  return { el: bar, update };
-}

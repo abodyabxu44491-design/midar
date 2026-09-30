@@ -54,6 +54,9 @@ export function templateSection(structure) {
   return box;
 }
 
+export function openTemplates(structure) {
+  dialog("قوالب الاستيراد", h("div", {}, sub("القالب ملف Excel جاهز بالأعمدة المطلوبة وقوائم اختيار."), templateSection(structure)));
+}
 
 export const problemsTable = (list) => h("div", { class: "scroll" }, h("table", { class: "grid" },
   h("thead", {}, h("tr", {}, ["السطر", "الطالب", "الحالة", "التفاصيل"].map((x) => h("th", {}, x)))),

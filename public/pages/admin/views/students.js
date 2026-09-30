@@ -3,7 +3,7 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
   showCredentials, confirmAction, notice, brandLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
-import { csv } from "../../shared/js/format.js";
+import { csv, fmtDate, money } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, loadClasses, directoryLink, optional, rememberField } from "./common.js";
 import { openStudentImport } from "./student-import.js";
@@ -62,14 +62,6 @@ export default async function students({ me, refresh }) {
   const statusSel = select([["active", "نشط"], ["graduated", "متخرج"], ["transferred", "منقول"], ["withdrawn", "منسحب"], ["all", "كل الحالات"]]);
   const feeFilter = rememberField("students-fees", select([["", "كل الحالات المالية"], ["unpaid", "عليه رسوم متبقية"], ["paid", "مسدد"], ["off", "الرسوم موقوفة"]]), { event: "change" });
   for (const el of [statusSel, feeFilter]) el.addEventListener("change", () => load());
-  // مسح الفلاتر: يعيد كل شيء لقيمه الافتراضية (نشط، بدون بحث، بدون صف/مالية)
-  const setVal = (el, v, ev) => { el.value = v; el.dispatchEvent(new Event(ev)); };
-  const filters = filterReset([
-    { active: () => Boolean(picker.stageId), reset: () => picker.clear() },
-    { active: () => statusSel.value !== "active", reset: () => setVal(statusSel, "active", "change") },
-    { active: () => Boolean(feeFilter.value), reset: () => setVal(feeFilter, "", "change") },
-    { active: () => Boolean(q.value.trim()), reset: () => setVal(q, "", "input") },
-  ], () => load());
 
   /* ---------- القائمة ---------- */
   let list = [], total = 0, seq = 0, loadingMore = false, selectMode = false;
@@ -110,7 +102,6 @@ export default async function students({ me, refresh }) {
   }
   async function load() {
     const my = ++seq;
-    filters.update();
     mount(box, skeleton(6));
     mount(sinceBar, importedSince ? notice("تعرض القائمة الطلاب المضافين أو المحدَّثين في آخر استيراد.", "") : null,
       importedSince ? btn("إظهار كل الطلاب", () => { importedSince = null; load(); }, "ghost sm") : null);
@@ -213,7 +204,7 @@ export default async function students({ me, refresh }) {
   const inactive = inactiveSummary.reduce((a, r) => a + r.n, 0);
   load();
   let timer;
-  q.addEventListener("input", () => { filters.update(); clearTimeout(timer); timer = setTimeout(load, 300); });
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(load, 300); });
 
   return [
     h("div", { class: "panel s-head" },
@@ -222,7 +213,7 @@ export default async function students({ me, refresh }) {
       statsBox, actions),
     h("div", { class: "panel" },
       h("div", { class: "search-row" }, q),
-      h("div", { class: "filters" }, picker.el, statusSel, feeFilter), filters.el,
+      h("div", { class: "filters" }, picker.el, statusSel, feeFilter),
       inactive ? sub(`${inactive} طالبًا خارج القيد — اختر الحالة من الفلتر لعرضهم.`) : null,
       sinceBar, h("div", { class: "toolbar" }, count), bulkBar, box),
   ];

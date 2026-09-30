@@ -327,12 +327,8 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .alert-card.bad { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .search-result { display: block; width: 100%; text-align: right; background: none; border: none; border-top: 1px solid var(--line); padding: 10px 0; font: inherit; cursor: pointer; }
 .search-result:hover { background: var(--teal-soft); }
-.quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
-.quick-actions .btn { justify-content: center; width: 100%; }
-@media (min-width: 720px) { .quick-actions { grid-template-columns: repeat(4, 1fr); } }
-.lvl-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 8px; background: #2E9E5B; }
-.lvl-dot.warn { background: var(--amber); }
-.lvl-dot.bad { background: var(--red); }
+.quick-actions { flex-wrap: wrap; margin-bottom: 16px; }
+.quick-actions .btn { flex: 1 1 auto; }
 
 .receipt { max-width: 520px; }
 @media print {
@@ -659,11 +655,8 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   dialog.dialog-lg .d-in > .row.spaced:last-child { bottom: -14px; margin: 0 -14px -14px; padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
 }
 .s-head .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-/* أزرار أعلى الصفحة: الإضافة (الأهم) بعرض كامل، ثم الثلاثة الباقية بأعمدة متساوية */
-.s-actions-top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
-.s-actions-top .btn { justify-content: center; width: 100%; }
-.s-actions-top .btn:first-child { grid-column: 1 / -1; }
-@media (min-width: 720px) { .s-actions-top { grid-template-columns: 2fr repeat(3, 1fr); } .s-actions-top .btn:first-child { grid-column: auto; } }
+.s-actions-top { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.s-actions-top .btn:first-child { flex: 1 1 140px; }
 .more-stats { margin-top: 10px; }
 .more-stats summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--muted); }
 .stat-chips, .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
@@ -730,7 +723,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 /* ---- منتقي المرحلة/الصف/الشعبة الموحّد ---- */
 .picker-btn { font: inherit; font-size: 14px; text-align: right; background: #fff; border: 1px solid var(--line); border-radius: 8px;
   padding: 10px 12px; color: var(--ink); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.picker-btn::after { content: ""; display: inline-block; margin-inline-start: 8px; border: 4px solid transparent; border-top-color: currentColor; vertical-align: middle; }
 .picker-btn.has-value { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .picker-list { display: grid; gap: 4px; }
 .picker-row { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: right;
@@ -739,6 +731,3 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .picker-row:hover { background: var(--teal-soft); }
 .picker-row.on { color: var(--accent); font-weight: 700; }
 .picker-row.back { color: var(--muted); justify-content: flex-start; gap: 6px; }
-.filter-reset { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; padding: 6px 10px;
-  background: var(--teal-soft); border-radius: 8px; }
-.filter-reset[hidden] { display: none; }

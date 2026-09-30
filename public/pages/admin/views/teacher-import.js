@@ -33,6 +33,9 @@ export function teacherTemplateSection(structure, subjects) {
     sub("القالب لا يحمل أسماء صفوف ثابتة: قوائمه من الهيكل الأكاديمي الحالي للمدرسة."), picker);
 }
 
+export function openTeacherTemplates(structure, subjects) {
+  dialog("قالب المعلمين", h("div", {}, teacherTemplateSection(structure, subjects)));
+}
 
 export async function openTeacherImport({ onDone } = {}) {
   const [setup, subjects, fields] = await Promise.all([api(`${A}/setup`), loadSubjects().catch(() => []), api(`${A}/import/teachers/fields`)]);

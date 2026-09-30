@@ -5,7 +5,7 @@ import { field, input, select, btn, empty, badge, line, sub, toast, dialog, noti
   stats as statCards } from "../../shared/js/ui.js";
 import { fmtDate, fmtDateTime, csv, EXAM } from "../../shared/js/format.js";
 import { timetableGrid } from "../../shared/js/timetable.js";
-import { A, loadClasses, loadSubjects, staffLink, rememberField, filterReset } from "./common.js";
+import { A, loadClasses, loadSubjects, staffLink, rememberField } from "./common.js";
 import { openTeacherImport } from "./teacher-import.js";
 import { gradePicker } from "./grade-picker.js";
 
@@ -91,16 +91,7 @@ export default async function teachers({ me, refresh }) {
         h("span", { class: "sub" }, t.last_login_at ? `آخر دخول: ${fmtDateTime(t.last_login_at)}` : "لم يدخل بعد")),
       t.is_active ? (["not_activated", "initial"].includes(t.account_state) ? badge("لم يفعّل", "amber") : badge("نشط")) : badge("موقوف", "red"));
   };
-  const setVal = (el, v, ev) => { el.value = v; el.dispatchEvent(new Event(ev)); };
-  const filters = filterReset([
-    { active: () => Boolean(picker.stageId), reset: () => picker.clear() },
-    { active: () => Boolean(subjectSel.value), reset: () => { subjectSel.value = ""; } },
-    { active: () => Boolean(specialty.value), reset: () => { specialty.value = ""; } },
-    { active: () => status.value !== "active", reset: () => { status.value = "active"; } },
-    { active: () => Boolean(q.value.trim()), reset: () => setVal(q, "", "input") },
-  ], () => draw());
   const draw = () => {
-    filters.update();
     const ids = classIdsFilter();
     const rows = list.filter((t) => matches(t, ids));
     count.textContent = `${rows.length} من ${list.length}`;
@@ -355,7 +346,7 @@ export default async function teachers({ me, refresh }) {
       actions),
     h("div", { class: "panel" },
       h("div", { class: "search-row" }, q),
-      h("div", { class: "filters" }, picker.el, subjectSel, specialty, status), filters.el,
+      h("div", { class: "filters" }, picker.el, subjectSel, specialty, status),
       h("div", { class: "toolbar" }, count), box),
   ];
 }

@@ -136,7 +136,7 @@ function gradeRow(stage, g, index, refresh, naming, allGrades = [], sectionsEnab
     !sectionsEnabled ? null : h("div", { class: "sections" }, g.sections.length
       ? g.sections.map((c) => h("span", { class: "section-chip" }, c.name,
           h("span", { class: "small muted" }, ` ${c.students}`),
-          btn("تعديل", () => renameDialog("الشعبة", c.name, async (name) => {
+          btn("✎", () => renameDialog("الشعبة", c.name, async (name) => {
             await api(`${A}/setup/sections/${c.id}`, { name }, "PATCH"); refresh();
           }), "ghost sm")))
       : sub("لا توجد شعب.")),
