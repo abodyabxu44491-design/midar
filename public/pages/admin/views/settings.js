@@ -10,6 +10,7 @@ import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, 
   empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar, passwordInput, linkRow, copyRow } from "../../shared/js/ui.js";
 import { csv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
 import { A, directoryLink } from "./common.js";
+import { dangerZone } from "../../shared/js/danger-zone.js";
 
 const SECTIONS = [
   { key: "identity", name: "هوية المدرسة", note: "الشعار واسم المدرسة وبيانات التواصل" },
@@ -26,13 +27,15 @@ const SECTIONS = [
   { key: "sync", name: "المزامنة والأجهزة", note: "العمل بدون إنترنت: التعارضات والأجهزة" },
   { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
   { key: "subscription", name: "اشتراكي", note: "الباقة والمميزات والتجديد والترقية" },
+  { key: "danger", name: "⚠️ منطقة الحذر", note: "عمليات حساسة: الجلسات والحسابات والنسخ الاحتياطي وحذف بيانات محددة" },
 ];
 
 export default function settings(ctx) {
   const views = { identity: schoolIdentity, modules: modulesView, academic: () => academicRecord(), fields: customFieldsView, page: pageView, payment: paymentView,
     messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
     access: accessView, data: dataView,
-    subscription: mySubscription, sync: syncView };
+    subscription: mySubscription, sync: syncView,
+    danger: () => dangerZone({ base: `${A}/danger`, scope: "admin" }) };
   return sectionMenu({
     title: "الإعدادات",
     items: SECTIONS,

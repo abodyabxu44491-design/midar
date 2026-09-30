@@ -49,7 +49,7 @@ export const staffLoginRouter = () => {
     const b = parse(loginSchema, req.body);
     const outcome = await transaction({ tenantId: b.school, actor: b.username, ip: req.ip }, async (q) => {
       const denied = { error: "بيانات الدخول غير صحيحة" };
-      const [tenant] = await q("SELECT id, status FROM tenants WHERE id = $1", [b.school]);
+      const [tenant] = await q("SELECT id, status, emergency_locked_at FROM tenants WHERE id = $1", [b.school]);
       const [user] = tenant ? await q(
         "SELECT id, full_name, role, password_hash, is_active, must_change_password, locked_until, locked_until > now() AS locked FROM users WHERE username = $1",
         [b.username]) : [];
@@ -78,6 +78,7 @@ export const staffLoginRouter = () => {
         return denied;
       }
       if (tenant.status !== "active") return { error: "حساب المدرسة موقوف. تواصل مع إدارة المنصة.", status: 403 };
+      if (tenant.emergency_locked_at) return { error: "الدخول للمدرسة موقوف مؤقتًا من إدارة المنصة. تواصل معها.", status: 403 };
       await q("DELETE FROM security_events WHERE kind = $1 AND subject = $2", [FAIL_IP, ipKey]);   // نجاح الدخول يصفّر عدّاد هذا العنوان
       await q("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [user.id]);
       await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);

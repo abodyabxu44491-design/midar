@@ -76,7 +76,7 @@ export async function createTenant(req, b) {
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [b.id, b.name, b.plan ?? "basic", b.max_students ?? 200, b.subscription_end ?? null, directory,
        b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "SAR"]);
-    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password) VALUES ($1, 'admin', $2, 'admin', $3, true)`,
+    await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);          // سنة دراسية وفصولها جاهزة من اليوم الأول
     const sub = b.subscription || {
