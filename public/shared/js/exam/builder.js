@@ -16,6 +16,7 @@ import { rich, loadMath, paperNeedsMath } from "./math.js";
 import { previewPanel, imageUrlFor, logoUrlFor } from "./preview.js";
 import { paperBlocks } from "./render.js";
 import { paginate } from "./paginate.js";
+import { sheetEditor } from "./sheet.js";
 
 const STEPS = [["info", "معلومات الاختبار"], ["questions", "الأسئلة"], ["design", "تصميم الورقة"], ["preview", "المعاينة والطباعة"]];
 
@@ -231,8 +232,13 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
     const wrap = h("div");
     const S = () => paper.content.sections;
     const checkBox = h("div");
+    // طريقتا الإدخال: «على الورقة» (تكتب في الصفحة نفسها) أو «قائمة» (بطاقات قابلة للسحب). يُتذكر اختيار المعلم.
+    let view = "sheet";
+    try { view = localStorage.getItem("midar_q_view") || "sheet"; } catch { /* */ }
+    let sheetApi = null;
+    const redraw = () => { if (view === "sheet" && sheetApi) { sheetApi.redraw(); drawCheck(); } else listRedraw(); };
 
-    const redraw = () => {
+    const listRedraw = () => {
       let n = 0;
       const numbering = withLayoutDefaults(paper.layout).numbering;
       mount(wrap, S().length ? S().map((s, si) => {
@@ -558,15 +564,24 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       d.classList.add("xb-wide");
     }
 
-    redraw();
+    if (view === "sheet") {
+      sheetApi = sheetEditor({ paper, base, ctx, ro, queue, onChange: drawCheck, school: ctx.school, logoUrl: logoUrlFor(base, ctx.settings, paper.layout) });
+      drawCheck();
+    } else listRedraw();
+    const setView = (v) => { if (v === view) return; try { localStorage.setItem("midar_q_view", v); } catch { /* */ } show("questions"); };
+    const viewSwitch = h("div", { class: "xs-view", role: "tablist", "aria-label": "طريقة إدخال الأسئلة" },
+      [["sheet", "على الورقة"], ["list", "قائمة"]].map(([k, l]) => h("button", { type: "button", role: "tab", "aria-selected": String(view === k),
+        class: view === k ? "on" : "", onclick: () => setView(k) }, l)));
     const tools = ro ? null : h("div", { class: "xb-tools" },
+      viewSwitch,
       btn("لصق أسئلة جاهزة", () => pasteDialog(null), "sm"),
       btn("ترتيب تلقائي حسب النوع", autoArrange, "ghost sm"),
       btn("توليد من بنك الأسئلة", () => generateDialog(), "ghost sm"),
       btn("حفظ أسئلتي الجديدة في البنك", saveAllToBank, "ghost sm"));
     return [lockedNote(), tools, checkBox,
-      S().length && !ro ? sub("اضغط على السؤال لتعديله. اسحب من المقبض ⋮⋮ لتغيير الترتيب أو لنقله لقسم آخر.") : null,
-      h("div", { class: "spaced" }), wrap,
+      view === "sheet" ? sheetApi.el : [
+        S().length && !ro ? sub("اضغط على السؤال لتعديله. اسحب من المقبض ⋮⋮ لتغيير الترتيب أو لنقله لقسم آخر.") : null,
+        h("div", { class: "spaced" }), wrap],
       h("div", { class: "row spaced", style: "justify-content:space-between" }, btn("السابق", () => show("info"), "ghost"), btn("التالي: تصميم الورقة", () => show("design")))];
   }
 

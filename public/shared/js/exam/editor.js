@@ -81,7 +81,8 @@ function imageControls(q, base, changed) {
     try {
       toast("جارٍ رفع الصورة…");
       const r = await uploadImage(base, f);
-      q.image = { id: r.id, width: q.image?.width || 60, align: q.image?.align || "center", position: q.image?.position || "after" };
+      // الافتراضي صغير وبجانب السؤال حتى لا يأخذ مساحة كبيرة (يُكبَّر من شريط الحجم عند الحاجة)
+      q.image = { id: r.id, width: q.image?.width || 30, align: q.image?.align || "center", position: q.image?.position || "side" };
       changed(); draw();
     } catch (e) { toast(e.message, true); }
     fileIn.value = "";

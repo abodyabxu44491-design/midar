@@ -30,11 +30,11 @@ const marksTag = (L, m) => (L.show_marks ? h("span", { class: "xp-marks" }, `(${
 function imageEl(q, imageUrl) {
   if (!q.image?.id) return null;
   if (q.image.position === "side") {
-    return h("div", { class: "xp-img side", style: `width:${Math.min(55, q.image.width || 40)}%` },
+    return h("div", { class: "xp-img side", style: `width:${Math.min(45, q.image.width || 30)}%` },
       h("img", { src: imageUrl(q.image.id), alt: "", loading: "eager", decoding: "sync" }));
   }
   return h("div", { class: `xp-img al-${q.image.align || "center"}` },
-    h("img", { src: imageUrl(q.image.id), alt: "", style: `width:${q.image.width || 60}%`, loading: "eager", decoding: "sync" }));
+    h("img", { src: imageUrl(q.image.id), alt: "", style: `width:${q.image.width || 35}%`, loading: "eager", decoding: "sync" }));
 }
 
 export function tableEl(table, { editable = false } = {}) {
@@ -49,12 +49,14 @@ function linesEl(n, lined, cls = "") {
 }
 
 // عمود الخيارات: تلقائي حسب طول أطول خيار
-function optionCols(q) {
+export function optionCols(q) {
   if (q.cols) return q.cols;
+  // الخيارات القصيرة في سطر واحد، والمتوسطة في عمودين، والطويلة كل خيار في سطر (السؤال يأخذ مساحته فقط)
+  const n = (q.options || []).length;
   const max = Math.max(0, ...(q.options || []).map((o) => String(o.text || "").length));
   const any = (q.options || []).some((o) => /\$/.test(o.text || ""));
-  if (max <= 12 && !any && (q.options || []).length === 4) return 4;
-  return max <= 30 ? 2 : 1;
+  if (max <= 14 && !any && (n === 3 || n === 4)) return n;
+  return max <= 32 ? 2 : 1;
 }
 
 /**
@@ -97,7 +99,9 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   // التوصيل: عمودان متقابلان بلا جدول. أمام كل عنصر من (أ) قوس لكتابة حرف الإجابة،
   // ونقطتان متقابلتان لمن يفضّل التوصيل بخط.
   if (q.type === "match") {
-    const order = q.rightOrder || (q.pairs || []).map((p) => p.id);
+    const filled = (p) => String(p.left || "").trim() || String(p.right || "").trim();
+    q = { ...q, pairs: (q.pairs || []).filter(filled) };
+    const order = (q.rightOrder || q.pairs.map((p) => p.id)).filter((id) => q.pairs.some((p) => p.id === id));
     const right = order.map((id) => (q.pairs || []).find((p) => p.id === id)).filter(Boolean);
     const rows = Math.max((q.pairs || []).length, right.length);
     main.append(h("div", { class: "xp-match" },
@@ -115,7 +119,7 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   }
 
   if (q.type === "order") {
-    const shown = (q.displayOrder || (q.items || []).map((i) => i.id)).map((id) => (q.items || []).find((i) => i.id === id)).filter(Boolean);
+    const shown = (q.displayOrder || (q.items || []).map((i) => i.id)).map((id) => (q.items || []).find((i) => i.id === id)).filter((i) => i && String(i.text || "").trim());
     const rank = new Map((q.items || []).map((it, i) => [it.id, i + 1]));
     main.append(h("ol", { class: "xp-order" }, shown.map((it, i) => h("li", {},
       h("span", { class: `xp-slot${showAnswers ? " filled" : ""}` }, showAnswers ? `${rank.get(it.id)}` : ""),
