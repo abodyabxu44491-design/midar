@@ -68,6 +68,13 @@ export function papersRouter(role) {
       return bank.create(q, tid(req), b);
     }));
   }));
+  r.post("/bank/bulk", handle(async (req, res) => {
+    const b = parse(bank.bankBulkSchema, req.body);
+    res.status(201).json(await inTenant(req, async (q) => {
+      await papers.assertTeacherScope(q, who(req), { subject_id: b.subject_id });
+      return bank.createMany(q, tid(req), b);
+    }));
+  }));
   r.get("/bank/:id", handle(async (req, res) => res.json(await inTenant(req, (q) => bank.getOne(q, idParam(req), tid(req))))));
   r.put("/bank/:id", handle(async (req, res) => {
     const b = parse(bank.bankUpdateSchema, req.body);

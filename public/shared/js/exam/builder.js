@@ -7,9 +7,10 @@ import { icons } from "../icons.js";
 import { sortable } from "../sortable.js";
 import {
   QTYPES, DIFFICULTY, STATUS, PAPER_TEMPLATES, FONTS, STUDENT_FIELDS, ORDINALS, VERSION_CODES,
-  newQuestion, newSection, totals, checkPaper, sectionSummary, fmtNum, withLayoutDefaults, buildVersion, uid, SECTION_TITLES, OPTION_LETTERS,
+  newQuestion, newSection, totals, checkPaper, sectionSummary, fmtNum, withLayoutDefaults, buildVersion, uid, SECTION_TITLES,
 } from "./engine.js";
-import { parseQuestions, sectionTitleFor } from "./parse.js";
+import { sectionTitleFor } from "./parse.js";
+import { pasteDialog as openPaste } from "./paste-dialog.js";
 import { questionEditor } from "./editor.js";
 import { rich, loadMath, paperNeedsMath } from "./math.js";
 import { previewPanel, imageUrlFor, logoUrlFor } from "./preview.js";
@@ -412,89 +413,41 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       queue("content"); redraw(); toast("رُتبت الأسئلة حسب النوع");
     }
 
-    /* ----- لصق أسئلة جاهزة ----- */
+    /* ----- لصق أسئلة جاهزة أو ملف Word ----- */
     function pasteDialog(target) {
-      const ta = textarea({ rows: 14, dir: "auto", class: "xb-paste",
-        placeholder: "الصق أسئلتك هنا، مثل:\n\n1- عاصمة المملكة العربية السعودية هي:\nأ) الرياض *\nب) جدة\nج) مكة\n\n2- الشمس نجم (صح)\n3- عاصمة مصر هي ______ (القاهرة)" });
-      const marksIn = input({ type: "number", min: 0.25, step: 0.25, value: 1, style: "max-width:90px" });
       const where = select([
         ...(target ? [["here", `إلى القسم: ${target.title || "الحالي"}`]] : []),
         ["new", "أقسام جديدة (قسم لكل عنوان أو نوع)"],
         ...(!target ? S().map((x) => [x.id, `إلى القسم: ${x.title || "(بلا عنوان)"}`]) : []),
       ]);
-      const out = h("div", { class: "xb-paste-prev" });
-      let parsed = { sections: [], count: 0, warnings: [] };
-      const TYPE_BADGE = (q) => h("span", { class: "xb-type" }, QTYPES[q.type].short);
-      const answerText = (q) => {
-        if (q.options) { const c = q.options.filter((o) => (q.correct || []).includes(o.id)).map((o) => o.text); return c.length ? `✓ ${c.join("، ")}` : "⚠ بدون إجابة صحيحة"; }
-        if (q.type === "truefalse") return q.correct === true ? "✓ صح" : q.correct === false ? "✓ خطأ" : "⚠ حدد صح أو خطأ";
-        if (q.type === "fill") return q.answers?.length ? `✓ ${q.answers.join("، ")}` : "";
-        if (q.type === "match") return `${q.pairs.length} أزواج`;
-        return q.answer ? `✓ ${q.answer}` : "";
-      };
-      const paint = async () => {
-        parsed = parseQuestions(ta.value, { marks: Number(marksIn.value) || 1 });
-        if (/\$/.test(ta.value)) await loadMath();
-        let n = 0;
-        mount(out, !parsed.count ? empty(ta.value.trim() ? "لم يُتعرّف على أسئلة. رقّم الأسئلة (1- 2- …) أو افصل بينها بسطر فارغ." : "المعاينة تظهر هنا أثناء اللصق.")
-          : [h("div", { class: "xb-paste-sum" }, `تعرّفنا على ${parsed.count} سؤال`,
-              ...Object.entries(parsed.sections.flatMap((x) => x.questions).reduce((a, q) => ({ ...a, [q.type]: (a[q.type] || 0) + 1 }), {}))
-                .map(([k, c]) => h("span", { class: "xb-type" }, `${QTYPES[k].short} ${c}`))),
-            parsed.sections.map((sec) => h("div", {},
-              sec.title ? h("div", { class: "xb-paste-sec" }, sec.title) : null,
-              sec.questions.map((q) => h("div", { class: "xb-paste-q" },
-                h("span", { class: "xb-qno" }, ++n), TYPE_BADGE(q),
-                h("div", {}, h("div", {}, q.text ? rich(q.text, { blanks: true }) : q.type === "match" ? q.pairs.map((p) => `${p.left} ← ${p.right}`).join(" · ") : "—"),
-                  q.options ? h("div", { class: "small muted" }, q.options.map((o, i) => `${OPTION_LETTERS[i]}) ${o.text}`).join("   ")) : null,
-                  h("div", { class: `small ${/⚠/.test(answerText(q)) ? "xb-warn-t" : "xb-ok-t"}` }, answerText(q))),
-                h("span", { class: "small muted" }, `${fmtNum(q.marks)} د`))))),
-            parsed.warnings.map((w) => notice(w, "warn"))]);
-      };
-      ta.addEventListener("input", () => { clearTimeout(ta._t); ta._t = setTimeout(paint, 250); });
-      marksIn.addEventListener("input", paint);
-      const add = () => {
-        if (!parsed.count) return toast("الصق الأسئلة أولًا", true);
-        const w = where.value;
-        if (w === "new") {
-          // الأسئلة بلا عنوان قسم تُقسّم حسب النوع
-          const secs = [];
-          for (const sec of parsed.sections) {
-            if (sec.title) { secs.push({ ...newSection(sec.title), questions: sec.questions }); continue; }
-            const byType = new Map();
-            for (const q of sec.questions) byType.set(q.type, [...(byType.get(q.type) || []), q]);
-            for (const [type, qs] of byType) secs.push({ ...newSection(""), type, questions: qs });
+      openPaste({
+        fields: field("إضافة", where),
+        onAdd: (parsed) => {
+          if (where.value === "new") {
+            // الأسئلة بلا عنوان قسم تُقسّم حسب النوع
+            const secs = [];
+            for (const sec of parsed.sections) {
+              if (sec.title) { secs.push({ section: { ...newSection(sec.title), questions: sec.questions } }); continue; }
+              const byType = new Map();
+              for (const q of sec.questions) byType.set(q.type, [...(byType.get(q.type) || []), q]);
+              for (const [type, qs] of byType) secs.push({ type, section: { ...newSection(""), questions: qs } });
+            }
+            const base0 = S().length;
+            secs.forEach((x, i) => { if (!x.section.title) x.section.title = sectionTitleFor(ORDINALS[base0 + i] || base0 + i + 1, x.type); });
+            S().push(...secs.map((x) => x.section));
+          } else {
+            const to = where.value === "here" ? target : S().find((x) => x.id === where.value);
+            const qs = parsed.sections.flatMap((x) => x.questions);
+            if (!to.questions.length && /^السؤال \S+( \S+)?$/.test(to.title.trim()) && new Set(qs.map((q) => q.type)).size === 1 && SECTION_TITLES[qs[0].type]) {
+              to.title = `${to.title.trim()}: ${SECTION_TITLES[qs[0].type]}`;
+            }
+            to.questions.push(...qs);
           }
-          const base0 = S().length;
-          secs.forEach((x, i) => { if (!x.title) x.title = sectionTitleFor(ORDINALS[base0 + i] || base0 + i + 1, x.type); delete x.type; });
-          S().push(...secs);
-        } else {
-          const to = w === "here" ? target : S().find((x) => x.id === w);
-          const qs = parsed.sections.flatMap((x) => x.questions);
-          if (!to.questions.length && /^السؤال \S+( \S+)?$/.test(to.title.trim()) && new Set(qs.map((q) => q.type)).size === 1 && SECTION_TITLES[qs[0].type]) {
-            to.title = `${to.title.trim()}: ${SECTION_TITLES[qs[0].type]}`;
-          }
-          to.questions.push(...qs);
-        }
-        queue("content"); d.close(); redraw();
-        toast(`أُضيف ${parsed.count} سؤال. راجع الأسئلة التي عليها تنبيه.`);
-      };
-      const help = h("details", { class: "xb-paste-help" }, h("summary", {}, "كيف أكتب الأسئلة ليتعرّف عليها النظام؟"),
-        h("ul", {},
-          h("li", {}, "رقّم الأسئلة: 1- أو 1) أو 1. — أو افصل بين الأسئلة بسطر فارغ."),
-          h("li", {}, "اختيار من متعدد: الخيارات في أسطر تبدأ بـ أ) ب) ج) — وضع ", h("b", {}, "*"), " بعد الإجابة الصحيحة، أو سطر «الإجابة: ب»."),
-          h("li", {}, "صح أو خطأ: اكتب (صح) أو (خطأ) في آخر العبارة."),
-          h("li", {}, "أكمل الفراغ: اكتب ____ أو ..... مكان الفراغ، والإجابة بين قوسين في آخر السطر."),
-          h("li", {}, "توصيل: كل زوج في سطر: الماء = H2O"),
-          h("li", {}, "عنوان قسم: سطر يبدأ بـ «السؤال الأول:» أو «السؤال الثاني:»."),
-          h("li", {}, "الدرجة: اكتب (2 درجة) في آخر السؤال، وإلا تُستخدم الدرجة الافتراضية.")));
-      const d = dialog("لصق أسئلة جاهزة", h("div", { class: "xb-paste-grid" },
-        h("div", {}, ta, help,
-          h("div", { class: "row", style: "align-items:end" }, field("درجة كل سؤال (افتراضيًا)", marksIn), field("إضافة", where))),
-        h("div", {}, h("b", { class: "small" }, "المعاينة"), out)),
-      [btn("إضافة الأسئلة", add)]);
-      d.classList.add("xb-xwide");
-      paint();
-      ta.focus();
+          queue("content"); redraw();
+          toast(`أُضيف ${parsed.count} سؤال. راجع الأسئلة التي عليها تنبيه.`);
+          return true;
+        },
+      });
     }
 
     /* ----- البنك ----- */
