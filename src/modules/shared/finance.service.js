@@ -98,7 +98,8 @@ async function nextReceipt(q) {
 /**
  * تسجيل دفعة أو استرداد. إذا أُرسل نفس مفتاح العملية مرتين تُعاد النتيجة الأولى ولا تُسجل دفعة ثانية.
  */
-export async function recordPayment(q, { invoiceId, kind = "payment", amount, method, note, idempotencyKey, actor, providerRef = null }) {
+// paidOn: تاريخ السداد (للاستخدام الداخلي فقط، مثل بناء مدرسة العرض بتاريخها؛ المسارات العامة تسجّل بتاريخ اليوم)
+export async function recordPayment(q, { invoiceId, kind = "payment", amount, method, note, idempotencyKey, actor, providerRef = null, paidOn = null }) {
   const [dup] = await q("SELECT receipt_no, amount, invoice_id FROM payments WHERE idempotency_key = $1", [idempotencyKey]);
   if (dup) {
     if (Number(dup.invoice_id) !== Number(invoiceId)) throw badRequest("مفتاح العملية مستخدم لفاتورة أخرى");
@@ -108,9 +109,9 @@ export async function recordPayment(q, { invoiceId, kind = "payment", amount, me
   if (!inv) throw notFound("الفاتورة غير موجودة");
   const receipt = await nextReceipt(q);
   const [payment] = await q(
-    `INSERT INTO payments (tenant_id, invoice_id, kind, amount, method, receipt_no, idempotency_key, provider_ref, note, created_by)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-    [invoiceId, kind, amount, method, receipt, idempotencyKey, providerRef, note, actor]);
+    `INSERT INTO payments (tenant_id, invoice_id, kind, amount, method, receipt_no, idempotency_key, provider_ref, note, created_by, created_at)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::date + time '10:00', now())) RETURNING id`,
+    [invoiceId, kind, amount, method, receipt, idempotencyKey, providerRef, note, actor, paidOn]);
 
   // كل دفعة أو استرداد يظهر تلقائيًا في سجل الحركات المالية
   const [info] = await q(
@@ -119,7 +120,7 @@ export async function recordPayment(q, { invoiceId, kind = "payment", amount, me
       WHERE i.id = $1`, [invoiceId]);
   await addSystemEntry(q, {
     direction: kind === "refund" ? "expense" : "income",
-    amount, method, occurredOn: new Date().toISOString().slice(0, 10),
+    amount, method, occurredOn: paidOn || new Date().toISOString().slice(0, 10),
     reason: `${kind === "refund" ? "استرداد" : "سداد"} ${info?.title || "رسوم"} — إيصال ${receipt}`,
     beneficiary: info ? `${info.student}${info.class_name ? ` (${info.class_name})` : ""}` : null,
     reference: receipt,

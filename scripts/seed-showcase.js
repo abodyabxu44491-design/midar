@@ -1,10 +1,10 @@
-// مدرسة عرض كاملة (يمنية): مدارس بنين (الأساسي والثانوي) ببيانات فصل دراسي حتى اليوم.
+// مدرسة عرض كاملة: مدارس بنين في عدن (الأساسي والثانوي) أنهت عامًا دراسيًا كاملًا بكل أقسام المنصة.
 // npm run seed:showcase -- [رمز المدرسة]   — يطبع بيانات دخول المدير وعينات من المعلمين وأولياء الأمور.
 // كلمات المرور عشوائية وتُطبع مرة واحدة فقط، ومتاحة أيضًا من زر «مدرسة عرض كاملة» في لوحة المالك.
 import { closePool } from "../src/core/db/pool.js";
 import { createShowcase } from "../src/modules/owner/tenants.js";
 
-const id = process.argv[2] || "alrowad";
+const id = process.argv[2] || "alrowad-aden";
 const req = { actor: "سكربت مدرسة العرض", ip: null, protocol: "https", get: () => process.env.PUBLIC_HOST || "localhost" };
 try {
   const t0 = Date.now();

@@ -22,10 +22,11 @@ export default async function create({ refresh }) {
 
 // مدرسة عرض جاهزة: مجمع بنين كامل (ابتدائي ومتوسط وثانوي) ببيانات فصل دراسي حتى اليوم
 function showcasePanel(refresh) {
-  const f = { name: input({ value: "مدارس الرواد الأهلية للبنين" }), id: input({ class: "ltr", value: "alrowad" }) };
+  const f = { name: input({ value: "مدارس الرواد الأهلية للبنين" }), id: input({ class: "ltr", value: "alrowad-aden" }) };
   return panel("مدرسة عرض كاملة", null,
-    sub("تُنشأ مدرسة يمنية للبنين (صنعاء) كأنها تعمل منذ بداية الفصل: 24 شعبة من الأول إلى ثالث ثانوي، قرابة 50 معلمًا بجداولهم، قرابة 570 طالبًا بأولياء أمورهم، "
-      + "الحضور اليومي، الاختبارات والدرجات، الواجبات، الرسوم والسداد، والتعاميم. تعمل في الخلفية مع شريط تقدم."),
+    sub("مدرسة بنين في عدن أنهت عامًا دراسيًا كاملًا بفصليه، وكل أقسام المنصة فيها بيانات: 24 شعبة من الأول إلى ثالث ثانوي، قرابة 50 معلمًا و15 موظفًا برواتب عشرة أشهر، "
+      + "قرابة 570 طالبًا، الحضور اليومي والأعذار، الاختبارات والنتائج النهائية، الواجبات، الرسوم والسداد وإشعارات التحويل، المصروفات والتبرعات، التعاميم وطلبات التسجيل. "
+      + "السنة منتهية، فتقدر تجرّب «بدء سنة جديدة» وترفيع الطلاب. تعمل في الخلفية مع شريط تقدم (دقيقة تقريبًا)."),
     h("div", { class: "form-grid" }, field("اسم المدرسة", f.name), field("رمز المدرسة", f.id)),
     btn("إنشاء مدرسة العرض", async () => {
       const { secret: r } = await runJob("/api/owner/tenants/showcase", { name: f.name.value, id: f.id.value },
@@ -33,7 +34,7 @@ function showcasePanel(refresh) {
       if (!r) { toast("اكتملت المدرسة، لكن انتهت صلاحية عرض بيانات الدخول. أصدر كلمة مرور جديدة للمدير من صفحة المدرسة.", true); refresh(); return; }
       const s = r.summary;
       handoverCard(r, [
-        ["الطلاب", s.students], ["المعلمون", s.teachers], ["الشعب", s.structure.sections], ["أيام الدوام المسجلة", s.school_days],
+        ["الطلاب", s.students], ["المعلمون", s.teachers], ["الشعب", s.structure.sections], ["العام الدراسي", s.year.name], ["أيام الدوام المسجلة", s.school_days],
         ...s.teacher_samples.map((t) => [`معلم (${t.subject}) — ${t.username}`, t.password]),
         ...s.parent_samples.map((p) => [`ولي أمر: ${p.name}`, p.access_key]),
       ]);

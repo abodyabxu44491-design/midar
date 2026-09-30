@@ -14,7 +14,7 @@ before(async () => {
   owner = client(srv.base);
   const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
   assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
-  const start = await owner.post("/api/owner/tenants/showcase", { id, name: "مجمع اختبار العرض", per_section: 6 });
+  const start = await owner.post("/api/owner/tenants/showcase", { id, name: "مدرسة اختبار العرض" });
   assert.equal(start.status, 202, JSON.stringify(start.data));
   jobId = start.data.id;
   const job = await waitJob(owner, `/api/owner/jobs/${jobId}`);
@@ -39,7 +39,7 @@ test("الهيكل كامل: 3 مراحل و24 شعبة ومعلمون بنصا�
   assert.equal(s.structure.stages, 3);
   assert.equal(s.structure.sections, 24);
   assert.ok(s.teachers >= 30, `teachers ${s.teachers}`);
-  assert.ok(s.students >= 24 * 4);
+  assert.ok(s.students >= 24 * 20);
   const clash = await q1(`SELECT count(*)::int AS n FROM (SELECT teacher_id, day, period FROM timetable_slots
                             WHERE teacher_id IS NOT NULL GROUP BY 1, 2, 3 HAVING count(*) > 1) x`);
   assert.equal(clash.n, 0);
@@ -51,10 +51,28 @@ test("الهيكل كامل: 3 مراحل و24 شعبة ومعلمون بنصا�
   assert.ok(load.m <= 20);
 });
 
+test("عام كامل منتهٍ: فصلان، رسوم ودفعات بتواريخها، رواتب عشرة أشهر، والصندوق لا ينزل تحت الصفر", async () => {
+  const y = await q1("SELECT name, end_date::text AS e, (SELECT count(*)::int FROM terms) AS terms FROM academic_years WHERE is_current");
+  assert.equal(y.terms, 2);
+  assert.ok(y.e < new Date().toISOString().slice(0, 10), "السنة منتهية");
+  const pr = await q1("SELECT count(*)::int AS n, bool_and(status = 'paid') AS all_paid FROM payroll_runs");
+  assert.equal(pr.n, 10);
+  assert.ok(pr.all_paid);
+  const months = await q1("SELECT count(DISTINCT to_char(occurred_on, 'YYYY-MM'))::int AS n FROM finance_entries WHERE source_type = 'fee'");
+  assert.ok(months.n >= 6, "الدفعات موزعة على أشهر السنة");
+  const neg = await q1("SELECT count(*)::int AS n FROM finance_accounts WHERE account_balance(id) < 0");
+  assert.equal(neg.n, 0);
+  const staff = await q1("SELECT count(*)::int AS n, count(DISTINCT category)::int AS kinds FROM staff WHERE is_active");
+  assert.ok(staff.kinds >= 7, "أنواع الموظفين");
+  const hol = await q1("SELECT count(*)::int AS n, bool_or(name ~ '(ثورة|الوحدة|الاستقلال|الوطني)') AS political FROM holidays");
+  assert.equal(hol.political, false, "بلا مناسبات سياسية");
+  assert.ok(r.data.summary.accountant.password);
+});
+
 test("الرسوم: فاتورة لكل طالب ودفعات مسجلة", async () => {
   const f = await q1(`SELECT (SELECT COALESCE(sum(amount), 0) FROM payments) AS paid,
                              (SELECT count(*) FROM invoices)::int AS inv`);
-  assert.equal(f.inv, r.data.summary.students);
+  assert.equal(f.inv, r.data.summary.students * 2, "فاتورة لكل فصل من الفصلين");
   assert.ok(f.paid > 0);
 });
 

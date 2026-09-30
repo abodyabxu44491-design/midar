@@ -98,14 +98,14 @@ r.post("/", handle(async (req, res) => {
   res.status(201).json(await createTenant(req, b));
 }));
 
-// مدرسة عرض كاملة (يمنية، بنين، الأساسي والثانوي) ببيانات فصل دراسي حتى اليوم — للعرض على العملاء
+// مدرسة عرض كاملة (عدن، بنين، الأساسي والثانوي) أنهت عامًا دراسيًا كاملًا بكل أقسام المنصة — للعرض على العملاء
 const showcaseSchema = z.object({
-  id: codeSchema.default("alrowad"),
+  id: codeSchema.default("alrowad-aden"),
   name: t.shortText("اسم المدرسة", 150).default("مدارس الرواد الأهلية للبنين"),
   per_section: z.coerce.number().int().min(5).max(35).default(24),
 });
 export async function createShowcase(req, b, progress) {
-  const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله محمد الشميري", plan: "enterprise", max_students: 2000, currency: "YER" });
+  const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله محمد باوزير", plan: "enterprise", max_students: 2000, currency: "YER" });
   const summary = await buildShowcase(b.id, { actor: req.actor, ip: req.ip, perSection: b.per_section, progress });
   return { ...created, summary, links: schoolLinks(req, b.id) };
 }
@@ -117,7 +117,7 @@ r.post("/showcase", handle(async (req, res) => {
   const links = schoolLinks(req, b.id);
   res.status(202).json(await startJob({ kind: "showcase_school", total: 100, step: "إنشاء المدرسة", req }, async ({ progress }) => {
     const r = await createShowcase(req, b, progress);
-    const { teacher_samples, parent_samples, ...counts } = r.summary;
+    const { teacher_samples, parent_samples, accountant, ...counts } = r.summary;   // كلمات المرور لا تُحفظ في سجل العمليات
     return { summary: { school: r.school, counts }, secret: { ...r, links } };
   }));
 }));
