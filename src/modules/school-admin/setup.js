@@ -6,6 +6,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 import * as S from "../shared/structure.service.js";
 import * as academic from "../shared/academic.service.js";
 import * as gen from "../shared/timetable-gen.service.js";
+import { imageSchema, saveImage } from "../shared/exam-papers.service.js";
 
 const r = Router();
 
@@ -67,6 +68,22 @@ r.post("/reopen", handle(async (req, res) => {
 r.put("/sections-mode", handle(async (req, res) => {
   const { sections_enabled, confirm } = parse(S.sectionsModeSchema, req.body);
   res.json(await inTenant(req, (q) => S.setSectionsMode(q, sections_enabled, { confirm })));
+}));
+
+/* ---------- شعار المدرسة ---------- */
+r.post("/logo", handle(async (req, res) => {
+  const file = parse(imageSchema, req.body);
+  res.json(await inTenant(req, (q) => S.setLogo(q, file, req.actor, saveImage)));
+}));
+r.delete("/logo", handle(async (req, res) => {
+  await inTenant(req, S.removeLogo);
+  res.json({ ok: true });
+}));
+
+/* ---------- نمط تسمية الصفوف ---------- */
+r.post("/rename-grades", handle(async (req, res) => {
+  const { grade_set } = parse(S.renamePatternSchema, req.body);
+  res.json(await inTenant(req, (q) => S.renameGradesByPattern(q, grade_set)));
 }));
 
 /* ---------- المراحل ---------- */

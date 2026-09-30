@@ -6,7 +6,7 @@ import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { matchesMime } from "./attachments.service.js";
 import {
-  totals, checkPaper, stripAnswers, DEFAULT_EXAM_TYPES, ORDINALS, QTYPES, newQuestion, withLayoutDefaults,
+  totals, checkPaper, stripAnswers, DEFAULT_EXAM_TYPES, ORDINALS, QTYPES, newQuestion, withLayoutDefaults, SECTION_TITLES,
 } from "../../../public/shared/js/exam/engine.js";
 import { paperQuestion, normalizeQuestion, newItemId, pick } from "./question-bank.service.js";
 
@@ -72,11 +72,14 @@ export const settingsSchema = z.object({
 }).partial();
 
 /* ---------- إعدادات المدرسة ---------- */
+// شعار المدرسة العام يُستخدم في ورقة الاختبار إن لم تُرفع صورة خاصة بالاختبارات
+const SETTINGS_SQL = `SELECT e.*, p.logo_image_id AS school_logo_id FROM exam_paper_settings e
+  LEFT JOIN school_profile p ON p.tenant_id = e.tenant_id WHERE e.tenant_id = app_tenant()`;
 export async function getSettings(q) {
-  const [row] = await q("SELECT * FROM exam_paper_settings WHERE tenant_id = app_tenant()");
+  const [row] = await q(SETTINGS_SQL);
   if (row) return row;
   await q("INSERT INTO exam_paper_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
-  return (await q("SELECT * FROM exam_paper_settings WHERE tenant_id = app_tenant()"))[0];
+  return (await q(SETTINGS_SQL))[0];
 }
 export async function updateSettings(q, patch) {
   await getSettings(q);
@@ -89,7 +92,8 @@ export async function updateSettings(q, patch) {
 }
 const publicSettings = (s) => ({
   require_approval: s.require_approval, teacher_can_reopen: s.teacher_can_reopen, teacher_answer_keys: s.teacher_answer_keys,
-  show_logo: s.show_logo, logo_image_id: s.show_logo ? s.logo_image_id : null,
+  show_logo: s.show_logo, logo_image_id: s.show_logo ? (s.logo_image_id ?? s.school_logo_id ?? null) : null,
+  own_logo: Boolean(s.logo_image_id), school_logo: Boolean(s.school_logo_id),
   default_instructions: s.default_instructions, footer_text: s.footer_text,
 });
 
@@ -482,11 +486,7 @@ export async function importPaper(q, who, b, actor) {
 }
 
 /* ---------- الإنشاء السريع ومن البنك ---------- */
-export const SECTION_TITLES = {
-  mcq: "اختر الإجابة الصحيحة", multi: "اختر جميع الإجابات الصحيحة", truefalse: "ضع كلمة (صح) أمام العبارة الصحيحة وكلمة (خطأ) أمام الخاطئة",
-  fill: "أكمل الفراغات التالية", short: "أجب عن الأسئلة التالية بإيجاز", essay: "أجب عمّا يلي", match: "صِل العمود (أ) بما يناسبه من العمود (ب)",
-  order: "رتّب ما يلي ترتيبًا صحيحًا", image: "تأمل الشكل ثم أجب", table: "أجب مستعينًا بالجدول", math: "حل المسائل التالية", custom: "أجب عمّا يلي",
-};
+export { SECTION_TITLES };
 const sectionTitle = (i, type) => `السؤال ${ORDINALS[i] || i + 1}: ${SECTION_TITLES[type] || QTYPES[type].label}`;
 
 // توزيع مجموع الدرجات على عدد الأسئلة لأقرب ربع درجة

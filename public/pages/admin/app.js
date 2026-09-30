@@ -4,7 +4,7 @@ import { $, mount, h } from "../shared/js/dom.js";
 import { mySubscription, accessBanner, lockScreen } from "./views/my-subscription.js";
 import { api } from "../shared/js/api.js";
 import { setCurrency } from "../shared/js/format.js";
-import { topbar, footer, tabs, lazy, passwordChangeScreen } from "../shared/js/ui.js";
+import { topbar, footer, tabs, lazy, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
 const students = lazy(() => import("./views/students.js"), new URL("./views/students.js", import.meta.url).pathname);
@@ -41,7 +41,7 @@ export async function startAdmin() {
   // مدرسة جديدة: المعالج يملأ الشاشة قبل ظهور اللوحة، ويمكن تخطيه
   if (me.setup_completed === false) {
     mount(app,
-      topbar({ school: me.school.name, subtitle: "إعداد المدرسة",
+      topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: "إعداد المدرسة",
         onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
       h("main", {}, await setupWizard({ me, refresh: () => location.reload() })),
       footer());
@@ -55,23 +55,18 @@ export async function startAdmin() {
     distribution: "timetable",
     announcements: "announcements", papers: "exam_papers",
   };
+  // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
     ["dashboard", "الرئيسية"],
-    [null, "الأفراد"],
     ["students", "الطلاب"], ["teachers", "المعلمون"],
-    [null, "الأكاديمي"],
-    ["academic", "السنة الدراسية"], ["attendance", "الحضور"], ["distribution", "توزيع المعلمين"], ["timetable", "الجدول"],
-    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
-    [null, "المالية"],
+    ["attendance", "الحضور"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
+    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"],
+    ["academic", "السنة الدراسية"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
     ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"],
-    [null, "أخرى"],
     ["announcements", "التعاميم"], ["subscription", "اشتراكي"],
-    [null, "الإدارة"],
     ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
-    .filter(([key]) => key === null || !MODULE_OF[key] || me.modules?.[MODULE_OF[key]])
-    // إزالة أي عنوان تجميع لم يبق تحته أي تبويب فعلي (بسبب إيقاف الأقسام)
-    .filter(([key], i, arr) => key !== null || (arr[i + 1] && arr[i + 1][0] !== null));
+    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
 
   const ctx = { me };
   const t = tabs(allTabs,
@@ -79,7 +74,7 @@ export async function startAdmin() {
   ctx.goTo = (key) => t.show(key);
 
   mount(app,
-    topbar({ school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
+    topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
       onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
     h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
   t.show("dashboard");

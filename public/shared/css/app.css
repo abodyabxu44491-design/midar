@@ -11,7 +11,7 @@ body.teacher { --accent: #1F5FA8; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.6; min-height: 100vh; display: flex; flex-direction: column; }
-main { width: 100%; max-width: 960px; margin: 0 auto; padding: 16px; flex: 1; }
+main { --gut: 16px; width: 100%; max-width: 960px; margin: 0 auto; padding: var(--gut); flex: 1; }
 h1, h2, h3, .brand { font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; font-weight: 700; }
 h2 { font-size: 19px; margin: 0 0 12px; color: var(--navy); }
 a { color: var(--accent); }
@@ -22,10 +22,14 @@ a { color: var(--accent); }
 .topbar .in { max-width: 960px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .topbar .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .topbar .brand { font-size: 20px; line-height: 1.1; }
-.topbar small { display: block; opacity: .85; font-size: 12px; }
+.topbar small { display: block; opacity: .85; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brand-logo { height: 38px; width: auto; display: block; flex: none; }
 .topbar .school { border-inline-start: 1px solid rgba(255,255,255,.35); padding-inline-start: 12px; min-width: 0; }
 .topbar .school b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .school.with-logo { display: flex; align-items: center; gap: 10px; }
+.topbar .school-text { min-width: 0; }
+.school-logo { width: 38px; height: 38px; flex: none; object-fit: contain; background: #fff; border-radius: 10px; padding: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+@media (max-width: 480px) { .school-logo { width: 32px; height: 32px; } }
 .hero-logo { height: 150px; width: auto; display: block; margin: 0 auto; }
 @media (max-width: 719px) { .hero-logo { height: 126px; } }
 .print-logo { height: 48px; }
@@ -49,6 +53,9 @@ label.f.remember-row input { margin: 0; width: 16px; height: 16px; flex: none; }
 label.f.remember-row span { display: inline; margin-bottom: 0; font-size: 14px; color: var(--text, #1c1c1c); }
 input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 15px; background: #fff; color: var(--ink); }
 input[type=checkbox] { width: auto; }
+/* خانة اختيار مع نصها: الخانة بجانب النص مباشرة في سطر واحد (كانت تنفصل عنه لأن label.f كتلة) */
+label.f.pill { display: flex; align-items: center; justify-content: flex-start; gap: 10px; cursor: pointer; }
+label.f.pill > input[type=checkbox], label.f.pill > input[type=radio] { width: 20px; height: 20px; min-height: 0; flex: none; margin: 0; accent-color: var(--accent); }
 .ltr { direction: ltr; text-align: left; }
 
 /* ---------- نظام الأزرار الموحد ----------
@@ -78,11 +85,29 @@ input[type=checkbox] { width: auto; }
 .btn.sm { padding: 5px 10px; font-size: 13px; }
 .btn.wide { width: 100%; }
 
-.tabs { display: flex; gap: 2px; overflow-x: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 0 6px; margin-bottom: 16px; }
-.tabs button { font: inherit; font-size: 14px; background: none; border: none; padding: 11px 12px; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap; }
-.tabs button.on { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
-.tab-group-label { font-size: 11px; color: var(--muted); font-weight: 700; padding: 10px 12px 4px; white-space: nowrap; align-self: center; }
-.tab-group-label:first-child { padding-inline-start: 4px; }
+/* التنقل بين الأقسام — الجوال والشاشات المتوسطة: شريط أفقي مثبّت أعلى الشاشة عند التمرير،
+   كل قسم أيقونة فوق اسمه، والقسم المفتوح يتوسط الشريط تلقائيًا */
+.tabs {
+  display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  position: sticky; top: 0; z-index: 15;
+  background: rgba(255, 255, 255, .96); backdrop-filter: saturate(1.4) blur(8px); -webkit-backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--line); box-shadow: 0 2px 10px rgba(16, 38, 64, .05);
+  margin: 0 calc(-1 * var(--gut, 16px)) 16px; padding: 8px calc(var(--gut, 16px) - 4px);
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tabs-layout:first-child > .tabs { margin-top: calc(-1 * var(--gut, 16px)); }
+.tabs button {
+  flex: none; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-width: 70px; min-height: 54px; padding: 6px 10px; border: none; border-radius: 12px; background: none;
+  font: inherit; font-size: 12px; line-height: 1.25; color: var(--muted); cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.tabs button .icon { flex: none; opacity: .85; }
+.tabs button:hover { background: var(--bg); color: var(--ink); }
+.tabs button.on { background: var(--teal-soft); color: var(--accent); font-weight: 700; }
+.tabs button.on .icon { opacity: 1; }
+.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
 .sub { font-size: 13px; color: var(--muted); }
@@ -164,8 +189,15 @@ footer.dev { text-align: center; padding: 14px; font-size: 12px; color: var(--mu
 .hidden { display: none !important; }
 
 @media print {
+  /* هامش الصفحة صفر: المتصفح لا يجد مكانًا لطباعة الرابط والتاريخ وعنوان الصفحة أعلى الورقة وأسفلها،
+     والمسافة عن حافة الورقة تُعطى للمحتوى نفسه */
+  @page { margin: 0; }
+  body { padding: 12mm 12mm 14mm !important; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
   .topbar, .tabs, .btn, footer.dev { display: none !important; }
   body { background: #fff; }
+  /* القائمة الجانبية مخفية في الطباعة: المحتوى يأخذ عرض الورقة كاملًا */
+  .tabs-layout { display: block !important; }
+  main { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 .loading { text-align: center; padding: 40px; }
@@ -241,10 +273,11 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 
 /* --- الجوال: مساحات لمس مريحة --- */
 @media (max-width: 719px) {
-  main { padding: 12px; }
+  main { --gut: 12px; }
   .btn { min-height: 44px; padding: 11px 16px; }
   .btn.sm { min-height: 38px; }
   input, select, textarea { min-height: 44px; font-size: 16px; }  /* 16px يمنع تكبير الشاشة في iOS */
+  input[type=checkbox], input[type=radio] { min-height: 0; }
   .panel { padding: 14px; }
   .line { padding: 12px 0; }
   .row > * { min-width: 100%; }
@@ -257,7 +290,7 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 
 /* --- اللوحي والكمبيوتر --- */
 @media (min-width: 720px) {
-  main { max-width: 1120px; padding: 20px; }
+  main { --gut: 20px; max-width: 1120px; }
   .topbar .in { max-width: 1120px; }
   .stats { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 }
@@ -265,18 +298,19 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 /* --- الشاشات الكبيرة: التبويبات عمود جانبي ثابت --- */
 @media (min-width: 1080px) {
   .tabs-layout { display: grid; grid-template-columns: 216px 1fr; gap: 18px; align-items: start; }
+  /* الكمبيوتر: عمود جانبي ثابت، أيقونة بجانب اسم القسم */
   .tabs-layout > .tabs {
-    flex-direction: column; overflow: visible; padding: 8px; margin: 0;
-    position: sticky; top: 16px; border-radius: 12px;
+    flex-direction: column; gap: 2px; overflow: visible; padding: 8px; margin: 0;
+    position: sticky; top: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: none;
+    max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: thin;
   }
   .tabs-layout > .tabs button {
-    width: 100%; text-align: right; border-bottom: none; border-radius: 8px; padding: 11px 12px;
-    border-inline-start: 3px solid transparent;
+    width: 100%; min-width: 0; min-height: 0; flex-direction: row; justify-content: flex-start; gap: 10px;
+    padding: 10px 12px; font-size: 14px; border-radius: 10px; text-align: start; position: relative;
   }
-  .tabs-layout > .tabs button.on { background: var(--teal-soft); border-inline-start-color: var(--accent); }
-  .tabs-layout > .tabs button:hover { background: var(--bg); }
-  .tabs-layout > .tabs .tab-group-label { display: block; text-align: right; padding: 14px 12px 4px; }
-  .tabs-layout > .tabs .tab-group-label:first-child { padding-top: 4px; }
+  .tabs-layout > .tabs button.on::before {
+    content: ""; position: absolute; inset-inline-start: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--accent);
+  }
   /* الصفحة العامة وملف الطالب: عمودان على الشاشات الكبيرة */
   .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; align-items: start; }
   .cols-2 > * { min-width: 0; }
@@ -327,15 +361,46 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .alert-card.bad { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .search-result { display: block; width: 100%; text-align: right; background: none; border: none; border-top: 1px solid var(--line); padding: 10px 0; font: inherit; cursor: pointer; }
 .search-result:hover { background: var(--teal-soft); }
-.quick-actions { flex-wrap: wrap; margin-bottom: 16px; }
-.quick-actions .btn { flex: 1 1 auto; }
+/* بطاقة الترحيب (بوابة المعلم) */
+.welcome-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 14px; border-radius: 14px; background: var(--teal-soft); border: 1px solid rgba(15,118,110,.15); }
+.welcome-card .t-info b { font-size: 17px; color: var(--navy); white-space: normal; }
+.t-avatar.lg { width: 64px; height: 64px; font-size: 24px; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+/* بطاقات المعلمين */
+.t-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.t-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; min-width: 0; }
+.t-avatar { width: 48px; height: 48px; flex: none; border-radius: 50%; object-fit: cover; background: var(--teal-soft); }
+.t-avatar.ph { display: grid; place-items: center; color: var(--accent); font-weight: 700; font-size: 18px; }
+.t-info { min-width: 0; display: flex; flex-direction: column; }
+.t-info b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-info small { color: var(--muted); font-size: 12px; line-height: 1.5; }
+@media print { .t-card { break-inside: avoid; } }
+/* شعار المدرسة على الأوراق المطبوعة: بحجم شعار المنصة الذي يحل محله، بلا قص */
+img.doc-school-logo { object-fit: contain; width: auto; max-width: 140px; }
+/* شعار المدرسة في الإعدادات والمعالج */
+.logo-edit { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.logo-preview { width: 120px; height: 120px; flex: none; border: 1px solid var(--line); border-radius: 16px; background: #fff; display: grid; place-items: center; padding: 10px; }
+.logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.logo-preview.empty { border-style: dashed; color: var(--muted); font-size: 13px; background: var(--bg); }
+.logo-acts { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.lvl-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 8px; vertical-align: middle; background: var(--teal); }
+.lvl-dot.urgent { background: var(--red); } .lvl-dot.action { background: var(--amber); }
+/* رأس الرئيسية: شعار المدرسة واسمها واليوم */
+.dash-hero { display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 14px; border-radius: 16px; background: linear-gradient(135deg, var(--accent), #0b5d59); color: #fff; }
+.dash-logo { width: 60px; height: 60px; flex: none; border-radius: 14px; background: #fff; object-fit: contain; padding: 5px; }
+.dash-logo.ph { display: grid; place-items: center; color: var(--accent); font-size: 26px; font-weight: 700; }
+.dash-hero-text { min-width: 0; }
+.dash-hero h2 { margin: 0 0 2px; font-size: 20px; line-height: 1.3; }
+.dash-hero p { margin: 0; font-size: 13px; opacity: .9; }
+@media (max-width: 480px) { .dash-hero { padding: 12px; } .dash-logo { width: 48px; height: 48px; } .dash-hero h2 { font-size: 17px; } }
 
 .receipt { max-width: 520px; }
+/* طباعة نافذة مفتوحة (إيصال، كشف حساب، بطاقة تسليم): النافذة وحدها. بدون نافذة مفتوحة تُطبع الصفحة نفسها
+   (كشوف الدرجات، البطاقات، سجل الحضور…) — كانت القاعدة تخفي كل شيء فتخرج الورقة فارغة */
 @media print {
-  body > *:not(dialog) { display: none !important; }
-  dialog { position: static; display: block; border: none; width: 100%; max-width: none; }
+  body:has(dialog[open]) > *:not(dialog) { display: none !important; }
+  dialog[open] { position: static; display: block; border: none; width: 100%; max-width: none; }
   dialog::backdrop { display: none; }
-  dialog .row, dialog .btn { display: none !important; }
+  dialog[open] .row, dialog[open] .btn { display: none !important; }
 }
 
 /* حقل كلمة المرور */
@@ -636,6 +701,14 @@ img[loading="lazy"] { content-visibility: auto; }
 .wiz-progress { margin-bottom: 14px; }
 .wiz-bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
 .wiz-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s; }
+.setup-steps { list-style: none; display: flex; gap: 4px; padding: 0; margin: 8px 0 0; overflow-x: auto; scrollbar-width: thin; }
+.setup-steps li { flex: none; font-size: 12px; }
+.setup-steps li > * { display: block; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--muted); font: inherit; white-space: nowrap; }
+.setup-steps li.done > * { color: var(--teal); border-color: var(--teal); }
+.setup-steps li.on > * { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.setup-steps button { cursor: pointer; }
+.custom-stages { border-top: 1px dashed var(--line); margin-top: 14px; padding-top: 6px; }
+.ar-chips { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 6px 0; }
 .pick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
 .pick-card { display: flex; align-items: center; gap: 10px; padding: 14px; min-height: 56px; border: 2px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
 .pick-card.on { border-color: var(--accent); background: var(--teal-soft); }

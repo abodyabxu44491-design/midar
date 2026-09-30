@@ -5,15 +5,20 @@ import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialo
   notice, confirmAction } from "../../shared/js/ui.js";
 import { A } from "./common.js";
 
-export default async function structure({ refresh }) {
-  const d = await api(`${A}/setup`);
-  const { stages, unassigned, subjects, sections_enabled: sectionsEnabled } = d.structure;
-  const naming = d.catalog.naming;
-  const allGrades = stages.flatMap((st) => st.grades.map((g) => ({ ...g, stage: st.name })));
+// الشاشة مقسّمة إلى أجزاء يعيد «السجل الأكاديمي» في الإعدادات استخدامها نفسها (لا نسخة ثانية):
+// الهيكل (المراحل والصفوف والشعب)، المواد، ووضع الشعب.
+export const loadStructure = () => api(`${A}/setup`);
 
+export default async function structure({ refresh }) {
+  const d = await loadStructure();
+  return [...stagesParts(d, refresh), sectionsModePanel(d, refresh), subjectsPanel(d, refresh)];
+}
+
+export function sectionsModePanel(d, refresh) {
+  const sectionsEnabled = d.structure.sections_enabled;
   /* ---------- تفعيل/تعطيل نظام الشعب ---------- */
   const sectionsToggle = input({ type: "checkbox", checked: sectionsEnabled });
-  const sectionsModePanel = panel("نظام الشعب", null,
+  return panel("نظام الشعب", null,
     h("label", { class: "f pill" }, sectionsToggle, "هذه المدرسة تستخدم شعبًا متعددة لكل صف"),
     sub(sectionsEnabled
       ? "عند الإيقاف: يختفي مفهوم «الشعبة» من كل الواجهات، ويرتبط كل طالب بصفه مباشرة. لا فقدان بيانات — الشعب الحالية تبقى محفوظة."
@@ -29,6 +34,14 @@ export default async function structure({ refresh }) {
       }
       toast("تم الحفظ"); refresh();
     }, "soft"));
+}
+
+const gradesWithStage = (stages) => stages.flatMap((st) => st.grades.map((g) => ({ ...g, stage: st.name, stage_id: st.id })));
+
+export function stagesParts(d, refresh) {
+  const { stages, unassigned, sections_enabled: sectionsEnabled } = d.structure;
+  const naming = d.catalog.naming;
+  const allGrades = gradesWithStage(stages);
 
   /* ---------- إضافة مرحلة ---------- */
   const stageName = input({ placeholder: "اسم المرحلة" });
@@ -69,17 +82,27 @@ export default async function structure({ refresh }) {
       h("div", {}, h("b", {}, c.name), sub(`${c.students} طالب`)),
       btn("ربط بصف", () => linkDialog(c, allGrades, refresh), "soft sm")))) : null;
 
+  return [
+    d.profile?.setup_completed_at ? null
+      : notice("لم يكتمل إعداد المدرسة بعد. افتح «معالج الإعداد» لبناء الهيكل خطوة بخطوة.", "warn"),
+    addStage, ...tree, orphans,
+  ];
+}
+
+export function subjectsPanel(d, refresh) {
+  const { stages, subjects } = d.structure;
+  const allGrades = gradesWithStage(stages);
   /* ---------- المواد ---------- */
   const sName = input({ placeholder: "اسم المادة" });
   const sCode = input({ class: "ltr", placeholder: "الرمز" });
   const sWeekly = input({ type: "number", min: 0, max: 40, placeholder: "حصص/أسبوع" });
 
-  const subjectsPanel = panel("المواد الدراسية", null,
+  return panel("المواد الدراسية", null,
     subjects.length ? subjects.map((s) => line(
       h("div", { class: s.is_active ? "" : "muted-row" },
         h("b", {}, s.name), " ", s.code ? badge(s.code, "gray") : null,
         s.is_active ? null : badge("موقوفة", "gray"),
-        sub(`${s.weekly_periods ?? "—"} حصص أسبوعيًا — ${s.grade_ids.length ? `${s.grade_ids.length} صفوف` : "غير مرتبطة بصفوف"}`)),
+        sub(`${s.weekly_periods ?? "—"} حصص أسبوعيًا — ${linkedSummary(s, stages)}`)),
       h("div", { class: "row", style: "flex:none" },
         btn("تعديل", () => subjectDialog(s, allGrades, refresh), "ghost sm"),
         btn(s.is_active ? "إيقاف" : "تفعيل", async () => {
@@ -92,12 +115,19 @@ export default async function structure({ refresh }) {
         weekly_periods: sWeekly.value === "" ? null : Number(sWeekly.value) });
       toast("أُضيفت المادة"); refresh();
     }));
+}
 
-  return [
-    d.profile?.setup_completed_at ? null
-      : notice("لم يكتمل إعداد المدرسة بعد. افتح «معالج الإعداد» لبناء الهيكل في ثلاث خطوات.", "warn"),
-    addStage, sectionsModePanel, ...tree, orphans, subjectsPanel,
-  ];
+// «المرحلة الثانوية كاملة، أول متوسط» بدل عدد مجرد
+function linkedSummary(s, stages) {
+  if (!s.grade_ids.length) return "غير مرتبطة بصفوف";
+  const ids = new Set(s.grade_ids.map(Number));
+  const parts = [];
+  for (const st of stages) {
+    const inStage = st.grades.filter((g) => ids.has(Number(g.id)));
+    if (!inStage.length) continue;
+    parts.push(inStage.length === st.grades.length ? `${st.name} كاملة` : inStage.map((g) => g.name).join("، "));
+  }
+  return parts.join(" · ");
 }
 
 /* ---------- صف مع شعبه ---------- */
@@ -195,12 +225,23 @@ function subjectDialog(s, grades, refresh) {
   const weekly = input({ type: "number", min: 0, max: 40, value: s.weekly_periods ?? "" });
   const picks = grades.map((g) => {
     const cb = input({ type: "checkbox", checked: s.grade_ids.includes(Number(g.id)) });
-    return { id: g.id, cb, el: h("label", { class: "subject-pick" }, cb, h("span", {}, `${g.stage} — ${g.name}`)) };
+    return { id: g.id, stage_id: g.stage_id, cb, el: h("label", { class: "subject-pick" }, cb, h("span", {}, g.name)) };
+  });
+  // الصفوف مجمّعة حسب المرحلة، مع اختيار المرحلة كاملة بضغطة
+  const stageIds = [...new Set(grades.map((g) => g.stage_id))];
+  const groups = stageIds.map((sid) => {
+    const mine = picks.filter((p) => p.stage_id === sid);
+    const all = input({ type: "checkbox", checked: mine.every((p) => p.cb.checked) });
+    all.addEventListener("change", () => { for (const p of mine) p.cb.checked = all.checked; });
+    for (const p of mine) p.cb.addEventListener("change", () => { all.checked = mine.every((x) => x.cb.checked); });
+    return h("section", { class: "subject-group" },
+      h("label", { class: "f pill sec-title" }, all, h("b", {}, `${grades.find((g) => g.stage_id === sid).stage} — كل الصفوف`)),
+      h("div", { class: "subject-grid" }, mine.map((p) => p.el)));
   });
   const d = dialog(`تعديل ${s.name}`, h("div", {},
     h("div", { class: "row" }, field("الاسم", name), field("الرمز", code), field("حصص أسبوعية", weekly)),
     h("h3", { class: "sec-title" }, "الصفوف التي تُدرّس فيها"),
-    picks.length ? h("div", { class: "subject-grid" }, picks.map((p) => p.el)) : sub("أضف صفوفًا أولًا.")),
+    picks.length ? groups : sub("أضف صفوفًا أولًا.")),
   [btn("حفظ", async () => {
     await api(`${A}/setup/subjects/${s.id}`, {
       name: name.value, code: code.value || null,

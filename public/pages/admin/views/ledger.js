@@ -2,7 +2,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast,
-  dialog, notice, confirmAction, brandLogo, sectionMenu } from "../../shared/js/ui.js";
+  dialog, notice, confirmAction, docLogo, sectionMenu } from "../../shared/js/ui.js";
 import { barChart } from "../../shared/js/charts.js";
 import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
 import { A } from "./common.js";
@@ -122,7 +122,7 @@ function printReport(d) {
   return panel("تقرير الفترة", btn("طباعة / حفظ PDF", () => window.print(), "ghost sm"),
     h("div", { class: "report" },
       h("header", {}, h("div", {}, h("h2", {}, "التقرير المالي"),
-        sub(`من ${fmtDate(d.period.from)} إلى ${fmtDate(d.period.to)}`)), brandLogo("print-logo", false)),
+        sub(`من ${fmtDate(d.period.from)} إلى ${fmtDate(d.period.to)}`)), docLogo("print-logo")),
       row("إجمالي المداخيل", money(d.income)),
       row("إجمالي المصروفات", money(d.expense), "danger-text"),
       row("صافي الحركة", money(d.net)),

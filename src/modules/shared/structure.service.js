@@ -2,7 +2,7 @@
 // كل ما يولّده القالب قابل للتعديل والحذف والإضافة بعد ذلك.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
-import { STAGES, TEMPLATES, SUBJECT_LIBRARY, sectionName, gradeNames, catalog } from "./academic-catalog.js";
+import { STAGES, TEMPLATES, SUBJECT_LIBRARY, GRADE_SETS, sectionName, gradeNames, catalog } from "./academic-catalog.js";
 
 export { catalog };
 
@@ -46,13 +46,18 @@ export const templateSchema = z.object({
   stages: z.array(z.string().max(30)).max(10).optional(),       // تخصيص المراحل بدل القالب
   // أسماء صفوف معدَّلة يدويًا في المعاينة: { primary: ["..."], middle: [...] } وتتقدم على النمط
   custom_grades: z.record(z.string().max(30), z.array(z.string().trim().min(1, "اسم الصف فارغ").max(60)).max(20)).optional(),
+  // مراحل خاصة بالمدرسة غير الموجودة في الكتالوج (مثل: تحفيظ، تمهيدي خاص، دبلوم)
+  custom_stages: z.array(z.object({
+    name: t.shortText("اسم المرحلة", 60),
+    grades: z.array(z.string().trim().min(1, "اسم الصف فارغ").max(60)).min(1, "أضف صفًا واحدًا على الأقل للمرحلة").max(20),
+  })).max(5).optional(),
 });
 
 /* ---------- القراءة ---------- */
 export async function getProfile(q) {
   const [row] = await q(
     `SELECT t.name, t.currency, p.school_type, p.gender, p.country, p.city, p.address, p.email, p.phone,
-            p.template, p.setup_completed_at, COALESCE(p.sections_enabled, true) AS sections_enabled
+            p.template, p.setup_completed_at, COALESCE(p.sections_enabled, true) AS sections_enabled, p.logo_image_id
        FROM tenants t LEFT JOIN school_profile p ON p.tenant_id = t.id
       WHERE t.id = app_tenant()`);
   return row;
@@ -98,6 +103,27 @@ export async function updateProfile(q, b) {
     [b.school_type ?? null, b.gender ?? null, b.country ?? null, b.city ?? null, b.address ?? null,
      b.email ?? null, b.phone ?? null]);
   return getProfile(q);
+}
+
+/* ---------- شعار المدرسة ---------- */
+// صورة واحدة تُحفظ في جدول الصور نفسه (نفس فحص المحتوى والحجم)، ويُشار إليها من ملف المدرسة
+export async function setLogo(q, file, actor, saveImage) {
+  const img = await saveImage(q, { kind: "school_logo", file, actor });
+  await q("INSERT INTO school_profile (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+  const [old] = await q("SELECT logo_image_id FROM school_profile WHERE tenant_id = app_tenant()");
+  await q("UPDATE school_profile SET logo_image_id = $1 WHERE tenant_id = app_tenant()", [img.id]);
+  // الشعار القديم يُحذف إن لم يكن مستخدمًا في مكان آخر (شعار الاختبارات أو صورة سؤال)
+  if (old?.logo_image_id) await q(
+    `DELETE FROM exam_images WHERE id = $1 AND kind = 'school_logo'
+       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)`, [old.logo_image_id]);
+  return { logo_image_id: img.id };
+}
+export async function removeLogo(q) {
+  const [old] = await q("SELECT logo_image_id FROM school_profile WHERE tenant_id = app_tenant()");
+  await q("UPDATE school_profile SET logo_image_id = NULL WHERE tenant_id = app_tenant()");
+  if (old?.logo_image_id) await q(
+    `DELETE FROM exam_images WHERE id = $1 AND kind = 'school_logo'
+       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)`, [old.logo_image_id]);
 }
 
 export async function completeSetup(q) {
@@ -172,6 +198,39 @@ async function cascadeGradeRename(q, gradeId, oldName, newName) {
     if (clash) throw conflict(`لا يمكن إعادة التسمية: يوجد فصل باسم «${renamed}» مسبقًا`);
     await q("UPDATE classes SET name = $2 WHERE id = $1", [c.id, renamed]);
   }
+}
+
+/**
+ * تغيير نمط تسمية الصفوف دفعة واحدة (سعودي/خليجي، رقمي، دولي…) للمراحل المبنية من الكتالوج.
+ * الصف يبقى نفسه (نفس المعرّف): يتغير اسم العرض فقط، وتتبعه أسماء شعبه، ولا يتأثر أي طالب أو درجة.
+ * المراحل المخصصة والصفوف الزائدة عن النمط تبقى بأسمائها.
+ */
+export const renamePatternSchema = z.object({ grade_set: z.enum(Object.keys(GRADE_SETS)) });
+export async function renameGradesByPattern(q, gradeSet) {
+  const stages = await q("SELECT id, code FROM stages WHERE code IS NOT NULL ORDER BY sort_order, id");
+  const changes = [];
+  for (const st of stages) {
+    const names = GRADE_SETS[gradeSet][st.code];
+    if (!names) continue;
+    const grades = await q("SELECT id, name FROM grades WHERE stage_id = $1 ORDER BY sort_order, id", [st.id]);
+    grades.forEach((g, i) => { if (names[i] && names[i] !== g.name) changes.push({ id: g.id, stage: st.id, old: g.name, next: names[i] }); });
+  }
+  // أسماء متبادلة داخل المرحلة (أ ← ب و ب ← أ): اسم مؤقت أولًا حتى لا يصطدم القيد الفريد
+  for (const c of changes) {
+    const [clash] = await q("SELECT id FROM grades WHERE stage_id = $1 AND name = $2 AND id <> $3", [c.stage, c.next, c.id]);
+    if (clash && !changes.some((x) => Number(x.id) === Number(clash.id))) throw conflict(`يوجد صف باسم «${c.next}» في المرحلة نفسها`);
+  }
+  // الاسم المؤقت فقط للصف الذي يأخذ اسمًا يحمله صف آخر قبل تغييره، حتى يبقى سجل التدقيق نظيفًا
+  const taken = new Set(changes.map((c) => `${c.stage}:${c.old}`));
+  for (const c of changes) if (taken.has(`${c.stage}:${c.next}`)) {
+    const holder = changes.find((x) => x.stage === c.stage && x.old === c.next);
+    await q("UPDATE grades SET name = $2 WHERE id = $1", [holder.id, `~${holder.id}`]);
+  }
+  for (const c of changes) {
+    await q("UPDATE grades SET name = $2 WHERE id = $1", [c.id, c.next]);
+    await cascadeGradeRename(q, c.id, c.old, c.next);
+  }
+  return { renamed: changes.length };
 }
 
 export async function deleteGrade(q, id) {
@@ -299,10 +358,12 @@ export async function updateSubject(q, id, b) {
   await setSubjectGrades(q, id, b.grade_ids);
 }
 
+// الفرق فقط: يُحذف ما أُزيل ويُضاف الجديد (سجل التدقيق يعكس التغيير الحقيقي لا حذفًا وإعادة إضافة)
 async function setSubjectGrades(q, subjectId, gradeIds) {
   if (!gradeIds) return;
-  await q("DELETE FROM subject_grades WHERE subject_id = $1", [subjectId]);
-  for (const gradeId of gradeIds) {
+  const want = [...new Set(gradeIds.map(Number))];
+  await q("DELETE FROM subject_grades WHERE subject_id = $1 AND NOT (grade_id = ANY($2::bigint[]))", [subjectId, want]);
+  for (const gradeId of want) {
     await q(
       `INSERT INTO subject_grades (tenant_id, subject_id, grade_id) VALUES (app_tenant(), $1, $2)
        ON CONFLICT DO NOTHING`, [subjectId, gradeId]);
@@ -317,28 +378,36 @@ export async function applyTemplate(q, b) {
   const [profile] = await q("SELECT COALESCE(sections_enabled, true) AS sections_enabled FROM school_profile WHERE tenant_id = app_tenant()");
   const sectionsEnabled = profile?.sections_enabled ?? true;
   const keys = b.stages?.length ? b.stages : TEMPLATES[b.template].stages;
-  if (!keys.length) {
+  const custom = b.custom_stages || [];
+  if (!keys.length && !custom.length) {
     await completeSetup(q);
     return { stages: 0, grades: 0, sections: 0, subjects: 0 };
   }
+  for (const key of keys) if (!STAGES[key]) throw badRequest("مرحلة غير معروفة");
   const summary = { stages: 0, grades: 0, sections: 0, subjects: 0 };
-  const gradeIdsByStage = {};
   const seenNames = new Set();
 
-  for (const [i, key] of keys.entries()) {
-    const def = STAGES[key];
-    if (!def) throw badRequest("مرحلة غير معروفة");
+  // مراحل الكتالوج (بالمفتاح) ثم المراحل المخصصة (بالاسم)، كلها بنفس المسار
+  const defs = [
+    ...keys.map((key) => ({ key, name: STAGES[key].name, code: key,
+      grades: b.custom_grades?.[key]?.length ? b.custom_grades[key] : gradeNames(key, b.grade_set) })),
+    ...custom.map((c, i) => ({ key: `custom_${i}`, name: c.name.trim(), code: null, grades: c.grades })),
+  ];
+  const [base] = await q("SELECT COALESCE(MAX(sort_order), 0) AS n FROM stages");
+  const gradeIdsByStage = {};
+
+  for (const [i, def] of defs.entries()) {
     let [stage] = await q("SELECT id FROM stages WHERE name = $1", [def.name]);
     if (!stage) {
       [stage] = await q(
         "INSERT INTO stages (tenant_id, name, code, sort_order) VALUES (app_tenant(), $1, $2, $3) RETURNING id",
-        [def.name, key, i + 1]);
+        [def.name, def.code, Number(base.n) + i + 1]);
       summary.stages++;
     }
-    gradeIdsByStage[key] = [];
+    gradeIdsByStage[def.key] = [];
 
-    const names = b.custom_grades?.[key]?.length ? b.custom_grades[key] : gradeNames(key, b.grade_set);
-    for (const [gi, gradeName] of names.entries()) {
+    for (const [gi, raw] of def.grades.entries()) {
+      const gradeName = raw.trim();
       if (seenNames.has(gradeName)) throw badRequest(`اسم الصف «${gradeName}» مكرر. لكل صف اسم مختلف.`);
       seenNames.add(gradeName);
       let [grade] = await q("SELECT id FROM grades WHERE stage_id = $1 AND name = $2", [stage.id, gradeName]);
@@ -348,7 +417,7 @@ export async function applyTemplate(q, b) {
           [stage.id, gradeName, gi + 1]);
         summary.grades++;
       }
-      gradeIdsByStage[key].push(grade.id);
+      gradeIdsByStage[def.key].push(grade.id);
       if (!sectionsEnabled) {
         const [hasSection] = await q("SELECT 1 FROM classes WHERE grade_id = $1", [grade.id]);
         if (!hasSection) { await ensureDefaultSection(q, grade.id, gradeName); summary.sections++; }
@@ -359,27 +428,33 @@ export async function applyTemplate(q, b) {
     }
   }
 
-  // المواد: المختارة من المكتبة الكاملة، أو المقترح الافتراضي للمراحل
+  // المواد: المختارة من المكتبة الكاملة، أو المقترح الافتراضي للمراحل.
+  // المادة المختارة تُربط بصفوف المراحل التي تقترحها فقط (الفيزياء للثانوي لا للابتدائي)؛
+  // المادة التي لا تقترحها أي مرحلة مختارة (أو المراحل المخصصة) تُربط بكل الصفوف، ويعدّلها المدير لاحقًا.
   const library = new Map(SUBJECT_LIBRARY.flatMap((g) => g.items.map((x) => [x.name, x])));
-  const chosen = b.subjects?.length
-    ? b.subjects.map((name) => library.get(name) || { name, code: null, weekly: null })
-    : null;
+  const suggestedIn = (name) => keys.filter((key) => STAGES[key].subjects.some((x) => x.name === name));
+  const plan = b.subjects?.length
+    ? b.subjects.map((name) => {
+        const where = suggestedIn(name);
+        return { s: library.get(name) || { name, code: null, weekly: null },
+          stages: [...(where.length ? where : keys), ...custom.map((_, i) => `custom_${i}`)] };
+      })
+    : [...new Map(keys.flatMap((key) => STAGES[key].subjects.map((x) => [x.name, x]))).values()]
+        .map((x) => ({ s: x, stages: suggestedIn(x.name) }));
 
-  for (const key of keys) {
-    for (const s of chosen ?? STAGES[key].subjects) {
-      let [subject] = await q("SELECT id FROM subjects WHERE name = $1", [s.name]);
-      if (!subject) {
-        const [order] = await q("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM subjects");
-        [subject] = await q(
-          `INSERT INTO subjects (tenant_id, name, code, weekly_periods, sort_order)
-           VALUES (app_tenant(), $1, $2, $3, $4) RETURNING id`, [s.name, s.code, s.weekly, order.next]);
-        summary.subjects++;
-      }
-      for (const gradeId of gradeIdsByStage[key]) {
-        await q(
-          `INSERT INTO subject_grades (tenant_id, subject_id, grade_id) VALUES (app_tenant(), $1, $2)
-           ON CONFLICT DO NOTHING`, [subject.id, gradeId]);
-      }
+  for (const { s, stages } of plan) {
+    let [subject] = await q("SELECT id FROM subjects WHERE name = $1", [s.name]);
+    if (!subject) {
+      const [order] = await q("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM subjects");
+      [subject] = await q(
+        `INSERT INTO subjects (tenant_id, name, code, weekly_periods, sort_order)
+         VALUES (app_tenant(), $1, $2, $3, $4) RETURNING id`, [s.name, s.code, s.weekly, order.next]);
+      summary.subjects++;
+    }
+    for (const key of stages) for (const gradeId of gradeIdsByStage[key] || []) {
+      await q(
+        `INSERT INTO subject_grades (tenant_id, subject_id, grade_id) VALUES (app_tenant(), $1, $2)
+         ON CONFLICT DO NOTHING`, [subject.id, gradeId]);
     }
   }
 

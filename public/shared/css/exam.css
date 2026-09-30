@@ -131,7 +131,7 @@
 .xp-print-root { display: none; }
 @media print {
   body.xp-printing > *:not(.xp-print-root) { display: none !important; }
-  body.xp-printing { background: #fff !important; display: block; min-height: 0; }
+  body.xp-printing { background: #fff !important; display: block; min-height: 0; padding: 0 !important; }
   /* أعلى أولوية من قاعدة طباعة الإيصالات العامة (body > *:not(dialog)) في app.css */
   body.xp-printing > .xp-print-root { display: block !important; }
   .xp-print-root .xp-page { box-shadow: none; margin: 0; break-after: page; page-break-after: always; }
@@ -156,6 +156,11 @@
 .xb-list-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
 .xb-list-row:first-child { border-top: none; }
 .xb-list-row .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* الجوال: الاسم والتفاصيل بعرض كامل، والأزرار تحتها في صف واحد قابل للالتفاف */
+@media (max-width: 640px) {
+  .xb-list-row { grid-template-columns: 1fr; }
+  .xb-list-row .acts { justify-content: flex-start; }
+}
 
 .xb-top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 6px 0 8px; margin-bottom: 6px; }
 .xb-top .line1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -214,6 +219,51 @@ body.xb-dragging { user-select: none; cursor: grabbing; }
 .xb-tbl td { border: 1px solid var(--line); padding: 2px; min-width: 90px; }
 .xb-tbl td.sel { outline: 2px solid var(--accent); }
 .xb-tbl input { border: none; padding: 5px; font-size: 14px; }
+
+/* إدخال الأسئلة */
+.xb-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.xb-check { margin-bottom: 10px; } .xb-check summary { cursor: pointer; font-size: 13px; color: #8a5a10; font-weight: 600; }
+.xb-start { background: #fff; border: 1px dashed var(--line); border-radius: 12px; padding: 16px; }
+.xb-start > b { display: block; margin-bottom: 10px; font-size: 16px; color: var(--navy); }
+.xb-start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.xb-s-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.xb-s-meta textarea { flex: 1; min-width: 180px; }
+.xb-addq { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.xb-addq-l { font-size: 13px; color: var(--muted); margin-inline-end: 2px; }
+.xb-addq select { width: auto; font-size: 13px; padding: 5px 8px; }
+.xb-addq-sep { flex: 1; }
+.xb-qtype { font: inherit; font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--ink); }
+.xb-qtype:hover { border-color: var(--accent); color: var(--accent); }
+.xb-qtype.on { border-color: var(--accent); background: var(--teal-soft); color: var(--teal); font-weight: 600; }
+.xb-add-section { justify-content: center; }
+.xb-menu { position: relative; }
+.xb-menu > summary { list-style: none; font-size: 18px; line-height: 16px; width: 28px; justify-content: center; }
+.xb-menu > summary::-webkit-details-marker { display: none; }
+.xb-menu-list { position: absolute; inset-inline-end: 0; top: 100%; z-index: 6; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; min-width: 200px; display: flex; flex-direction: column; }
+.xb-menu-list button { font: inherit; font-size: 14px; text-align: start; background: none; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--ink); }
+.xb-menu-list button:hover { background: var(--bg); }
+.xb-ed-top { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 10px; }
+.xb-ed-foot { display: flex; gap: 6px; justify-content: flex-end; margin-top: 10px; }
+.xb-more { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; }
+.xb-more > summary { cursor: pointer; font-size: 13px; color: var(--accent); font-weight: 600; padding: 4px 0; }
+.xb-more > summary small { color: var(--muted); font-weight: 400; }
+.xb-more-media { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.xb-tf { display: flex; gap: 10px; }
+.xb-tf-btn { font: inherit; font-size: 15px; flex: 1; max-width: 160px; padding: 10px; border: 2px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; color: var(--ink); }
+.xb-tf-btn.on { border-color: var(--teal); background: var(--teal-soft); color: var(--teal); font-weight: 700; }
+.xb-tf-btn.no.on { border-color: var(--red); background: var(--red-soft); color: var(--red); }
+.xb-opt.ok input[type=text] { border-color: var(--teal); background: var(--teal-soft); }
+dialog.xb-xwide { width: min(1100px, 97vw); }
+.xb-paste-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 900px) { .xb-paste-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.xb-paste { font-size: 14px; line-height: 1.7; min-height: 280px; }
+.xb-paste-prev { max-height: 60vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin-top: 4px; background: #FBFCFD; }
+.xb-paste-sum { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-weight: 700; color: var(--teal); margin-bottom: 6px; }
+.xb-paste-sec { font-weight: 700; color: var(--navy); margin: 10px 0 4px; font-size: 14px; }
+.xb-paste-q { display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: start; padding: 6px 4px; border-top: 1px solid var(--line); font-size: 14px; }
+.xb-ok-t { color: var(--teal); } .xb-warn-t { color: #8a5a10; }
+.xb-paste-help { font-size: 13px; margin: 6px 0; } .xb-paste-help summary { cursor: pointer; color: var(--accent); }
+.xb-paste-help ul { margin: 6px 0; padding-inline-start: 18px; line-height: 1.8; }
 
 .xb-design { display: grid; grid-template-columns: 1fr; gap: 14px; }
 @media (min-width: 1100px) { .xb-design { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; } .xb-design .xb-mini { position: sticky; top: 90px; } }

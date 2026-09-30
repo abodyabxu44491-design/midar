@@ -1,7 +1,7 @@
 // ملف الطالب الكامل — يُفتح بمعرّف الطالب فقط
 import { h, $, mount } from "../shared/js/dom.js";
 import { api, idempotencyKey } from "../shared/js/api.js";
-import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select , showInstallBar} from "../shared/js/ui.js";
+import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, showInstallBar, schoolLogoUrl } from "../shared/js/ui.js";
 import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "../shared/js/format.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
@@ -36,7 +36,7 @@ function render(d) {
   const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true });
 
   mount(app,
-    topbar({ school: d.school, subtitle: "ملف الطالب", onLogout: () => { sessionStorage.removeItem(KEY); back(); } }),
+    topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب", onLogout: () => { sessionStorage.removeItem(KEY); back(); } }),
     h("main", { class: "profile-page" },
       h("div", { class: "toolbar" }, btn("الرجوع لقائمة الطلاب", back, "ghost sm"), btn("طباعة", () => window.print(), "ghost sm")),
       file.el),

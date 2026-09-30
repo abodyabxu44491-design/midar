@@ -290,3 +290,19 @@ test("إيقاف القسم يرفضه الخادم، والبيانات تعو�
   await A.admin.put("/api/admin/settings/modules", { exam_papers: true });
   assert.ok((await s.t1.get(P)).data.some((p) => p.id === s.paper));
 });
+
+test("البنك: حفظ أسئلة ملصوقة دفعة واحدة، في مادة المعلم فقط، وبالمادة والوحدة المختارة", async () => {
+  const { parseQuestions } = await import("../public/shared/js/exam/parse.js");
+  const parsed = parseQuestions("1- 5 + 5 =\nأ) 10 *\nب) 11\n2- العدد 2 زوجي (صح)\n3- 3 × 3 = ____ (9)");
+  const questions = parsed.sections.flatMap((x) => x.questions).map(({ id, ...q }) => q);
+  const before = (await s.t1.get(`${P}/stats`)).data.bank.mine;
+  const r = await s.t1.post(`${P}/bank/bulk`, { subject_id: s.math, unit: "الضرب", questions });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.equal(r.data.saved, 3);
+  assert.equal((await s.t1.get(`${P}/stats`)).data.bank.mine, before + 3);
+  const rows = (await s.t1.get(`${P}/bank?unit=${encodeURIComponent("الضرب")}`)).data;
+  assert.deepEqual(rows.map((x) => x.type).sort(), ["fill", "mcq", "truefalse"]);
+  assert.ok(rows.find((x) => x.type === "mcq").correct.length === 1, "الإجابة الصحيحة محفوظة");
+  assert.equal((await s.t1.post(`${P}/bank/bulk`, { subject_id: s.sci, questions })).status, 403, "مادة غير مسندة للمعلم");
+  assert.equal((await s.t1.post(`${P}/bank/bulk`, { subject_id: s.math, questions: [] })).status, 400);
+});

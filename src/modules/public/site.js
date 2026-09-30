@@ -12,6 +12,7 @@ import { inSchool, accessSchema, checkAccess } from "./context.js";
 import { getSettings } from "../shared/public-settings.service.js";
 import { studentSummaries } from "../shared/finance.service.js";
 import { forAllClasses } from "../shared/timetable.service.js";
+import { logoId } from "../shared/school-logo.service.js";
 
 const r = Router({ mergeParams: true });
 const base = accessSchema.partial();
@@ -36,9 +37,9 @@ r.post("/home", limits.api, handle(async (req, res) => {
     gate(settings, tenant, b.access);
     const [profile] = settings.show_contact
       ? await q("SELECT city, address, phone, email FROM school_profile WHERE tenant_id = app_tenant()") : [];
-    const [logo] = await q("SELECT logo_image_id FROM exam_paper_settings WHERE tenant_id = app_tenant() AND show_logo");
+    const logo = await logoId(q);
     return {
-      school: { name: tenant.name, about: settings.about || null, logo: Boolean(logo?.logo_image_id) },
+      school: { name: tenant.name, about: settings.about || null, logo: Boolean(logo), logo_v: logo },
       contact: settings.show_contact && profile ? profile : null,
       announcements: settings.show_announcements
         ? await q("SELECT title, body, created_at FROM announcements WHERE class_id IS NULL ORDER BY id DESC LIMIT 6") : [],
@@ -124,10 +125,14 @@ r.post("/section", limits.api, handle(async (req, res) => {
       out.total = n;
     }
     if (b.offset === 0 && settings.show_teachers) {
+      // معلم واحد بكل مواده، وصورته إن فعّلت المدرسة نشر صور المعلمين (تُضمَّن في الاستجابة نفسها،
+      // فلا تُتاح صورة لمن لا يملك صلاحية رؤية الشعبة)
       out.teachers = await q(
-        `SELECT t.full_name AS teacher, sub.name AS subject FROM teacher_assignments a
-           JOIN teachers t ON t.id = a.teacher_id JOIN subjects sub ON sub.id = a.subject_id
-          WHERE a.class_id = $1 ORDER BY sub.sort_order NULLS LAST, sub.name`, [b.class_id]);
+        `SELECT t.full_name AS teacher, string_agg(sub.name, '، ' ORDER BY sub.sort_order NULLS LAST, sub.name) AS subject,
+                CASE WHEN $2 AND t.photo IS NOT NULL
+                     THEN 'data:' || t.photo_type || ';base64,' || replace(encode(t.photo, 'base64'), E'\n', '') END AS photo
+           FROM teacher_assignments a JOIN teachers t ON t.id = a.teacher_id JOIN subjects sub ON sub.id = a.subject_id
+          WHERE a.class_id = $1 GROUP BY t.id ORDER BY min(sub.sort_order) NULLS LAST, t.full_name`, [b.class_id, settings.show_teacher_photos]);
     }
     if (b.offset === 0 && settings.show_timetable) {
       out.timetable = (await forAllClasses(q)).filter((x) => Number(x.class_id) === Number(b.class_id))
@@ -162,13 +167,15 @@ r.post("/find", limits.studentKey, handle(async (req, res) => {
 /* ---------- شعار المدرسة (عام، مثل اسمها) ---------- */
 r.get("/logo", handle(async (req, res) => {
   const img = await inSchool(req, "زائر", async (q) => {
-    const [row] = await q(
-      `SELECT i.mime, i.data FROM exam_paper_settings s JOIN exam_images i ON i.id = s.logo_image_id
-        WHERE s.tenant_id = app_tenant() AND s.show_logo`);
+    const id = await logoId(q);
+    if (!id) return null;
+    const [row] = await q(`SELECT ${req.query.size === "thumb" ? "COALESCE(thumb_mime, mime) AS mime, COALESCE(thumb, data) AS data" : "mime, data"} FROM exam_images WHERE id = $1`, [id]);
     return row;
   });
   if (!img) throw notFound("لا يوجد شعار");
-  res.set("Cache-Control", "public, max-age=3600").type(img.mime).send(img.data);
+  // الرابط يحمل رقم نسخة الشعار (?v=)، فتغييره يظهر فورًا والكاش طويل
+  res.set({ "Cache-Control": req.query.v ? "public, max-age=2592000, immutable" : "public, max-age=3600", "X-Content-Type-Options": "nosniff" })
+    .type(img.mime).send(img.data);
 }));
 
 export default r;

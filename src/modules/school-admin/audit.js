@@ -6,8 +6,10 @@ import { parse, t, z } from "../../core/http/validate.js";
 
 const r = Router();
 const TABLES = { students: "الطلاب", attendance: "الحضور", exams: "الاختبارات", scores: "الدرجات", invoices: "الفواتير",
-  payments: "المدفوعات", teachers: "المعلمون", users: "الحسابات", classes: "الفصول", subjects: "المواد",
-  teacher_assignments: "إسناد المعلمين", announcements: "الإعلانات", tenants: "إعدادات المدرسة" };
+  payments: "المدفوعات", teachers: "المعلمون", users: "الحسابات", classes: "الشعب", subjects: "المواد",
+  teacher_assignments: "إسناد المعلمين", announcements: "الإعلانات", tenants: "إعدادات المدرسة",
+  stages: "المراحل", grades: "الصفوف", subject_grades: "ربط المواد بالصفوف", academic_years: "السنوات الدراسية",
+  terms: "الفصول الدراسية", holidays: "الإجازات", school_profile: "ملف المدرسة والإعداد" };
 const OPS = { insert: "إضافة", update: "تعديل", delete: "حذف" };
 
 // قائمة الأقسام للتصفية في الواجهة

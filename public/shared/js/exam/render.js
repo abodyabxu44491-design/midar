@@ -143,7 +143,7 @@ export function headerBlock(paper, L, { school, logoUrl, versionCode, total }) {
     L.show_marks ? infoLine("الدرجة النهائية", fmtNum(paper.total_marks || total)) : null);
   const titleRow = h("div", { class: "xp-title-row" },
     h("div", { class: "xp-title" }, paper.title),
-    h("div", { class: "xp-subtitle" }, paper.exam_type),
+    paper.exam_type && paper.exam_type !== paper.title ? h("div", { class: "xp-subtitle" }, paper.exam_type) : null,
     L.show_version && versionCode ? h("div", { class: "xp-version" }, `نموذج ${versionCode}`) : null);
   return h("header", { class: "xp-header" },
     h("div", { class: "xp-h-grid" }, schoolSide, h("div", { class: "xp-h-logo" }, logo), examSide), titleRow);

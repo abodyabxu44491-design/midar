@@ -37,7 +37,7 @@ export async function examSection({ base, me, admin = false }) {
   const pairSelect = () => select(ctx.load.map((l) => [`${l.class_id}:${l.subject_id}`, `${l.class_name} — ${l.subject_name}`]));
   const pairOf = (el) => { const [c, s] = el.value.split(":").map(Number); return { class_id: c, subject_id: s }; };
   const typeSelect = () => select([...ctx.types.defaults, ...ctx.types.custom.filter((t) => t.is_active).map((t) => t.name)].map((t) => [t, t]));
-  const noLoad = () => (!ctx.load.length ? notice(admin ? "لا توجد صفوف ومواد بعد. أنشئ الهيكل الأكاديمي أولًا." : "لا توجد مواد مسندة لك. تواصل مع الإدارة.", "warn") : null);
+  const noLoad = () => (!ctx.load.length ? notice(admin ? "لا توجد صفوف ومواد بعد. أنشئها من: الإعدادات ← السجل الأكاديمي." : "لا توجد مواد مسندة لك. تواصل مع الإدارة.", "warn") : null);
 
   function createDialog() {
     const title = input({ placeholder: "مثل: اختبار الفصل الأول" });
@@ -272,6 +272,31 @@ export async function examSection({ base, me, admin = false }) {
       d.classList.add("xb-wide");
     }
 
+    // لصق أسئلة أو ملف Word إلى البنك دفعة واحدة
+    async function pasteToBank() {
+      const { pasteDialog } = await import("./paste-dialog.js");
+      const subj = select(subjects, { value: fSubject.value || subjects[0]?.[0] });
+      const grade = select([["", "كل الصفوف"], ...grades]);
+      const unit = input({ placeholder: "مثل: الوحدة الأولى" });
+      const lesson = input({ placeholder: "مثل: الجمع" });
+      const shared = h("input", { type: "checkbox" });
+      pasteDialog({
+        title: "إضافة أسئلة للبنك دفعة واحدة",
+        addLabel: "حفظ في البنك",
+        fields: h("div", { style: "flex:3;min-width:260px" },
+          h("div", { class: "row" }, field("المادة", subj), field("الصف", grade)),
+          h("div", { class: "row" }, field("الوحدة", unit), field("الدرس", lesson)),
+          h("label", { class: "row", style: "align-items:center;gap:6px;margin-bottom:12px" }, shared, "مشاركة الأسئلة مع معلمي المادة")),
+        onAdd: async (parsed) => {
+          const questions = parsed.sections.flatMap((x) => x.questions).map(({ id, bank_id, ...q }) => q);
+          const r = await api(`${base}/bank/bulk`, { subject_id: Number(subj.value), grade_id: grade.value ? Number(grade.value) : null,
+            unit: unit.value.trim(), lesson: lesson.value.trim(), is_shared: shared.checked, questions });
+          toast(`حُفظ ${r.saved} سؤال في البنك`); load();
+          return true;
+        },
+      });
+    }
+
     const bars = (rows, labelOf) => {
       const max = Math.max(1, ...rows.map((r) => r.n));
       return h("div", { class: "xb-bars" }, rows.map((r) => h("div", { class: "bar-row" }, h("span", {}, labelOf(r)),
@@ -285,7 +310,8 @@ export async function examSection({ base, me, admin = false }) {
           h("div", {}, h("b", { class: "small" }, "حسب الصعوبة"), bars(st.byDifficulty, (r) => DIFFICULTY[r.difficulty])),
           h("div", {}, h("b", { class: "small" }, "حسب النوع"), bars(st.byType, (r) => QTYPES[r.type].label))),
         h("b", { class: "small" }, "حسب المادة والوحدة"), bars(st.bySubject, (r) => `${r.subject} — ${r.unit}`)),
-      panel("الأسئلة", ctx.load.length ? btn("+ سؤال جديد", () => editBankQuestion(null), "sm") : null,
+      panel("الأسئلة", ctx.load.length ? h("div", { class: "row", style: "flex:none;gap:6px" },
+        btn("لصق أسئلة أو ملف Word", pasteToBank, "ghost sm"), btn("+ سؤال جديد", () => editBankQuestion(null), "sm")) : null,
         h("div", { class: "toolbar" }, fSubject, fType, fDiff),
         h("div", { class: "toolbar" }, fUnit, fq, h("label", { class: "row", style: "align-items:center;gap:6px;flex:none" }, mine, "أسئلتي فقط")),
         listBox));

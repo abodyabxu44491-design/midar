@@ -4,11 +4,18 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, badge, notice, toast } from "../../shared/js/ui.js";
 import { A } from "./common.js";
+import { logoPanel } from "./school-identity.js";
 
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 const TITLES = ["بيانات المدرسة", "المراحل", "أسماء الصفوف", "الشعب", "السنة الدراسية", "نظام الفصول", "أيام الدراسة", "الإجازات", "المواد", "المراجعة"];
 
-export default async function setup() {
+// المسودة تُحفظ في هذا المتصفح مع كل خطوة: تحديث الصفحة أو انقطاع الاتصال لا يضيّع ما أُدخل
+const draftKey = (me) => `midar:setup-draft:${me?.school?.id || "school"}`;
+const readDraft = (me) => { try { return JSON.parse(localStorage.getItem(draftKey(me)) || "null"); } catch { return null; } };
+const writeDraft = (me, v) => { try { localStorage.setItem(draftKey(me), JSON.stringify(v)); } catch { /* تخزين غير متاح: يعمل المعالج بدونه */ } };
+const clearDraft = (me) => { try { localStorage.removeItem(draftKey(me)); } catch { /* لا شيء */ } };
+
+export default async function setup({ me } = {}) {
   const [d, hol] = await Promise.all([api(`${A}/setup`), api(`${A}/academic/holidays`)]);
   const c = d.catalog, p = d.profile || {};
   const box = h("div");
@@ -27,8 +34,21 @@ export default async function setup() {
     holidays: [],
     subjects: new Map(),
     custom: {},          // أسماء معدَّلة يدويًا لكل مرحلة
+    customStages: [],    // مراحل خاصة بالمدرسة: [{ key, name, grades: [] }]
     editNames: false,
+    reached: 1,          // أبعد خطوة وصلها المدير (للتنقل بالضغط على الخطوات)
   };
+  // استكمال مسودة سابقة
+  const saved = readDraft(me);
+  let restored = false;
+  if (saved?.v === 1) {
+    Object.assign(st, saved.st, {
+      stages: new Set(saved.st.stages), days: new Set(saved.st.days), subjects: new Map(saved.st.subjects), editNames: false });
+    restored = st.step > 1;
+  }
+  const persist = () => writeDraft(me, { v: 1, st: { ...st, stages: [...st.stages], days: [...st.days], subjects: [...st.subjects], editNames: false } });
+  // الشعار يُحفظ فور رفعه (نفس لوحة «هوية المدرسة» في الإعدادات)
+  const logoWidget = logoPanel({ me, profile: p, onChange: (logo) => { if (me?.school) me.school.logo = logo; } });
   const f = {
     name: input({ value: p.name || "" }),
     school_type: select(c.school_types.map((x) => [x.key, x.name]), { value: p.school_type || "private" }),
@@ -39,10 +59,15 @@ export default async function setup() {
   };
 
   const ORDER = ["kindergarten", "primary", "middle", "secondary"];
-  const orderedStages = () => ORDER.map((k) => c.stages.find((s) => s.key === k)).filter((s) => s && st.stages.has(s.key));
-  const stageKeys = () => orderedStages().map((s) => s.key);
-  // أسماء صفوف مرحلة: المعدَّلة يدويًا إن وُجدت، وإلا من النمط المختار
-  const gradesOf = (key) => st.custom[key] || c.grade_sets.find((g) => g.key === st.gradeSet)?.names?.[key] || [];
+  // مراحل الكتالوج المختارة بالترتيب، ثم المراحل المخصصة
+  const orderedStages = () => [
+    ...ORDER.map((k) => c.stages.find((s) => s.key === k)).filter((s) => s && st.stages.has(s.key)),
+    ...st.customStages.map((x) => ({ key: x.key, name: x.name, custom: true })),
+  ];
+  const stageKeys = () => orderedStages().filter((s) => !s.custom).map((s) => s.key);
+  const customOf = (key) => st.customStages.find((x) => x.key === key);
+  // أسماء صفوف مرحلة: المعدَّلة يدويًا إن وُجدت، وإلا من النمط المختار (والمخصصة من تعريفها)
+  const gradesOf = (key) => st.custom[key] || customOf(key)?.grades || c.grade_sets.find((g) => g.key === st.gradeSet)?.names?.[key] || [];
   const allGrades = () => orderedStages().flatMap((s) => gradesOf(s.key));
   const termCount = () => (st.termMode === "custom" ? Number(st.termCustom) : Number(st.termMode));
   const suggested = () => {
@@ -61,7 +86,7 @@ export default async function setup() {
   const nav = (back, next, nextLabel = "التالي") => h("div", { class: "row spaced" },
     back ? btn("السابق", () => go(st.step - 1), "ghost") : h("span"),
     btn(nextLabel, next));
-  const go = (n) => { st.step = n; if (n === 9) fillSubjects(); draw(); window.scrollTo?.({ top: 0 }); };
+  const go = (n) => { st.step = n; st.reached = Math.max(st.reached, n); if (n === 9) fillSubjects(); draw(); window.scrollTo?.({ top: 0 }); };
   const need = (ok, msg) => { if (!ok) toast(msg); return ok; };
 
   function fillSubjects() {
@@ -95,8 +120,29 @@ export default async function setup() {
         Object.keys(st.custom).length ? btn("استعادة أسماء النمط", () => { st.custom = {}; st.editNames = false; draw(); }, "ghost") : null));
   };
 
+  // مرحلة غير موجودة في القائمة (تحفيظ، تمهيدي خاص، دبلوم…): اسمها وعدد صفوفها، والأسماء تُعدَّل في الخطوة التالية
+  const customStagesBox = () => {
+    const name = input({ placeholder: "مثال: مرحلة التحفيظ" });
+    const count = input({ type: "number", min: 1, max: 20, value: 3, style: "max-width:110px" });
+    return h("div", { class: "custom-stages" },
+      h("h3", { class: "sec-title" }, "مرحلة غير موجودة في القائمة؟"),
+      st.customStages.map((x, i) => h("div", { class: "line" },
+        h("div", {}, h("b", {}, x.name), sub(`${x.grades.length} صفوف: ${gradesOf(x.key).join("، ")}`)),
+        btn("حذف", () => { st.customStages.splice(i, 1); delete st.custom[x.key]; draw(); }, "danger sm"))),
+      h("div", { class: "row", style: "align-items:end" }, field("اسم المرحلة", name), field("عدد الصفوف", count),
+        btn("إضافة المرحلة", () => {
+          const n = name.value.trim(), k = Math.min(20, Math.max(1, Number(count.value) || 1));
+          if (!need(n.length >= 2, "اكتب اسم المرحلة")) return;
+          if (!need(![...c.stages.map((x) => x.name), ...st.customStages.map((x) => x.name)].includes(n), "المرحلة موجودة مسبقًا")) return;
+          st.customStages.push({ key: `custom_${Date.now().toString(36)}`, name: n, grades: Array.from({ length: k }, (_, j) => `${n} ${j + 1}`) });
+          draw();
+        }, "soft")),
+      sub("تُضاف بصفوف مرقّمة، وتغيّر أسماءها في الخطوة التالية بـ«تعديل الأسماء يدويًا»."));
+  };
+
   const steps = {
     1: () => panel("بيانات المدرسة", null,
+      h("div", { class: "spaced", style: "margin:0 0 14px" }, h("b", { class: "small" }, "شعار المدرسة (اختياري)"), logoWidget),
       field("اسم المدرسة", f.name),
       h("div", { class: "row" }, field("نوع المدرسة", f.school_type), field("الجنس", f.gender)),
       h("div", { class: "row" }, field("الدولة", f.country), field("المدينة", f.city)),
@@ -115,17 +161,17 @@ export default async function setup() {
         pick("checkbox", "stage", st.stages.has(s.key), s.name, `${s.grades.length} صفوف`, (on) => {
           on ? st.stages.add(s.key) : st.stages.delete(s.key); draw(); }))),
       btn("مدرسة شاملة (كل المراحل)", () => { for (const k of ["primary", "middle", "secondary"]) st.stages.add(k); draw(); }, "soft"),
-      sub("مرحلة أخرى غير موجودة هنا؟ تضيفها لاحقًا من: الإعدادات ← الهيكل الأكاديمي."),
-      nav(true, () => need(st.stages.size, "اختر مرحلة واحدة على الأقل") && go(3))),
+      customStagesBox(),
+      nav(true, () => need(st.stages.size || st.customStages.length, "اختر مرحلة واحدة على الأقل") && go(3))),
 
     3: () => panel("كيف تريد تسمية الصفوف؟", null,
       sub("اختر النمط، وستظهر تحته قائمة كاملة بكل صفوف مدرستك."),
       h("div", { class: "pick-grid one-col" }, c.grade_sets.map((g) => {
-        const seq = orderedStages().flatMap((s) => g.names?.[s.key] || []);
+        const seq = orderedStages().filter((s) => !s.custom).flatMap((s) => g.names?.[s.key] || []);
         const ends = seq.length > 3 ? `${seq[0]} ← … ← ${seq[seq.length - 1]}` : seq.join(" ← ");
         return pick("radio", "gs", st.gradeSet === g.key, g.name, ends, () => {
-          if (Object.keys(st.custom).length && !confirm("سيتم تجاهل تعديلاتك اليدوية على الأسماء. متابعة؟")) return draw();
-          st.gradeSet = g.key; st.custom = {}; st.editNames = false; draw();
+          if (Object.keys(st.custom).some((k) => !customOf(k)) && !confirm("سيتم تجاهل تعديلاتك اليدوية على الأسماء. متابعة؟")) return draw();
+          st.gradeSet = g.key; st.custom = Object.fromEntries(Object.entries(st.custom).filter(([k]) => customOf(k))); st.editNames = false; draw();
         });
       })),
       gradesPreview(),
@@ -217,7 +263,7 @@ export default async function setup() {
       return panel("المراجعة النهائية", null,
         line("المدرسة", f.name.value || p.name || "—"),
         line("المراحل", orderedStages().map((s) => s.name).join("، ")),
-        line("تسمية الصفوف", (Object.keys(st.custom).length ? "مخصص (عدّلته يدويًا)" : c.grade_sets.find((g) => g.key === st.gradeSet)?.name) || ""),
+        line("تسمية الصفوف", (Object.keys(st.custom).some((k) => !customOf(k)) ? "مخصص (عدّلته يدويًا)" : c.grade_sets.find((g) => g.key === st.gradeSet)?.name) || ""),
         line("عدد الصفوف", `${allGrades().length}`),
         ...orderedStages().map((s) => line(s.name, gradesOf(s.key).join("، "))),
         line("الشعب", st.sections ? `نعم — ${st.sectionCount} لكل صف` : "لا"),
@@ -233,10 +279,12 @@ export default async function setup() {
               sections_enabled: st.sections,
               template: { template: "empty", stages: stageKeys(), grade_set: st.gradeSet,
                 sections_per_grade: st.sections ? st.sectionCount : 0, naming: st.naming, subjects: picked,
-                custom_grades: Object.keys(st.custom).length ? Object.fromEntries(stageKeys().map((k) => [k, gradesOf(k).map((x) => x.trim())])) : undefined },
+                custom_grades: Object.keys(st.custom).some((k) => !customOf(k)) ? Object.fromEntries(stageKeys().map((k) => [k, gradesOf(k).map((x) => x.trim())])) : undefined,
+                custom_stages: st.customStages.length ? st.customStages.map((x) => ({ name: x.name, grades: gradesOf(x.key).map((g) => g.trim()) })) : undefined },
               year: { name: st.year.name, start_date: st.year.start, end_date: st.year.end, terms: termCount() },
               days: [...st.days], holidays: st.holidays,
             });
+            clearDraft(me);
             toast(`تم: ${r.stages} مراحل، ${r.grades} صفوف، ${r.sections} شعب، ${r.subjects} مواد`);
             setTimeout(() => location.reload(), 900);
           })));
@@ -245,16 +293,28 @@ export default async function setup() {
 
   const draw = () => {
     const pct = Math.round((st.step / TITLES.length) * 100);
+    persist();
     mount(box,
       h("div", { class: "wiz-progress" },
         h("div", { class: "wiz-bar" }, h("i", { style: `width:${pct}%` })),
-        h("small", {}, `الخطوة ${st.step} من ${TITLES.length} — ${TITLES[st.step - 1]}`)),
+        h("small", {}, `الخطوة ${st.step} من ${TITLES.length} — ${TITLES[st.step - 1]}`),
+        // الخطوات السابقة قابلة للضغط: الرجوع لأي خطوة دون فقدان ما بعدها
+        h("ol", { class: "setup-steps" }, TITLES.map((t, i) => {
+          const n = i + 1;
+          const can = n <= st.reached && n !== st.step;
+          return h("li", { class: `${n === st.step ? "on" : ""}${n < st.reached || (n <= st.reached && n !== st.step) ? " done" : ""}` },
+            can ? h("button", { type: "button", onclick: () => go(n) }, t) : h("span", {}, t));
+        }))),
       steps[st.step](),
       h("div", { class: "spaced" },
-        btn("تخطي المعالج والدخول للوحة", async () => { await api(`${A}/setup/complete`, {}); location.reload(); }, "ghost sm"),
-        sub("تعدّل أي شيء لاحقًا من: الإعدادات ← الهيكل الأكاديمي، والسنة الدراسية.")));
+        btn("تخطي المعالج والدخول للوحة", async () => { await api(`${A}/setup/complete`, {}); clearDraft(me); location.reload(); }, "ghost sm"),
+        sub("تعدّل أي شيء لاحقًا من: الإعدادات ← السجل الأكاديمي.")));
   };
 
   draw();
-  return [notice("إعداد المدرسة الأكاديمي لأول مرة: خطوات بسيطة وتصبح المدرسة جاهزة.", ""), box];
+  return [notice("إعداد المدرسة الأكاديمي لأول مرة: خطوات بسيطة وتصبح المدرسة جاهزة.", ""),
+    restored ? h("div", { class: "row", style: "align-items:center;justify-content:space-between;margin-bottom:10px" },
+      sub("أكملنا من حيث توقفت آخر مرة."),
+      btn("البدء من جديد", () => { if (!confirm("مسح ما أدخلته في المعالج والبدء من الخطوة الأولى؟")) return; clearDraft(me); location.reload(); }, "ghost sm")) : null,
+    box];
 }

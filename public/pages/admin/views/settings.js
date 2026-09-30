@@ -2,7 +2,8 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { waLink } from "../../shared/js/whatsapp.js";
 import syncView from "./sync.js";
-import structureView from "./structure.js";
+import academicRecord from "./academic-record.js";
+import schoolIdentity from "./school-identity.js";
 import { mySubscription } from "./my-subscription.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
@@ -11,8 +12,9 @@ import { csv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/fo
 import { A, directoryLink } from "./common.js";
 
 const SECTIONS = [
+  { key: "identity", name: "هوية المدرسة", note: "الشعار واسم المدرسة وبيانات التواصل" },
   { key: "modules", name: "أقسام المنصة", note: "شغّل وأوقف أقسام اللوحة" },
-  { key: "structure", name: "الهيكل الأكاديمي", note: "المراحل والصفوف والشعب" },
+  { key: "academic", name: "السجل الأكاديمي", note: "المراحل والصفوف والشعب والمواد والسنة والفصول والإجازات" },
   { key: "fields", name: "الحقول المخصصة", note: "أضف أي معلومة تحتاجها مدرستك" },
   { key: "page", name: "صفحة المدرسة العامة", note: "ما يراه أولياء الأمور" },
   { key: "payment", name: "طرق السداد", note: "الحسابات البنكية والدفع النقدي" },
@@ -27,7 +29,7 @@ const SECTIONS = [
 ];
 
 export default function settings(ctx) {
-  const views = { modules: modulesView, structure: (a) => structureView({ refresh: a.show }), fields: customFieldsView, page: pageView, payment: paymentView,
+  const views = { identity: schoolIdentity, modules: modulesView, academic: () => academicRecord(), fields: customFieldsView, page: pageView, payment: paymentView,
     messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
     access: accessView, data: dataView,
     subscription: mySubscription, sync: syncView };
@@ -147,6 +149,7 @@ const PAGE_OPTIONS = [
   ["show_student_names", "عرض أسماء الطلاب داخل الصف", "عند إيقافه لا تظهر الأسماء، ويبقى البحث فقط"],
   ["show_search", "البحث عن طالب بالاسم", "يعمل حتى لو أخفيت الصفوف والأسماء"],
   ["show_teachers", "جدول معلمي الصف ومواده", "يظهر داخل الصف عند فتحه"],
+  ["show_teacher_photos", "صور المعلمين", "مع أسماء المعلمين في الصف وملف الطالب. موقوفة افتراضيًا للخصوصية"],
   ["show_timetable", "جدول حصص الصف", "يظهر داخل الصف في الصفحة العامة"],
   ["show_admissions", "طلب التحاق طالب جديد", "النموذج يصل لتبويب «طلبات التسجيل»"],
   ["show_class_counts", "عدد الطلاب في كل صف", null],

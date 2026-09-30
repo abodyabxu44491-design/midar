@@ -5,7 +5,7 @@ export const FIELDS = [
   "access_mode", "show_classes", "show_student_names", "show_search", "show_teachers",
   "show_class_counts", "show_announcements", "public_fee_badges", "show_timetable", "show_admissions",
   "profile_show_grades", "profile_show_attendance", "profile_show_teachers", "profile_show_timetable", "profile_show_homework",
-  "about", "show_contact",
+  "about", "show_contact", "show_teacher_photos",
 ];
 
 export const settingsSchema = z.object({
@@ -26,6 +26,7 @@ export const settingsSchema = z.object({
   profile_show_homework: z.boolean(),
   about: z.string().trim().max(800).nullable().transform((v) => v || null),
   show_contact: z.boolean(),
+  show_teacher_photos: z.boolean(),
 }).partial();
 
 // تُنشأ تلقائيًا عند أول قراءة (بالقيم الافتراضية المتحفظة).

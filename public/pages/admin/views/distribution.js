@@ -10,7 +10,7 @@ export default async function distribution({ refresh }) {
   const stages = setup.structure.stages;
   const subjects = setup.structure.subjects.filter((s) => s.is_active);
   if (!stages.length || !subjects.length) {
-    return panel("توزيع المعلمين", null, empty("أضف الصفوف والمواد أولًا من «الهيكل الأكاديمي»."));
+    return panel("توزيع المعلمين", null, empty("أضف الصفوف والمواد أولًا من: الإعدادات ← السجل الأكاديمي."));
   }
 
   const gradePick = select(stages.flatMap((st) => st.grades.map((g) => [g.id, `${st.name} — ${g.name}`])));

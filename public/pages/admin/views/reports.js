@@ -1,7 +1,7 @@
 // تبويب التقارير: كشف درجات الطالب أو الصف كامل، جاهز للطباعة أو الحفظ PDF
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, select, btn, empty, sub, notice, brandLogo } from "../../shared/js/ui.js";
+import { panel, field, select, btn, empty, sub, notice, docLogo } from "../../shared/js/ui.js";
 import { fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses } from "./common.js";
 
@@ -53,7 +53,7 @@ function reportCard(c, me) {
   return h("article", { class: "report" },
     h("header", {},
       h("div", {}, h("h2", {}, c.school), sub("كشف درجات")),
-      brandLogo("print-logo", false)),
+      docLogo("print-logo")),
     h("div", { class: "meta" },
       h("div", {}, h("b", {}, "الطالب: "), c.student.name),
       h("div", {}, h("b", {}, "الصف: "), c.student.class_name || "—"),

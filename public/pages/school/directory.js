@@ -5,7 +5,7 @@
 // كل عنصر يظهر فقط إذا فعّلته إدارة المدرسة، وبطاقة الطالب لا تحمل إلا ما سمحت بنشره.
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandLogo, skeleton, showInstallBar } from "../shared/js/ui.js";
+import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandLogo, skeleton, showInstallBar, teacherCards } from "../shared/js/ui.js";
 import { fmtDate } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
@@ -20,7 +20,7 @@ let home = null;   // بيانات الرئيسية (تُحمّل مرة واح�
 
 /* ======================= الهيكل العام ======================= */
 function shell(content, { crumbs = [] } = {}) {
-  const logo = home?.school.logo ? h("img", { class: "ss-logo", src: `${P}/logo`, alt: "", width: 44, height: 44 }) : null;
+  const logo = home?.school.logo ? h("img", { class: "ss-logo", src: `${P}/logo?v=${home.school.logo_v}&size=thumb`, alt: "", width: 44, height: 44 }) : null;
   mount(app,
     h("header", { class: "ss-top" }, h("div", { class: "in" },
       h("a", { class: "ss-brand", href: "#/" }, logo, h("div", {}, h("b", {}, home?.school.name || ""), h("small", {}, "الطلاب وأولياء الأمور"))),
@@ -83,7 +83,7 @@ function homePage() {
   ].filter(Boolean);
   shell([
     h("section", { class: "ss-hero" },
-      home.school.logo ? h("img", { class: "ss-hero-logo", src: `${P}/logo`, alt: `شعار ${home.school.name}` }) : brandLogo("ss-hero-logo", false, "row"),
+      home.school.logo ? h("img", { class: "ss-hero-logo", src: `${P}/logo?v=${home.school.logo_v}`, alt: `شعار ${home.school.name}` }) : brandLogo("ss-hero-logo", false, "row"),
       h("h1", {}, home.school.name),
       home.school.about ? h("p", { class: "ss-about" }, home.school.about) : null),
     h("section", { class: "ss-card ss-keycard" }, h("h2", {}, icons.key({ size: 20 }), "ملف الطالب"),
@@ -206,7 +206,7 @@ async function sectionView(body, section, namesShown) {
     if (offset === 0) {
       mount(info,
         r.teachers?.length ? h("details", { class: "ss-card" }, h("summary", {}, "معلمو الشعبة"),
-          h("div", { class: "ss-teachers" }, r.teachers.map((t) => h("div", {}, h("b", {}, t.subject), h("span", {}, t.teacher))))) : null,
+          teacherCards(r.teachers)) : null,
         r.timetable?.length ? h("details", { class: "ss-card" }, h("summary", {}, "جدول الحصص"),
           timetableGrid(r.timetable, { cell: (d, p, s) => (s ? h("b", { class: "small" }, s.subject) : h("span", { class: "muted" }, "—")) }))
           : null);

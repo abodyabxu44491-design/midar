@@ -1,5 +1,6 @@
 // بوابة المحاسب: المالية والرسوم فقط. لا وصول للطلاب ولا الدرجات ولا الإعدادات.
 import { Router } from "express";
+import { logoId } from "../shared/school-logo.service.js";
 import { accessSummary } from "../shared/subscription.service.js";
 import { requireStaff, requireModule } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
@@ -20,7 +21,7 @@ r.get("/me", handle(async (req, res) => {
     role: "accountant",
     access: accessSummary(req),
     must_change_password: req.user.must_change_password,
-    school: { id: req.tenant.id, name: req.tenant.name },
+    school: { id: req.tenant.id, name: req.tenant.name, logo: await inTenant(req, logoId) },
     currency: req.tenant.currency,
     modules: req.modules,
     permissions: { approve: req.user.can_approve_finance, payroll: req.user.can_manage_payroll, accounts: req.user.can_manage_accounts },

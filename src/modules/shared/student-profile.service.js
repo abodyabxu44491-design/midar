@@ -6,6 +6,7 @@ import { forClass } from "./timetable.service.js";
 import { listForStudent } from "./homework.service.js";
 import { current } from "./academic.service.js";
 import { list as listFields, valuesOf } from "./custom-fields.service.js";
+import { logoId } from "./school-logo.service.js";
 
 const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, "•") : null);
 const ALL_ON = { profile_show_grades: true, profile_show_attendance: true, profile_show_teachers: true,
@@ -26,10 +27,13 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     `SELECT e.title, e.exam_date, e.max_score, sub.name AS subject, sc.score
        FROM exams e JOIN scores sc ON sc.exam_id = e.id AND sc.student_id = $1 JOIN subjects sub ON sub.id = e.subject_id
       WHERE e.status = 'published' AND sc.score IS NOT NULL ORDER BY e.exam_date DESC NULLS LAST, e.id DESC`, [s.id]) : [];
+  // معلم واحد بكل مواده في الفصل، وصورته للإدارة دائمًا ولولي الأمر إن فعّلت المدرسة نشر صور المعلمين
   const teachers = settings.profile_show_teachers ? await q(
-    `SELECT DISTINCT sub.name AS subject, t.full_name AS teacher FROM teacher_assignments a
-       JOIN teachers t ON t.id = a.teacher_id JOIN subjects sub ON sub.id = a.subject_id WHERE a.class_id = $1
-      ORDER BY sub.name`, [s.class_id]) : [];
+    `SELECT t.full_name AS teacher, string_agg(DISTINCT sub.name, '، ' ORDER BY sub.name) AS subject,
+            CASE WHEN $2 AND t.photo IS NOT NULL
+                 THEN 'data:' || t.photo_type || ';base64,' || replace(encode(t.photo, 'base64'), E'\n', '') END AS photo
+       FROM teacher_assignments a JOIN teachers t ON t.id = a.teacher_id JOIN subjects sub ON sub.id = a.subject_id
+      WHERE a.class_id = $1 GROUP BY t.id ORDER BY min(sub.name)`, [s.class_id, admin || parentSettings.show_teacher_photos]) : [];
   const news = await q(
     "SELECT title, body, created_at FROM announcements WHERE class_id IS NULL OR class_id = $1 ORDER BY id DESC LIMIT 20", [s.class_id]);
 
@@ -51,7 +55,7 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
       status: s.status, status_note: s.status_note, has_photo: Boolean(s.photo), version: s.version, class_id: s.class_id });
   }
   return {
-    school: tenant.name, currency: tenant.currency, admin, student,
+    school: tenant.name, school_id: tenant.id, school_logo: await logoId(q), currency: tenant.currency, admin, student,
     custom: await customValues(q, s.id, admin),
     settings, academic: term, attendance, grades, teachers, announcements: news, fees,
     timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],

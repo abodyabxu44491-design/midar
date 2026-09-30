@@ -84,6 +84,15 @@ const bankBody = z.object({
   ...questionFields,
 });
 export const bankCreateSchema = bankBody;
+// حفظ عدة أسئلة دفعة واحدة (لصق أسئلة أو ملف Word): المادة والصف والوحدة مشتركة بينها
+export const bankBulkSchema = z.object({
+  subject_id: t.id,
+  grade_id: t.optId,
+  unit: txt(120).optional(),
+  lesson: txt(120).optional(),
+  is_shared: z.boolean().default(false),
+  questions: z.array(z.object(questionFields)).min(1, "لا توجد أسئلة").max(200, "الحد الأقصى 200 سؤال في المرة الواحدة"),
+});
 export const bankUpdateSchema = bankBody.partial({ subject_id: true }).extend({ type: questionFields.type.optional(), marks: marks.optional() });
 
 // الحقول التي تُخزن في body (والباقي أعمدة للبحث والتصفية)
@@ -149,6 +158,15 @@ export async function create(q, teacherId, b) {
     [teacherId, b.subject_id, b.grade_id ?? null, b.term_id ?? null, b.unit || null, b.lesson || null,
      b.type, b.difficulty, b.marks, toBody(n), b.is_shared]);
   return row;
+}
+
+export async function createMany(q, teacherId, b) {
+  let saved = 0;
+  for (const qq of b.questions) {
+    await create(q, teacherId, { ...qq, subject_id: b.subject_id, grade_id: b.grade_id ?? null, unit: b.unit, lesson: b.lesson, is_shared: b.is_shared });
+    saved++;
+  }
+  return { saved };
 }
 
 export async function update(q, id, teacherId, patch) {

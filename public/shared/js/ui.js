@@ -83,10 +83,28 @@ export function brandLogo(cls = "brand-logo", light = true, variant = "row") {
   return h("img", { src: file, alt: "مدار", class: cls, ...size });
 }
 
-export function topbar({ subtitle, school, onLogout }) {
+// رابط شعار المدرسة العام (الرقم يتغير مع كل شعار جديد فيظهر فورًا)
+export const schoolLogoUrl = (schoolId, logo, size) => (logo ? `/api/public/${encodeURIComponent(schoolId)}/logo?v=${logo}${size ? `&size=${size}` : ""}` : null);
+export const schoolLogoImg = (url, cls = "school-logo") => (url ? h("img", { class: cls, src: url, alt: "", decoding: "async" }) : null);
+
+// بطاقات المعلمين: الصورة (أو أول حرف من الاسم) والاسم والمواد — في ملف الطالب وصفحة الصف
+export const teacherCards = (list) => h("div", { class: "t-cards" }, list.map((t) => h("div", { class: "t-card" },
+  t.photo ? h("img", { class: "t-avatar", src: t.photo, alt: "", loading: "lazy", decoding: "async" })
+    : h("span", { class: "t-avatar ph", "aria-hidden": "true" }, String(t.teacher || "؟").replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0)),
+  h("div", { class: "t-info" }, h("b", {}, t.teacher), h("small", {}, t.subject)))));
+
+// شعار المدرسة الحالية للأوراق المطبوعة (كشوف، إيصالات، بطاقات): يُضبط مرة بعد معرفة المدرسة،
+// وبدونه يُستخدم شعار المنصة
+let currentLogo = null;
+export const setSchoolLogo = (url) => { currentLogo = url || null; };
+export const docLogo = (cls = "print-logo") => (currentLogo ? h("img", { class: `${cls} doc-school-logo`, src: currentLogo, alt: "" }) : brandLogo(cls, false));
+
+export function topbar({ subtitle, school, onLogout, logo }) {
+  if (logo) setSchoolLogo(logo);
   return h("header", { class: "topbar" }, h("div", { class: "in" },
     h("div", { class: "who" }, brandLogo(),
-      (school || subtitle) && h("div", { class: "school" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle))),
+      (school || subtitle) && h("div", { class: `school${logo ? " with-logo" : ""}` }, schoolLogoImg(logo),
+        h("div", { class: "school-text" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle)))),
     onLogout && btn("خروج", onLogout, "ghost sm")));
 }
 // لا يظهر اسم المنصة ولا المطوّر أسفل الصفحات؛ بيانات التواصل في الإعدادات ← الدعم والاشتراك
@@ -252,8 +270,18 @@ export function confirmAction(message) {
 }
 
 /* ---------- التبويبات ---------- */
+// أيقونة كل قسم حسب مفتاحه (نفس المفتاح في كل البوابات: الإدارة، المعلم، المحاسب، المالك)
+const TAB_ICONS = {
+  dashboard: "home", home: "home", overview: "chart", students: "users", teachers: "user", academic: "calendar",
+  attendance: "check", distribution: "shuffle", timetable: "grid", exams: "clipboard", papers: "file", reports: "award",
+  sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
+  announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",
+  homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus",
+  billing: "money", passwords: "key",
+};
+
 export function tabs(list, views, ctx) {
-  const bar = h("nav", { class: "tabs", role: "tablist" });
+  const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
   let current;
   const show = async (key) => {
@@ -263,6 +291,11 @@ export function tabs(list, views, ctx) {
       b.setAttribute("aria-selected", String(b.dataset.k === key));
       b.classList.toggle("on", b.dataset.k === key);
     });
+    // الجوال: الشريط أفقي قابل للتمرير، فنُظهر القسم المفتوح في منتصفه
+    const active = bar.querySelector(`[data-k="${key}"]`);
+    if (active && bar.scrollWidth > bar.clientWidth + 4) {
+      bar.scrollTo({ left: active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
+    }
     mount(body, skeleton());
     const refresh = () => show(key);
     try {
@@ -273,11 +306,12 @@ export function tabs(list, views, ctx) {
       if (e.status === 401) setTimeout(() => location.reload(), 1500);
     }
   };
-  // عنصر بلا مفتاح (key = null) هو عنوان تجميع بصري فقط، لا يفتح شيء ولا يُحسب تبويبًا
   for (const [key, label] of list) {
-    if (key === null) { bar.append(h("span", { class: "tab-group-label" }, label)); continue; }
-    bar.append(h("button", { type: "button", role: "tab", "data-k": key, onclick: () => show(key),
-      onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() }, label));
+    if (key === null) continue;   // لا عناوين تجميع: الأقسام القابلة للضغط فقط
+    const icon = icons[TAB_ICONS[key]];
+    bar.append(h("button", { type: "button", role: "tab", "data-k": key, title: label, onclick: () => show(key),
+      onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() },
+      icon ? icon({ size: 18 }) : null, h("span", { class: "tab-label" }, label)));
   }
   return { el: h("div", { class: "tabs-layout" }, bar, body), show };
 }
