@@ -6,6 +6,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 import * as students from "../shared/students.service.js";
 import { studentSummaries } from "../shared/finance.service.js";
 import { buildProfile } from "../shared/student-profile.service.js";
+import * as alerts from "../shared/student-alerts.service.js";
 
 const r = Router();
 
@@ -178,6 +179,22 @@ r.delete("/:id/photo", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   await inTenant(req, (q) => students.removePhoto(q, id));
   res.json({ ok: true });
+}));
+
+// تنبيهات الطالب (سلوك، حضور، مستوى، صحة، ثناء) — ما حُدد لولي الأمر يظهر في ملف الطالب
+r.get("/alerts/recent", handle(async (req, res) => res.json(await inTenant(req, (q) => alerts.recent(q)))));
+r.get("/:id/alerts", handle(async (req, res) => {
+  const { id } = parse(z.object({ id: t.id }), req.params);
+  res.json(await inTenant(req, (q) => alerts.list(q, id)));
+}));
+r.post("/:id/alerts", handle(async (req, res) => {
+  const { id } = parse(z.object({ id: t.id }), req.params);
+  const b = parse(alerts.alertSchema, req.body);
+  res.status(201).json(await inTenant(req, (q) => alerts.create(q, id, b, { actor: req.actor })));
+}));
+r.delete("/alerts/:alertId", handle(async (req, res) => {
+  const { alertId } = parse(z.object({ alertId: t.id }), req.params);
+  res.json(await inTenant(req, (q) => alerts.remove(q, alertId)));
 }));
 
 export default r;

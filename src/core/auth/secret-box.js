@@ -32,8 +32,16 @@ export function createBox(hexKey) {
   };
 }
 
-// يُقرأ من البيئة مباشرة (env.js يتحقق من صيغته عند الإقلاع، وهذا يُبقي الوحدة قابلة للاختبار بلا إعدادات كاملة)
-const box = createBox(process.env.CREDENTIAL_KEY);
+// المفتاح: CREDENTIAL_KEY إن ضُبط، وإلا يُشتق (HKDF) من سر الاتصال بقاعدة البيانات DATABASE_URL.
+// السر في إعدادات الخادم لا داخل القاعدة، فنسخة القاعدة وحدها لا تكشف كلمات المرور، والميزة تعمل دون إعداد يدوي.
+// تغيير كلمة مرور قاعدة البيانات (أو المفتاح) يجعل النسخ القديمة غير مقروءة فقط: تبقى الحسابات تعمل وتُنشأ كلمة مؤقتة جديدة.
+function resolveKey(env = process.env) {
+  if (parseKey(env.CREDENTIAL_KEY)) return env.CREDENTIAL_KEY;
+  if (!env.DATABASE_URL) return null;
+  return Buffer.from(crypto.hkdfSync("sha256", env.DATABASE_URL, "midar", "initial-credentials-v1", 32)).toString("hex");
+}
+export const keySource = (env = process.env) => (parseKey(env.CREDENTIAL_KEY) ? "CREDENTIAL_KEY" : env.DATABASE_URL ? "derived" : "none");
+const box = createBox(resolveKey());
 export const credentialsEnabled = box.enabled;
 export const sealCredential = box.seal;
 export const openCredential = box.open;

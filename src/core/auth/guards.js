@@ -70,7 +70,7 @@ export const requireStaff = (role) => async (req, res, next) => {
       if (!s) return null;
       // سياق المدرسة (RLS) ثم كل ما يحتاجه الحارس في رحلة واحدة
       const [, res] = await client.query(`SELECT set_config('app.tenant_id', ${client.escapeLiteral(s.tenant_id)}, true);
-        SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency
+        SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency, emergency_locked_at
                   FROM tenants WHERE id = app_tenant()) t) AS tenant,
                (SELECT row_to_json(u) FROM (SELECT id, full_name, role, teacher_id, is_active, must_change_password,
                   can_approve_finance, can_manage_payroll, can_manage_accounts FROM users
@@ -87,6 +87,7 @@ export const requireStaff = (role) => async (req, res, next) => {
     if (!ctx) throw unauthorized();
     if (!ctx.user || !ctx.user.is_active || !ctx.tenant) throw unauthorized("انتهت الجلسة، سجّل الدخول مرة أخرى");
     if (ctx.tenant.status !== "active") throw forbidden("حساب المدرسة موقوف. تواصل مع إدارة المنصة.");
+    if (ctx.tenant.emergency_locked_at) throw forbidden("الدخول للمدرسة موقوف مؤقتًا من إدارة المنصة. تواصل معها.");
     req.tenant = ctx.tenant;
     req.tenantId = ctx.tenant.id;   // كل الاستعلامات بعد هذا تعمل داخل هذه المدرسة فقط
     req.user = ctx.user;

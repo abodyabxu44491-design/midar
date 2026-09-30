@@ -32,8 +32,8 @@ export async function previewPanel(paper, ctx) {
 
   // خيارات الطباعة لهذه المرة فقط (لا تغيّر تصميم الاختبار المحفوظ)
   const L0 = withLayoutDefaults(paper.layout);
-  const opts = { color: L0.color, show_logo: L0.show_logo, show_marks: L0.show_marks, page_numbers: L0.page_numbers, show_version: L0.show_version };
-  const optLabels = { color: "ملوّن", show_logo: "الشعار", show_marks: "الدرجات", page_numbers: "ترقيم الصفحات", show_version: "رقم النموذج" };
+  const opts = { color: L0.color, show_logo: L0.show_logo, show_marks: L0.show_marks, page_numbers: L0.page_numbers, show_version: L0.show_version, fit_one: false };
+  const optLabels = { fit_one: "ضغط الاختبار في صفحة واحدة", color: "ملوّن", show_logo: "الشعار", show_marks: "الدرجات", page_numbers: "ترقيم الصفحات", show_version: "رقم النموذج" };
   const optBox = h("div", { class: "xb-toggles" }, Object.entries(optLabels).map(([k, l]) =>
     h("label", {}, h("input", { type: "checkbox", checked: opts[k], onchange: (e) => { opts[k] = e.target.checked; render(); } }), l)));
   const perStudent = h("input", { type: "checkbox", disabled: !paper.class_id });
@@ -49,16 +49,40 @@ export async function previewPanel(paper, ctx) {
   let roster = null;
   let rendering = null;
 
-  const layout = () => ({ ...paper.layout, ...opts });
+  let squeeze = null;   // تخطيط مضغوط يتسع في صفحة واحدة (عند اختيار «ضغط الاختبار في صفحة واحدة»)
+  const layout = () => ({ ...paper.layout, ...opts, ...(opts.fit_one && squeeze ? squeeze : {}) });
+  const sectionsEnabled = ctx.settings?.sections_enabled !== false;
   const logo = () => logoUrlFor(base, ctx.settings, layout());
 
   async function studentPages(index) {
     const version = buildVersion(paper, index);
-    const { blocks, running } = paperBlocks({ paper, version, layout: layout(), school: ctx.school, logoUrl: logo(), imageUrl: imageUrlFor(base) });
-    return paginate(zoomBox, { blocks, running, layout: layout(), watermark: official ? null : "مسودة — للمعاينة فقط" });
+    const make = () => {
+      const { blocks, running } = paperBlocks({ paper, version, layout: layout(), school: ctx.school, logoUrl: logo(), imageUrl: imageUrlFor(base), sectionsEnabled });
+      return paginate(zoomBox, { blocks, running, layout: layout(), watermark: official ? null : "مسودة — للمعاينة فقط" });
+    };
+    squeeze = null;
+    let out = await make();
+    if (!opts.fit_one || out.length === 1) return out;
+    // تصغير تدريجي: المسافات ثم الهوامش ثم الخط، حتى تتسع الورقة في صفحة واحدة (أصغر خط 9)
+    const L = withLayoutDefaults(paper.layout);
+    const steps = [];
+    // أولًا المسافات والهوامش وأسطر الإجابة والصور بالخط نفسه، ثم الخط تدريجيًا حتى 8.5
+    for (const k of [0.9, 0.8, 0.7]) steps.push({ spacing: "compact", margins: Math.min(L.margins, 10), fontSize: L.fontSize, squeeze_k: k });
+    for (let fs = L.fontSize - 0.5; fs >= 8.5; fs -= 0.5) {
+      steps.push({ spacing: "compact", margins: Math.min(L.margins, fs >= 11 ? 10 : fs >= 9.5 ? 8 : 6), fontSize: fs, squeeze_k: Math.max(0.5, Math.round((fs / L.fontSize - 0.2) * 100) / 100) });
+    }
+    for (const st of steps) {
+      out.forEach((p) => p.remove());
+      squeeze = st;
+      out = await make();
+      if (out.length === 1) return out;
+    }
+    toast("لا يتسع الاختبار في صفحة واحدة حتى بأصغر خط مقروء. قلّل مساحات الإجابة أو حجم الصور، أو اطبعه صفحتين.", true);
+    return out;
   }
   async function keyPages(index) {
     const key = await api(`${base}/${paper.id}/answer-key?v=${index}`);
+    squeeze = null;
     const { blocks, running } = answerKeyBlocks({ paper, key, layout: layout(), school: ctx.school, logoUrl: logo() });
     return paginate(zoomBox, { blocks, running, layout: layout(), watermark: official ? null : "مسودة — للمعاينة فقط" });
   }
@@ -99,20 +123,26 @@ export async function previewPanel(paper, ctx) {
       pages = out;
       fit();
       counter.textContent = `${pages.length} صفحة`;
+      paintRange();
     } catch (e) {
       mount(zoomBox, notice(e.message, "err"));
       pages = [];
     }
   }
 
+  // الملاءمة: «العرض» (افتراضي) تملأ عرض الشاشة، و«صفحة كاملة» تُظهر الصفحة كلها طولًا وعرضًا.
+  // تُعاد تلقائيًا عند تغيير حجم الشاشة أو تدوير الجوال.
+  let fitMode = "width";
   const fit = () => {
     if (!pages.length) return;
-    const pw = pages[0].offsetWidth;
-    const avail = stage.clientWidth - 16;
-    if (zoom === "fit" || (zoom === 1 && pw > avail)) zoom = Math.max(0.3, Math.min(1, avail / pw));
+    const pw = pages[0].offsetWidth, ph = pages[0].offsetHeight;
+    const availW = stage.clientWidth - 16;
+    const availH = (fitMode === "page" ? Math.min(window.innerHeight - 40, stage.clientHeight || window.innerHeight) : Infinity) - 16;
+    if (fitMode) zoom = Math.max(0.2, Math.min(fitMode === "page" ? 1.5 : 1, availW / pw, availH / ph));
     zoomBox.style.zoom = String(zoom);
   };
-  const setZoom = (z) => { zoom = Math.max(0.3, Math.min(2, Math.round(z * 10) / 10)); zoomBox.style.zoom = String(zoom); };
+  new ResizeObserver(() => { if (fitMode) fit(); }).observe(stage);
+  const setZoom = (z) => { fitMode = null; zoom = Math.max(0.2, Math.min(2, Math.round(z * 10) / 10)); zoomBox.style.zoom = String(zoom); };
   const current = () => {
     const top = stage.getBoundingClientRect().top;
     let idx = 0;
@@ -131,9 +161,19 @@ export async function previewPanel(paper, ctx) {
   const iconBtn = (icon, label, fn) => h("button", { type: "button", class: "btn ghost sm", "aria-label": label, title: label, onclick: fn }, icon);
 
   // الطباعة: ورقة الطالب تُعلَّم «تمت طباعته» بعد تأكيد المعلم
+  // الصفحات المطبوعة: الكل أو صفحة واحدة محددة
+  const range = select([["all", "كل الصفحات"]], { "aria-label": "الصفحات المطبوعة" });
+  function paintRange() {
+    const keep = range.value;
+    mount(range, h("option", { value: "all" }, `كل الصفحات (${pages.length})`),
+      pages.map((_, i) => h("option", { value: String(i) }, `الصفحة ${i + 1} فقط`)));
+    range.value = [...range.options].some((o) => o.value === keep) ? keep : "all";
+  }
+  const chosen = () => (range.value === "all" ? pages : [pages[Number(range.value)]].filter(Boolean));
+
   async function doPrint(markPrinted = true) {
     if (!pages.length) return;
-    await printPages(pages, layout());
+    await printPages(chosen(), layout());
     const v = view.value;
     if (markPrinted && (v.startsWith("v") || v === "all" || v === "both") && confirmAction("هل تمت طباعة الاختبار؟ سيُسجَّل الاختبار «تمت طباعته».")) {
       const r = await api(`${base}/${paper.id}/status`, { action: "printed" });
@@ -198,8 +238,12 @@ export async function previewPanel(paper, ctx) {
       h("span", { style: "flex:1" }),
       iconBtn(icons.up({ size: 16 }), "الصفحة السابقة", () => go(-1)), counter, iconBtn(icons.down({ size: 16 }), "الصفحة التالية", () => go(1)),
       iconBtn(h("b", {}, "−"), "تصغير", () => setZoom(zoom - 0.1)), iconBtn(h("b", {}, "+"), "تكبير", () => setZoom(zoom + 0.1)),
-      btn("ملء العرض", () => { zoom = "fit"; fit(); }, "ghost sm")),
-    h("details", {}, h("summary", { class: "small", style: "cursor:pointer" }, "خيارات الطباعة لهذه المرة"), optBox),
+      btn("ملء العرض", () => { fitMode = "width"; fit(); }, "ghost sm"),
+      btn("صفحة كاملة", () => { fitMode = "page"; fit(); go(0); }, "ghost sm")),
+    h("details", {}, h("summary", { class: "small", style: "cursor:pointer" }, "خيارات الطباعة لهذه المرة"),
+      optBox,
+      h("div", { class: "row2", style: "margin-top:8px" }, h("span", { class: "small" }, "الصفحات:"), range),
+      h("p", { class: "xv-note" }, "لطباعة كل صفحة على ورقة واحدة بالضبط: في نافذة الطباعة اختر حجم الورق نفسه (A4)، والهوامش «بلا»، والمقياس «الافتراضي» أو 100%.")),
     status, h("div", { class: "row2" }, actions()));
 
   const root = h("div", { class: "xv" }, bar, hint, stage);

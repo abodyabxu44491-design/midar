@@ -15,7 +15,7 @@ export const imageRef = z.object({
   id: t.id,
   width: z.coerce.number().int().min(10).max(100).default(60),      // نسبة من عرض الورقة
   align: z.enum(["start", "center", "end"]).default("center"),
-  position: z.enum(["before", "after"]).default("after"),          // قبل نص السؤال أو بعده
+  position: z.enum(["before", "after", "side"]).default("after"),  // فوق السؤال أو تحته أو بجانبه
 });
 const cell = z.object({
   t: txt(500),

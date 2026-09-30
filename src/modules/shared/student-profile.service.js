@@ -7,6 +7,7 @@ import { listForStudent } from "./homework.service.js";
 import { current } from "./academic.service.js";
 import { list as listFields, valuesOf } from "./custom-fields.service.js";
 import { logoId } from "./school-logo.service.js";
+import { list as listAlerts } from "./student-alerts.service.js";
 
 const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, "•") : null);
 const ALL_ON = { profile_show_grades: true, profile_show_attendance: true, profile_show_teachers: true,
@@ -21,7 +22,16 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
   const settings = admin ? { ...parentSettings, ...ALL_ON } : parentSettings;
   const [cls] = s.class_id ? await q("SELECT name FROM classes WHERE id = $1", [s.class_id]) : [];
   const attendance = settings.profile_show_attendance
-    ? await q("SELECT day, status FROM attendance WHERE student_id = $1 ORDER BY day DESC LIMIT 90", [s.id]) : [];
+    ? await q(`SELECT day::text AS day, status, excuse, parent_excuse, parent_excuse_state,
+                      (status IN ('absent', 'late') AND day >= CURRENT_DATE - 30 AND parent_excuse_state IS DISTINCT FROM 'accepted') AS can_excuse
+                 FROM attendance WHERE student_id = $1 ORDER BY day DESC LIMIT 180`, [s.id]) : [];
+  // تنبيه الغياب التلقائي: غياب بلا عذر خلال 30 يومًا بلغ الحد الذي حددته المدرسة
+  const threshold = parentSettings.absence_alert_threshold;
+  const recentAbsent = attendance.filter((a) => a.status === "absent" && a.day >= new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).length;
+  const absenceWarning = settings.profile_show_attendance && threshold && recentAbsent >= threshold
+    ? { absent: recentAbsent, threshold } : null;
+  const alerts = (await listAlerts(q, s.id, { parentOnly: !admin, limit: 30 }))
+    .map(({ teacher_id, for_parent, ...a }) => (admin ? { ...a, teacher_id, for_parent } : { ...a, for_parent }));
   const term = await current(q);
   const grades = settings.profile_show_grades ? await q(
     `SELECT e.title, e.exam_date, e.max_score, sub.name AS subject, sc.score
@@ -57,7 +67,8 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
   return {
     school: tenant.name, school_id: tenant.id, school_logo: await logoId(q), currency: tenant.currency, admin, student,
     custom: await customValues(q, s.id, admin),
-    settings, academic: term, attendance, grades, teachers, announcements: news, fees,
+    settings: { ...settings, allow_parent_excuses: settings.allow_parent_excuses && settings.profile_show_attendance },
+    academic: term, attendance, absence_warning: absenceWarning, alerts, grades, teachers, announcements: news, fees,
     timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],
     homework: settings.profile_show_homework && s.class_id ? await listForStudent(q, s) : [],
   };

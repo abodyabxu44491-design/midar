@@ -277,7 +277,7 @@ const TAB_ICONS = {
   sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",
   homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus",
-  billing: "money", passwords: "key",
+  billing: "money", passwords: "key", danger: "lock",
 };
 
 export function tabs(list, views, ctx) {

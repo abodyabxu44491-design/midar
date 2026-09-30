@@ -617,8 +617,10 @@ export async function context(q, who) {
     `SELECT t.id, t.name, t.is_current, y.name AS year_name FROM terms t JOIN academic_years y ON y.id = t.year_id
       WHERE y.is_current ORDER BY t.ordinal`);
   const [school] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
+  // الشعب موقوفة في المدرسة: لا يظهر حقل «الشعبة» ولا اسم الشعبة في ورقة الاختبار
+  const [profile] = await q("SELECT sections_enabled FROM school_profile WHERE tenant_id = app_tenant()");
   return {
-    load, terms, types: await examTypes(q), settings: publicSettings(settings), school: school?.name,
+    load, terms, types: await examTypes(q), settings: { ...publicSettings(settings), sections_enabled: profile?.sections_enabled !== false }, school: school?.name,
     presets: who.role === "teacher" ? await presets(q, who.teacherId) : [],
   };
 }

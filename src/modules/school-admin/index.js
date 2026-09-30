@@ -16,6 +16,7 @@ import passwordRequests from "./password-requests.js";
 import announcements from "./announcements.js";
 import settings from "./settings.js";
 import subscription from "./subscription.js";
+import danger from "./danger.js";
 import audit from "./audit.js";
 import timetable from "./timetable.js";
 import academic from "./academic.js";
@@ -65,4 +66,5 @@ r.use("/setup", setup);
 r.use("/custom-fields", customFields);
 r.use("/export", exportData);
 r.use("/audit", audit);
+r.use("/danger", danger);            // منطقة الحذر (حسب صلاحية المدير)
 export default r;

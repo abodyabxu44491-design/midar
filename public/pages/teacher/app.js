@@ -9,6 +9,7 @@ import home from "./views/home.js";
 const attendance = lazy(() => import("./views/attendance.js"), new URL("./views/attendance.js", import.meta.url).pathname);
 const exams = lazy(() => import("./views/exams.js"), new URL("./views/exams.js", import.meta.url).pathname);
 const announcements = lazy(() => import("./views/announcements.js"), new URL("./views/announcements.js", import.meta.url).pathname);
+const students = lazy(() => import("./views/students.js"), new URL("./views/students.js", import.meta.url).pathname);
 const account = lazy(() => import("./views/account.js"), new URL("./views/account.js", import.meta.url).pathname);
 const timetable = lazy(() => import("./views/timetable.js"), new URL("./views/timetable.js", import.meta.url).pathname);
 const homework = lazy(() => import("./views/homework.js"), new URL("./views/homework.js", import.meta.url).pathname);
@@ -32,7 +33,7 @@ export async function startTeacher(offlineMe = null) {
   }
   const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
     homework: "homework", announcements: "announcements", papers: "exam_papers" };
-  const list = [["home", "فصولي"], ["timetable", "جدولي"], ["attendance", "الحضور"], ["papers", "الاختبارات والامتحانات"], ["exams", "رصد الدرجات"],
+  const list = [["home", "الرئيسية"], ["students", "طلابي"], ["attendance", "الحضور"], ["timetable", "جدولي"], ["papers", "الاختبارات والامتحانات"], ["exams", "رصد الدرجات"],
     ["homework", "الواجبات"], ["announcements", "التعاميم"], ["account", "حسابي"]]
     .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
   // العمل بدون إنترنت: قاعدة محلية لهذا المستخدم ومحرك المزامنة
@@ -45,7 +46,7 @@ export async function startTeacher(offlineMe = null) {
     location.reload();
   };
   const ctx = { me };
-  const t = tabs(list, { home, timetable, attendance, papers, exams, homework, announcements, account }, ctx);
+  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account }, ctx);
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);

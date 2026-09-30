@@ -23,9 +23,9 @@ export const attendanceSource = {
     let changed = 0;
     for (const e of entries) {
       const cur = await s.db.get("attendance", `${e.student_id}|${date}`);
-      if (cur && cur.status === e.status) continue;
-      if (cur) changed++;
-      await s.enqueue("attendance.mark", { student_id: e.student_id, day: date, status: e.status, reason: reason || null });
+      if (cur && cur.status === e.status && !e.excuse) continue;
+      if (cur && cur.status !== e.status) changed++;
+      await s.enqueue("attendance.mark", { student_id: e.student_id, day: date, status: e.status, reason: reason || null, excuse: e.excuse || null });
     }
     return { saved: entries.length, changed, local: true };
   },
