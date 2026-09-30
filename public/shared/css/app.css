@@ -164,8 +164,15 @@ footer.dev { text-align: center; padding: 14px; font-size: 12px; color: var(--mu
 .hidden { display: none !important; }
 
 @media print {
+  /* هامش الصفحة صفر: المتصفح لا يجد مكانًا لطباعة الرابط والتاريخ وعنوان الصفحة أعلى الورقة وأسفلها،
+     والمسافة عن حافة الورقة تُعطى للمحتوى نفسه */
+  @page { margin: 0; }
+  body { padding: 12mm 12mm 14mm !important; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
   .topbar, .tabs, .btn, footer.dev { display: none !important; }
   body { background: #fff; }
+  /* القائمة الجانبية مخفية في الطباعة: المحتوى يأخذ عرض الورقة كاملًا */
+  .tabs-layout { display: block !important; }
+  main { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 .loading { text-align: center; padding: 40px; }
@@ -331,11 +338,13 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .quick-actions .btn { flex: 1 1 auto; }
 
 .receipt { max-width: 520px; }
+/* طباعة نافذة مفتوحة (إيصال، كشف حساب، بطاقة تسليم): النافذة وحدها. بدون نافذة مفتوحة تُطبع الصفحة نفسها
+   (كشوف الدرجات، البطاقات، سجل الحضور…) — كانت القاعدة تخفي كل شيء فتخرج الورقة فارغة */
 @media print {
-  body > *:not(dialog) { display: none !important; }
-  dialog { position: static; display: block; border: none; width: 100%; max-width: none; }
+  body:has(dialog[open]) > *:not(dialog) { display: none !important; }
+  dialog[open] { position: static; display: block; border: none; width: 100%; max-width: none; }
   dialog::backdrop { display: none; }
-  dialog .row, dialog .btn { display: none !important; }
+  dialog[open] .row, dialog[open] .btn { display: none !important; }
 }
 
 /* حقل كلمة المرور */

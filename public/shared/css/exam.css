@@ -131,7 +131,7 @@
 .xp-print-root { display: none; }
 @media print {
   body.xp-printing > *:not(.xp-print-root) { display: none !important; }
-  body.xp-printing { background: #fff !important; display: block; min-height: 0; }
+  body.xp-printing { background: #fff !important; display: block; min-height: 0; padding: 0 !important; }
   /* أعلى أولوية من قاعدة طباعة الإيصالات العامة (body > *:not(dialog)) في app.css */
   body.xp-printing > .xp-print-root { display: block !important; }
   .xp-print-root .xp-page { box-shadow: none; margin: 0; break-after: page; page-break-after: always; }
