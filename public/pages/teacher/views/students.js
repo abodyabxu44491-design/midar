@@ -6,6 +6,8 @@ import { panel, input, btn, empty, notice, sub } from "../../shared/js/ui.js";
 import { ATTENDANCE, today } from "../../shared/js/format.js";
 import { myClasses } from "./home.js";
 import { attendanceSource } from "../offline.js";
+import { alertDialog, alertCard } from "../../shared/js/student-alerts.js";
+import { dialog, toast } from "../../shared/js/ui.js";
 
 let remembered = null;   // يبقى الفصل المختار عند التنقل بين الصفحات
 
@@ -47,10 +49,23 @@ export default function students({ me, params, goTo }) {
           r.absent ? h("span", { class: "att-count s-absent", title: "أيام الغياب" }, h("b", {}, r.absent), "غياب") : null,
           r.late ? h("span", { class: "att-count s-late", title: "مرات التأخر" }, h("b", {}, r.late), "تأخر") : null,
           r.excused ? h("span", { class: "att-count s-excused" }, h("b", {}, r.excused), "بعذر") : null),
-        h("span", { class: `stu-today${r.today ? ` s-${r.today}` : ""}` }, r.today ? ATTENDANCE[r.today][0] : "لم يُسجّل")))
+        h("span", { class: `stu-today${r.today ? ` s-${r.today}` : ""}` }, r.today ? ATTENDANCE[r.today][0] : "لم يُسجّل"),
+        offline ? null : h("div", { class: "stu-acts" },
+          btn(r.alerts ? `التنبيهات (${r.alerts})` : "تنبيه", () => alertsOf(r), "ghost sm"))))
         : empty(rows.length ? "لا يوجد طالب بهذا الاسم." : "لا يوجد طلاب في هذا الفصل."));
   };
   search.addEventListener("input", paint);
+
+  // تنبيهات الطالب: يرى المعلم كل التنبيهات ويضيف ويحذف ما كتبه
+  async function alertsOf(r) {
+    let list;
+    try { list = await api(`/api/teacher/students/${r.id}/alerts`); } catch (e) { return toast(e.message, true); }
+    const add = () => { d.close(); alertDialog(r.name, async (b) => { await api(`/api/teacher/students/${r.id}/alerts`, b); r.alerts = (r.alerts || 0) + 1; paint(); }); };
+    const d = dialog(`تنبيهات: ${r.name}`, h("div", { class: "sa-list" },
+      list.length ? list.map((a) => alertCard(a, { staff: true })) : empty("لا توجد تنبيهات لهذا الطالب."),
+      sub("التنبيه الظاهر لولي الأمر يصل لملف الطالب فورًا، ويظهر لك إن اطّلع عليه.")),
+    [btn("+ تنبيه جديد", add)]);
+  }
 
   async function load() {
     mount(list, empty("جارٍ التحميل…"));

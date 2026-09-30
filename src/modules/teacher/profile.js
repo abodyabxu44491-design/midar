@@ -7,6 +7,7 @@ import { handle, forbidden, notFound } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { myLoad, teachesClass } from "./access.js";
 import { forTeacher } from "../shared/timetable.service.js";
+import * as alerts from "../shared/student-alerts.service.js";
 import { current } from "../shared/academic.service.js";
 
 const r = Router();
@@ -72,11 +73,34 @@ r.get("/students", handle(async (req, res) => {
               count(a.*) FILTER (WHERE a.status = 'late')::int AS late,
               count(a.*) FILTER (WHERE a.status = 'excused')::int AS excused,
               count(a.*)::int AS days,
-              max(a.status) FILTER (WHERE a.day = CURRENT_DATE) AS today
+              max(a.status) FILTER (WHERE a.day = CURRENT_DATE) AS today,
+              (SELECT count(*)::int FROM student_alerts al WHERE al.student_id = s.id) AS alerts
          FROM students s LEFT JOIN attendance a ON a.student_id = s.id AND ($2::date IS NULL OR a.day >= $2::date)
         WHERE s.class_id = $1 AND s.archived_at IS NULL
         GROUP BY s.id ORDER BY s.full_name`, [class_id, year?.year_start ?? null]);
   }));
+}));
+
+// تنبيهات طلاب فصوله: يرى كل تنبيهات الطالب، ويضيف، ويحذف ما كتبه فقط
+const ownStudent = async (q, teacherId, studentId) => {
+  const [s] = await q("SELECT class_id FROM students WHERE id = $1 AND archived_at IS NULL", [studentId]);
+  if (!s || !(await teachesClass(q, teacherId, s.class_id))) throw forbidden("هذا الطالب ليس ضمن فصولك");
+};
+r.get("/students/:id/alerts", handle(async (req, res) => {
+  const { id } = parse(z.object({ id: t.id }), req.params);
+  res.json(await inTenant(req, async (q) => { await ownStudent(q, req.user.teacher_id, id); return alerts.list(q, id); }));
+}));
+r.post("/students/:id/alerts", handle(async (req, res) => {
+  const { id } = parse(z.object({ id: t.id }), req.params);
+  const b = parse(alerts.alertSchema, req.body);
+  res.status(201).json(await inTenant(req, async (q) => {
+    await ownStudent(q, req.user.teacher_id, id);
+    return alerts.create(q, id, b, { actor: req.actor, teacherId: req.user.teacher_id });
+  }));
+}));
+r.delete("/alerts/:alertId", handle(async (req, res) => {
+  const { alertId } = parse(z.object({ alertId: t.id }), req.params);
+  res.json(await inTenant(req, (q) => alerts.remove(q, alertId, { teacherId: req.user.teacher_id })));
 }));
 
 r.get("/announcements", handle(async (req, res) => {

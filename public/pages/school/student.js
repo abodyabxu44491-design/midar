@@ -33,7 +33,11 @@ function render(d) {
   document.title = `مدار — ${s.name}`;
 
   // ملف الطالب: مصدره المشترك public/shared/js/student-file.js (نفسه الذي تراه الإدارة، لكن هنا مع زر الدفع)
-  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true });
+  const who = { student_id: creds.id, key: creds.key };
+  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, actions: {
+    excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
+    ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
+  } });
 
   mount(app,
     topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب", onLogout: () => { sessionStorage.removeItem(KEY); back(); } }),

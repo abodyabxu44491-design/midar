@@ -148,10 +148,6 @@
 .xb-action.primary { background: var(--accent); border-color: var(--accent); }
 .xb-action.primary b, .xb-action.primary small { color: #fff; }
 .xb-action:hover { border-color: var(--accent); }
-.xb-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-.xb-chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; cursor: pointer; color: var(--ink); }
-.xb-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-.xb-chip .n { opacity: .7; margin-inline-start: 4px; }
 .xb-resume { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .xb-list-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
 .xb-list-row:first-child { border-top: none; }

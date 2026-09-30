@@ -7,6 +7,7 @@ import { csv, fmtDate, money } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, loadClasses, directoryLink, optional, rememberField } from "./common.js";
 import { openStudentImport } from "./student-import.js";
+import { alertDialog } from "../../shared/js/student-alerts.js";
 import { studentFile } from "../../shared/js/student-file.js";
 import { gradePicker } from "./grade-picker.js";
 
@@ -173,8 +174,24 @@ export default async function students({ me, refresh }) {
         }, "ghost sm"),
         btn("تغيير الحالة", () => { d.close(); statusDialog(s, afterChange); }, "danger sm"),
         btn("طباعة", () => window.print(), "ghost sm"));
-      const file = studentFile(data, { toolbar, photo: s.has_photo ? photoUrl(s) : null });
-      mount(holder, file.el);
+      // التنبيهات: بعد الإضافة يُعاد رسم الملف على تبويب التنبيهات
+      const draw = (tab) => {
+        const f = studentFile(data, { toolbar, photo: s.has_photo ? photoUrl(s) : null, actions });
+        mount(holder, f.el);
+        if (tab) f.open(tab);
+      };
+      const actions = {
+        addAlert: () => alertDialog(s.name, async (b) => {
+          await api(`${A}/students/${s.id}/alerts`, b);
+          data.alerts = await api(`${A}/students/${s.id}/alerts`);
+          draw("alerts");
+        }),
+        deleteAlert: async (a, done) => {
+          if (!confirmAction(`حذف التنبيه «${a.title}»؟`)) return;
+          try { await api(`${A}/students/alerts/${a.id}`, undefined, "DELETE"); done(); toast("حُذف التنبيه"); } catch (e) { toast(e.message, true); }
+        },
+      };
+      draw();
       void cur;
     } catch (e) { mount(holder, notice(e.message, "err")); }
   }

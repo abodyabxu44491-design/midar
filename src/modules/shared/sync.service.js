@@ -117,7 +117,7 @@ export const pushSchema = z.object({
   device_id: z.string().uuid("هوية الجهاز غير صحيحة"),
   operations: z.array(opSchema).min(1).max(200),
 });
-const attPayload = z.object({ student_id: t.id, day: t.date, status: z.enum(attendance.STATUSES), reason: t.optText(300) });
+const attPayload = z.object({ student_id: t.id, day: t.date, status: z.enum(attendance.STATUSES), reason: t.optText(300), excuse: t.optText(200) });
 const scorePayload = z.object({
   exam_id: t.id, student_id: t.id,
   score: z.union([z.coerce.number().min(0).max(1000), z.null()]),
@@ -178,15 +178,15 @@ async function applyAttendance(q, ctx, op, { force = false } = {}) {
   const [st] = await q("SELECT class_id FROM students WHERE id = $1", [p.student_id]);
   if (!st) throw notFound("الطالب غير موجود");
   const [cur] = await q("SELECT status, version, recorded_by FROM attendance WHERE student_id = $1 AND day = $2", [p.student_id, p.day]);
-  if (cur && cur.status === p.status) return { status: "applied", classId: st.class_id, result: { version: cur.version, unchanged: true } };
+  if (cur && cur.status === p.status && !p.excuse) return { status: "applied", classId: st.class_id, result: { version: cur.version, unchanged: true } };
   // تغيّر السجل بعد أن رآه الجهاز: تعارض (لا كتابة صامتة)
-  if (cur && !force && cur.version !== op.base_version) {
+  if (cur && cur.status !== p.status && !force && cur.version !== op.base_version) {
     return { status: "conflict", classId: st.class_id,
       result: { server: { status: cur.status, version: cur.version, by: cur.recorded_by }, local: { status: p.status } } };
   }
   // نفس دالة شاشة الحضور: صلاحية الفصل، ومنع التاريخ المستقبلي، وسبب التعديل
   await attendance.mark(q, { date: p.day, reason: cur ? (p.reason || "تعديل تمت مزامنته من جهاز المعلم") : null,
-    entries: [{ student_id: p.student_id, status: p.status }] }, {
+    entries: [{ student_id: p.student_id, status: p.status, excuse: p.excuse ?? undefined }] }, {
     actor: ctx.actor, allowedClass: (classId) => classId !== null && teaches(q, ctx.teacherId, classId) });
   const [now] = await q("SELECT version FROM attendance WHERE student_id = $1 AND day = $2", [p.student_id, p.day]);
   return { status: "applied", classId: st.class_id, result: { version: now.version } };

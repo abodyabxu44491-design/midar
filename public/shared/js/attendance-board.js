@@ -12,7 +12,7 @@ const SHORT = { present: "حاضر", absent: "غائب", late: "متأخر", exc
 const shift = (d, days) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + days); return x.toISOString().slice(0, 10); };
 
 // endpoint: رابط API (الإدارة، متصل) أو مصدر بيانات محلي { list, save } (المعلم: يعمل بدون إنترنت)
-export function attendanceBoard(endpoint, classes, wa = null, initialClassId = null) {
+export function attendanceBoard(endpoint, classes, wa = null, initialClassId = null, initialDate = null) {
   const source = typeof endpoint === "object" ? endpoint : {
     list: (classId, date) => api(`${endpoint}?class_id=${classId}&date=${date}`),
     save: (date, reason, entries) => api(endpoint, { date, reason, entries }),
@@ -26,7 +26,7 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
   if (!classes.length) return panel("تسجيل الحضور", null, empty("لا توجد فصول مسندة."));
 
   const cls = select(classes.map((c) => [c.id, c.name]), initialClassId ? { value: initialClassId } : {});
-  const date = input({ type: "date", value: today(), max: today() });
+  const date = input({ type: "date", value: initialDate && initialDate <= today() ? initialDate : today(), max: today() });
   const search = input({ type: "search", placeholder: "بحث باسم الطالب", "aria-label": "بحث باسم الطالب" });
   const dayLabel = h("div", { class: "att-day" });
   const summary = h("div", { class: "att-summary" });
@@ -36,9 +36,13 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
 
   let rows = [];                 // من الخادم أو الجهاز: { id, name, status, pending, ... }
   const draft = new Map();       // student_id ← الحالة المختارة ولم تُحفظ بعد
+  const reasons = new Map();     // student_id ← سبب الغياب/التأخر المكتوب ولم يُحفظ (يظهر لولي الأمر)
+  const openReason = new Set();  // صفوف مفتوح فيها حقل السبب
 
   const statusOf = (r) => draft.get(r.id) ?? r.status ?? null;
-  const changed = () => rows.filter((r) => draft.has(r.id) && draft.get(r.id) !== r.status);
+  const statusChanged = (r) => draft.has(r.id) && draft.get(r.id) !== r.status;
+  const reasonChanged = (r) => reasons.has(r.id) && (reasons.get(r.id) || null) !== (r.excuse || null) && statusOf(r) && statusOf(r) !== "present";
+  const changed = () => rows.filter((r) => statusChanged(r) || reasonChanged(r));
 
   const paintSummary = () => {
     const counts = Object.fromEntries(ORDER.map((k) => [k, 0]));
@@ -51,24 +55,43 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
     bar.classList.toggle("hidden", !n);
     mount(bar, h("span", {}, n === 1 ? "تغيير واحد لم يُحفظ" : `${n} تغييرات لم تُحفظ`),
       h("div", { class: "row", style: "flex:none;gap:6px" },
-        btn("تراجع", () => { draft.clear(); paintRows(); }, "ghost sm"),
+        btn("تراجع", () => { draft.clear(); reasons.clear(); openReason.clear(); paintRows(); }, "ghost sm"),
         btn("حفظ الحضور", saveDraft)));
   };
 
   const rowEl = (r, i) => {
     const s = statusOf(r);
-    const dirty = draft.has(r.id) && draft.get(r.id) !== r.status;
+    const dirty = statusChanged(r) || reasonChanged(r);
+    const needsReason = s && s !== "present";
+    const reasonVal = reasons.has(r.id) ? reasons.get(r.id) : (r.excuse || "");
     return h("div", { class: `att-row${s ? ` s-${s}` : ""}${dirty ? " dirty" : ""}`, "data-id": r.id },
       h("span", { class: "att-no" }, i + 1),
       h("div", { class: "att-name" }, h("b", {}, r.name),
         r.pending ? h("small", { class: "pending-dot", title: "محفوظ على الجهاز، بانتظار المزامنة" }, "بانتظار المزامنة")
           : r.status && !dirty ? h("small", {}, `مسجّل: ${ATTENDANCE[r.status][0]}`) : dirty ? h("small", {}, "لم يُحفظ بعد") : null,
-        wa && !dirty && ["absent", "late"].includes(r.status) ? wa(r) : null),
+        reasonVal && !openReason.has(r.id) ? h("small", { class: "att-reason" }, `السبب: ${reasonVal}`) : null,
+        r.parent_excuse_state === "pending" ? h("small", { class: "att-reason pending" }, `عذر من ولي الأمر بانتظار المراجعة: ${r.parent_excuse}`) : null,
+        wa && !dirty && ["absent", "late"].includes(r.status) ? wa(r) : null,
+        needsReason && openReason.has(r.id) ? reasonInput(r, reasonVal) : null,
+        needsReason && !openReason.has(r.id) ? h("button", { type: "button", class: "att-why", title: "سبب الغياب أو التأخر (يظهر لولي الأمر)",
+          onclick: () => { openReason.add(r.id); repaintRow(r); list.querySelector(`[data-id="${r.id}"] .att-why-input`)?.focus(); } }, reasonVal ? "تعديل السبب" : "+ السبب") : null),
       h("div", { class: "att-seg", role: "radiogroup", "aria-label": `حالة ${r.name}` }, ORDER.map((k) => h("button", {
         type: "button", role: "radio", "aria-checked": String(s === k), class: `seg s-${k}${s === k ? " on" : ""}`,
-        onclick: () => { if (r.status === k) draft.delete(r.id); else draft.set(r.id, k); repaintRow(r); },
+        onclick: () => {
+          if (r.status === k) draft.delete(r.id); else draft.set(r.id, k);
+          // اختيار غائب/متأخر لطالب واحد يفتح حقل السبب مباشرة (اختياري)
+          if (k === "present") openReason.delete(r.id);
+          repaintRow(r);
+        },
       }, SHORT[k]))));
   };
+  const reasonInput = (r, val) => {
+    const el = h("input", { class: "att-why-input", maxLength: 200, value: val, placeholder: "سبب الغياب أو التأخر (يظهر لولي الأمر)",
+      oninput: () => { reasons.set(r.id, el.value.trim()); paintSummary(); markDirty(r); },
+      onkeydown: (e) => { if (e.key === "Enter") { openReason.delete(r.id); repaintRow(r); } } });
+    return h("div", { class: "att-why-box" }, el, h("button", { type: "button", class: "btn ghost sm", onclick: () => { openReason.delete(r.id); repaintRow(r); } }, "تم"));
+  };
+  const markDirty = (r) => list.querySelector(`[data-id="${r.id}"]`)?.classList.toggle("dirty", statusChanged(r) || reasonChanged(r));
   const repaintRow = (r) => {
     const i = rows.indexOf(r);
     list.querySelector(`[data-id="${r.id}"]`)?.replaceWith(rowEl(r, i));
@@ -88,9 +111,13 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
   };
 
   async function saveDraft() {
-    const entries = changed().map((r) => ({ student_id: r.id, status: draft.get(r.id) }));
+    const entries = changed().map((r) => {
+      const st = statusOf(r);
+      const why = reasons.has(r.id) ? reasons.get(r.id) : undefined;
+      return { student_id: r.id, status: st, ...(st !== "present" && why ? { excuse: why } : {}) };
+    });
     if (!entries.length) return;
-    const edits = changed().filter((r) => r.status);
+    const edits = changed().filter((r) => statusChanged(r) && r.status);
     let reason = null;
     if (edits.length) {
       reason = await askReason(edits);
@@ -118,7 +145,7 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
   });
 
   async function load(keepSearch = false) {
-    draft.clear();
+    draft.clear(); reasons.clear(); openReason.clear();
     if (!keepSearch) search.value = "";
     dayLabel.textContent = new Date(`${date.value}T12:00:00`).toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long" });
     nextBtn.disabled = date.value >= today();

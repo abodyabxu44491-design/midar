@@ -900,3 +900,99 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   .stu-stats { order: 3; width: 100%; padding-inline-start: 34px; }
   .stu-stats:empty { display: none; }
 }
+
+/* الحضور: متابعة الإدارة والتقارير وملف الطالب */
+.att-parts { margin-bottom: 12px; }
+.att-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin: 10px 0 14px; }
+.att-kpis > div { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px; text-align: center; font-size: 13px; color: var(--muted); border-top: 3px solid var(--line); }
+.att-kpis > div b { display: block; font-size: 20px; color: var(--ink); }
+.att-kpis.big > div b { font-size: 24px; }
+.att-kpis .s-present { border-top-color: var(--teal); } .att-kpis .s-absent { border-top-color: var(--red); }
+.att-kpis .s-late { border-top-color: var(--amber); } .att-kpis .s-excused { border-top-color: #6B5B95; }
+.att-kpis .s-rate { border-top-color: var(--navy); background: var(--teal-soft); }
+.att-kpis .s-rate b { color: var(--navy); }
+.att-classes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.att-class { display: flex; flex-direction: column; gap: 6px; text-align: start; font: inherit; color: inherit; cursor: pointer;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; border-inline-start: 4px solid var(--line); transition: box-shadow .15s, transform .15s; }
+.att-class:hover:not(:disabled) { box-shadow: 0 4px 14px rgba(22,36,74,.08); transform: translateY(-1px); }
+.att-class:disabled { cursor: default; opacity: .6; }
+.att-class.done { border-inline-start-color: var(--teal); } .att-class.partial { border-inline-start-color: var(--amber); } .att-class.none { border-inline-start-color: var(--red); }
+.ac-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.ac-bar { height: 6px; background: #EEF1F5; border-radius: 99px; overflow: hidden; }
+.ac-bar span { display: block; height: 100%; background: var(--teal); border-radius: 99px; }
+.att-class.partial .ac-bar span { background: var(--amber); }
+.ac-counts { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); }
+.ac-counts .s-absent { color: var(--red); font-weight: 700; } .ac-counts .s-late { color: #A86A00; font-weight: 700; }
+.ac-counts .s-excused { color: #6B5B95; font-weight: 700; } .ac-counts .s-present { color: var(--teal); font-weight: 700; }
+.att-class small { color: var(--muted); font-size: 11px; }
+.att-people { display: flex; flex-direction: column; gap: 6px; }
+.att-person { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; border-inline-start: 4px solid var(--line); }
+.att-person.s-absent { border-inline-start-color: var(--red); } .att-person.s-late { border-inline-start-color: var(--amber); } .att-person.s-excused { border-inline-start-color: #6B5B95; }
+.att-person-acts { display: flex; gap: 6px; flex-wrap: wrap; flex: none; }
+.att-reason { color: var(--ink) !important; } .att-reason.pending { color: #A86A00 !important; }
+.excuse-text { margin: 4px 0 0; padding: 6px 10px; background: #F6F7FA; border-radius: 8px; font-size: 14px; }
+.att-why { align-self: flex-start; margin-top: 4px; font: inherit; font-size: 12px; color: var(--accent); background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 4px 8px; cursor: pointer; }
+.att-why-box { display: flex; gap: 6px; margin-top: 6px; }
+.att-why-box input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 14px; }
+.rate-row { display: grid; grid-template-columns: minmax(90px, 160px) 1fr 52px; align-items: center; gap: 10px; padding: 6px 0; }
+.rate-row small { grid-column: 2 / 4; color: var(--muted); font-size: 12px; margin-top: -4px; }
+.rate-bar { height: 10px; background: #EEF1F5; border-radius: 99px; overflow: hidden; }
+.rate-bar span { display: block; height: 100%; background: var(--teal); }
+.rate-bar span.low, .day-bar span.low { background: var(--red); }
+.day-bars { display: flex; align-items: flex-end; gap: 4px; height: 140px; overflow-x: auto; padding-bottom: 18px; }
+.day-bar { flex: 1 0 18px; max-width: 34px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; position: relative; }
+.day-bar span { display: block; background: var(--teal); border-radius: 4px 4px 0 0; min-height: 2px; }
+.day-bar small { position: absolute; bottom: -16px; inset-inline: 0; text-align: center; font-size: 10px; color: var(--muted); }
+.att-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.att-table th, .att-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: start; white-space: nowrap; }
+.att-table th { color: var(--muted); font-weight: 600; font-size: 12px; background: #F8F9FB; }
+.att-table tr.low td:first-child { box-shadow: inset -3px 0 0 var(--red); }
+.att-table .n-absent { color: var(--red); font-weight: 700; } .att-table .n-late { color: #A86A00; font-weight: 700; }
+.table-wrap { overflow-x: auto; }
+/* ملف الطالب: أيام الحضور والتنبيهات */
+.file-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border-radius: 12px; margin-bottom: 12px; border: 1px solid; }
+.file-banner span { flex: 1; min-width: 160px; }
+.file-banner.warn { background: var(--red-soft); border-color: rgba(184,65,47,.25); color: #7A2A1E; }
+.file-banner.info { background: var(--amber-soft); border-color: rgba(240,165,58,.35); color: #6B4500; }
+.att-days { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.att-day-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; border-inline-start: 4px solid var(--line); }
+.att-day-row.s-absent { border-inline-start-color: var(--red); } .att-day-row.s-late { border-inline-start-color: var(--amber); }
+.att-day-row.s-excused { border-inline-start-color: #6B5B95; } .att-day-row.s-present { border-inline-start-color: var(--teal); }
+.att-day-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.att-day-main small { color: var(--muted); font-size: 13px; }
+.att-day-side { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.sa-list { display: flex; flex-direction: column; gap: 8px; }
+.sa-card { display: block; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; border-inline-start: 4px solid var(--accent); }
+.sa-card.lv-warning { border-inline-start-color: var(--amber); } .sa-card.lv-urgent { border-inline-start-color: var(--red); background: #FFF9F8; }
+.sa-card.lv-positive { border-inline-start-color: var(--teal); background: #F6FBFA; }
+.sa-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.sa-top small { margin-inline-start: auto; color: var(--muted); font-size: 12px; }
+.sa-kind { font-size: 12px; font-weight: 700; color: var(--navy); background: #EEF1F7; padding: 1px 8px; border-radius: 99px; }
+.sa-level { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: var(--amber-soft); color: #A86A00; }
+.lv-urgent .sa-level { background: var(--red-soft); color: var(--red); } .lv-positive .sa-level { background: var(--teal-soft); color: var(--teal); }
+.sa-title { display: block; font-size: 15px; }
+.sa-body { margin: 4px 0 0; color: var(--ink); white-space: pre-line; }
+.sa-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.sa-foot small { color: var(--muted); font-size: 12px; }
+.ok-text { color: var(--teal) !important; font-weight: 700; }
+.check-line { display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer; }
+.stu-acts { flex: none; }
+@media (max-width: 600px) {
+  .att-person { flex-wrap: wrap; }
+  .att-person .stu-main { flex-basis: calc(100% - 90px); }
+  .att-person-acts { width: 100%; }
+  .att-person-acts > * { flex: 1; text-align: center; }
+  .att-day-row { flex-direction: column; align-items: stretch; }
+  .att-day-side { justify-content: flex-start; }
+  .rate-row { grid-template-columns: 90px 1fr 46px; }
+  .stu-acts { width: 100%; padding-inline-start: 34px; }
+}
+@media print {
+  .att-parts, .att-person-acts, .att-table td:last-child, .att-table th:last-child { display: none !important; }
+}
+
+/* شرائح التصفية (مشتركة: الاختبارات والحضور وملف الطالب) */
+.xb-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.xb-chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; cursor: pointer; color: var(--ink); }
+.xb-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.xb-chip .n { opacity: .7; margin-inline-start: 4px; }
