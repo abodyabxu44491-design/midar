@@ -1,0 +1,74 @@
+// مدرسة العرض الكاملة: تُنشأ من لوحة المالك وتعمل كمدرسة حقيقية للمدير والمعلم وولي الأمر،
+// بجدول كامل بلا تعارض، وحضور ودرجات منشورة وفواتير متوازنة مع القيود، ولا تُنشأ مرتين بنفس الرمز.
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { currentTotp } from "../src/core/auth/totp.js";
+import { transaction } from "../src/core/db/pool.js";
+
+let srv, owner, r;
+const id = `sc-${uid()}`.slice(0, 28);
+
+before(async () => {
+  srv = await startServer();
+  owner = client(srv.base);
+  const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
+  assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
+  r = await owner.post("/api/owner/tenants/showcase", { id, name: "مجمع اختبار العرض", per_section: 6 });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+});
+after(async () => { await srv.close(); await endPool(); });
+
+const q1 = (sql, p = []) => transaction({ tenantId: id }, async (q) => (await q(sql, p))[0]);
+
+test("الهيكل كامل: 3 مراحل و24 شعبة ومعلمون بنصاب لا يتجاوز 20 وجدول بلا تعارض", async () => {
+  const s = r.data.summary;
+  assert.equal(s.structure.stages, 3);
+  assert.equal(s.structure.sections, 24);
+  assert.ok(s.teachers >= 30, `teachers ${s.teachers}`);
+  assert.ok(s.students >= 24 * 4);
+  const clash = await q1(`SELECT count(*)::int AS n FROM (SELECT teacher_id, day, period FROM timetable_slots
+                            WHERE teacher_id IS NOT NULL GROUP BY 1, 2, 3 HAVING count(*) > 1) x`);
+  assert.equal(clash.n, 0);
+  const gap = await q1(`SELECT count(*)::int AS n FROM classes c
+     WHERE (SELECT count(*) FROM timetable_slots ts WHERE ts.class_id = c.id)
+        <> (SELECT sum(s.weekly_periods) FROM subjects s JOIN subject_grades sg ON sg.subject_id = s.id WHERE sg.grade_id = c.grade_id AND s.is_active)`);
+  assert.equal(gap.n, 0, "كل شعبة جدولها مكتمل");
+  const load = await q1("SELECT max(n)::int AS m FROM (SELECT count(*) AS n FROM timetable_slots GROUP BY teacher_id) x");
+  assert.ok(load.m <= 20);
+});
+
+test("الرسوم: فاتورة لكل طالب ودفعات مسجلة", async () => {
+  const f = await q1(`SELECT (SELECT COALESCE(sum(amount), 0) FROM payments) AS paid,
+                             (SELECT count(*) FROM invoices)::int AS inv`);
+  assert.equal(f.inv, r.data.summary.students);
+  assert.ok(f.paid > 0);
+});
+
+test("المدير يدخل ويرى المدرسة، والمعلم يرى جدوله، وولي الأمر يرى الحضور والدرجات", async () => {
+  const c = r.data.credentials;
+  const admin = client(srv.base);
+  assert.equal((await admin.post("/api/staff/login", { school: id, username: c.username, password: c.password })).status, 200);
+  await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false WHERE username = 'admin'"));
+  const dash = await admin.get("/api/admin/dashboard");
+  assert.equal(dash.status, 200, JSON.stringify(dash.data));
+
+  const t = r.data.summary.teacher_samples[0];
+  const teacher = client(srv.base);
+  assert.equal((await teacher.post("/api/staff/login", { school: id, username: t.username, password: t.password })).status, 200);
+  await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false WHERE username = $1", [t.username]));
+  const tt = await teacher.get("/api/teacher/timetable");
+  assert.equal(tt.status, 200);
+  assert.ok(JSON.stringify(tt.data).length > 200);
+
+  const p = r.data.summary.parent_samples[0];
+  const pr = await client(srv.base).post(`/api/public/${id}/student`, { access: c.directory_code, student_id: p.student_id, key: p.access_key });
+  assert.equal(pr.status, 200, JSON.stringify(pr.data));
+  assert.ok(pr.data.attendance.length > 0, "سجل حضور");
+  assert.ok(JSON.stringify(pr.data).includes("اختبار"), "درجات منشورة");
+});
+
+test("لا تُنشأ مرتين بنفس الرمز", async () => {
+  const again = await owner.post("/api/owner/tenants/showcase", { id, name: "مكرر" });
+  assert.equal(again.status, 409);
+});

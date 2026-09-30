@@ -10,6 +10,7 @@ import { ensureDefaults } from "../shared/academic.service.js";
 import { clearLoginFailures } from "../../core/audit.js";
 import { activate, activateSchema } from "../shared/subscription.service.js";
 import { schoolLinks } from "../../core/links.js";
+import { buildShowcase } from "../shared/showcase-school.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -94,6 +95,21 @@ export async function createTenant(req, b) {
 r.post("/", handle(async (req, res) => {
   const b = parse(createSchema, req.body);
   res.status(201).json(await createTenant(req, b));
+}));
+
+// مدرسة عرض كاملة (بنين، ابتدائي ومتوسط وثانوي) ببيانات فصل دراسي حتى اليوم — للعرض على العملاء
+const showcaseSchema = z.object({
+  id: codeSchema.default("alrowad"),
+  name: t.shortText("اسم المدرسة", 150).default("مجمع مدارس الرواد الأهلية للبنين"),
+  per_section: z.coerce.number().int().min(5).max(35).default(24),
+});
+export async function createShowcase(req, b) {
+  const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله بن سعد القحطاني", plan: "enterprise", max_students: 2000, currency: "SAR" });
+  const summary = await buildShowcase(b.id, { actor: req.actor, ip: req.ip, perSection: b.per_section });
+  return { ...created, summary, links: schoolLinks(req, b.id) };
+}
+r.post("/showcase", handle(async (req, res) => {
+  res.status(201).json(await createShowcase(req, parse(showcaseSchema, req.body || {})));
 }));
 
 r.patch("/:id", handle(async (req, res) => {

@@ -7,7 +7,7 @@ export default async function create({ refresh }) {
   const refs = await loadRefs();
   const f = { name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }) };
   const form = subForm(refs, { kind: "trial" });
-  return panel("إضافة مدرسة جديدة", null,
+  return [panel("إضافة مدرسة جديدة", null,
     field("اسم المدرسة", f.name),
     field("رمز المدرسة", f.id, "حروف إنجليزية صغيرة وأرقام. يظهر في رابط صفحة الطلاب ولا يمكن تغييره."),
     field("اسم مدير المدرسة", f.admin),
@@ -16,11 +16,33 @@ export default async function create({ refresh }) {
       const r = await api("/api/owner/tenants", { name: f.name.value, id: f.id.value, admin_name: f.admin.value, subscription: form.value() });
       handoverCard(r);
       refresh();
+    })), showcasePanel(refresh)];
+}
+
+// مدرسة عرض جاهزة: مجمع بنين كامل (ابتدائي ومتوسط وثانوي) ببيانات فصل دراسي حتى اليوم
+function showcasePanel(refresh) {
+  const f = { name: input({ value: "مجمع مدارس الرواد الأهلية للبنين" }), id: input({ class: "ltr", value: "alrowad" }) };
+  return panel("مدرسة عرض كاملة", null,
+    sub("تُنشأ مدرسة بنين شاملة كأنها تعمل منذ بداية الفصل: 24 شعبة بالمراحل الثلاث، قرابة 50 معلمًا بجداولهم، قرابة 570 طالبًا بأولياء أمورهم، "
+      + "الحضور اليومي، الاختبارات والدرجات، الواجبات، الرسوم والسداد، والتعاميم. تستغرق نحو 15 ثانية."),
+    h("div", { class: "form-grid" }, field("اسم المدرسة", f.name), field("رمز المدرسة", f.id)),
+    btn("إنشاء مدرسة العرض", async (e) => {
+      const b = e.currentTarget; b.textContent = "جارٍ الإنشاء...";
+      try {
+        const r = await api("/api/owner/tenants/showcase", { name: f.name.value, id: f.id.value });
+        const s = r.summary;
+        handoverCard(r, [
+          ["الطلاب", s.students], ["المعلمون", s.teachers], ["الشعب", s.structure.sections], ["أيام الدوام المسجلة", s.school_days],
+          ...s.teacher_samples.map((t) => [`معلم (${t.subject}) — ${t.username}`, t.password]),
+          ...s.parent_samples.map((p) => [`ولي أمر: ${p.name}`, p.access_key]),
+        ]);
+        refresh();
+      } finally { b.textContent = "إنشاء مدرسة العرض"; }
     }));
 }
 
 // بطاقة تسليم: كل ما تحتاجه المدرسة في صفحة واحدة قابلة للطباعة
-export function handoverCard(r) {
+export function handoverCard(r, extra = []) {
   const site = location.origin;
   const publicLink = `${site}/${r.credentials.school}`;
   const staffLink = `${publicLink}/idara`;
@@ -31,6 +53,7 @@ export function handoverCard(r) {
     ["رابط دخول المدير والمعلمين", staffLink],
     ["اسم المستخدم", r.credentials.username],
     ["كلمة المرور المؤقتة", r.credentials.password],
+    ...extra.map(([k, v]) => [k, String(v)]),
   ];
   const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
   dialog("بطاقة تسليم المدرسة", h("div", { class: "handover" },
