@@ -1,8 +1,15 @@
 // لوحة تسجيل الحضور (تستخدمها الإدارة والمعلم، كل واحد بمساره المنفصل)
+//
+// التسجيل مسودة على الشاشة ثم حفظ واحد: اضغط «الكل حاضر» ثم غيّر الغائبين فقط، أو اختر حالة كل طالب،
+// وشريط الحفظ أسفل الشاشة يعرض عدد التغييرات. سبب التعديل يُطلب فقط عند تغيير حالة محفوظة سابقًا.
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
-import { field, input, select, btn, panel, empty, line, toast, notice } from "./ui.js";
+import { field, input, select, btn, panel, empty, toast, notice, dialog } from "./ui.js";
 import { ATTENDANCE, today } from "./format.js";
+
+const ORDER = ["present", "absent", "late", "excused"];
+const SHORT = { present: "حاضر", absent: "غائب", late: "متأخر", excused: "بعذر" };
+const shift = (d, days) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + days); return x.toISOString().slice(0, 10); };
 
 // endpoint: رابط API (الإدارة، متصل) أو مصدر بيانات محلي { list, save } (المعلم: يعمل بدون إنترنت)
 export function attendanceBoard(endpoint, classes, wa = null, initialClassId = null) {
@@ -16,78 +23,140 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
     try { return source.dayStatus ? await source.dayStatus(d) : (navigator.onLine ? await api(`/api/teacher/attendance/day-status?date=${d}`) : null); }
     catch { return null; }
   };
-  if (!classes.length) return panel("تسجيل الحضور", null, empty("لا توجد فصول."));
+  if (!classes.length) return panel("تسجيل الحضور", null, empty("لا توجد فصول مسندة."));
+
   const cls = select(classes.map((c) => [c.id, c.name]), initialClassId ? { value: initialClassId } : {});
   const date = input({ type: "date", value: today(), max: today() });
-  const reason = input({ placeholder: "مطلوب فقط عند تعديل حالة مسجلة" });
+  const search = input({ type: "search", placeholder: "بحث باسم الطالب", "aria-label": "بحث باسم الطالب" });
+  const dayLabel = h("div", { class: "att-day" });
+  const summary = h("div", { class: "att-summary" });
+  const list = h("div", { class: "att-list" });
+  const bar = h("div", { class: "att-bar hidden" });
   const box = h("div");
 
-  const save = async (entries) => {
-    const r = await source.save(date.value, reason.value || null, entries);
-    if (r.local) toast(navigator.onLine ? "حُفظ على الجهاز وتتم المزامنة" : "حُفظ على الجهاز — سيُرسل عند عودة الاتصال");
-    else if (r.changed) toast(`تم التعديل (${r.changed})`);
-    await load();
+  let rows = [];                 // من الخادم أو الجهاز: { id, name, status, pending, ... }
+  const draft = new Map();       // student_id ← الحالة المختارة ولم تُحفظ بعد
+
+  const statusOf = (r) => draft.get(r.id) ?? r.status ?? null;
+  const changed = () => rows.filter((r) => draft.has(r.id) && draft.get(r.id) !== r.status);
+
+  const paintSummary = () => {
+    const counts = Object.fromEntries(ORDER.map((k) => [k, 0]));
+    let none = 0;
+    for (const r of rows) { const s = statusOf(r); if (s) counts[s]++; else none++; }
+    mount(summary,
+      ORDER.map((k) => h("span", { class: `att-count s-${k}` }, h("b", {}, counts[k]), SHORT[k])),
+      none ? h("span", { class: "att-count s-none" }, h("b", {}, none), "لم يُسجَّل") : null);
+    const n = changed().length;
+    bar.classList.toggle("hidden", !n);
+    mount(bar, h("span", {}, n === 1 ? "تغيير واحد لم يُحفظ" : `${n} تغييرات لم تُحفظ`),
+      h("div", { class: "row", style: "flex:none;gap:6px" },
+        btn("تراجع", () => { draft.clear(); paintRows(); }, "ghost sm"),
+        btn("حفظ الحضور", saveDraft)));
   };
 
-  // الوضع السريع: الكل حاضر، ثم اضغط على أسماء الغائبين فقط واحفظ دفعة واحدة
-  const quick = h("button", { class: "btn ghost sm", type: "button" }, "الوضع السريع");
-  let quickMode = false;
-  quick.addEventListener("click", () => { quickMode = !quickMode; quick.textContent = quickMode ? "الوضع العادي" : "الوضع السريع"; load(); });
+  const rowEl = (r, i) => {
+    const s = statusOf(r);
+    const dirty = draft.has(r.id) && draft.get(r.id) !== r.status;
+    return h("div", { class: `att-row${s ? ` s-${s}` : ""}${dirty ? " dirty" : ""}`, "data-id": r.id },
+      h("span", { class: "att-no" }, i + 1),
+      h("div", { class: "att-name" }, h("b", {}, r.name),
+        r.pending ? h("small", { class: "pending-dot", title: "محفوظ على الجهاز، بانتظار المزامنة" }, "بانتظار المزامنة")
+          : r.status && !dirty ? h("small", {}, `مسجّل: ${ATTENDANCE[r.status][0]}`) : dirty ? h("small", {}, "لم يُحفظ بعد") : null,
+        wa && !dirty && ["absent", "late"].includes(r.status) ? wa(r) : null),
+      h("div", { class: "att-seg", role: "radiogroup", "aria-label": `حالة ${r.name}` }, ORDER.map((k) => h("button", {
+        type: "button", role: "radio", "aria-checked": String(s === k), class: `seg s-${k}${s === k ? " on" : ""}`,
+        onclick: () => { if (r.status === k) draft.delete(r.id); else draft.set(r.id, k); repaintRow(r); },
+      }, SHORT[k]))));
+  };
+  const repaintRow = (r) => {
+    const i = rows.indexOf(r);
+    list.querySelector(`[data-id="${r.id}"]`)?.replaceWith(rowEl(r, i));
+    paintSummary();
+  };
+  const paintRows = () => {
+    const term = search.value.trim();
+    const shown = rows.filter((r) => !term || r.name.includes(term));
+    mount(list, shown.length ? shown.map((r) => rowEl(r, rows.indexOf(r))) : empty("لا يوجد طالب بهذا الاسم."));
+    paintSummary();
+  };
+  search.addEventListener("input", paintRows);
 
-  function quickView(rows) {
-    const marks = new Map(rows.map((r) => [r.id, r.status || "present"]));
-    const counter = h("b", {});
-    const refreshCounter = () => { counter.textContent = `${[...marks.values()].filter((v) => v !== "present").length} غائب أو متأخر`; };
-    const chip = (r) => {
-      const el = h("button", { type: "button", class: "quick-name" }, r.name);
-      const paint = () => {
-        const v = marks.get(r.id);
-        el.dataset.state = v;
-        el.title = ATTENDANCE[v][0];
-      };
-      el.addEventListener("click", () => {
-        const order = ["present", "absent", "late", "excused"];
-        marks.set(r.id, order[(order.indexOf(marks.get(r.id)) + 1) % order.length]);
-        paint(); refreshCounter();
-      });
-      paint();
-      return el;
-    };
-    refreshCounter();
-    return h("div", {},
-      h("div", { class: "quick-grid" }, rows.map(chip)),
-      h("div", { class: "toolbar spaced" }, counter,
-        btn("حفظ الحضور", async () => {
-          const r = await source.save(date.value, reason.value || null, rows.map((r) => ({ student_id: r.id, status: marks.get(r.id) })));
-          toast(r.local ? (navigator.onLine ? "حُفظ الحضور على الجهاز وتتم المزامنة" : "حُفظ الحضور على الجهاز — سيُرسل عند عودة الاتصال") : "تم حفظ الحضور");
-          load();
-        })));
+  const markAll = (status, onlyEmpty) => {
+    for (const r of rows) if (!onlyEmpty || !statusOf(r)) { if (r.status === status) draft.delete(r.id); else draft.set(r.id, status); }
+    paintRows();
+  };
+
+  async function saveDraft() {
+    const entries = changed().map((r) => ({ student_id: r.id, status: draft.get(r.id) }));
+    if (!entries.length) return;
+    const edits = changed().filter((r) => r.status);
+    let reason = null;
+    if (edits.length) {
+      reason = await askReason(edits);
+      if (reason === null) return;
+    }
+    try {
+      const r = await source.save(date.value, reason, entries);
+      toast(r.local ? (navigator.onLine ? "حُفظ الحضور على الجهاز وتتم المزامنة" : "حُفظ الحضور على الجهاز — سيُرسل عند عودة الاتصال")
+        : `تم حفظ الحضور (${entries.length})`);
+      await load(true);
+    } catch (e) { toast(e.message, true); }
   }
+  const askReason = (edits) => new Promise((resolve) => {
+    const why = input({ placeholder: "مثال: وصل الطالب متأخرًا بعد التسجيل" });
+    let answered = false;
+    const d = dialog("سبب تعديل الحضور", h("div", {},
+      notice(`ستُعدّل حالة ${edits.length === 1 ? `«${edits[0].name}»` : `${edits.length} طلاب`} مسجلة سابقًا. يُحفظ السبب في سجل الطالب.`, "warn"),
+      field("السبب", why)),
+    [btn("حفظ التعديل", () => {
+      if (!why.value.trim()) return toast("اكتب السبب", true);
+      answered = true; d.close(); resolve(why.value.trim());
+    })]);
+    d.addEventListener("close", () => { if (!answered) resolve(null); });
+    why.focus();
+  });
 
-  async function load() {
+  async function load(keepSearch = false) {
+    draft.clear();
+    if (!keepSearch) search.value = "";
+    dayLabel.textContent = new Date(`${date.value}T12:00:00`).toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long" });
+    nextBtn.disabled = date.value >= today();
     mount(box, empty("جارٍ التحميل…"));
+    bar.classList.add("hidden");
     try {
       const day = await dayStatus(date.value);
       if (day?.holiday) return mount(box, notice(`هذا اليوم إجازة: ${day.holiday.name}. لا يُسجَّل فيه حضور.`, "warn"));
-      const rows = await source.list(cls.value, date.value);
+      rows = await source.list(cls.value, date.value);
       if (!rows.length) return mount(box, empty("لا يوجد طلاب في هذا الفصل."));
-      if (quickMode) return mount(box, quickView(rows));
-      const pending = rows.filter((r) => !r.status);
+      const empties = rows.filter((r) => !r.status).length;
       mount(box,
         day && !day.study_day ? notice("هذا اليوم ليس من أيام الدراسة المضبوطة في الإعدادات.", "warn") : null,
-        pending.length ? btn(`تحديد الباقين حاضرين (${pending.length})`, () => save(pending.map((r) => ({ student_id: r.id, status: "present" }))), "soft sm") : null,
-        rows.map((r) => line(
-          h("div", { class: "pill" }, h("b", {}, r.name), r.pending ? h("span", { class: "pending-dot", title: "محفوظ على الجهاز، بانتظار المزامنة" }, "بانتظار المزامنة") : null,
-            wa && ["absent", "late"].includes(r.status) ? wa(r) : null),
-          h("div", { class: "chips" }, Object.entries(ATTENDANCE).map(([k, [label, color]]) => h("button", {
-            type: "button", class: `chip${r.status === k ? " on" : ""}`, "aria-pressed": String(r.status === k),
-            style: `color:${color};${r.status === k ? `background:${color}` : ""}`,
-            onclick: async (ev) => { ev.currentTarget.disabled = true; try { await save([{ student_id: r.id, status: k }]); } catch (e) { toast(e.message, true); load(); } },
-          }, label))))));
+        summary,
+        h("div", { class: "att-tools" },
+          empties ? btn(empties === rows.length ? "الكل حاضر" : `الباقون حاضرون (${empties})`, () => markAll("present", true)) : null,
+          rows.length > 8 ? search : null),
+        empties === rows.length ? h("p", { class: "sub att-hint" }, "اضغط «الكل حاضر» ثم غيّر حالة الغائبين والمتأخرين فقط، واحفظ مرة واحدة.") : null,
+        list);
+      paintRows();
     } catch (e) { mount(box, notice(e.message, "err")); }
   }
-  cls.addEventListener("change", load);
-  date.addEventListener("change", load);
+
+  // تنبيه قبل مغادرة الفصل أو اليوم بتغييرات غير محفوظة
+  const guard = (fn) => () => {
+    if (changed().length && !confirm("لديك تغييرات لم تُحفظ. تجاهلها؟")) return false;
+    fn(); return true;
+  };
+  let lastClass = cls.value, lastDate = date.value;
+  cls.addEventListener("change", () => { if (!guard(load)()) cls.value = lastClass; lastClass = cls.value; });
+  date.addEventListener("change", () => { if (!guard(load)()) date.value = lastDate; lastDate = date.value; });
+  const prevBtn = h("button", { type: "button", class: "btn ghost sm", "aria-label": "اليوم السابق", onclick: guard(() => { date.value = shift(date.value, -1); lastDate = date.value; load(); }) }, "السابق");
+  const nextBtn = h("button", { type: "button", class: "btn ghost sm", "aria-label": "اليوم التالي", onclick: guard(() => { if (date.value < today()) { date.value = shift(date.value, 1); lastDate = date.value; load(); } }) }, "التالي");
+
   load();
-  return panel("تسجيل الحضور", quick, h("div", { class: "row" }, field("الفصل", cls), field("التاريخ", date), field("سبب التعديل", reason)), box);
+  return panel("تسجيل الحضور", null,
+    h("div", { class: "att-head" },
+      field(classes.length > 1 ? "الفصل" : "الفصل", cls),
+      h("div", { class: "att-date" }, field("التاريخ", date), h("div", { class: "att-day-nav" }, prevBtn, dayLabel, nextBtn))),
+    box, bar);
 }

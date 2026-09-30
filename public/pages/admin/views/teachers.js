@@ -118,59 +118,112 @@ export default async function teachers({ me, refresh }) {
     const save = async (changes) => { if (changes.name !== undefined && !String(changes.name).trim()) throw new Error("اسم المعلم مطلوب");
       await api(`${A}/teachers/${t.id}`, { ...base(), ...changes }, "PATCH"); done("حُفظ الملف"); };
 
-    const tabs = [["overview", "نظرة عامة"], ["personal", "البيانات الشخصية"], ["job", "البيانات الوظيفية"], ["load", "المواد والصفوف"],
-      ["timetable", "الجدول الدراسي"], ["exams", "الاختبارات والدرجات"], ["homework", "الواجبات"], ["activity", "سجل النشاط"], ["account", "حساب الدخول"]];
+    const tabs = [["overview", "نظرة عامة"], ["data", "البيانات"], ["load", "المواد والصفوف"], ["timetable", "الجدول"],
+      ["work", "الاختبارات والواجبات"], ["account", "حساب الدخول"], ["activity", "سجل النشاط"]];
     const nav = h("div", { class: "chips tabs-scroll" });
     const pane = h("div");
     const views = {};
-    const show = (key) => { nav.querySelectorAll(".tab-chip").forEach((s) => s.classList.toggle("on", s.dataset.k === key)); mount(pane, views[key]()); };
+    const show = (key) => { pane.dataset.tab = key; nav.querySelectorAll(".tab-chip").forEach((s) => s.classList.toggle("on", s.dataset.k === key)); mount(pane, views[key]()); };
     mount(nav, tabs.map(([k, label]) => h("span", { "data-k": k, class: "tab-chip", role: "button", tabindex: "0", onclick: () => show(k),
       onkeydown: (e) => { if (e.key === "Enter") show(k); } }, label)));
 
     const subjectNames = [...new Set(data.load.map((l) => l.subject_name))];
     const pl = placesOf({ load: data.load });
 
+    // بطاقة بيانات الدخول: اسم المستخدم دائمًا، وكلمة المرور المؤقتة ما دام المعلم لم يغيّرها
+    let revealed = null;   // تُجلب مرة واحدة عند أول «إظهار» (كل عرض يُسجَّل في سجل النشاط)
+    const resetPw = async (tab) => {
+      if (!confirmAction(`إنشاء كلمة مرور مؤقتة جديدة لـ ${t.name}؟ ستنتهي جلساته الحالية ويُطلب منه تغييرها عند أول دخول.`)) return;
+      try {
+        const r = await api(`${A}/teachers/${t.id}/reset-password`, {});
+        // تبقى ظاهرة في الملف حتى يغيّرها المعلم
+        Object.assign(acc, { initial_password_active: true, initial_password_available: true, state: acc.last_login_at ? "initial" : "not_activated" });
+        revealed = r.credentials?.password ?? null;
+        show(tab); refresh(); toast("أُنشئت كلمة مرور مؤقتة جديدة");
+      } catch (e) { toast(e.message, true); }
+    };
+    const credCard = () => {
+      if (!acc) return notice("لا يوجد حساب دخول لهذا المعلم.", "warn");
+      const pwBox = h("div", { class: "cred-pw" });
+      const drawPw = () => {
+        if (acc.initial_password_available) {
+          mount(pwBox, h("code", { class: "ltr cred-val" }, revealed ?? "••••••••••"),
+            h("div", { class: "row", style: "flex:none;gap:6px" },
+              btn(revealed ? "إخفاء" : "إظهار", async () => {
+                if (revealed) { revealed = null; return drawPw(); }
+                try { revealed = (await api(`${A}/teachers/${t.id}/initial-credentials`, {})).password; drawPw(); } catch (e) { toast(e.message, true); }
+              }, "ghost sm"),
+              btn("نسخ", async (ev) => {
+                try {
+                  revealed ??= (await api(`${A}/teachers/${t.id}/initial-credentials`, {})).password;
+                  await navigator.clipboard.writeText(revealed); drawPw(); toast("نُسخت كلمة المرور");
+                } catch (e) { toast(e.message, true); }
+              }, "ghost sm")));
+        } else {
+          mount(pwBox, h("span", { class: "sub" }, acc.initial_password_active
+            ? "الكلمة المؤقتة الحالية أُنشئت قبل حفظ بيانات الدخول، فلا يمكن عرضها."
+            : "غيّرها المعلم، وكلمة المرور الحالية لا تظهر لأحد."),
+            btn("كلمة مؤقتة جديدة", () => resetPw(pane.dataset.tab || "overview"), "soft sm"));
+        }
+      };
+      drawPw();
+      const copyUser = btn("نسخ", async () => { await navigator.clipboard.writeText(acc.username); toast("نُسخ اسم المستخدم"); }, "ghost sm");
+      return h("div", { class: "cred-card" },
+        h("div", { class: "cred-head" }, h("b", {}, "بيانات الدخول"), badge(STATE_LABEL[acc.state], STATE_TONE[acc.state])),
+        h("div", { class: "cred-row" }, h("span", { class: "sub" }, "اسم المستخدم"), h("div", { class: "cred-line" }, h("code", { class: "ltr cred-val" }, acc.username), copyUser)),
+        h("div", { class: "cred-row" }, h("span", { class: "sub" }, "كلمة المرور"), pwBox),
+        h("div", { class: "cred-row" }, h("span", { class: "sub" }, "رابط الدخول"), h("a", { class: "ltr small", href: staffLink(me), target: "_blank", rel: "noopener" }, staffLink(me))),
+        acc.initial_password_available ? sub("تبقى ظاهرة هنا حتى يغيّرها المعلم عند أول دخول، ثم تختفي تلقائيًا.") : null);
+    };
+
+    const infoBlock = (title, rows) => h("div", { class: "info-block" }, h("h4", {}, title), rows.filter((r) => r[1]).length
+      ? rows.filter((r) => r[1]).map(([k, v, cls]) => kv(k, v, cls)) : h("p", { class: "sub" }, "لا توجد بيانات بعد."));
     views.overview = () => h("div", {},
       h("div", { class: "kpis-row" },
         h("div", { class: "kpi" }, h("b", {}, data.summary.subjects), "مواد"), h("div", { class: "kpi" }, h("b", {}, data.summary.classes), "فصول"),
         h("div", { class: "kpi" }, h("b", {}, data.summary.periods_per_week), "حصص أسبوعيًا"), h("div", { class: "kpi" }, h("b", {}, data.summary.homework), "واجبات")),
-      h("h3", { class: "sec-title first" }, "ملخص"),
-      kv("الرقم الوظيفي", t.employee_no), kv("التخصص", t.specialty), kv("المسمى الوظيفي", t.job_title),
-      kv("المواد", subjectNames.join("، ")), kv("المرحلة", pl.stages.join("، ")), kv("الصفوف", pl.grades.join("، ")),
-      sectionsOn ? kv("الشعب", pl.sections.join("، ")) : null,
-      kv("اسم المستخدم", acc?.username, "ltr"),
-      line(h("span", { class: "sub" }, "حالة الحساب"), acc ? badge(STATE_LABEL[acc.state], STATE_TONE[acc.state]) : "—"),
-      kv("آخر دخول", acc?.last_login_at ? fmtDateTime(acc.last_login_at) : "لم يدخل بعد"));
+      credCard(),
+      h("div", { class: "info-grid" },
+        infoBlock("التدريس", [["المواد", subjectNames.join("، ")], ["المراحل", pl.stages.join("، ")], ["الصفوف", pl.grades.join("، ")],
+          sectionsOn ? ["الشعب", pl.sections.join("، ")] : [null, null]]),
+        infoBlock("الوظيفة", [["الرقم الوظيفي", t.employee_no, "ltr"], ["المسمى الوظيفي", t.job_title], ["التخصص", t.specialty],
+          ["المؤهل", t.qualification], ["القسم", t.department], ["نوع التوظيف", EMPLOYMENT[t.employment_type]], ["تاريخ التعيين", t.hire_date ? fmtDate(t.hire_date) : null]]),
+        infoBlock("التواصل", [["الجوال", t.phone, "ltr"], ["البريد", t.email, "ltr"], ["العنوان", t.address],
+          ["الطوارئ", [t.emergency_name, t.emergency_phone].filter(Boolean).join(" — ")]]),
+        infoBlock("شخصي", [["الجنس", GENDER[t.gender]], ["تاريخ الميلاد", t.birth_date ? fmtDate(t.birth_date) : null], ["رقم الهوية", t.national_id, "ltr"],
+          ["آخر دخول", acc?.last_login_at ? fmtDateTime(acc.last_login_at) : acc ? "لم يدخل بعد" : null]])),
+      h("div", { class: "row spaced", style: "justify-content:flex-start" }, btn("تعديل البيانات", () => show("data"), "soft sm")));
 
-    const formPane = (title, fields, keys, note) => {
-      const f = Object.fromEntries(Object.entries(fields).map(([k, [, el]]) => [k, el]));
-      return h("div", {}, h("h3", { class: "sec-title first" }, title), note ? sub(note) : null,
-        h("div", { class: "form-grid" }, Object.values(fields).map(([label, el]) => field(label, el))),
-        h("div", { class: "row spaced" }, btn("حفظ", async () => {
-          try { await save(Object.fromEntries(keys.map((k) => [k, f[k].value]))); } catch (e) { toast(e.message, true); } })));
-    };
     const dateVal = (v) => (v ? String(v).slice(0, 10) : "");
-    views.personal = () => formPane("البيانات الشخصية", {
-      name: ["الاسم الكامل *", input({ value: t.name })], short_name: ["الاسم المختصر", input({ value: t.short_name || "" })],
-      gender: ["الجنس", select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]], { value: t.gender || "" })],
-      birth_date: ["تاريخ الميلاد", input({ type: "date", value: dateVal(t.birth_date) })],
-      national_id: ["رقم الهوية", input({ class: "ltr", inputMode: "numeric", value: t.national_id || "" })],
-      phone: ["الجوال", input({ class: "ltr", inputMode: "tel", value: t.phone || "" })],
-      email: ["البريد الإلكتروني", input({ class: "ltr", type: "email", value: t.email || "" })],
-      address: ["العنوان", input({ value: t.address || "" })],
-      emergency_name: ["جهة اتصال الطوارئ", input({ value: t.emergency_name || "" })],
-      emergency_phone: ["جوال الطوارئ", input({ class: "ltr", inputMode: "tel", value: t.emergency_phone || "" })],
-    }, ["name", "short_name", "gender", "birth_date", "national_id", "phone", "email", "address", "emergency_name", "emergency_phone"]);
-    views.job = () => formPane("البيانات الوظيفية", {
-      employee_no: ["الرقم الوظيفي", input({ class: "ltr", value: t.employee_no || "" })],
-      job_title: ["المسمى الوظيفي", input({ value: t.job_title || "" })],
-      specialty: ["التخصص", input({ value: t.specialty || "" })],
-      qualification: ["المؤهل", input({ value: t.qualification || "" })],
-      department: ["القسم", input({ value: t.department || "" })],
-      hire_date: ["تاريخ التعيين", input({ type: "date", value: dateVal(t.hire_date) })],
-      employment_type: ["نوع التوظيف", select([["", "—"], ...Object.entries(EMPLOYMENT)], { value: t.employment_type || "" })],
-    }, ["employee_no", "job_title", "specialty", "qualification", "department", "hire_date", "employment_type"],
-    "المرحلة والصفوف والشعب والمواد تُدار من تبويب «المواد والصفوف» وترتبط بالهيكل الأكاديمي.");
+    // البيانات: شخصية وتواصل ووظيفية في نموذج واحد وحفظ واحد
+    views.data = () => {
+      const F = {
+        name: input({ value: t.name }), short_name: input({ value: t.short_name || "" }),
+        gender: select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]], { value: t.gender || "" }),
+        birth_date: input({ type: "date", value: dateVal(t.birth_date) }),
+        national_id: input({ class: "ltr", inputMode: "numeric", value: t.national_id || "" }),
+        phone: input({ class: "ltr", inputMode: "tel", value: t.phone || "" }),
+        email: input({ class: "ltr", type: "email", value: t.email || "" }), address: input({ value: t.address || "" }),
+        emergency_name: input({ value: t.emergency_name || "" }), emergency_phone: input({ class: "ltr", inputMode: "tel", value: t.emergency_phone || "" }),
+        employee_no: input({ class: "ltr", value: t.employee_no || "" }), job_title: input({ value: t.job_title || "" }),
+        specialty: input({ value: t.specialty || "" }), qualification: input({ value: t.qualification || "" }),
+        department: input({ value: t.department || "" }), hire_date: input({ type: "date", value: dateVal(t.hire_date) }),
+        employment_type: select([["", "—"], ...Object.entries(EMPLOYMENT)], { value: t.employment_type || "" }),
+      };
+      const grid = (...k) => h("div", { class: "form-grid" }, ...k);
+      return h("div", { class: "student-form" },
+        h("h3", { class: "sec-title first" }, "البيانات الشخصية"),
+        grid(field("الاسم الكامل *", F.name), field("الاسم المختصر", F.short_name), field("الجنس", F.gender), field("تاريخ الميلاد", F.birth_date), field("رقم الهوية", F.national_id)),
+        h("h3", { class: "sec-title" }, "التواصل"),
+        grid(field("الجوال", F.phone), field("البريد الإلكتروني", F.email), field("العنوان", F.address), field("جهة اتصال الطوارئ", F.emergency_name), field("جوال الطوارئ", F.emergency_phone)),
+        h("h3", { class: "sec-title" }, "البيانات الوظيفية"),
+        grid(field("الرقم الوظيفي", F.employee_no), field("المسمى الوظيفي", F.job_title), field("التخصص", F.specialty), field("المؤهل", F.qualification),
+          field("القسم", F.department), field("تاريخ التعيين", F.hire_date), field("نوع التوظيف", F.employment_type)),
+        sub("المرحلة والصفوف والمواد من تبويب «المواد والصفوف»."),
+        h("div", { class: "row spaced" }, btn("حفظ البيانات", async () => {
+          try { await save(Object.fromEntries(Object.entries(F).map(([k, el]) => [k, el.value]))); } catch (e) { toast(e.message, true); }
+        })));
+    };
 
     views.load = () => {
       const picker = loadPicker(classes, subjects, data.load);
@@ -187,17 +240,20 @@ export default async function teachers({ me, refresh }) {
           : h("span", { class: "muted" }, "—")) }))
       : empty("لا توجد حصص في الجدول لهذا المعلم بعد."));
 
-    views.exams = () => (data.exams.length
+    const examsView = () => (data.exams.length
       ? h("div", {}, sub("اختبارات فصوله ومواده المسندة"), data.exams.map((e) => line(
         h("div", {}, h("b", {}, e.title), " ", badge(EXAM[e.status]?.[0] || e.status, EXAM[e.status]?.[1] || "gray"),
           sub(`${e.subject_name} — ${e.class_name}${e.exam_date ? ` — ${fmtDate(e.exam_date)}` : ""}`)),
         h("div", { class: "sub" }, `${e.scored} درجة${e.avg_percent !== null ? ` — متوسط ${e.avg_percent}%` : ""}`))))
       : empty("لا توجد اختبارات لفصوله ومواده بعد."));
 
-    views.homework = () => (data.homework.length
+    const homeworkView = () => (data.homework.length
       ? h("div", {}, data.homework.map((w) => line(h("div", {}, h("b", {}, w.title),
         sub(`${w.subject_name} — ${w.class_name}${w.due_date ? ` — التسليم ${fmtDate(w.due_date)}` : ""}`)))))
       : empty("لم يضف هذا المعلم واجبات بعد."));
+
+    views.work = () => h("div", {}, h("h3", { class: "sec-title first" }, "الاختبارات والدرجات"), examsView(),
+      h("h3", { class: "sec-title" }, "الواجبات"), homeworkView());
 
     views.activity = () => (data.activity.length
       ? h("div", {}, data.activity.map((a) => line(h("div", {}, h("b", {}, a.text),
@@ -208,33 +264,15 @@ export default async function teachers({ me, refresh }) {
     views.account = () => {
       if (!acc) return empty("لا يوجد حساب دخول لهذا المعلم.");
       return h("div", {},
-        line(h("span", { class: "sub" }, "الحالة"), badge(acc.state_label, STATE_TONE[acc.state])),
-        kv("اسم المستخدم", acc.username, "ltr"), kv("رابط الدخول", staffLink(me), "ltr"),
+        credCard(),
         kv("آخر دخول", acc.last_login_at ? fmtDateTime(acc.last_login_at) : "لم يدخل بعد"),
         kv("تاريخ إنشاء الحساب", fmtDateTime(acc.created_at)),
         acc.password_changed_at && !acc.initial_password_active ? kv("آخر تغيير لكلمة المرور", fmtDateTime(acc.password_changed_at)) : null,
         acc.username_changed_at ? kv("آخر تغيير لاسم المستخدم", fmtDateTime(acc.username_changed_at)) : null,
         acc.locked_until ? kv("مقفل حتى", fmtDateTime(acc.locked_until)) : null,
-        acc.initial_password_available
-          ? h("div", {}, notice("لم يغيّر المعلم كلمة المرور المؤقتة بعد، فيمكنك عرض بيانات دخوله الأولية. تختفي تلقائيًا فور تغييره لها، ويُسجَّل كل عرض في سجل النشاط.", "warn"),
-            btn("إظهار بيانات الدخول الأولية", async () => {
-              try {
-                const c = await api(`${A}/teachers/${t.id}/initial-credentials`, {});
-                showCredentials("بيانات الدخول الأولية", c, "الحالة: لم يتم تغيير بيانات الدخول. سيُطلب من المعلم تغيير كلمة المرور عند أول دخول.");
-              } catch (e) { toast(e.message, true); }
-            }, "soft"))
-          : acc.initial_password_active
-            ? notice(acc.initial_password_supported
-              ? "ما زال المعلم يستخدم كلمة مؤقتة، لكنها غير محفوظة للعرض (أُنشئ الحساب قبل تفعيل الميزة). أنشئ كلمة مؤقتة جديدة لتظهر لك."
-              : "ما زال المعلم يستخدم كلمة مؤقتة، لكن عرضها غير مفعّل على الخادم (لم يُضبط CREDENTIAL_KEY). أنشئ كلمة مؤقتة جديدة عند الحاجة.", "warn")
-            : notice("تم تغيير بيانات الدخول من قبل المعلم. كلمة المرور الحالية لا تظهر لأحد.", ""),
         h("h3", { class: "sec-title" }, "إجراءات الحساب"),
         h("div", { class: "row", style: "justify-content:flex-start" },
-          btn("كلمة مرور مؤقتة جديدة", async () => {
-            if (!confirmAction(`إنشاء كلمة مرور مؤقتة جديدة لـ ${t.name}؟ ستنتهي جلساته الحالية ويُطلب منه تغييرها عند أول دخول.`)) return;
-            showCredentials("كلمة مرور مؤقتة جديدة", (await api(`${A}/teachers/${t.id}/reset-password`, {})).credentials);
-            refresh();
-          }, "ghost sm"),
+          btn("كلمة مرور مؤقتة جديدة", () => resetPw("account"), "ghost sm"),
           btn("تغيير اسم المستخدم", () => {
             const u = input({ class: "ltr", value: acc.username });
             const dd = dialog("تغيير اسم المستخدم", h("div", {}, field("اسم المستخدم الجديد", u), sub("تنتهي جلسات المعلم الحالية، ويسجَّل التغيير في سجل النشاط.")),
@@ -256,11 +294,14 @@ export default async function teachers({ me, refresh }) {
       catch (e) { toast(e.message, true); }
     });
     mount(body,
-      h("div", { class: "row", style: "justify-content:flex-start;gap:12px;align-items:center" }, photoBox,
-        h("div", {}, h("h2", { style: "margin:0" }, t.name),
-          sub([t.specialty, t.job_title].filter(Boolean).join(" • ") || "بدون تخصص"),
+      h("div", { class: "file-hero" }, photoBox,
+        h("div", { class: "file-hero-text" }, h("h2", {}, t.name),
+          h("p", {}, [t.job_title, t.specialty, subjectNames.slice(0, 3).join("، ")].filter(Boolean).join(" · ") || "بدون تخصص"),
+          h("div", { class: "file-hero-tags" },
+            acc ? badge(STATE_LABEL[acc.state], STATE_TONE[acc.state]) : badge("بدون حساب", "gray"),
+            t.phone ? h("a", { class: "btn ghost sm", href: `tel:${t.phone}` }, "اتصال") : null),
           h("div", { class: "row", style: "justify-content:flex-start;gap:6px;margin-top:6px" }, btn(t.has_photo ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
-            t.has_photo ? btn("حذف", async () => { await api(`${A}/teachers/${t.id}/photo`, null, "DELETE"); drawPhoto(null); refresh(); }, "ghost sm") : null))),
+            t.has_photo ? btn("حذف الصورة", async () => { await api(`${A}/teachers/${t.id}/photo`, null, "DELETE"); drawPhoto(null); refresh(); }, "ghost sm") : null))),
       nav, pane);
     show("overview");
   }
