@@ -1,4 +1,4 @@
-// مدرسة عرض كاملة: مجمع مدارس بنين شامل (ابتدائي ومتوسط وثانوي) ببيانات واقعية لفصل دراسي كامل حتى اليوم.
+// مدرسة عرض كاملة (يمنية): مدارس بنين شاملة (الأساسي والثانوي) ببيانات واقعية لفصل دراسي كامل حتى اليوم.
 // يُبنى بخدمات المنصة نفسها (قالب المعالج، ربط المواد بالصفوف، توليد الجدول، الطلاب، الفواتير والسداد والقيود)
 // حتى تكون المدرسة مطابقة تمامًا لمدرسة أنشأها مديرها بنفسه، مع إدخال مجمّع للبيانات الكثيرة (الحضور والدرجات).
 // البيانات ثابتة بالبذرة: نفس المدخلات تعطي نفس المدرسة.
@@ -13,15 +13,18 @@ import * as gen from "./timetable-gen.service.js";
 import * as finance from "./finance.service.js";
 
 /* ---------- أسماء واقعية (بنين) ---------- */
-const FIRST = ["محمد", "عبدالله", "عبدالرحمن", "فهد", "خالد", "سعود", "فيصل", "تركي", "نايف", "سلطان", "عبدالعزيز", "بندر", "ماجد", "يوسف", "إبراهيم",
-  "عمر", "علي", "حمد", "راكان", "ريان", "مشاري", "بدر", "زياد", "مازن", "أنس", "حسام", "طلال", "عادل", "سامي", "ناصر", "صالح", "هشام", "وليد", "مهند",
-  "عبدالملك", "عبدالإله", "معاذ", "أحمد", "حسن", "مالك", "إياد", "نواف", "سيف", "ياسر", "عمار", "جود", "ليث", "تميم", "فارس", "هاني", "رائد", "أسامة",
-  "مصعب", "باسل", "قصي", "عزام", "المهند", "هزاع", "دحام", "مشعل"];
-const FATHER = ["محمد", "عبدالله", "سعد", "فهد", "خالد", "ناصر", "صالح", "إبراهيم", "علي", "حمد", "عبدالرحمن", "سليمان", "منصور", "عبدالعزيز", "سعود",
-  "فيصل", "تركي", "ماجد", "بندر", "عادل", "عمر", "يوسف", "حسن", "أحمد", "راشد", "مبارك", "عثمان", "جمعان", "مساعد", "زيد"];
-const FAMILY = ["العتيبي", "القحطاني", "الشهري", "الغامدي", "الزهراني", "الدوسري", "الحربي", "المطيري", "السبيعي", "الشمري", "العنزي", "الرشيدي",
-  "البقمي", "السهلي", "الجهني", "العمري", "المالكي", "الأحمدي", "الخالدي", "الشهراني", "العسيري", "القرني", "الحارثي", "الثبيتي", "الزهراني",
-  "آل سعود", "التميمي", "الدوسري", "السلمي", "الرويلي", "الفيفي", "البلوي", "العبدلي", "الكثيري", "الهاجري", "المري", "اليامي", "العجمي", "الشريف", "السديري"];
+const FIRST = ["محمد", "أحمد", "علي", "عبدالله", "عبدالرحمن", "صالح", "حسين", "ياسر", "أيمن", "وضاح", "أكرم", "هيثم", "عمار", "نبيل",
+  "فؤاد", "جمال", "مراد", "شهاب", "بسام", "رشاد", "عادل", "سامي", "ماجد", "مجاهد", "زكريا", "إبراهيم", "يوسف", "خالد", "أسامة", "عمرو",
+  "طارق", "عصام", "أنور", "معاذ", "براء", "أنس", "ريان", "عبدالملك", "عبدالسلام", "عبدالكريم", "صقر", "منير", "نشوان", "همدان", "أوس",
+  "حمزة", "عبدالرحيم", "مصطفى", "يحيى", "فارس", "بلال", "عبدالعزيز", "محمود", "سليم", "قيس", "مهيب", "وسيم", "رامي", "ضياء", "هاشم"];
+const FATHER = ["محمد", "أحمد", "علي", "عبدالله", "صالح", "حسن", "حسين", "عبده", "قاسم", "ناجي", "سعيد", "عبدالرحمن", "يحيى", "عبدالوهاب",
+  "فضل", "ناصر", "مقبل", "سيف", "عبدالكريم", "عبدالجليل", "منصور", "عبدالقادر", "إسماعيل", "عبدالرزاق", "فيصل", "أمين", "شرف", "هادي", "مطهر", "غالب"];
+const FAMILY = ["العريقي", "الشميري", "المخلافي", "الصبري", "الحكيمي", "العبسي", "الأغبري", "القدسي", "الشرعبي", "الحميري", "السقاف",
+  "باوزير", "العولقي", "الإرياني", "الكبسي", "الأهدل", "الزبيري", "الريمي", "الوصابي", "العديني", "الحداد", "البعداني", "المقطري",
+  "الذبحاني", "الجرادي", "العمودي", "الشامي", "السنباني", "الحبيشي", "اليافعي", "الهمداني", "الآنسي", "الأكوع", "العنسي", "الخولاني",
+  "الصنعاني", "المحويتي", "الشرجبي", "التعزي", "الحضرمي"];
+// جوال يمني: 9 أرقام تبدأ بـ 77 أو 73 أو 71 أو 70 أو 78
+const PREFIX = ["77", "77", "73", "71", "70", "78"];
 
 // مولّد أرقام ثابت بالبذرة (mulberry32)
 function rng(seed) {
@@ -39,6 +42,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
   const R = rng(seed);
   const pick = (arr) => arr[Math.floor(R() * arr.length)];
   const chance = (p) => R() < p;
+  const phone = () => `${pick(PREFIX)}${String(Math.floor(R() * 1e7)).padStart(7, "0")}`;
   const today = new Date(`${iso(new Date())}T00:00:00Z`);
   // السنة الدراسية الحالية: من أواخر أغسطس إلى منتصف يونيو، بثلاثة فصول
   const y0 = today.getUTCMonth() >= 7 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
@@ -51,21 +55,25 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     progress(5, 100, "الهيكل والسنة الدراسية");
     /* 1) ملف المدرسة والهيكل (قالب «مدرسة شاملة»، شعبتان لكل صف، ربط المواد الذكي) */
     await q(`INSERT INTO school_profile (tenant_id, school_type, gender, country, city, address, email, phone, template)
-             VALUES (app_tenant(), 'private', 'boys', 'المملكة العربية السعودية', 'الرياض', 'حي النرجس، طريق أنس بن مالك', 'info@alrowad-school.sa', '0112345678', 'full')
+             VALUES (app_tenant(), 'private', 'boys', 'اليمن', 'صنعاء', 'حي حدة، شارع الستين الجنوبي', 'info@alrowad-school.ye', '01441234', 'full')
              ON CONFLICT (tenant_id) DO UPDATE SET school_type = 'private', gender = 'boys', country = EXCLUDED.country, city = EXCLUDED.city,
                address = EXCLUDED.address, email = EXCLUDED.email, phone = EXCLUDED.phone, template = 'full'`);
     await S.setSectionsMode(q, true);
-    out.structure = await S.applyTemplate(q, { template: "full", sections_per_grade: 2, naming: "arabic", grade_set: "arabic_full" });
+    await S.applyCountry(q, "YE");   // رمز واتساب 967 والريال اليمني
+    out.structure = await S.applyTemplate(q, { template: "full", sections_per_grade: 2, naming: "arabic", grade_set: "yemen" });
     await academic.configureYear(q, { name: `${y0}/${y0 + 1}`, start_date: iso(yearStart), end_date: iso(yearEnd), terms: 3 });
     // الفصل الحالي هو الذي يحوي اليوم
     const terms = await q("SELECT id, start_date::text, end_date::text FROM terms WHERE year_id = (SELECT id FROM academic_years WHERE is_current) ORDER BY ordinal");
     const term = terms.find((t) => iso(today) >= t.start_date && iso(today) <= t.end_date) || terms[0];
     await academic.setCurrentTerm(q, term.id);
-    await gen.saveSettings(q, { days: [0, 1, 2, 3, 4], periods_per_day: 7, start_time: "06:45", period_minutes: 45, break_after: 3, break_minutes: 25 });
+    await gen.saveSettings(q, { days: [0, 1, 2, 3, 4], periods_per_day: 7, start_time: "07:30", period_minutes: 45, break_after: 3, break_minutes: 25 });
+    // المناسبات الوطنية اليمنية الواقعة في السنة الدراسية، وإجازة قصيرة في منتصف الفصل الأول
     const holidays = [
-      { name: "اليوم الوطني", kind: "official", start_date: `${y0}-09-23`, end_date: `${y0}-09-23` },
-      { name: "إجازة الخريف", kind: "mid_term", start_date: iso(addDays(yearStart, 67)), end_date: iso(addDays(yearStart, 71)) },
-      { name: "يوم التأسيس", kind: "official", start_date: `${y0 + 1}-02-22`, end_date: `${y0 + 1}-02-22` },
+      { name: "ثورة 26 سبتمبر", kind: "official", start_date: `${y0}-09-26`, end_date: `${y0}-09-26` },
+      { name: "ثورة 14 أكتوبر", kind: "official", start_date: `${y0}-10-14`, end_date: `${y0}-10-14` },
+      { name: "إجازة منتصف الفصل", kind: "mid_term", start_date: iso(addDays(yearStart, 67)), end_date: iso(addDays(yearStart, 71)) },
+      { name: "عيد الاستقلال 30 نوفمبر", kind: "official", start_date: `${y0}-11-30`, end_date: `${y0}-11-30` },
+      { name: "عيد الوحدة 22 مايو", kind: "official", start_date: `${y0 + 1}-05-22`, end_date: `${y0 + 1}-05-22` },
     ];
     for (const hd of holidays) await academic.addHoliday(q, { ...hd, notes: null, affects_attendance: true, show_in_calendar: true });
     await S.completeSetup(q);
@@ -107,14 +115,14 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         assignments.push({ t: cur, class_id: p.c.id, subject_id: p.s.id });
       }
     }
-    const STAGE_AR = { primary: "المرحلة الابتدائية", middle: "المرحلة المتوسطة", secondary: "المرحلة الثانوية" };
+    const STAGE_AR = { primary: "الأساسي (1–6)", middle: "الأساسي (7–9)", secondary: "الثانوي" };
     const QUAL = ["بكالوريوس", "بكالوريوس تربوي", "ماجستير", "بكالوريوس مع دبلوم تربوي"];
     const creds = [];
     for (const t of teachers) {
       const [row] = await q(
         `INSERT INTO teachers (tenant_id, full_name, phone, employee_no, email, specialty, department, job_title, qualification, hire_date, employment_type, gender)
          VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, 'معلم', $7, $8, 'full_time', 'male') RETURNING id`,
-        [t.name, `05${String(Math.floor(R() * 1e8)).padStart(8, "0")}`, t.employee_no, `${t.username}@alrowad-school.sa`, t.subject,
+        [t.name, phone(), t.employee_no, `${t.username}@alrowad-school.ye`, t.subject,
          STAGE_AR[t.stage] || null, pick(QUAL), iso(addDays(today, -Math.floor(365 * (1 + R() * 12))))]);
       t.id = row.id;
       t.password = newTempPassword();
@@ -153,7 +161,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         // ثلث الطلاب لهم أخ في المدرسة (نفس الأب والعائلة والجوال)
         let fam = families.length && chance(0.3) ? pick(families) : null;
         if (!fam || fam.kids >= 3) {
-          fam = { father: pick(FATHER), grand: pick(FATHER), family: pick(FAMILY), phone: `05${String(Math.floor(R() * 1e8)).padStart(8, "0")}`, kids: 0 };
+          fam = { father: pick(FATHER), grand: pick(FATHER), family: pick(FAMILY), phone: phone(), kids: 0 };
           families.push(fam);
         }
         let first;
@@ -253,18 +261,21 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
 
     progress(80, 100, "الرسوم والسداد");
     /* 8) الرسوم: فاتورة الفصل لكل طالب حسب المرحلة، وسداد واقعي (كامل، جزئي، لم يسدد) بإيصالات وقيود */
-    const FEES = { primary: 8500, middle: 9500, secondary: 11000 };
-    await q(`INSERT INTO payment_accounts (tenant_id, bank_name, account_holder, iban) VALUES (app_tenant(), 'مصرف الراجحي', 'مجمع مدارس الرواد الأهلية', 'SA0380000000608010167519')`);
+    // رسوم الفصل بالريال اليمني، وحساب في بنك محلي ومحفظة إلكترونية (برقم حساب بلا آيبان كما هو الواقع)
+    const FEES = { primary: 90000, middle: 110000, secondary: 130000 };
+    await q(`INSERT INTO payment_accounts (tenant_id, bank_name, account_holder, account_number) VALUES
+               (app_tenant(), 'بنك الكريمي', 'مدارس الرواد الأهلية', '3012045871'),
+               (app_tenant(), 'محفظة جوالي', 'مدارس الرواد الأهلية', '777000123')`);
     const invIds = await q(`INSERT INTO invoices (tenant_id, student_id, title, amount, due_date, created_by, term_id)
                              SELECT app_tenant(), sid, 'رسوم الفصل الدراسي الأول', amt, $3::date, 'المحاسب', $4 FROM unnest($1::bigint[], $2::numeric[]) AS x(sid, amt)
                              RETURNING id, student_id, amount`,
-      [students.map((s) => s.id), students.map((s) => FEES[s.stage] ?? 9000), iso(addDays(termStart, 45)), term.id]);
+      [students.map((s) => s.id), students.map((s) => FEES[s.stage] ?? 100000), iso(addDays(termStart, 45)), term.id]);
     let paid = 0, partial = 0;
     for (const [i, inv] of invIds.entries()) {
       progress(80 + (15 * i) / invIds.length, 100);
       const r = R();
       if (r < 0.7) { paid++; await finance.recordPayment(q, { invoiceId: inv.id, amount: inv.amount, method: pick(["transfer", "cash", "card"]), note: null, idempotencyKey: `showcase-${tid}-${i}-a`, actor: "المحاسب" }); }
-      else if (r < 0.88) { partial++; await finance.recordPayment(q, { invoiceId: inv.id, amount: Math.round(inv.amount / 2), method: pick(["transfer", "cash"]), note: "الدفعة الأولى", idempotencyKey: `showcase-${tid}-${i}-b`, actor: "المحاسب" }); }
+      else if (r < 0.88) { partial++; await finance.recordPayment(q, { invoiceId: inv.id, amount: Math.round(inv.amount / 2000) * 1000, method: pick(["transfer", "cash"]), note: "الدفعة الأولى", idempotencyKey: `showcase-${tid}-${i}-b`, actor: "المحاسب" }); }
     }
     out.invoices = invIds.length; out.paid = paid; out.partial = partial;
 
@@ -274,8 +285,8 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       ["بداية الفصل الدراسي", "نرحب بأبنائنا الطلاب في بداية الفصل الدراسي، ونتمنى لهم عامًا حافلًا بالتميز."],
       ["اجتماع أولياء الأمور", "يُعقد اجتماع أولياء الأمور يوم الخميس القادم الساعة السابعة مساءً في مسرح المدرسة."],
       ["الاختبارات الشهرية", "تبدأ الاختبارات الشهرية الأسبوع القادم وفق الجدول المعلن في ملف الطالب."],
-      ["الزي المدرسي", "نذكّر بالالتزام بالزي المدرسي الرسمي والحضور قبل الساعة 6:45 صباحًا."],
-      ["اليوم الوطني", "إجازة رسمية بمناسبة اليوم الوطني، ويستأنف الدوام في اليوم التالي."],
+      ["الزي المدرسي", "نذكّر بالالتزام بالزي المدرسي الرسمي والحضور قبل الساعة 7:30 صباحًا."],
+      ["إجازة 26 سبتمبر", "إجازة رسمية بمناسبة عيد ثورة 26 سبتمبر المجيدة، ويستأنف الدوام في اليوم التالي."],
     ];
     for (const [t, b] of ANN) await q("INSERT INTO announcements (tenant_id, title, body, created_by) VALUES (app_tenant(), $1, $2, 'الإدارة')", [t, b]);
     const top = [...students].sort((a, b) => b.ability - a.ability).slice(0, 12);

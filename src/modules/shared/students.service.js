@@ -1,5 +1,5 @@
 // منطق الطلاب
-import { z, t } from "../../core/http/validate.js";
+import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, conflict, notFound } from "../../core/http/errors.js";
 import { newStudentKey } from "../../core/auth/codes.js";
 import { resolveClassForGrade } from "./structure.service.js";
@@ -52,7 +52,7 @@ export function guardianFromStudent(fullName) {
  * تُحذف المسافات والرموز فقط، ولا يُفرض رمز دولة معيّن.
  */
 export function normalizePhone(v) {
-  const raw = String(v || "").trim();
+  const raw = asciiDigits(String(v || "")).trim();
   if (!raw) return null;
   const digits = raw.replace(/[^\d+]/g, "");
   if (!digits.replace(/\+/g, "")) return null;

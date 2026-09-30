@@ -62,3 +62,23 @@ export function parseCsv(text) {
     rows: filtered.slice(1).map((r) => Object.fromEntries(headers.map((h, i) => [h, (r[i] ?? "").trim()]))),
   };
 }
+
+/**
+ * العدد مع المعدود بالعربية: arCount(1, STUDENTS) ← «طالب واحد»، 2 ← «طالبان»، 5 ← «5 طلاب»، 12 ← «12 طالبًا».
+ * forms = [مفرد, مثنى, جمع (3–10), تمييز (11+)]
+ */
+export function arCount(n, [one, two, few, many]) {
+  const x = Number(n) || 0;
+  const r = x % 100;
+  if (x === 1) return one;
+  if (x === 2) return two;
+  if (r >= 3 && r <= 10) return `${x} ${few}`;
+  return `${x} ${many}`;
+}
+export const NOUNS = {
+  student: ["طالب واحد", "طالبان", "طلاب", "طالبًا"],
+  teacher: ["معلم واحد", "معلمان", "معلمين", "معلمًا"],
+  account: ["حساب واحد", "حسابان", "حسابات", "حسابًا"],
+  name: ["اسم واحد", "اسمان", "أسماء", "اسمًا"],
+  line: ["سطر واحد", "سطران", "أسطر", "سطرًا"],
+};

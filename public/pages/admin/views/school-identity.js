@@ -4,7 +4,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, toast, confirmAction, schoolLogoUrl } from "../../shared/js/ui.js";
-import { A } from "./common.js";
+import { A, countryField } from "./common.js";
 
 // تصغير الشعار في المتصفح: حتى 600 بكسل للطباعة، ومصغّرة 160 بكسل للشريط العلوي. PNG يحفظ الشفافية.
 async function prepareLogo(file) {
@@ -62,7 +62,7 @@ export default async function schoolIdentity({ me }) {
     name: input({ value: p.name || "" }),
     school_type: select(c.school_types.map((x) => [x.key, x.name]), { value: p.school_type || "private" }),
     gender: select(c.genders.map((x) => [x.key, x.name]), { value: p.gender || "boys" }),
-    country: input({ value: p.country || "" }), city: input({ value: p.city || "" }),
+    country: countryField(c.countries, p.country), city: input({ value: p.city || "" }),
     address: input({ value: p.address || "" }),
     email: input({ class: "ltr", type: "email", value: p.email || "" }),
     phone: input({ class: "ltr", inputMode: "tel", value: p.phone || "" }),
@@ -82,18 +82,18 @@ export default async function schoolIdentity({ me }) {
     panel("بيانات المدرسة", null,
       field("اسم المدرسة", f.name),
       h("div", { class: "row" }, field("نوع المدرسة", f.school_type), field("الجنس", f.gender)),
-      h("div", { class: "row" }, field("الدولة", f.country), field("المدينة", f.city)),
+      h("div", { class: "row" }, field("الدولة", f.country.el), field("المدينة", f.city)),
       field("العنوان", f.address),
       h("div", { class: "row" }, field("البريد الإلكتروني", f.email), field("رقم الهاتف", f.phone)),
       sub("الهاتف والبريد والعنوان تظهر في صفحة المدرسة إن فعّلت «بيانات التواصل» من إعدادات الصفحة العامة."),
       btn("حفظ البيانات", async () => {
         await api(`${A}/setup/profile`, {
           name: f.name.value.trim() || undefined, school_type: f.school_type.value, gender: f.gender.value,
-          country: f.country.value.trim() || null, city: f.city.value.trim() || null, address: f.address.value.trim() || null,
+          country: f.country.value(), city: f.city.value.trim() || null, address: f.address.value.trim() || null,
           email: f.email.value.trim(), phone: f.phone.value.trim() }, "PUT");
         const title = document.querySelector(".topbar .school b");
         if (title && f.name.value.trim()) title.textContent = f.name.value.trim();
-        toast("حُفظت بيانات المدرسة");
+        toast("حُفظت بيانات المدرسة. رمز الاتصال لرسائل واتساب والعملة يتبعان الدولة.");
       })),
   ];
 }

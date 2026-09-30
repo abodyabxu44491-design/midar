@@ -83,7 +83,7 @@ function namingPanel(d, refresh) {
   const apply = btn("تطبيق النمط", async () => {
     if (!confirmAction("تغيير أسماء الصفوف؟ الصفوف نفسها لا تتغير: يبقى الطلاب والمعلمون والدرجات مرتبطين بها، ويتغير الاسم الظاهر في كل مكان.")) return;
     const r = await api(`${A}/setup/rename-grades`, { grade_set: pick.value });
-    toast(r.renamed ? `تغيّر اسم ${r.renamed} ${r.renamed >= 3 && r.renamed <= 10 ? "صفوف" : "صف"}` : "الأسماء مطابقة للنمط مسبقًا"); refresh();
+    toast(r.renamed || r.stages ? `تم تحديث الأسماء: ${[r.renamed ? `${r.renamed} صف` : null, r.stages ? `${r.stages} مرحلة` : null].filter(Boolean).join(" و")}` : "الأسماء مطابقة للنمط مسبقًا"); refresh();
   });
   pick.addEventListener("change", paint);
   queueMicrotask(paint);

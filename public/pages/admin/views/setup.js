@@ -3,7 +3,8 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, badge, notice, toast } from "../../shared/js/ui.js";
-import { A } from "./common.js";
+import { A, countryField } from "./common.js";
+import { fmtDate } from "../../shared/js/format.js";
 import { logoPanel } from "./school-identity.js";
 
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
@@ -14,6 +15,14 @@ const draftKey = (me) => `midar:setup-draft:${me?.school?.id || "school"}`;
 const readDraft = (me) => { try { return JSON.parse(localStorage.getItem(draftKey(me)) || "null"); } catch { return null; } };
 const writeDraft = (me, v) => { try { localStorage.setItem(draftKey(me), JSON.stringify(v)); } catch { /* تخزين غير متاح: يعمل المعالج بدونه */ } };
 const clearDraft = (me) => { try { localStorage.removeItem(draftKey(me)); } catch { /* لا شيء */ } };
+
+// إعدادات الدولة من الكتالوج: دولة المدرسة، أو اليمن إن لم تُحدَّد (السوق الأساسية)
+const presetOf = (c, name) => {
+  const list = c.countries || [];
+  const n = String(name || "").trim();
+  return list.find((x) => x.name === n) || (n ? list.find((x) => x.key === "OTHER") : null) || list.find((x) => x.key === "YE")
+    || { grade_set: "arabic_full", days: [0, 1, 2, 3, 4], holidays: [] };
+};
 
 export default async function setup({ me } = {}) {
   const [d, hol] = await Promise.all([api(`${A}/setup`), api(`${A}/academic/holidays`)]);
@@ -26,11 +35,11 @@ export default async function setup({ me } = {}) {
   const st = {
     step: 1,
     stages: new Set(["primary"]),
-    gradeSet: "arabic_full",
+    gradeSet: presetOf(c, p.country).grade_set,   // تسمية الصفوف حسب الدولة (اليمن: الأول… التاسع)
     sections: true, sectionCount: 2, naming: "arabic",
     year: { name: `${y0}–${y0 + 1}`, start: `${y0}-09-01`, end: `${y0 + 1}-06-30` },
     termMode: "2", termCustom: 4,
-    days: new Set([0, 1, 2, 3, 4]),
+    days: new Set(presetOf(c, p.country).days),
     holidays: [],
     subjects: new Map(),
     custom: {},          // أسماء معدَّلة يدويًا لكل مرحلة
@@ -53,15 +62,24 @@ export default async function setup({ me } = {}) {
     name: input({ value: p.name || "" }),
     school_type: select(c.school_types.map((x) => [x.key, x.name]), { value: p.school_type || "private" }),
     gender: select(c.genders.map((x) => [x.key, x.name]), { value: p.gender || "boys" }),
-    country: input({ value: p.country || "" }), city: input({ value: p.city || "" }),
+    // الدولة تقترح تسمية الصفوف وأيام الدوام والمناسبات الوطنية، وتضبط في الخادم رمز واتساب والعملة
+    country: countryField(c.countries, p.country, { onChange: (key) => {
+      const pr = c.countries.find((x) => x.key === key);
+      if (!pr) return;
+      if (!Object.keys(st.custom).some((k) => !customOf(k))) st.gradeSet = pr.grade_set;
+      st.days = new Set(pr.days); persist();
+    } }),
+    city: input({ value: p.city || "" }),
     email: input({ class: "ltr", type: "email", value: p.email || "" }),
     phone: input({ class: "ltr", inputMode: "tel", value: p.phone || "" }),
   };
 
   const ORDER = ["kindergarten", "primary", "middle", "secondary"];
   // مراحل الكتالوج المختارة بالترتيب، ثم المراحل المخصصة
+  // اسم المرحلة يتبع تسمية الصفوف (اليمن: الأساسي والثانوي)
+  const stageLabel = (s) => c.grade_sets.find((g) => g.key === st.gradeSet)?.stage_names?.[s.key] || s.name;
   const orderedStages = () => [
-    ...ORDER.map((k) => c.stages.find((s) => s.key === k)).filter((s) => s && st.stages.has(s.key)),
+    ...ORDER.map((k) => c.stages.find((s) => s.key === k)).filter((s) => s && st.stages.has(s.key)).map((s) => ({ ...s, name: stageLabel(s) })),
     ...st.customStages.map((x) => ({ key: x.key, name: x.name, custom: true })),
   ];
   const stageKeys = () => orderedStages().filter((s) => !s.custom).map((s) => s.key);
@@ -145,12 +163,12 @@ export default async function setup({ me } = {}) {
       h("div", { class: "spaced", style: "margin:0 0 14px" }, h("b", { class: "small" }, "شعار المدرسة (اختياري)"), logoWidget),
       field("اسم المدرسة", f.name),
       h("div", { class: "row" }, field("نوع المدرسة", f.school_type), field("الجنس", f.gender)),
-      h("div", { class: "row" }, field("الدولة", f.country), field("المدينة", f.city)),
+      h("div", { class: "row" }, field("الدولة", f.country.el), field("المدينة", f.city)),
       h("div", { class: "row" }, field("البريد الإلكتروني", f.email), field("رقم الهاتف", f.phone)),
       nav(false, async () => {
         await api(`${A}/setup/profile`, {
           name: f.name.value || undefined, school_type: f.school_type.value, gender: f.gender.value,
-          country: f.country.value || null, city: f.city.value || null,
+          country: f.country.value(), city: f.city.value || null,
           email: f.email.value || "", phone: f.phone.value || "" }, "PUT");
         go(2);
       })),
@@ -158,7 +176,7 @@ export default async function setup({ me } = {}) {
     2: () => panel("ما المراحل الموجودة في مدرستك؟", null,
       sub("اختر المراحل فقط. لا يلزم أن تكون كلها موجودة."),
       h("div", { class: "pick-grid" }, c.stages.map((s) =>
-        pick("checkbox", "stage", st.stages.has(s.key), s.name, `${s.grades.length} صفوف`, (on) => {
+        pick("checkbox", "stage", st.stages.has(s.key), stageLabel(s), `${s.grades.length} صفوف`, (on) => {
           on ? st.stages.add(s.key) : st.stages.delete(s.key); draw(); }))),
       btn("مدرسة شاملة (كل المراحل)", () => { for (const k of ["primary", "middle", "secondary"]) st.stages.add(k); draw(); }, "soft"),
       customStagesBox(),
@@ -229,8 +247,21 @@ export default async function setup({ me } = {}) {
       const name = input({ placeholder: "مثال: إجازة منتصف الفصل" });
       const kind = select(Object.entries(hol.kinds));
       const a = input({ type: "date", class: "ltr" }), b = input({ type: "date", class: "ltr" });
+      const pr = c.countries.find((x) => x.key === f.country.key());
+      const national = (pr?.holidays || []).map((x) => {
+        // تاريخ المناسبة داخل السنة الدراسية المختارة (أول سنة ميلادية تقع فيها)
+        for (const y of [Number(st.year.start.slice(0, 4)), Number(st.year.start.slice(0, 4)) + 1]) {
+          const d = `${y}-${String(x.month).padStart(2, "0")}-${String(x.day).padStart(2, "0")}`;
+          if (d >= st.year.start && d <= st.year.end) return { name: x.name, kind: "official", start_date: d, end_date: d, affects_attendance: true, show_in_calendar: true };
+        }
+        return null;
+      }).filter((x) => x && !st.holidays.some((h0) => h0.name === x.name));
       return panel("الإجازات والعطل", null,
         sub("اختياري — تُستخدم في الحضور والجدول. تقدر تضيفها لاحقًا."),
+        national.length ? h("div", { class: "sub-banner stack" },
+          h("div", {}, h("b", {}, `المناسبات الوطنية في ${pr.name}`), sub(national.map((x) => `${x.name}: ${fmtDate(x.start_date)}`).join(" · ")),
+            sub("الأعياد الهجرية (الفطر والأضحى) يتغير تاريخها كل سنة، فأضفها يدويًا.")),
+          btn(`إضافة ${national.length} مناسبات`, () => { st.holidays.push(...national); draw(); }, "soft")) : null,
         st.holidays.length ? st.holidays.map((x, i) => h("div", { class: "line" },
           h("div", {}, h("b", {}, x.name), sub(`${hol.kinds[x.kind]} — ${x.start_date} إلى ${x.end_date}`)),
           btn("حذف", () => { st.holidays.splice(i, 1); draw(); }, "danger sm"))) : null,
@@ -262,6 +293,7 @@ export default async function setup({ me } = {}) {
       const picked = [...st.subjects.entries()].filter(([, on]) => on).map(([n]) => n);
       return panel("المراجعة النهائية", null,
         line("المدرسة", f.name.value || p.name || "—"),
+        line("الدولة", f.country.value() || "—"),
         line("المراحل", orderedStages().map((s) => s.name).join("، ")),
         line("تسمية الصفوف", (Object.keys(st.custom).some((k) => !customOf(k)) ? "مخصص (عدّلته يدويًا)" : c.grade_sets.find((g) => g.key === st.gradeSet)?.name) || ""),
         line("عدد الصفوف", `${allGrades().length}`),

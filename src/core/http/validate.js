@@ -26,6 +26,12 @@ export const parse = (schema, data) => {
 // الحقول الاختيارية: غير المرسل يبقى undefined (لا يُمسح)، والفارغ يصبح null (مسح مقصود)
 const keep = (v) => (v === undefined ? undefined : v || null);
 
+// الأرقام العربية والفارسية (٠١٢ / ۰۱۲) ← أرقام إنجليزية: كثير من المستخدمين يكتبون بلوحة عربية
+export const asciiDigits = (v) => String(v).replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+  .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+// رقم الجوال: أرقام عربية مقبولة، والشرطات والأقواس والنقاط الفاصلة تُحذف (77-712-3456 ← 777123456)
+const phoneText = (v) => (typeof v === "string" ? asciiDigits(v).replace(/[-().\u200e\u200f]/g, "").replace(/\s+/g, " ").trim() : v);
+
 // أنواع مشتركة
 const trimmed = (min, max, label) => z.string({ required_error: `${label} مطلوب` }).trim()
   .min(min, `${label} قصير جدًا`).max(max, `${label} طويل جدًا`);
@@ -33,7 +39,7 @@ export const t = {
   name: (label = "الاسم") => trimmed(2, 120, label),
   shortText: (label, max = 120) => trimmed(2, max, label),
   optText: (max = 300) => z.string().trim().max(max).optional().nullable().transform(keep),
-  phone: z.string().trim().regex(/^[0-9+ ]{0,20}$/, "رقم الجوال غير صحيح").optional().nullable().transform(keep),
+  phone: z.preprocess(phoneText, z.string().trim().regex(/^[0-9+ ]{0,20}$/, "رقم الجوال غير صحيح").optional().nullable()).transform(keep),
   id: z.coerce.number().int().positive(),
   optId: z.union([z.coerce.number().int().positive(), z.literal(""), z.null()]).optional().transform((v) => (v === undefined ? undefined : v ? Number(v) : null)),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ غير صحيح"),

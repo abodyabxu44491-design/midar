@@ -26,7 +26,7 @@ const createSchema = z.object({
   plan: z.enum(["basic", "pro", "enterprise"]).default("basic"),
   max_students: z.coerce.number().int().min(1).max(100000).default(200),
   subscription_end: t.optDate,
-  currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
+  currency: z.enum(["SAR", "YER", "USD"]).default("YER"),
   subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
   // الاشتراك عند الإنشاء: باقة وتجربة أو اشتراك. بدونه تأخذ المدرسة كل المميزات (السلوك السابق)
@@ -77,7 +77,7 @@ export async function createTenant(req, b) {
                subscription_price, grace_days, currency)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [b.id, b.name, b.plan ?? "basic", b.max_students ?? 200, b.subscription_end ?? null, directory,
-       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "SAR"]);
+       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER"]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);          // سنة دراسية وفصولها جاهزة من اليوم الأول
@@ -98,14 +98,14 @@ r.post("/", handle(async (req, res) => {
   res.status(201).json(await createTenant(req, b));
 }));
 
-// مدرسة عرض كاملة (بنين، ابتدائي ومتوسط وثانوي) ببيانات فصل دراسي حتى اليوم — للعرض على العملاء
+// مدرسة عرض كاملة (يمنية، بنين، الأساسي والثانوي) ببيانات فصل دراسي حتى اليوم — للعرض على العملاء
 const showcaseSchema = z.object({
   id: codeSchema.default("alrowad"),
-  name: t.shortText("اسم المدرسة", 150).default("مجمع مدارس الرواد الأهلية للبنين"),
+  name: t.shortText("اسم المدرسة", 150).default("مدارس الرواد الأهلية للبنين"),
   per_section: z.coerce.number().int().min(5).max(35).default(24),
 });
 export async function createShowcase(req, b, progress) {
-  const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله بن سعد القحطاني", plan: "enterprise", max_students: 2000, currency: "SAR" });
+  const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله محمد الشميري", plan: "enterprise", max_students: 2000, currency: "YER" });
   const summary = await buildShowcase(b.id, { actor: req.actor, ip: req.ip, perSection: b.per_section, progress });
   return { ...created, summary, links: schoolLinks(req, b.id) };
 }

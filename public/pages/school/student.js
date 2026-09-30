@@ -105,8 +105,8 @@ function payDialog(f, inv, available) {
   const accounts = f.accounts.length ? f.accounts.map((a) => h("div", { class: "bank-card" },
     h("b", {}, a.bank_name),
     line(h("span", { class: "sub" }, "اسم الحساب"), h("span", {}, a.account_holder)),
-    line(h("span", { class: "sub" }, "الآيبان"), h("span", { class: "pill" }, keyText(a.iban.replace(/(.{4})/g, "$1 ").trim()), copy(a.iban))),
-    a.account_number ? line(h("span", { class: "sub" }, "رقم الحساب"), h("span", { class: "pill" }, keyText(a.account_number), copy(a.account_number))) : null))
+    a.account_number ? line(h("span", { class: "sub" }, "رقم الحساب"), h("span", { class: "pill" }, keyText(a.account_number), copy(a.account_number))) : null,
+    a.iban ? line(h("span", { class: "sub" }, "الآيبان"), h("span", { class: "pill" }, keyText(a.iban.replace(/(.{4})/g, "$1 ").trim()), copy(a.iban))) : null))
     : notice("لم تضف المدرسة حسابًا بنكيًا بعد. يمكنك السداد نقدًا لدى الإدارة.", "warn");
 
   const form = h("div", { class: "hidden" });
@@ -116,7 +116,7 @@ function payDialog(f, inv, available) {
     const date = input({ type: "date", value: today(), max: today() });
     const sender = input({ placeholder: "الاسم كما في حساب التحويل" });
     const ref = input({ class: "ltr", placeholder: "اختياري" });
-    const account = select(f.accounts.map((a) => [a.id, `${a.bank_name} — ${a.iban.slice(-4)}`]));
+    const account = select(f.accounts.map((a) => [a.id, `${a.bank_name} — ${String(a.account_number || a.iban).slice(-4)}`]));
     const msg = h("div");
     mount(form,
       h("h3", { class: "sec-title" }, "إشعار التحويل"),

@@ -163,6 +163,42 @@ export const SUBJECT_LIBRARY = [
   ]},
 ];
 
+/**
+ * إعدادات الدولة: تُقترح تلقائيًا عند اختيار دولة المدرسة (وكلها قابلة للتغيير بعد ذلك).
+ * dial: رمز الدولة لروابط واتساب، grade_set: تسمية الصفوف، days: أيام الدوام (0 = الأحد)،
+ * holidays: المناسبات الوطنية الثابتة بالتاريخ الميلادي (الأعياد الهجرية تتغير كل سنة فتُضاف يدويًا).
+ */
+export const COUNTRIES = {
+  YE: {
+    name: "اليمن", currency: "YER", dial: "967", grade_set: "yemen", days: [0, 1, 2, 3, 4],
+    phone_hint: "77xxxxxxx",
+    holidays: [
+      { name: "ثورة 26 سبتمبر", month: 9, day: 26 },
+      { name: "ثورة 14 أكتوبر", month: 10, day: 14 },
+      { name: "عيد الاستقلال 30 نوفمبر", month: 11, day: 30 },
+      { name: "عيد الوحدة 22 مايو", month: 5, day: 22 },
+    ],
+  },
+  SA: {
+    name: "السعودية", currency: "SAR", dial: "966", grade_set: "arabic_full", days: [0, 1, 2, 3, 4],
+    phone_hint: "05xxxxxxxx",
+    holidays: [{ name: "اليوم الوطني", month: 9, day: 23 }, { name: "يوم التأسيس", month: 2, day: 22 }],
+  },
+  // دولة أخرى: لا تُغيَّر العملة ولا رمز الاتصال تلقائيًا (تُضبط يدويًا من الإعدادات)
+  OTHER: { name: "دولة أخرى", currency: null, dial: "", grade_set: "arabic_basic", days: [0, 1, 2, 3, 4], phone_hint: "", holidays: [] },
+};
+export const DEFAULT_COUNTRY = "YE";
+/** مفتاح الدولة من الاسم المحفوظ في ملف المدرسة (نص حر في المدارس القديمة) */
+export const countryKey = (name) => {
+  const v = String(name || "").trim();
+  if (!v) return null;
+  const hit = Object.entries(COUNTRIES).find(([k, c]) => c.name === v || k === v.toUpperCase());
+  if (hit) return hit[0];
+  if (/يمن|yemen/i.test(v)) return "YE";
+  if (/سعود|saudi|المملكة/i.test(v)) return "SA";
+  return "OTHER";
+};
+
 /* أنماط تسمية الصفوف: عربية كاملة، عربية مختصرة، ودولية */
 export const GRADE_SETS = {
   arabic_full: {
@@ -200,14 +236,19 @@ export const GRADE_SETS = {
     secondary: ["Grade 10", "Grade 11", "Grade 12"],
     kindergarten: ["KG1", "KG2", "KG3"],
   },
+  // اليمن: الصفوف تُسمّى الأول والثاني… كما يقولها الناس، بلا كلمة «الأساسي»؛ والمرحلة وحدها تبيّن أنه أساسي
   yemen: {
-    name: "اليمن (الأساسي والثانوي)",
-    primary: ["الأول الأساسي", "الثاني الأساسي", "الثالث الأساسي", "الرابع الأساسي", "الخامس الأساسي", "السادس الأساسي"],
-    middle: ["السابع الأساسي", "الثامن الأساسي", "التاسع الأساسي"],
-    secondary: ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"],
+    name: "اليمن (الأول… التاسع، ثم أول ثانوي)",
+    primary: ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس"],
+    middle: ["السابع", "الثامن", "التاسع"],
+    secondary: ["أول ثانوي", "ثاني ثانوي", "ثالث ثانوي"],
     kindergarten: ["البستان", "الروضة", "التمهيدي"],
+    stage_names: { primary: "الأساسي (1–6)", middle: "الأساسي (7–9)", secondary: "الثانوي", kindergarten: "رياض الأطفال" },
   },
 };
+
+/** اسم المرحلة حسب نمط التسمية (اليمن: الأساسي والثانوي بدل الابتدائي والمتوسط) */
+export const stageName = (stageKey, set) => GRADE_SETS[set]?.stage_names?.[stageKey] || STAGES[stageKey].name;
 
 /** أسماء صفوف مرحلة حسب نمط التسمية المختار */
 export const gradeNames = (stageKey, set = "arabic_full") =>
@@ -220,7 +261,9 @@ export const catalog = () => ({
   grade_sets: Object.entries(GRADE_SETS).map(([key, g]) => ({
     key, name: g.name, sample: [g.primary[0], g.middle[0], g.secondary[0]].filter(Boolean).join(" / "),
     names: { primary: g.primary, middle: g.middle, secondary: g.secondary, kindergarten: g.kindergarten },
+    stage_names: g.stage_names || null,
   })),
+  countries: Object.entries(COUNTRIES).map(([key, c]) => ({ key, ...c })),
   stages: Object.entries(STAGES).map(([key, s]) => ({
     key, name: s.name, grades: s.grades,
     subjects: s.subjects.map((x) => ({ ...x })),

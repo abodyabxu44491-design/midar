@@ -24,6 +24,7 @@ const reports = lazy(() => import("./views/reports.js"), new URL("./views/report
 const sheets = lazy(() => import("./views/sheets.js"), new URL("./views/sheets.js", import.meta.url).pathname);
 const analytics = lazy(() => import("./views/analytics.js"), new URL("./views/analytics.js", import.meta.url).pathname);
 const admissions = lazy(() => import("./views/admissions.js"), new URL("./views/admissions.js", import.meta.url).pathname);
+const assistant = lazy(() => import("./views/assistant.js"), new URL("./views/assistant.js", import.meta.url).pathname);
 const papers = lazy(() => import("./views/papers.js"), new URL("./views/papers.js", import.meta.url).pathname);
 
 const app = $("#app");
@@ -57,7 +58,7 @@ export async function startAdmin() {
   };
   // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
-    ["dashboard", "الرئيسية"],
+    ["dashboard", "الرئيسية"], ["assistant", "مساعد الإدخال"],
     ["students", "الطلاب"], ["teachers", "المعلمون"],
     ["attendance", "الحضور"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
     ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"],
@@ -70,7 +71,7 @@ export async function startAdmin() {
 
   const ctx = { me };
   const t = tabs(allTabs,
-    { dashboard, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
+    { dashboard, assistant, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
   ctx.goTo = (key) => t.show(key);
 
   mount(app,

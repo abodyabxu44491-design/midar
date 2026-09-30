@@ -113,7 +113,19 @@ export const footer = () => h("footer", { class: "dev" }, h("small", { class: "a
 
 /* ---------- عناصر ---------- */
 export const field = (label, control, hint) => h("label", { class: "f" }, h("span", {}, label), control, hint && h("small", { class: "sub" }, hint));
-export const input = (props = {}) => h("input", props);
+// حقول الأرقام (الجوال، المبالغ، الأرقام): الأرقام العربية ٠١٢ تتحول فورًا إلى 012 أثناء الكتابة
+const NUMERIC_MODES = new Set(["tel", "numeric", "decimal"]);
+export const toAsciiDigits = (v) => String(v).replace(/[\u0660-\u0669]/g, (d) => d.charCodeAt(0) - 0x0660).replace(/[\u06F0-\u06F9]/g, (d) => d.charCodeAt(0) - 0x06F0);
+export const input = (props = {}) => {
+  const el = h("input", props);
+  if (NUMERIC_MODES.has(props.inputMode) || props.type === "tel") {
+    el.addEventListener("input", () => {
+      const next = toAsciiDigits(el.value);
+      if (next !== el.value) { const at = el.selectionStart; el.value = next; try { el.setSelectionRange(at, at); } catch { /* نوع لا يدعم التحديد */ } }
+    });
+  }
+  return el;
+};
 
 /**
  * حقل كلمة مرور مع زر إظهار واضح.
@@ -277,7 +289,7 @@ const TAB_ICONS = {
   sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",
   homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus",
-  billing: "money", passwords: "key", danger: "lock",
+  billing: "money", passwords: "key", danger: "lock", assistant: "wand",
 };
 
 export function tabs(list, views, ctx) {

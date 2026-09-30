@@ -1057,3 +1057,43 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .job-row b { color: var(--teal); font-variant-numeric: tabular-nums; }
 .job-bar { height: 10px; border-radius: 6px; margin: 8px 0 12px; }
 .job-bar > i { background: var(--teal); border-radius: 6px; transition: width .4s ease; }
+
+/* مساعد إدخال البيانات */
+.as-score-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.as-score h2 { margin: 0 0 2px; }
+.as-pct { font-size: 30px; color: var(--teal); font-variant-numeric: tabular-nums; }
+.as-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+.as-item:first-of-type { border-top: 0; }
+.as-icon { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--teal-soft); color: var(--teal); }
+.lvl-warn .as-icon { background: var(--amber-soft); color: var(--amber-ink); }
+.lvl-todo .as-icon { background: var(--red-soft); color: var(--red); }
+.lvl-info .as-icon { background: var(--bg); color: var(--muted); }
+.as-text { flex: 1; min-width: 0; }
+.as-text b { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.as-mini { height: 6px; margin: 6px 0 0; max-width: 260px; }
+.as-mini > i { background: var(--amber); }
+.as-grid td { vertical-align: middle; }
+.as-grid input:not([type=checkbox]) { min-width: 120px; padding: 6px 8px; }
+.as-grid input[type=date] { min-width: 140px; }
+.as-grid tr.as-flag td { background: var(--amber-soft); }
+.as-grid tr.as-changed td { background: var(--teal-soft); }
+.as-save { position: sticky; bottom: 10px; display: flex; justify-content: flex-end; margin-top: 10px; }
+.as-save .btn { box-shadow: 0 4px 14px rgba(22, 36, 74, .18); }
+.dash-complete { display: flex; align-items: center; gap: 12px; }
+.dash-complete .bar { flex: 1; height: 8px; margin: 0; }
+.dash-complete .bar > i { background: var(--teal); }
+.sub-banner.stack { flex-direction: column; align-items: stretch; }
+.sub-banner.stack .btn { align-self: flex-start; }
+@media (max-width: 640px) {
+  .as-grid, .as-grid tbody, .as-grid tr, .as-grid td { display: block; width: 100%; }
+  .as-grid thead { display: none; }
+  .as-grid tr { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 10px; background: #fff; }
+  .as-grid td { display: flex; align-items: center; gap: 10px; border: 0; padding: 4px 0; }
+  .as-grid td::before { content: attr(data-label); flex: 0 0 96px; font-size: 12px; color: var(--muted); }
+  .as-grid td input:not([type=checkbox]) { flex: 1; min-width: 0; width: 100%; }
+  .as-grid tr.as-flag, .as-grid tr.as-changed { border-color: var(--amber); }
+  .as-grid tr.as-changed { border-color: var(--teal); }
+  .as-grid tr.as-flag td, .as-grid tr.as-changed td { background: transparent; }
+  .as-grid tr.as-flag { background: var(--amber-soft); }
+  .as-grid tr.as-changed { background: var(--teal-soft); }
+}

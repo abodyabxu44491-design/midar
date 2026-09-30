@@ -347,7 +347,7 @@ test("المالية: لا دفع زائد، لا تكرار، لا إلغاء �
 
   const tooMuch = await anon.post(`/api/public/${A.id}/transfer-claims`, { ...base, amount: 5000, idempotency_key: `k-${uid()}-c0` });
   assert.equal(tooMuch.status, 400, "أكبر من المتبقي");
-  assert.match(tooMuch.data.error, /ر\.س/, "رمز عملة المدرسة (ريال سعودي) يظهر في الرسالة");
+  assert.match(tooMuch.data.error, /ر\.ي/, "رمز عملة المدرسة (الريال اليمني، العملة الافتراضية) يظهر في الرسالة");
   const claimKey = `k-${uid()}-c1`;
   const c1 = await anon.post(`/api/public/${A.id}/transfer-claims`, { ...base, amount: 1000.5, idempotency_key: claimKey });
   assert.equal(c1.status, 201, JSON.stringify(c1.data));

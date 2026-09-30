@@ -1,18 +1,20 @@
 // الحسابات البنكية وإشعارات التحويل
-import { z, t } from "../../core/http/validate.js";
+import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { currencySymbol } from "../../core/currency.js";
 import { recordPayment } from "./finance.service.js";
 
-const iban = z.string().transform((v) => v.replace(/[\s-]/g, "").toUpperCase())
-  .pipe(z.string().regex(/^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$/, "رقم الآيبان غير صحيح"));
+// الآيبان اختياري: البنوك والمحافظ في اليمن غالبًا تستخدم رقم الحساب فقط (أحدهما مطلوب)
+const iban = z.string().optional().nullable().transform((v) => (v ? v.replace(/[\s-]/g, "").toUpperCase() : null))
+  .pipe(z.string().regex(/^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$/, "رقم الآيبان غير صحيح").nullable());
 
 export const accountSchema = z.object({
-  bank_name: t.shortText("اسم البنك", 80),
+  bank_name: t.shortText("اسم البنك أو المحفظة", 80),
   account_holder: t.shortText("اسم صاحب الحساب", 120),
   iban,
-  account_number: z.string().trim().regex(/^[0-9-]{4,34}$/, "رقم الحساب غير صحيح").optional().nullable().or(z.literal("")).transform((v) => v || null),
-});
+  account_number: z.preprocess((v) => (typeof v === "string" ? asciiDigits(v).replace(/\s+/g, "") : v),
+    z.string().regex(/^[0-9-]{4,34}$/, "رقم الحساب غير صحيح").optional().nullable().or(z.literal("")).transform((v) => v || null)),
+}).refine((b) => b.iban || b.account_number, { message: "اكتب رقم الحساب أو المحفظة (أو الآيبان)" });
 export const noteSchema = z.object({ payment_note: t.optText(500) });
 
 export const claimSchema = z.object({
@@ -52,7 +54,7 @@ const CLAIM_SELECT = `SELECT c.id, c.invoice_id, c.student_id, c.amount, c.trans
     c.status, c.review_note, c.reviewed_by, c.reviewed_at, c.created_at,
     i.title AS invoice_title, i.amount AS invoice_amount, invoice_net_paid(i.id) AS invoice_paid,
     s.full_name AS student_name, cl.name AS class_name,
-    a.bank_name, a.iban, p.receipt_no
+    a.bank_name, a.iban, a.account_number, p.receipt_no
   FROM payment_claims c
   JOIN invoices i ON i.id = c.invoice_id
   JOIN students s ON s.id = c.student_id
