@@ -119,14 +119,14 @@ test("تسهيلات الإدخال: اسم ولي الأمر وتوحيد ال�
   assert.equal(a.status, 201, JSON.stringify(a.data));
   assert.equal(a.data.name, "سالم عبدالله ناصر", "تنظيف المسافات");
   assert.equal(a.data.guardian_name, "عبدالله ناصر", "اسم ولي الأمر من اسم الطالب");
-  assert.equal(a.data.guardian_phone, "+966551234567", "الرقم الدولي يُحفظ بصيغة موحدة");
+  assert.equal(a.data.guardian_phone, "0551234567", "الرقم السعودي بمفتاحه يُحفظ بصيغة موحدة (05…)");
 
   // أخ بنفس الجوال يأخذ اسم ولي الأمر نفسه
   const b = await A.admin.post("/api/admin/students", { name: "ريم", guardian_phone: "+966 55 123 4567" });
   assert.equal(b.data.guardian_name, "عبدالله ناصر", "الأخ يرث اسم ولي الأمر");
 
   const g = await A.admin.get("/api/admin/students/guardian?phone=%2B966551234567");
-  assert.equal(g.data.phone, "+966551234567");
+  assert.equal(g.data.phone, "0551234567", "البحث بالصيغة الدولية يجد الصيغة المحفوظة");
   assert.equal(g.data.guardian_name, "عبدالله ناصر");
   assert.equal(g.data.siblings.length, 2, "يظهر الإخوة المسجلون");
 
@@ -852,7 +852,7 @@ test("الاستيراد من ملف: قالب جاهز، تحقق كامل، و
   const list = (await S.admin.get("/api/admin/students")).data;
   const first = list.find((x) => x.name === "محمد عبدالله سالم");
   assert.equal(first.guardian_name, "عبدالله سالم", "اسم ولي الأمر من اسم الطالب");
-  assert.equal(first.guardian_phone, "+966501112233", "توحيد صيغة الجوال");
+  assert.equal(first.guardian_phone, "0501112233", "توحيد صيغة الجوال");
   assert.equal(first.fees_enabled, true);
 
   // المعلمون: كلمات مرور مؤقتة تعود مرة واحدة، والمستخدم المكرر يُرفض
@@ -918,14 +918,16 @@ test("الاشتراك: تفاصيله للمدرسة، وطلب التجديد 
 
 test("الأرقام الدولية: أي دولة تُقبل ورابط واتساب يُبنى صحيحًا", async () => {
   const { normalizePhone } = await import("../src/modules/shared/students.service.js");
-  assert.equal(normalizePhone("+967 77 123 4567"), "+967771234567");
-  assert.equal(normalizePhone("00967771234567"), "+967771234567");
-  assert.equal(normalizePhone("0771234567"), "0771234567", "المحلي يبقى كما هو");
+  // صيغة واحدة لكل دولة: اليمني 9 أرقام، والسعودي 05…، وغيرهما بمفتاحه
+  assert.equal(normalizePhone("+967 77 123 4567"), "771234567");
+  assert.equal(normalizePhone("00967771234567"), "771234567");
+  assert.equal(normalizePhone("0771234567"), "771234567", "الصفر قبل الجوال اليمني يُحذف");
+  assert.equal(normalizePhone("+44 7700 900123"), "+447700900123", "أي دولة أخرى تبقى بمفتاحها");
   assert.equal(normalizePhone("  "), null);
 
   const yemeni = await A.admin.post("/api/admin/students", { name: "طالب يمني", guardian_phone: "+967 77 111 2233" });
   assert.equal(yemeni.status, 201, JSON.stringify(yemeni.data));
-  assert.equal(yemeni.data.guardian_phone, "+967771112233");
+  assert.equal(yemeni.data.guardian_phone, "771112233");
   await A.admin.post(`/api/admin/students/${yemeni.data.id}/status`, { status: "withdrawn" });
 });
 
