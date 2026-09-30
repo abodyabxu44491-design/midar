@@ -32,7 +32,7 @@ export async function startAccountant() {
     topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `المحاسب — ${me.name}`,
       onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } }),
     h("main", {}, t.el), footer());
-  t.show("ledger");
+  t.start("ledger");
 }
 
 function account({ me }) {

@@ -54,7 +54,7 @@ async function start() {
   mount(app,
     topbar({ subtitle: "لوحة مالك المنصة", onLogout: async () => { await api(`${API}/logout`, {}); location.reload(); } }),
     h("main", {}, t.el), footer());
-  t.show("overview");
+  t.start("overview");
 }
 start();
 showInstallBar();

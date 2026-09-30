@@ -284,8 +284,12 @@ export function tabs(list, views, ctx) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
   let current;
-  const show = async (key) => {
+  // رابط لكل قسم (#/students): يبقى القسم نفسه بعد التحديث، ويعمل زر الرجوع، ويمكن مشاركة الرابط
+  const keys = new Set(list.filter(([k]) => k).map(([k]) => k));
+  const fromHash = () => { const k = decodeURIComponent((location.hash.match(/^#\/([\w-]+)/) || [])[1] || ""); return keys.has(k) ? k : null; };
+  const show = async (key, { push = true } = {}) => {
     if (current && applyPendingUpdate()) return;   // إصدار جديد منشور: التحديث عند الانتقال بين الأقسام
+    if (push && keys.has(key) && fromHash() !== key) history.pushState(null, "", `#/${key}`);
     current = key;
     bar.querySelectorAll("button").forEach((b) => {
       b.setAttribute("aria-selected", String(b.dataset.k === key));
@@ -313,7 +317,16 @@ export function tabs(list, views, ctx) {
       onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() },
       icon ? icon({ size: 18 }) : null, h("span", { class: "tab-label" }, label)));
   }
-  return { el: h("div", { class: "tabs-layout" }, bar, body), show };
+  let home = null;
+  window.addEventListener("popstate", () => { const k = fromHash() || home; if (k && k !== current) show(k, { push: false }); });
+  // البداية: القسم المذكور في الرابط إن وُجد، وإلا القسم الافتراضي (دون إضافة خطوة في سجل المتصفح)
+  const start = (fallback) => {
+    home = fallback;
+    const k = fromHash();
+    if (!k && location.hash) history.replaceState(null, "", location.pathname + location.search);
+    return show(k || fallback, { push: false });
+  };
+  return { el: h("div", { class: "tabs-layout" }, bar, body), show, start };
 }
 
 /* ---------- النوافذ ---------- */

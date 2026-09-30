@@ -77,5 +77,5 @@ export async function startAdmin() {
     topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
       onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
     h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
-  t.show("dashboard");
+  t.start("dashboard");
 }
