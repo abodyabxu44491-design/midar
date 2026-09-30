@@ -156,6 +156,11 @@
 .xb-list-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
 .xb-list-row:first-child { border-top: none; }
 .xb-list-row .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* الجوال: الاسم والتفاصيل بعرض كامل، والأزرار تحتها في صف واحد قابل للالتفاف */
+@media (max-width: 640px) {
+  .xb-list-row { grid-template-columns: 1fr; }
+  .xb-list-row .acts { justify-content: flex-start; }
+}
 
 .xb-top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 6px 0 8px; margin-bottom: 6px; }
 .xb-top .line1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

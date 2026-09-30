@@ -37,8 +37,9 @@ async function start() {
   const badgeTick = async () => {
     try {
       const b = await api(`${API}/requests/badge`);
-      const tab = t.el.querySelector('[data-k="requests"]');
-      if (tab) tab.textContent = b.unseen ? `الطلبات (${b.unseen} جديد)` : "الطلبات";
+      // النص فقط: الأيقونة داخل الزر تبقى
+      const label = t.el.querySelector('[data-k="requests"] .tab-label');
+      if (label) label.textContent = b.unseen ? `الطلبات (${b.unseen} جديد)` : "الطلبات";
       if (lastUnseen !== null && b.unseen > lastUnseen && b.latest) {
         const kinds = { trial: "طلبت تجربة مجانية", subscription: "طلبت اشتراكًا", feature: "طلبت ميزة", contact: "أرسلت رسالة تواصل", upgrade: "طلبت ترقية", renewal: "طلبت تجديدًا" };
         toast(`طلب جديد: ${b.latest.school} ${kinds[b.latest.kind] || ""}`);

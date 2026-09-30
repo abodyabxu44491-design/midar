@@ -5,6 +5,7 @@ import { stats, panel, notice, line, keyText, sub, input, empty, badge, btn } fr
 import { money, fmtDate } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
+import { icons } from "../../shared/js/icons.js";
 
 export default async function dashboard({ me, goTo }) {
   const [d, alerts, notifications, templates] = await Promise.all([
@@ -16,9 +17,9 @@ export default async function dashboard({ me, goTo }) {
   const c = alerts.counts;
 
   const LEVELS = {
-    urgent: { name: "عاجل", dot: "🔴", cls: "bad" },
-    action: { name: "يحتاج إجراء", dot: "🟠", cls: "warn" },
-    info: { name: "معلومات", dot: "🟢", cls: "" },
+    urgent: { name: "عاجل", cls: "bad" },
+    action: { name: "يحتاج إجراء", cls: "warn" },
+    info: { name: "معلومات", cls: "" },
   };
 
   // مركز التنبيهات: مرتبة بالأهمية، والضغط ينقلك للقسم
@@ -29,7 +30,7 @@ export default async function dashboard({ me, goTo }) {
         const rows = data.items.filter((x) => x.level === level);
         if (!rows.length) return null;
         return h("div", { class: "notif-group" },
-          h("h3", { class: "sec-title" }, `${LEVELS[level].dot} ${LEVELS[level].name}`),
+          h("h3", { class: "sec-title" }, h("span", { class: `lvl-dot ${level}`, "aria-hidden": "true" }), LEVELS[level].name),
           rows.map((x) => h("button", { class: `notif ${LEVELS[level].cls}`, type: "button",
             onclick: () => goTo(x.tab) },
             h("span", { class: "notif-count" }, x.count),
@@ -78,14 +79,15 @@ export default async function dashboard({ me, goTo }) {
 function quickActions(goTo, me) {
   const on = (k) => me.modules?.[k] !== false;
   const items = [
-    ["students", "➕ إضافة طالب", true],
-    ["attendance", "✅ تسجيل الحضور", on("attendance")],
-    ["announcements", "📢 إرسال تعميم", on("announcements")],
-    ["finance", "💰 متابعة الرسوم", on("fees")],
+    ["students", "إضافة طالب", true, "userPlus"],
+    ["attendance", "تسجيل الحضور", on("attendance"), "check"],
+    ["announcements", "إرسال تعميم", on("announcements"), "megaphone"],
+    ["finance", "متابعة الرسوم", on("fees"), "wallet"],
   ].filter((x) => x[2]);
   if (!items.length) return null;
-  return h("div", { class: "row quick-actions" },
-    items.map(([tab, label]) => h("button", { class: "btn soft", type: "button", onclick: () => goTo(tab) }, label)));
+  return h("div", { class: "quick-actions" },
+    items.map(([tab, label, , icon]) => h("button", { class: "quick-action", type: "button", onclick: () => goTo(tab) },
+      icons[icon]({ size: 20 }), h("span", {}, label))));
 }
 
 // بحث سريع في الطلاب والمعلمين والفواتير

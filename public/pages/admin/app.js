@@ -55,23 +55,18 @@ export async function startAdmin() {
     distribution: "timetable",
     announcements: "announcements", papers: "exam_papers",
   };
+  // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
     ["dashboard", "الرئيسية"],
-    [null, "الأفراد"],
     ["students", "الطلاب"], ["teachers", "المعلمون"],
-    [null, "الأكاديمي"],
-    ["academic", "السنة الدراسية"], ["attendance", "الحضور"], ["distribution", "توزيع المعلمين"], ["timetable", "الجدول"],
-    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
-    [null, "المالية"],
+    ["attendance", "الحضور"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
+    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"],
+    ["academic", "السنة الدراسية"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
     ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"],
-    [null, "أخرى"],
     ["announcements", "التعاميم"], ["subscription", "اشتراكي"],
-    [null, "الإدارة"],
     ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
-    .filter(([key]) => key === null || !MODULE_OF[key] || me.modules?.[MODULE_OF[key]])
-    // إزالة أي عنوان تجميع لم يبق تحته أي تبويب فعلي (بسبب إيقاف الأقسام)
-    .filter(([key], i, arr) => key !== null || (arr[i + 1] && arr[i + 1][0] !== null));
+    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
 
   const ctx = { me };
   const t = tabs(allTabs,
