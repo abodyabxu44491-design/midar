@@ -28,6 +28,7 @@ function cardTable(headers, rows) {
 export default async function assistant({ goTo }) {
   const [classes, tpl] = await Promise.all([loadClasses(), optional(api(`${A}/messaging/templates`), null)]);
   const dial = String(tpl?.country_code || "967");
+  const homeCountry = dial === "966" ? "SA" : dial === "967" ? "YE" : null;
   const chips = h("div", { class: "xb-chips", role: "tablist" });
   const box = h("div");
   const show = async (part = state.part, extra = {}) => {
@@ -103,8 +104,10 @@ export default async function assistant({ goTo }) {
           const g = input({ value: r.guardian_name || "", placeholder: "—" }); g.addEventListener("input", () => { r.guardian_name = g.value; });
           const p = input({ class: "ltr", inputMode: "tel", value: r.phone || "", placeholder: "77xxxxxxx" }); p.addEventListener("input", () => { r.phone = p.value.trim(); });
           const notes = [...(r.exists ? ["موجود في الشعبة"] : []), ...(r.duplicate ? ["مكرر في القائمة"] : []), ...r.warnings];
+          // رقم من دولة أخرى (مغترب في السعودية مثلًا): يُعرض للتنبيه فقط، والرسائل تصله على دولته تلقائيًا
+          const abroad = r.phone_country && r.phone_country !== homeCountry ? badge(`جوال ${r.phone_label}`, "gray") : null;
           return { cls: notes.length ? "as-flag" : "", cells: [on, name, g, p,
-            notes.length ? notes.map((n) => badge(n, r.exists || r.duplicate ? "red" : "amber")) : badge("جاهز")] };
+            [...(notes.length ? notes.map((n) => badge(n, r.exists || r.duplicate ? "red" : "amber")) : [badge("جاهز")]), abroad]] };
         })),
         h("div", { class: "row spaced" }, btn("قراءة من جديد", read, "ghost"), addBtn));
       label();

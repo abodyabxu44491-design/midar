@@ -12,7 +12,7 @@ export default async function dashboard({ me, goTo }) {
     optional(api(`${A}/analytics/alerts`), { counts: {}, absentees: [], overdue: [] }),
     optional(api(`${A}/analytics/notifications`), { items: [], counts: {} }),
     optional(api(`${A}/messaging/templates`), null),
-    optional(api(`${A}/assistant/checklist`), null)]);
+    me.modules?.data_assistant ? optional(api(`${A}/assistant/checklist`), null) : null]);
   const canMessage = Boolean(templates);
   const c = alerts.counts;
 

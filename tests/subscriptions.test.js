@@ -124,6 +124,12 @@ test("الميزة غير المشمولة في الباقة تُرفض في ا�
   assert.equal(tt.included, false, "تظهر مقفلة في صفحة المميزات");
   assert.equal(sub.data.usage.students, 0);
 
+  // مساعد إدخال البيانات ميزة مدفوعة تُطلب: غير مشمول في الباقة، ومقفل في الخادم، ويظهر قابلًا للطلب
+  assert.equal((await s.admin.get("/api/admin/assistant/checklist")).status, 404, "مساعد الإدخال خارج الباقة");
+  const da = sub.data.features.find((f) => f.key === "data_assistant");
+  assert.equal(da.included, false);
+  assert.equal(da.requestable, true);
+
   // طلب الميزة ← يصل للمالك ← الموافقة مجانًا لفترة محددة
   const req = await s.admin.post("/api/admin/subscription/requests", { kind: "feature", feature_key: "timetable", note: "نحتاج الجدول" });
   assert.equal(req.status, 201, JSON.stringify(req.data));

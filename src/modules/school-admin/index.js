@@ -49,7 +49,7 @@ r.use("/finance", requireModule("fees"), finance);
 r.use("/ledger", requireModule("finance"), ledger);
 r.use("/users", users);
 r.use("/jobs", jobsRouter("school"));     // تقدم العمليات الطويلة (الاستيراد)
-r.use("/assistant", assistant);          // مساعد إدخال البيانات
+r.use("/assistant", requireModule("data_assistant"), assistant);   // مساعد إدخال البيانات (ميزة مدفوعة)
 r.use("/password-requests", passwordRequests);
 r.use("/announcements", requireModule("announcements"), announcements);
 r.use("/settings", settings);

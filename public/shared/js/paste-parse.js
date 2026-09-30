@@ -5,6 +5,8 @@
 //   - الجوال يُعرف من الأرقام أينما كان في السطر (عربية أو إنجليزية، بشرطات أو مسافات).
 //   - ولي الأمر: العمود الثاني إن وُجد، وإلا يُقترح من اسم الطالب (اسم الأب وما بعده).
 
+import { detectPhone } from "./phone.js";
+
 const AR_DIGITS = /[٠-٩]/g, FA_DIGITS = /[۰-۹]/g;
 export const ascii = (v) => String(v ?? "").replace(AR_DIGITS, (d) => d.charCodeAt(0) - 0x0660).replace(FA_DIGITS, (d) => d.charCodeAt(0) - 0x06F0);
 
@@ -21,20 +23,12 @@ export const cleanName = (v) => String(v ?? "")
   .replace(/\s+/g, " ").trim();
 
 /**
- * الجوال بصيغة المدرسة: اليمن 9 أرقام تبدأ بـ7 (يُحذف 967 أو 00967 من أوله)، وغير ذلك يبقى كما كُتب بالأرقام.
- * يعيد { phone, ok } — ok = شكل جوال معروف.
+ * الجوال بصيغة الحفظ، والدولة من الرقم نفسه (يمني 7XXXXXXXX، سعودي 05XXXXXXXX، أو أي دولة بمفتاحها).
+ * يعيد { phone, ok, label } — ok = جوال بشكل معروف، label = «يمني» / «سعودي»…
  */
 export function normalizePhone(raw, dial = "967") {
-  let d = ascii(raw).replace(/[^\d+]/g, "");
-  if (!d) return { phone: null, ok: false };
-  if (d.startsWith("+")) d = d.slice(1); else if (d.startsWith("00")) d = d.slice(2);
-  if (dial && d.startsWith(dial) && d.length > dial.length + 6) d = d.slice(dial.length);
-  if (dial === "967") {
-    if (d.startsWith("0") && d.length === 10) d = d.slice(1);           // 0777123456 ← 777123456
-    return { phone: d, ok: /^7[0-9]{8}$/.test(d) };
-  }
-  if (dial === "966") return { phone: d, ok: /^0?5[0-9]{8}$/.test(d) };
-  return { phone: d, ok: d.length >= 7 && d.length <= 15 };
+  const p = detectPhone(raw, dial);
+  return p ? { phone: p.stored, ok: p.ok, label: p.label, country: p.country } : { phone: null, ok: false, label: null, country: null };
 }
 
 // سلسلة أرقام تشبه الجوال (7 أرقام فأكثر، مع مسافات أو شرطات بينها)
@@ -54,7 +48,7 @@ export function parseList(text, { dial = "967", existing = [] } = {}) {
     let line = ascii(raw).replace(/‎|‏| /g, " ").trim();
     if (!line) continue;
     const cells = line.includes("\t") ? line.split("\t") : /[|;،,]/.test(line) ? line.split(/[|;،,]/) : [line];
-    let phone = null, phoneOk = false;
+    let phone = null, phoneOk = false, phoneLabel = null, phoneCountry = null;
     const texts = [];
     for (let cell of cells) {
       cell = cell.trim();
@@ -66,7 +60,7 @@ export function parseList(text, { dial = "967", existing = [] } = {}) {
         const parts = m.split(/[\s-]+/).filter(Boolean);
         let p = normalizePhone(m, dial);
         if (!p.ok && parts.length > 1 && parts[0].length <= 3) { const alt = normalizePhone(parts.slice(1).join(""), dial); if (alt.ok) p = alt; }
-        if (p.phone && p.phone.length >= 7 && !phone) { phone = p.phone; phoneOk = p.ok; return "\u0000"; }
+        if (p.phone && p.phone.replace(/\D/g, "").length >= 7 && !phone) { phone = p.phone; phoneOk = p.ok; phoneLabel = p.label; phoneCountry = p.country; return "\u0000"; }
         return m.replace(/\D/g, "").length >= 7 ? " " : m;
       });
       // ما قبل الجوال وما بعده خانتان: «الاسم 777… التخصص» أو «الاسم 777… ولي الأمر»
@@ -87,7 +81,8 @@ export function parseList(text, { dial = "967", existing = [] } = {}) {
     seen.set(key, true);
     out.push({
       name, guardian_name: texts[1] || suggested, guardian_suggested: Boolean(suggested), extra: texts.slice(2).join(" ") || null,
-      phone, phone_ok: phone ? phoneOk : null, warnings, duplicate, exists: have.has(key),
+      phone, phone_ok: phone ? phoneOk : null, phone_label: phone ? phoneLabel : null, phone_country: phone ? phoneCountry : null,
+      warnings, duplicate, exists: have.has(key),
     });
   }
   return out;

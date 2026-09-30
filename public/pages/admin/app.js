@@ -54,7 +54,7 @@ export async function startAdmin() {
     attendance: "attendance", timetable: "timetable", exams: "exams", reports: "reports",
     analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions", sheets: "attendance",
     distribution: "timetable",
-    announcements: "announcements", papers: "exam_papers",
+    announcements: "announcements", papers: "exam_papers", assistant: "data_assistant",
   };
   // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [

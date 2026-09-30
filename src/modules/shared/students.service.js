@@ -3,6 +3,7 @@ import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, conflict, notFound } from "../../core/http/errors.js";
 import { newStudentKey } from "../../core/auth/codes.js";
 import { resolveClassForGrade } from "./structure.service.js";
+import { storedPhone } from "../../../public/shared/js/phone.js";
 
 // حقول الطالب الأساسية الجديدة (كلها اختيارية). "" أو null تعني المسح عند التعديل.
 const blankToNull = (v) => (v === undefined ? undefined : v || null);
@@ -51,14 +52,11 @@ export function guardianFromStudent(fullName) {
  *   0501234567 (محلي) → يبقى كما هو، ويُكمَّل برمز الدولة عند إرسال واتساب
  * تُحذف المسافات والرموز فقط، ولا يُفرض رمز دولة معيّن.
  */
+// صيغة واحدة للحفظ، والدولة من الرقم: يمني 9 أرقام، سعودي 05…، وغيرهما +المفتاح (نفس منطق الواجهة)
 export function normalizePhone(v) {
   const raw = asciiDigits(String(v || "")).trim();
   if (!raw) return null;
-  const digits = raw.replace(/[^\d+]/g, "");
-  if (!digits.replace(/\+/g, "")) return null;
-  if (digits.startsWith("00")) return "+" + digits.slice(2).replace(/\+/g, "");
-  if (digits.startsWith("+")) return "+" + digits.slice(1).replace(/\+/g, "");
-  return digits.slice(0, 20);
+  return storedPhone(raw)?.slice(0, 20) || null;
 }
 
 export async function get(q, id, { includeArchived = false } = {}) {

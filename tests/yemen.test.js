@@ -73,3 +73,24 @@ test("حساب بنكي أو محفظة برقم حساب فقط بلا آيبا
   assert.equal(acc[0].account_number, "777000123");
   assert.equal(acc[0].iban, null);
 });
+
+test("الجوال: الدولة من الرقم نفسه (يمني ومغترب سعودي ودولي)، وصيغة حفظ واحدة لكل دولة", async () => {
+  const { detectPhone } = await import("../public/shared/js/phone.js");
+  const d = (x) => { const p = detectPhone(x); return [p.country, p.intl, p.stored, p.ok]; };
+  assert.deepEqual(d("777123456"), ["YE", "967777123456", "777123456", true]);
+  assert.deepEqual(d("00967 77 712 3456"), ["YE", "967777123456", "777123456", true]);
+  assert.deepEqual(d("٠٥٠١٢٣٤٥٦٧"), ["SA", "966501234567", "0501234567", true]);
+  assert.deepEqual(d("+966501234567"), ["SA", "966501234567", "0501234567", true]);
+  assert.deepEqual(d("+971501234567"), ["AE", "971501234567", "+971501234567", true]);
+  assert.equal(detectPhone("01441234").ok, false, "هاتف ثابت: ليس جوالًا");
+
+  const { parseList } = await import("../public/shared/js/paste-parse.js");
+  const rows = parseList("محمد علي أحمد العريقي 777123456\nأحمد صالح ناجي الشميري 0501234567");
+  assert.deepEqual(rows.map((r) => [r.phone, r.phone_country, r.phone_ok]), [["777123456", "YE", true], ["0501234567", "SA", true]]);
+
+  // الخادم يحفظ بالصيغة نفسها: المغترب بصيغة سعودية، واليمني 9 أرقام
+  const a = await admin.post("/api/admin/students", { name: "سالم أحمد علي الصبري", guardian_phone: "+966 50 123 4567" });
+  const b = await admin.post("/api/admin/students", { name: "خالد أحمد علي الصبري", guardian_phone: "00967777000111" });
+  assert.equal((await one("SELECT guardian_phone FROM students WHERE id = $1", [a.data.id])).guardian_phone, "0501234567");
+  assert.equal((await one("SELECT guardian_phone FROM students WHERE id = $1", [b.data.id])).guardian_phone, "777000111");
+});
