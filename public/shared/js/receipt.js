@@ -1,6 +1,6 @@
 // إيصال السداد وكشف حساب الطالب — جاهزان للطباعة أو الحفظ PDF
 import { h } from "./dom.js";
-import { brandLogo, dialog, btn, line, sub } from "./ui.js";
+import { docLogo, dialog, btn, line, sub } from "./ui.js";
 import { money, fmtDate, fmtDateTime, METHODS } from "./format.js";
 
 const row = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value));
@@ -12,7 +12,7 @@ const row = (label, value, cls = "") => line(h("span", { class: "sub" }, label),
 export function receiptDialog(r) {
   const refund = r.kind === "refund";
   const card = h("article", { class: "report receipt" },
-    h("header", {}, h("div", {}, h("h2", {}, r.school), sub(refund ? "إيصال استرداد" : "إيصال سداد")), brandLogo("print-logo", false)),
+    h("header", {}, h("div", {}, h("h2", {}, r.school), sub(refund ? "إيصال استرداد" : "إيصال سداد")), docLogo("print-logo")),
     row("رقم الإيصال", r.receipt_no),
     row("التاريخ", fmtDateTime(r.created_at)),
     row("الطالب", r.student + (r.class_name ? ` — ${r.class_name}` : "")),
@@ -31,7 +31,7 @@ export function statementDialog({ school, student, class_name, invoices = [], pa
   const billed = invoices.filter((i) => i.status !== "void").reduce((s, i) => s + Number(i.amount), 0);
   const paid = payments.reduce((s, p) => s + (p.kind === "refund" ? -Number(p.amount) : Number(p.amount)), 0);
   const card = h("article", { class: "report" },
-    h("header", {}, h("div", {}, h("h2", {}, school), sub("كشف حساب الطالب")), brandLogo("print-logo", false)),
+    h("header", {}, h("div", {}, h("h2", {}, school), sub("كشف حساب الطالب")), docLogo("print-logo")),
     row("الطالب", student + (class_name ? ` — ${class_name}` : "")),
     row("تاريخ الكشف", fmtDate(new Date().toISOString().slice(0, 10))),
 

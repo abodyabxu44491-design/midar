@@ -3,7 +3,7 @@
 import { $, mount, h } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { setCurrency } from "../shared/js/format.js";
-import { topbar, footer, tabs, lazy, panel, field, input, btn, toast, sub, notice, passwordChangeScreen, passwordInput } from "../shared/js/ui.js";
+import { topbar, footer, tabs, lazy, panel, field, input, btn, toast, sub, notice, passwordChangeScreen, passwordInput, schoolLogoUrl } from "../shared/js/ui.js";
 import { setApiBase } from "../admin/views/common.js";
 const ledger = lazy(() => import("../admin/views/ledger.js"), new URL("../admin/views/ledger.js", import.meta.url).pathname);
 const fees = lazy(() => import("../admin/views/finance.js"), new URL("../admin/views/finance.js", import.meta.url).pathname);
@@ -29,7 +29,7 @@ export async function startAccountant() {
   ];
   const t = tabs(list, { ledger, fees, account }, { me });
   mount(app,
-    topbar({ school: me.school.name, subtitle: `المحاسب — ${me.name}`,
+    topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `المحاسب — ${me.name}`,
       onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } }),
     h("main", {}, t.el), footer());
   t.show("ledger");

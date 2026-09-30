@@ -4,7 +4,7 @@ import { $, mount, h } from "../shared/js/dom.js";
 import { mySubscription, accessBanner, lockScreen } from "./views/my-subscription.js";
 import { api } from "../shared/js/api.js";
 import { setCurrency } from "../shared/js/format.js";
-import { topbar, footer, tabs, lazy, passwordChangeScreen } from "../shared/js/ui.js";
+import { topbar, footer, tabs, lazy, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
 const students = lazy(() => import("./views/students.js"), new URL("./views/students.js", import.meta.url).pathname);
@@ -41,7 +41,7 @@ export async function startAdmin() {
   // مدرسة جديدة: المعالج يملأ الشاشة قبل ظهور اللوحة، ويمكن تخطيه
   if (me.setup_completed === false) {
     mount(app,
-      topbar({ school: me.school.name, subtitle: "إعداد المدرسة",
+      topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: "إعداد المدرسة",
         onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
       h("main", {}, await setupWizard({ me, refresh: () => location.reload() })),
       footer());
@@ -74,7 +74,7 @@ export async function startAdmin() {
   ctx.goTo = (key) => t.show(key);
 
   mount(app,
-    topbar({ school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
+    topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
       onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
     h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
   t.show("dashboard");

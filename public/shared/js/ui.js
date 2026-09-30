@@ -83,10 +83,28 @@ export function brandLogo(cls = "brand-logo", light = true, variant = "row") {
   return h("img", { src: file, alt: "مدار", class: cls, ...size });
 }
 
-export function topbar({ subtitle, school, onLogout }) {
+// رابط شعار المدرسة العام (الرقم يتغير مع كل شعار جديد فيظهر فورًا)
+export const schoolLogoUrl = (schoolId, logo, size) => (logo ? `/api/public/${encodeURIComponent(schoolId)}/logo?v=${logo}${size ? `&size=${size}` : ""}` : null);
+export const schoolLogoImg = (url, cls = "school-logo") => (url ? h("img", { class: cls, src: url, alt: "", decoding: "async" }) : null);
+
+// بطاقات المعلمين: الصورة (أو أول حرف من الاسم) والاسم والمواد — في ملف الطالب وصفحة الصف
+export const teacherCards = (list) => h("div", { class: "t-cards" }, list.map((t) => h("div", { class: "t-card" },
+  t.photo ? h("img", { class: "t-avatar", src: t.photo, alt: "", loading: "lazy", decoding: "async" })
+    : h("span", { class: "t-avatar ph", "aria-hidden": "true" }, String(t.teacher || "؟").replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0)),
+  h("div", { class: "t-info" }, h("b", {}, t.teacher), h("small", {}, t.subject)))));
+
+// شعار المدرسة الحالية للأوراق المطبوعة (كشوف، إيصالات، بطاقات): يُضبط مرة بعد معرفة المدرسة،
+// وبدونه يُستخدم شعار المنصة
+let currentLogo = null;
+export const setSchoolLogo = (url) => { currentLogo = url || null; };
+export const docLogo = (cls = "print-logo") => (currentLogo ? h("img", { class: `${cls} doc-school-logo`, src: currentLogo, alt: "" }) : brandLogo(cls, false));
+
+export function topbar({ subtitle, school, onLogout, logo }) {
+  if (logo) setSchoolLogo(logo);
   return h("header", { class: "topbar" }, h("div", { class: "in" },
     h("div", { class: "who" }, brandLogo(),
-      (school || subtitle) && h("div", { class: "school" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle))),
+      (school || subtitle) && h("div", { class: `school${logo ? " with-logo" : ""}` }, schoolLogoImg(logo),
+        h("div", { class: "school-text" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle)))),
     onLogout && btn("خروج", onLogout, "ghost sm")));
 }
 // لا يظهر اسم المنصة ولا المطوّر أسفل الصفحات؛ بيانات التواصل في الإعدادات ← الدعم والاشتراك

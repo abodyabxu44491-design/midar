@@ -4,7 +4,7 @@ import { $, mount, h } from "../shared/js/dom.js";
 import { startSync, wipeLocal, saveOfflineProfile, warmOfflineShell } from "../shared/js/offline/sync.js";
 import { syncIndicator } from "./offline.js";
 import { api } from "../shared/js/api.js";
-import { topbar, footer, tabs, lazy, panel, notice, passwordChangeScreen } from "../shared/js/ui.js";
+import { topbar, footer, tabs, lazy, panel, notice, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import home from "./views/home.js";
 const attendance = lazy(() => import("./views/attendance.js"), new URL("./views/attendance.js", import.meta.url).pathname);
 const exams = lazy(() => import("./views/exams.js"), new URL("./views/exams.js", import.meta.url).pathname);
@@ -47,7 +47,7 @@ export async function startTeacher(offlineMe = null) {
   const ctx = { me };
   const t = tabs(list, { home, timetable, attendance, papers, exams, homework, announcements, account }, ctx);
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
-  const bar = topbar({ school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
+  const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);
   mount(app, bar, h("main", {}, t.el), footer());
   t.show("home");

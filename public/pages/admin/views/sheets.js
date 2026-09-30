@@ -1,7 +1,7 @@
 // أوراق للطباعة: بطاقات معرّفات الطلاب، وسجل الحضور الشهري
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, select, input, btn, empty, sub, notice, brandLogo, sectionMenu } from "../../shared/js/ui.js";
+import { panel, field, select, input, btn, empty, sub, notice, docLogo, sectionMenu } from "../../shared/js/ui.js";
 import { ATTENDANCE, fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses } from "./common.js";
 
@@ -32,7 +32,7 @@ async function cardsView() {
     mount(out,
       h("div", { class: "toolbar" }, btn("طباعة البطاقات", () => window.print()), sub(`${d.students.length} بطاقة`)),
       h("div", { class: "cards-sheet" }, d.students.map((s) => h("article", { class: "id-card" },
-        h("header", {}, h("b", {}, d.school), brandLogo("card-logo", false)),
+        h("header", {}, h("b", {}, d.school), docLogo("card-logo")),
         h("div", { class: "id-name" }, s.name),
         h("div", { class: "id-class" }, s.class_name || "بدون فصل"),
         h("div", { class: "id-row" }, h("span", {}, "رابط الصفحة"), h("b", { class: "ltr" }, link)),
@@ -65,7 +65,7 @@ async function attendanceView() {
         h("div", { class: "toolbar" }, btn("طباعة السجل", () => window.print())),
         h("article", { class: "report wide" },
           h("header", {}, h("div", {}, h("h2", {}, d.school),
-            sub(`سجل الحضور — ${d.class_name} — ${fmtDate(`${d.month}-01`).replace(/^\d+\s/, "")}`)), brandLogo("print-logo", false)),
+            sub(`سجل الحضور — ${d.class_name} — ${fmtDate(`${d.month}-01`).replace(/^\d+\s/, "")}`)), docLogo("print-logo")),
           h("div", { class: "scroll" }, h("table", { class: "grid month-sheet" },
             h("thead", {}, h("tr", {}, h("th", {}, "الطالب"), days.map((n) => h("th", {}, n)),
               h("th", {}, "حاضر"), h("th", {}, "غائب"), h("th", {}, "متأخر"), h("th", {}, "بعذر"), h("th", {}, "النسبة"))),

@@ -2,7 +2,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
-  showCredentials, confirmAction, notice, brandLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
+  showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, loadClasses, directoryLink, optional, rememberField } from "./common.js";
@@ -354,7 +354,7 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
 
 function card2(me, s) {
   dialog("بطاقة ولي الأمر", h("div", {},
-    h("div", { class: "print-only" }, brandLogo("print-logo", false)),
+    h("div", { class: "print-only" }, docLogo("print-logo")),
     h("p", {}, `الطالب: ${s.name}`), h("p", {}, `المدرسة: ${me.school.name}`),
     line(h("span", {}, "رابط الصفحة"), keyText(directoryLink(me))),
     line(h("span", {}, "رمز الصفحة"), keyText(me.school.directory_code)),

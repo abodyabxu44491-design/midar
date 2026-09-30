@@ -1,7 +1,7 @@
 // عرض «ملف الطالب» الكامل: مصدر واحد تستخدمه صفحة ولي الأمر ونافذة الإدارة.
 // الفرق الوحيد: الإدارة ترى كل الأقسام بلا معرّف دخول، وولي الأمر يرى ما تفعّله المدرسة ويستطيع الدفع.
 import { h, mount } from "./dom.js";
-import { empty, badge, line, sub } from "./ui.js";
+import { empty, badge, line, sub, teacherCards } from "./ui.js";
 import { money, fmtDate, ATTENDANCE } from "./format.js";
 import { timetableGrid } from "./timetable.js";
 
@@ -76,7 +76,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
         ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
         : h("span", { class: "muted" }, "—")) })),
     fees: () => fees(f, false),
-    teachers: () => section("المعلمون والمواد", d.teachers.map((t) => line(h("span", {}, t.subject), h("b", {}, t.teacher)))),
+    teachers: () => section("المعلمون والمواد", teacherCards(d.teachers)),
     news: () => section("التعاميم", d.announcements.map((a) => line(
       h("div", {}, h("b", {}, a.title), sub(fmtDate(a.created_at)), a.body ? sub(a.body) : null)))),
   };

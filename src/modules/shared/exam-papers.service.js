@@ -72,11 +72,14 @@ export const settingsSchema = z.object({
 }).partial();
 
 /* ---------- إعدادات المدرسة ---------- */
+// شعار المدرسة العام يُستخدم في ورقة الاختبار إن لم تُرفع صورة خاصة بالاختبارات
+const SETTINGS_SQL = `SELECT e.*, p.logo_image_id AS school_logo_id FROM exam_paper_settings e
+  LEFT JOIN school_profile p ON p.tenant_id = e.tenant_id WHERE e.tenant_id = app_tenant()`;
 export async function getSettings(q) {
-  const [row] = await q("SELECT * FROM exam_paper_settings WHERE tenant_id = app_tenant()");
+  const [row] = await q(SETTINGS_SQL);
   if (row) return row;
   await q("INSERT INTO exam_paper_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
-  return (await q("SELECT * FROM exam_paper_settings WHERE tenant_id = app_tenant()"))[0];
+  return (await q(SETTINGS_SQL))[0];
 }
 export async function updateSettings(q, patch) {
   await getSettings(q);
@@ -89,7 +92,8 @@ export async function updateSettings(q, patch) {
 }
 const publicSettings = (s) => ({
   require_approval: s.require_approval, teacher_can_reopen: s.teacher_can_reopen, teacher_answer_keys: s.teacher_answer_keys,
-  show_logo: s.show_logo, logo_image_id: s.show_logo ? s.logo_image_id : null,
+  show_logo: s.show_logo, logo_image_id: s.show_logo ? (s.logo_image_id ?? s.school_logo_id ?? null) : null,
+  own_logo: Boolean(s.logo_image_id), school_logo: Boolean(s.school_logo_id),
   default_instructions: s.default_instructions, footer_text: s.footer_text,
 });
 

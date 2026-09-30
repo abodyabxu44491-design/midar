@@ -4,6 +4,7 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, badge, notice, toast } from "../../shared/js/ui.js";
 import { A } from "./common.js";
+import { logoPanel } from "./school-identity.js";
 
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 const TITLES = ["بيانات المدرسة", "المراحل", "أسماء الصفوف", "الشعب", "السنة الدراسية", "نظام الفصول", "أيام الدراسة", "الإجازات", "المواد", "المراجعة"];
@@ -46,6 +47,8 @@ export default async function setup({ me } = {}) {
     restored = st.step > 1;
   }
   const persist = () => writeDraft(me, { v: 1, st: { ...st, stages: [...st.stages], days: [...st.days], subjects: [...st.subjects], editNames: false } });
+  // الشعار يُحفظ فور رفعه (نفس لوحة «هوية المدرسة» في الإعدادات)
+  const logoWidget = logoPanel({ me, profile: p, onChange: (logo) => { if (me?.school) me.school.logo = logo; } });
   const f = {
     name: input({ value: p.name || "" }),
     school_type: select(c.school_types.map((x) => [x.key, x.name]), { value: p.school_type || "private" }),
@@ -139,6 +142,7 @@ export default async function setup({ me } = {}) {
 
   const steps = {
     1: () => panel("بيانات المدرسة", null,
+      h("div", { class: "spaced", style: "margin:0 0 14px" }, h("b", { class: "small" }, "شعار المدرسة (اختياري)"), logoWidget),
       field("اسم المدرسة", f.name),
       h("div", { class: "row" }, field("نوع المدرسة", f.school_type), field("الجنس", f.gender)),
       h("div", { class: "row" }, field("الدولة", f.country), field("المدينة", f.city)),

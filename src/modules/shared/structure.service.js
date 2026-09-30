@@ -57,7 +57,7 @@ export const templateSchema = z.object({
 export async function getProfile(q) {
   const [row] = await q(
     `SELECT t.name, t.currency, p.school_type, p.gender, p.country, p.city, p.address, p.email, p.phone,
-            p.template, p.setup_completed_at, COALESCE(p.sections_enabled, true) AS sections_enabled
+            p.template, p.setup_completed_at, COALESCE(p.sections_enabled, true) AS sections_enabled, p.logo_image_id
        FROM tenants t LEFT JOIN school_profile p ON p.tenant_id = t.id
       WHERE t.id = app_tenant()`);
   return row;
@@ -103,6 +103,27 @@ export async function updateProfile(q, b) {
     [b.school_type ?? null, b.gender ?? null, b.country ?? null, b.city ?? null, b.address ?? null,
      b.email ?? null, b.phone ?? null]);
   return getProfile(q);
+}
+
+/* ---------- شعار المدرسة ---------- */
+// صورة واحدة تُحفظ في جدول الصور نفسه (نفس فحص المحتوى والحجم)، ويُشار إليها من ملف المدرسة
+export async function setLogo(q, file, actor, saveImage) {
+  const img = await saveImage(q, { kind: "school_logo", file, actor });
+  await q("INSERT INTO school_profile (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+  const [old] = await q("SELECT logo_image_id FROM school_profile WHERE tenant_id = app_tenant()");
+  await q("UPDATE school_profile SET logo_image_id = $1 WHERE tenant_id = app_tenant()", [img.id]);
+  // الشعار القديم يُحذف إن لم يكن مستخدمًا في مكان آخر (شعار الاختبارات أو صورة سؤال)
+  if (old?.logo_image_id) await q(
+    `DELETE FROM exam_images WHERE id = $1 AND kind = 'school_logo'
+       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)`, [old.logo_image_id]);
+  return { logo_image_id: img.id };
+}
+export async function removeLogo(q) {
+  const [old] = await q("SELECT logo_image_id FROM school_profile WHERE tenant_id = app_tenant()");
+  await q("UPDATE school_profile SET logo_image_id = NULL WHERE tenant_id = app_tenant()");
+  if (old?.logo_image_id) await q(
+    `DELETE FROM exam_images WHERE id = $1 AND kind = 'school_logo'
+       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)`, [old.logo_image_id]);
 }
 
 export async function completeSetup(q) {

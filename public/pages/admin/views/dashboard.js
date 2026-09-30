@@ -1,11 +1,10 @@
 // الرئيسية: الملخص، التنبيهات، والبحث السريع
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { stats, panel, notice, line, keyText, sub, input, empty, badge, btn } from "../../shared/js/ui.js";
+import { stats, panel, notice, line, sub, input, empty, badge, btn, keyText, linkRow, copyRow, schoolLogoUrl } from "../../shared/js/ui.js";
 import { money, fmtDate } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
-import { icons } from "../../shared/js/icons.js";
 
 export default async function dashboard({ me, goTo }) {
   const [d, alerts, notifications, templates] = await Promise.all([
@@ -38,16 +37,30 @@ export default async function dashboard({ me, goTo }) {
       }));
   };
 
-  return [
-    d.academic ? notice(`السنة الدراسية: ${d.academic.year_name} — الفصل الحالي: ${d.academic.term_name || "غير محدد"}`, "") : null,
+  // حالة اليوم في سطر واحد تحت اسم المدرسة
+  const todayText = d.today?.holiday ? `اليوم إجازة: ${d.today.holiday.name}`
+    : d.today && !d.today.study_day ? "اليوم ليس يوم دراسة" : null;
+  const logo = schoolLogoUrl(me.school.id, me.school.logo);
+  const L = me.links;
 
-    quickActions(goTo || (() => {}), me),
+  return [
+    h("section", { class: "dash-hero" },
+      logo ? h("img", { class: "dash-logo", src: logo, alt: "" })
+        : h("span", { class: "dash-logo ph", "aria-hidden": "true" }, String(me.school.name || "م").trim().charAt(0)),
+      h("div", { class: "dash-hero-text" },
+        h("h2", {}, me.school.name),
+        h("p", {}, [
+          new Date().toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long" }),
+          d.academic ? `${d.academic.year_name} — ${d.academic.term_name || "لم يُحدد الفصل"}` : null,
+          todayText,
+        ].filter(Boolean).join(" · ")))),
 
     stats([
       ["طالب", d.students, `حد الباقة ${me.school.max_students}`], ["معلم", d.teachers], ["فصل", d.classes],
-      ["غائب اليوم", d.absent_today, d.recorded_today ? `سُجل ${d.recorded_today} طالب` : d.today?.holiday ? `اليوم إجازة: ${d.today.holiday.name}` : d.today && !d.today.study_day ? "اليوم ليس يوم دراسة" : "لم يُسجل الحضور بعد"],
-      ["رسوم غير محصّلة", money(d.fees_remaining), `المحصّل ${money(d.fees_paid)}`],
-    ]),
+      me.modules?.attendance === false ? null
+        : ["غائب اليوم", d.absent_today, d.recorded_today ? `سُجل ${d.recorded_today} طالب` : todayText || "لم يُسجل الحضور بعد"],
+      me.modules?.fees === false ? null : ["رسوم غير محصّلة", money(d.fees_remaining), `المحصّل ${money(d.fees_paid)}`],
+    ].filter(Boolean)),
 
     center(notifications, goTo || (() => {})),
 
@@ -67,27 +80,13 @@ export default async function dashboard({ me, goTo }) {
           vars: messageVars({ student: { name: i.student_name, class_name: i.class_name }, school: me.school.name,
             fees: { remaining: i.remaining }, link: directoryLink(me) }), label: "تذكير واتساب" }) : null))) : null,
 
+    // الروابط: كل رابط يُفتح بالضغط ويُنسخ بزر واحد
     panel("روابط مدرستك", null,
-      line(h("span", {}, "صفحة الطلاب وأولياء الأمور"), keyText(directoryLink(me))),
-      line(h("span", {}, "رمز فتح صفحة الطلاب"), keyText(me.school.directory_code)),
-      line(h("span", {}, "دخول المدير والمعلمين"), keyText(staffLink(me))),
-      sub("وزّع الرابط والرمز على الأهالي، ومعرّف كل طالب من تبويب الطلاب.")),
+      linkRow("صفحة الطلاب وأولياء الأمور", L?.public?.home || directoryLink(me), { note: "شاركها مع الأهالي" }),
+      copyRow("رمز فتح صفحة الطلاب", me.school.directory_code, { note: "يُطلب عند فتح الصفحة إن كانت برمز" }),
+      linkRow("دخول الإدارة والمعلمين والمحاسبين", staffLink(me), { note: "خاص بمنسوبي المدرسة" }),
+      sub("معرّف كل طالب (لفتح ملفه) تجده في تبويب الطلاب.")),
   ];
-}
-
-// اختصارات لأكثر المهام اليومية استخدامًا — تفتح القسم مباشرة بدل البحث عنه بالقائمة
-function quickActions(goTo, me) {
-  const on = (k) => me.modules?.[k] !== false;
-  const items = [
-    ["students", "إضافة طالب", true, "userPlus"],
-    ["attendance", "تسجيل الحضور", on("attendance"), "check"],
-    ["announcements", "إرسال تعميم", on("announcements"), "megaphone"],
-    ["finance", "متابعة الرسوم", on("fees"), "wallet"],
-  ].filter((x) => x[2]);
-  if (!items.length) return null;
-  return h("div", { class: "quick-actions" },
-    items.map(([tab, label, , icon]) => h("button", { class: "quick-action", type: "button", onclick: () => goTo(tab) },
-      icons[icon]({ size: 20 }), h("span", {}, label))));
 }
 
 // بحث سريع في الطلاب والمعلمين والفواتير
