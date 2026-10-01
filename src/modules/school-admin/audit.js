@@ -1,4 +1,5 @@
 // سجل العمليات (قراءة فقط)
+import { tableLabel } from "../shared/danger-zone.service.js";
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
@@ -53,7 +54,7 @@ r.get("/", handle(async (req, res) => {
     [f.before ?? null, f.table ?? null, f.action ?? null, f.actor ?? null, f.from ?? null, f.to ?? null, f.q ?? null]));
   res.json(rows.map((a) => ({
     id: a.id, actor: a.actor === "system" ? "النظام" : a.actor, ip: a.ip, created_at: a.created_at,
-    summary: a.table_name ? `${OPS[a.action] || a.action} — ${TABLES[a.table_name] || a.table_name} #${a.record_id ?? ""}` : a.action.replace("(undefined)", "(محاسب)"),
+    summary: a.table_name ? `${OPS[a.action] || a.action} — ${TABLES[a.table_name] || tableLabel(a.table_name)} #${a.record_id ?? ""}` : a.action.replace("(undefined)", "(محاسب)"),
     changes: a.action === "update" && a.old_data && a.new_data
       ? describeChanges(a.old_data, a.new_data)
       : null,
