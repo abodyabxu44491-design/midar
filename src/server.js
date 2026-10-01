@@ -4,6 +4,7 @@ import { createApp } from "./app.js";
 import { getPool, closePool, healthCheck } from "./core/db/pool.js";
 import { runMaintenance } from "./core/auth/sessions.js";
 import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
+import { runReminders } from "./modules/shared/reminders.service.js";
 
 try {
   await healthCheck();
@@ -24,7 +25,10 @@ const server = createApp().listen(env.PORT, () => {
 server.headersTimeout = 20_000;
 server.requestTimeout = 30_000;
 
-const timer = setInterval(() => runMaintenance().catch((e) => console.error("[purge]", e.message)), 60 * 60 * 1000);
+const timer = setInterval(() => {
+  runMaintenance().catch((e) => console.error("[purge]", e.message));
+  runReminders().catch((e) => console.error("[تذكيرات]", e.message));   // الأقساط والمكتبة والمواعيد
+}, 60 * 60 * 1000);
 timer.unref();
 
 let closing = false;

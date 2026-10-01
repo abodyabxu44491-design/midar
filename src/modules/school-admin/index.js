@@ -35,6 +35,8 @@ import communication from "./communication.js";
 import { behaviorRouter } from "../shared/behavior.routes.js";
 import certificates from "./certificates.js";
 import { staff as staffAffairs, calendar } from "./staff-affairs.js";
+import services from "./services.js";
+import engagement from "./engagement.js";
 import { onlineExamsRouter } from "../shared/online-exams.routes.js";
 import { papersRouter, papersAdminSettingsRouter } from "../shared/exam-papers.routes.js";
 import { adminSyncRouter } from "../shared/sync.routes.js";
@@ -72,6 +74,8 @@ r.use("/behavior", requireModule("behavior"), behaviorRouter("admin"));
 r.use("/certificates", requireModule("certificates"), certificates);
 r.use("/staff-affairs", staffAffairs);   // كل قسم داخله بحارسه
 r.use("/calendar", requireModule("calendar"), calendar);
+r.use("/engagement", engagement);        // الاستبيانات ومواعيد أولياء الأمور
+r.use("/services", services);            // النقل والمكتبة والمخزون والعيادة (كل قسم بحارسه)
 r.use("/admissions", requireModule("admissions"), admissions);
 r.use("/papers", requireModule("exam_papers"), papersRouter("admin"));
 r.use("/online-exams", requireModule("online_exams"), onlineExamsRouter("admin"));

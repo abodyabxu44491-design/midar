@@ -69,6 +69,72 @@ export function featureSections(d, actions = {}) {
     out.push({ key: "calendar", name: "التقويم", note: `${f.calendar.length} مناسبة قادمة`,
       view: () => section("المناسبات القادمة", eventList(f.calendar)) });
   }
+  if (f.transport) {
+    const t = f.transport;
+    const DIR = { both: "ذهابًا وإيابًا", to_school: "إلى المدرسة", from_school: "من المدرسة" };
+    out.push({ key: "transport", name: "النقل", note: t.name, view: () => section("النقل المدرسي",
+      line(h("span", { class: "sub" }, "الحافلة"), h("b", {}, [t.name, t.plate].filter(Boolean).join(" — "))),
+      t.stop ? line(h("span", { class: "sub" }, "المحطة"), h("b", {}, [t.stop, t.pickup_time].filter(Boolean).join(" — "))) : null,
+      line(h("span", { class: "sub" }, "الاتجاه"), h("b", {}, DIR[t.direction] || "")),
+      t.driver_name ? line(h("span", { class: "sub" }, "السائق"), h("b", {}, t.driver_name, t.driver_phone ? h("a", { class: "ltr", href: `tel:${t.driver_phone}`, style: "margin-inline-start:8px" }, t.driver_phone) : null)) : null,
+      t.supervisor ? line(h("span", { class: "sub" }, "المشرف"), h("b", {}, t.supervisor)) : null,
+      h("h3", { class: "sec-title" }, "آخر الحركات"),
+      t.events.length ? t.events.map((e) => line(h("span", {}, e.text), h("small", { class: "muted" }, fmtDateTime(e.at)))) : empty("لا توجد حركات مسجلة هذا الأسبوع.")) });
+  }
+  if (f.health) {
+    const p = f.health.profile;
+    out.push({ key: "health", name: "الصحة", note: f.health.visits.length ? `${f.health.visits.length} زيارة` : "", view: () => [
+      p ? section("الملف الصحي",
+        line(h("span", { class: "sub" }, "فصيلة الدم"), h("b", { class: "ltr" }, p.blood_type || "—")),
+        line(h("span", { class: "sub" }, "الحساسية"), h("b", {}, p.allergies || "—")),
+        line(h("span", { class: "sub" }, "أمراض مزمنة"), h("b", {}, p.chronic || "—")),
+        line(h("span", { class: "sub" }, "الأدوية"), h("b", {}, p.medications || "—")),
+        sub("لتحديث الملف الصحي تواصل مع المدرسة.")) : null,
+      section("زيارات العيادة", f.health.visits.length ? f.health.visits.map((v) => line(
+        h("div", {}, h("b", {}, v.complaint), " ", v.sent_home ? badge("غادر للمنزل", "amber") : null,
+          sub([fmtDateTime(v.visited_at), v.action, v.temperature ? `الحرارة ${v.temperature}` : null].filter(Boolean).join(" — "))))) : empty("لا توجد زيارات.")),
+    ] });
+  }
+  if (f.library?.length) {
+    out.push({ key: "library", name: "المكتبة", note: f.library.some((l) => l.overdue) ? "متأخر" : `${f.library.length}`, view: () => section("الكتب المستعارة",
+      f.library.map((l) => line(h("div", {}, h("b", {}, l.title), " ", l.overdue ? badge("تأخر إرجاعه", "red") : l.returned_on ? badge("أُرجع", "gray") : badge("معار")),
+        h("small", { class: "muted" }, l.returned_on ? `أُرجع ${fmtDate(l.returned_on)}` : `الإرجاع ${fmtDate(l.due_on)}`)))) });
+  }
+  if (f.surveys?.length) {
+    const open = f.surveys.filter((x) => x.open).length;
+    out.push({ key: "surveys", name: "الاستبيانات", note: open ? `${open} بانتظار رأيك` : `${f.surveys.length}`, view: () => {
+      const box = h("div");
+      return [section("الاستبيانات", f.surveys.map((x) => line(
+        h("div", {}, h("b", {}, x.title), " ", x.answered ? badge("أجبت") : x.open ? badge("بانتظار رأيك", "amber") : badge("مغلق", "gray")),
+        x.open && actions.api ? btn("أجب", async () => {
+          const { surveyForm } = await import("./engagement-ui.js");
+          mount(box, section(x.title, surveyForm(x, (answers) => actions.api(`/student/surveys/${x.id}`, { answers }), () => { x.answered = true; x.open = false; mount(box); })));
+          box.scrollIntoView({ behavior: "smooth" });
+        }, "sm") : null))), box];
+    } });
+  }
+  if (f.meetings && actions.api) {
+    const mine = f.meetings.filter((x) => x.mine).length;
+    out.push({ key: "meetings", name: "المواعيد", note: mine ? `${mine} محجوز` : `${f.meetings.filter((x) => !x.booking_id).length} متاح`, view: () => {
+      const box = h("div");
+      const draw = async () => {
+        const { meetingsBoard } = await import("./engagement-ui.js");
+        mount(box, section("مواعيد مع المعلمين والإدارة", meetingsBoard(f.meetings, {
+          book: async (slot, topic) => {
+            try { await actions.api("/student/meetings/book", { slot_id: slot.id, topic }); toast("حُجز موعدك ويصلك تذكير قبله بيوم"); f.meetings = await actions.api("/student/meetings"); draw(); }
+            catch (e) { toast(e.message, true); }
+          },
+          cancel: async (slot) => {
+            if (!confirm("إلغاء الموعد؟")) return;
+            try { await actions.api(`/student/meetings/${slot.id}/cancel`); toast("أُلغي"); f.meetings = await actions.api("/student/meetings"); draw(); }
+            catch (e) { toast(e.message, true); }
+          },
+        })));
+      };
+      draw();
+      return box;
+    } });
+  }
   if (f.behavior) {
     out.push({ key: "behavior", name: "السلوك", note: `${f.behavior.score} نقطة`,
       view: () => section("السلوك والانضباط", behaviorBlock(f.behavior)) });

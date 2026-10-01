@@ -2,7 +2,8 @@
 // القالب يُطبَّق على صف أو شعبة أو طلاب محددين، ويُنشئ فواتير الدفعات دفعة واحدة.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
-import { notify } from "./notify.service.js";
+import { notify, activeModules } from "./notify.service.js";
+import { featureSettings } from "./feature-settings.service.js";
 
 export const KINDS = { discount: "خصم", scholarship: "منحة", exemption: "إعفاء كامل", extra: "رسوم إضافية" };
 
@@ -100,6 +101,25 @@ const addMonths = (dateStr, months) => {
 };
 
 /**
+ * خصم الإخوة التلقائي (إن فعّلته المدرسة): الإخوة = الطلاب النشطون بنفس جوال ولي الأمر.
+ * الأقدم تسجيلًا يدفع كاملًا، والثاني بنسبة، والثالث فأكثر بنسبة أكبر.
+ */
+export async function siblingRanks(q) {
+  const out = new Map();
+  if (!(await activeModules(q)).installments) return out;
+  const s = await featureSettings(q, "fees");
+  if (!s.sibling_discount) return out;
+  const rows = await q(`SELECT id, row_number() OVER (PARTITION BY guardian_phone ORDER BY created_at, id)::int AS rank,
+      count(*) OVER (PARTITION BY guardian_phone)::int AS n
+    FROM students WHERE status = 'active' AND guardian_phone IS NOT NULL AND guardian_phone <> ''`);
+  for (const r of rows) {
+    if (r.n < 2) continue;
+    out.set(Number(r.id), { rank: r.rank, percent: r.rank === 1 ? 0 : r.rank === 2 ? Number(s.sibling_second_pct) : Number(s.sibling_third_pct) });
+  }
+  return out;
+}
+
+/**
  * تطبيق القالب: فاتورة لكل دفعة لكل طالب، مع خصم الطالب إن وُجد.
  * لا يتكرر: إعادة التطبيق تُنشئ الناقص فقط (قيد فريد في قاعدة البيانات).
  */
@@ -128,10 +148,15 @@ export async function applyPlan(q, planId, b, actor) {
 
   const installments = plan.installments;
   const firstDue = plan.first_due || new Date().toISOString().slice(0, 10);
+  const siblings = await siblingRanks(q);
   const preview = students.map((s) => {
-    const total = netAmount(plan.amount, byStudent.get(Number(s.id)) || []);
+    const adj = [...(byStudent.get(Number(s.id)) || [])];
+    const sib = siblings.get(Number(s.id));
+    if (sib?.percent) adj.push({ kind: "discount", percent: sib.percent });
+    const total = netAmount(plan.amount, adj);
     const each = Math.round((total / installments) * 100) / 100;
-    return { student_id: s.id, name: s.name, total, per_installment: each, exempt: total === 0 };
+    return { student_id: s.id, name: s.name, total, per_installment: each, exempt: total === 0,
+      sibling: sib?.percent ? { rank: sib.rank, percent: sib.percent } : null };
   });
 
   if (b.dry_run) return { students: preview.length, invoices: 0, skipped: 0, preview };

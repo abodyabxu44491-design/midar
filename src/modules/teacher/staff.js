@@ -2,11 +2,12 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
-import { parse, t } from "../../core/http/validate.js";
+import { parse, t, z as zz } from "../../core/http/validate.js";
 import { requireModule } from "../../core/auth/guards.js";
 import * as sa from "../shared/staff-affairs.service.js";
 import * as plans from "../shared/lesson-plans.service.js";
 import * as cal from "../shared/calendar.service.js";
+import * as en from "../shared/engagement.service.js";
 
 export const mine = Router();
 mine.get("/", handle(async (req, res) => {
@@ -61,4 +62,32 @@ export const teacherStaffRoutes = (r) => {
   r.use("/me-staff", requireModule("staff_attendance"), mine);
   r.use("/lesson-plans", requireModule("lesson_plans"), lessons);
   r.use("/calendar", requireModule("calendar"), calendar);
+  r.use("/surveys", requireModule("surveys"), surveys);
+  r.use("/meetings", requireModule("meetings"), meetings);
 };
+
+// الاستبيانات للمعلم، ومواعيده مع أولياء الأمور
+export const surveys = Router();
+surveys.get("/", handle(async (req, res) => res.json(await inTenant(req, (q) => en.availableFor(q, { user_id: req.user.id })))));
+surveys.post("/:id", handle(async (req, res) => {
+  const { answers } = parse(en.respondSchema, req.body);
+  res.json(await inTenant(req, (q) => en.respond(q, parse(t.id, req.params.id), { user_id: req.user.id }, answers)));
+}));
+export const meetings = Router();
+meetings.get("/", handle(async (req, res) => res.json(await inTenant(req, (q) => en.slotsList(q, { teacherId: req.user.teacher_id })))));
+meetings.post("/", handle(async (req, res) => {
+  const b = parse(en.slotsSchema.omit({ teacher_id: true, host_name: true }), req.body);
+  res.status(201).json(await inTenant(req, async (q) => {
+    if (b.class_id) {
+      const [ok] = await q("SELECT 1 FROM teacher_assignments WHERE teacher_id = $1 AND class_id = $2", [req.user.teacher_id, b.class_id]);
+      if (!ok) throw notFound("الشعبة غير مسندة لك");
+    }
+    return en.createSlots(q, b, { teacherId: req.user.teacher_id, hostName: req.user.full_name, actor: req.actor });
+  }));
+}));
+meetings.delete("/:id", handle(async (req, res) => { await inTenant(req, (q) => en.removeSlot(q, parse(t.id, req.params.id), { teacherId: req.user.teacher_id })); res.json({ ok: true }); }));
+meetings.post("/bookings/:id", handle(async (req, res) => {
+  const { status } = parse(zz.object({ status: zz.enum(["done", "no_show", "cancelled"]) }), req.body);
+  await inTenant(req, (q) => en.setBookingStatus(q, parse(t.id, req.params.id), status, { teacherId: req.user.teacher_id }));
+  res.json({ ok: true });
+}));

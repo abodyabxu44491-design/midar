@@ -1275,3 +1275,15 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
   .sa-row { grid-template-columns: 1fr; }
   .cal-month { display: none; }
 }
+
+/* ===================== الاستبيانات والمواعيد ===================== */
+.sv-rating { display: flex; gap: 6px; }
+.sv-rating label { flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 10px; padding: 10px 0; cursor: pointer; }
+.sv-rating input { display: none; }
+.sv-rating label:has(input:checked) { background: var(--teal); color: #fff; border-color: var(--teal); }
+.sv-bar { display: grid; grid-template-columns: minmax(80px, 30%) 1fr 40px; gap: 8px; align-items: center; font-size: 13px; }
+.sv-bar i { display: block; height: 10px; border-radius: 6px; background: var(--teal); min-width: 2px; }
+.mt-group { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: #fff; }
+.mt-slots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mt-slot { border: 1px solid var(--teal); color: var(--teal); background: #fff; border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; direction: ltr; min-height: 38px; }
+.mt-slot:hover { background: var(--teal-soft); }

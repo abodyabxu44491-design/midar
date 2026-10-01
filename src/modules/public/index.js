@@ -12,6 +12,7 @@ import admissions from "./admissions.js";
 import password from "./password.js";
 import inbox from "./inbox.js";
 import onlineExams from "./online-exams.js";
+import engagement from "./engagement.js";
 import { verifyRouter, schoolRouter as certificatesRouter } from "./certificates.js";
 import { pushPublicKey } from "../shared/notify.service.js";
 
@@ -27,5 +28,6 @@ r.use("/:school", payments);
 r.use("/:school", admissions);
 r.use("/:school", inbox);
 r.use("/:school", onlineExams);
+r.use("/:school", engagement);
 r.use("/:school", certificatesRouter);
 export default r;
