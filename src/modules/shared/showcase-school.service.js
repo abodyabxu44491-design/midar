@@ -1,7 +1,8 @@
 // مدرسة عرض كاملة: مدارس بنين أهلية في عدن (الأساسي والثانوي) أنهت عامًا دراسيًا كاملًا بفصليه.
 // كل أقسام المنصة فيها بيانات حقيقية الشكل: الهيكل والجدول، الحضور لكل يوم دراسي مع الأعذار، اختبارات الفصلين ونتائج السنة،
 // الواجبات، الرسوم والسداد بتواريخها وإشعارات التحويل، المالية (مصروفات شهرية وإيداعات وتبرعات)، الموظفون ورواتب عشرة أشهر،
-// التعاميم والتنبيهات، طلبات التسجيل للعام الجديد، وبنك أسئلة وورقة اختبار. السنة منتهية فيقدر المدير يجرب «بدء سنة جديدة» والترفيع.
+// التعاميم والتنبيهات، طلبات التسجيل للعام الجديد، وبنك أسئلة وورقة اختبار، والسلوك ودوام الموظفين والتقويم وخطط الدروس
+// والنقل والمكتبة والمخزون والعيادة والاستبيانات ومواعيد أولياء الأمور. السنة منتهية فيقدر المدير يجرب «بدء سنة جديدة» والترفيع.
 // يُبنى بخدمات المنصة نفسها حتى تطابق المدرسة ما ينتج عن الاستخدام الفعلي، مع إدخال مجمّع للبيانات الكثيرة.
 // البيانات ثابتة بالبذرة: نفس المدخلات تعطي نفس المدرسة. بلا مناسبات سياسية (الأعياد الدينية فقط).
 import { transaction } from "../../core/db/pool.js";
@@ -19,6 +20,7 @@ import * as donations from "./donations.service.js";
 import * as payments from "./payments.service.js";
 import * as bank from "./question-bank.service.js";
 import * as papers from "./exam-papers.service.js";
+import * as behavior from "./behavior.service.js";
 
 /* ---------- أسماء واقعية (بنين) ---------- */
 const FIRST = ["محمد", "أحمد", "علي", "عبدالله", "عبدالرحمن", "صالح", "حسين", "ياسر", "أيمن", "وضاح", "أكرم", "هيثم", "عمار", "نبيل",
@@ -531,6 +533,198 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       });
       await papers.create(q, { role: "teacher", teacherId: mathT.id }, body, mathT.name);
     }
+
+    progress(94, 100, "الميزات: السلوك والخدمات والاستبيانات");
+    /* 14) الميزات الإضافية: السلوك، الموظفون والإجازات، التقويم، خطط الدروس، النقل، المكتبة، المخزون، العيادة، الاستبيانات، المواعيد */
+    const staffRows = await q("SELECT id, full_name, category FROM staff ORDER BY id");
+    const sample = (arr, n) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); };
+    const term2Days = studyDays.filter((d) => d >= T2.start);
+
+    // السلوك: تصنيفات المنصة الافتراضية ثم سجلات على مدى الفصل الثاني (المتميزون أكثر نقاطًا إيجابية)
+    const bcats = await behavior.categories(q);
+    const pos = bcats.filter((c) => c.kind === "positive"), neg = bcats.filter((c) => c.kind === "negative");
+    const tOf = new Map(assignments.map((a) => [Number(a.class_id), a.t]));
+    const bh = { st: [], cat: [], kind: [], pts: [], title: [], day: [], tch: [], by: [] };
+    for (const st of students) {
+      const n = between(0, 3) + (st.ability > 0.85 ? 2 : 0);
+      for (let i = 0; i < n; i++) {
+        const good = st.absentProne ? chance(0.35) : chance(0.8);
+        const c = good ? pick(pos) : pick(neg);
+        if (!c) continue;
+        const t = tOf.get(Number(st.class_id));
+        bh.st.push(st.id); bh.cat.push(c.id); bh.kind.push(c.kind); bh.pts.push(c.kind === "positive" ? c.points : -c.points);
+        bh.title.push(c.name); bh.day.push(pick(term2Days)); bh.tch.push(t?.id || null); bh.by.push(t?.name || "الإدارة");
+      }
+    }
+    await q(`INSERT INTO behavior_records (tenant_id, student_id, category_id, kind, points, title, day, term_id, teacher_id, recorded_by)
+             SELECT app_tenant(), s, c, k, p, t, d::date, $9, tc, b
+               FROM unnest($1::bigint[], $2::bigint[], $3::text[], $4::int[], $5::text[], $6::text[], $7::bigint[], $8::text[]) AS x(s, c, k, p, t, d, tc, b)`,
+      [bh.st, bh.cat, bh.kind, bh.pts, bh.title, bh.day, bh.tch, bh.by, term2.id]);
+    out.behavior_records = bh.st.length;
+
+    // دوام الموظفين في آخر شهر من السنة + طلبات إجازة (معتمدة ومرفوضة)
+    const lastMonth = studyDays.filter((d) => d >= `${y0 + 1}-05-01`);
+    const sa = { st: [], day: [], status: [], late: [], cin: [] };
+    for (const m of staffRows) for (const d of lastMonth) {
+      const r = R();
+      const status = r < 0.02 ? "absent" : r < 0.07 ? "late" : "present";
+      const late = status === "late" ? between(5, 40) : null;
+      sa.st.push(m.id); sa.day.push(d); sa.status.push(status); sa.late.push(late);
+      sa.cin.push(status === "absent" ? null : `07:${String(status === "late" ? 15 + Math.min(late, 44) : between(0, 14)).padStart(2, "0")}`);
+    }
+    await q(`INSERT INTO staff_attendance (tenant_id, staff_id, day, status, late_min, check_in, check_out, recorded_by)
+             SELECT app_tenant(), s, d::date, st, l, ci::time, CASE WHEN st = 'absent' THEN NULL ELSE time '13:30' END, 'الإدارة'
+               FROM unnest($1::bigint[], $2::text[], $3::text[], $4::int[], $5::text[]) AS x(s, d, st, l, ci)`,
+      [sa.st, sa.day, sa.status, sa.late, sa.cin]);
+    const LEAVES = [["sick", "التهاب حاد في الحلق مع تقرير طبي", "approved"], ["emergency", "ظرف عائلي طارئ", "approved"],
+      ["annual", "زيارة الأهل في تعز", "rejected"], ["official", "دورة تدريبية في مكتب التربية", "approved"]];
+    for (const [i, [kind, reason, status]] of LEAVES.entries()) {
+      const m = staffRows[(i * 7 + 3) % staffRows.length];
+      const from = term2Days[20 + i * 15];
+      await q(`INSERT INTO leave_requests (tenant_id, staff_id, kind, from_day, to_day, reason, status, requested_by, decided_by, decided_at, decision_note, created_at)
+               VALUES (app_tenant(), $1, $2, $3::date, $3::date + $4::int, $5, $6, $7, 'مدير المدرسة', $3::date - 1, $8, $3::date - 3)`,
+        [m.id, kind, from, i % 2, reason, status, m.full_name, status === "rejected" ? "فترة اختبارات، يمكن تأجيلها للإجازة" : null]);
+    }
+
+    // التقويم المدرسي
+    const EV = [[`${y0}-10-15`, `${y0}-10-15`, "يوم المعلم", "activity", "all", "تكريم المعلمين في الطابور الصباحي"],
+      [`${y0}-11-06`, `${y0}-11-06`, "اجتماع أولياء الأمور", "meeting", "parents", "قاعة المدرسة الساعة 4 عصرًا"],
+      [`${y0}-12-10`, `${y0}-12-11`, "المعرض العلمي", "activity", "all", "مشاريع طلاب المرحلة الثانوية"],
+      [`${y0 + 1}-01-04`, `${y0 + 1}-01-14`, "الاختبارات النهائية للفصل الأول", "exam", "all", null],
+      [`${y0 + 1}-03-02`, `${y0 + 1}-03-02`, "اجتماع المعلمين الدوري", "meeting", "staff", "مراجعة الخطط الفصلية"],
+      [`${y0 + 1}-04-10`, `${y0 + 1}-04-10`, "رحلة ساحل أبين", "trip", "all", "للصفوف العليا"],
+      [`${y0 + 1}-05-20`, `${y0 + 1}-05-20`, "آخر موعد لسداد رسوم الفصل الثاني", "deadline", "parents", null],
+      [`${y0 + 1}-06-01`, `${y0 + 1}-06-11`, "الاختبارات النهائية للفصل الثاني", "exam", "all", null]];
+    for (const [a, b, title, kind, aud, desc] of EV) {
+      await q(`INSERT INTO calendar_events (tenant_id, title, kind, starts_on, ends_on, audience, description, created_by) VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, 'الإدارة')`,
+        [title, kind, a, b, aud, desc]);
+    }
+
+    // خطط الدروس: أسبوعان لعدد من المعلمين (معتمدة ومقدمة)
+    for (const [i, a] of sample(assignments, 12).entries()) {
+      const wk = iso(addDays(D(T2.start), 7 * (i % 4)));
+      await q(`INSERT INTO lesson_plans (tenant_id, teacher_id, class_id, subject_id, week_start, topic, objectives, activities, assessment, homework, status, reviewed_by, reviewed_at)
+               VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $10 = 'approved' THEN 'مدير المدرسة' END, CASE WHEN $10 = 'approved' THEN $4::date END)`,
+        [a.t.id, a.class_id, a.subject_id, wk, "الوحدة الثالثة — الدرس الأول", "أن يتعرف الطالب على المفاهيم الأساسية للوحدة ويطبقها في أمثلة",
+         "عصف ذهني، عمل في مجموعات، حل تمارين الكتاب", "أسئلة شفهية وورقة عمل قصيرة", "تمارين صفحة 54", i % 3 ? "approved" : "submitted"]);
+    }
+
+    // النقل: ثلاث حافلات بسائقيها وركابها
+    const drivers = staffRows.filter((m) => m.category === "driver");
+    const ROUTES = [["خط المنصورة", "المنصورة — الشيخ عثمان — خور مكسر", ["جولة كالتكس", "سوق المنصورة", "الشيخ عثمان"]],
+      ["خط كريتر", "كريتر — المعلا — خور مكسر", ["ساحة العروض", "المعلا الرئيسي", "حافون"]],
+      ["خط البريقة", "البريقة — الشعب — خور مكسر", ["البريقة", "الشعب", "عمران"]]];
+    let riders = 0;
+    const pool = sample(students, 90);
+    for (const [i, [name, route, stops]] of ROUTES.entries()) {
+      const [bus] = await q(`INSERT INTO buses (tenant_id, name, plate, driver_name, driver_phone, supervisor, capacity, route, fee)
+                             VALUES (app_tenant(), $1, $2, $3, $4, 'مشرف الأنشطة', 30, $5, 15000) RETURNING id`,
+        [name, `عدن ${between(10000, 99999)}`, drivers[i]?.full_name || "سائق المدرسة", phone(), route]);
+      const group = pool.slice(i * 30, i * 30 + between(20, 28));
+      for (const st of group) {
+        await q(`INSERT INTO bus_students (tenant_id, bus_id, student_id, stop, pickup_time) VALUES (app_tenant(), $1, $2, $3, $4)`,
+          [bus.id, st.id, pick(stops), `6:${between(15, 50)}`]);
+      }
+      riders += group.length;
+    }
+    out.transport = { buses: ROUTES.length, riders };
+
+    // المكتبة: كتب وإعارات (أغلبها مُرجعة)
+    const BOOKS = [["قصص الأنبياء", "ابن كثير", "دينية"], ["رياض الصالحين", "النووي", "دينية"], ["كليلة ودمنة", "ابن المقفع", "أدب"],
+      ["الأيام", "طه حسين", "أدب"], ["مختارات من الشعر العربي", null, "أدب"], ["موسوعة العلوم المصورة", null, "علوم"],
+      ["أطلس العالم", null, "جغرافيا"], ["تاريخ اليمن", null, "تاريخ"], ["المعجم الوسيط", "مجمع اللغة العربية", "مراجع"],
+      ["الرياضيات الممتعة", null, "علوم"], ["عبقريات العقاد", "عباس محمود العقاد", "أدب"], ["رجال حول الرسول", "خالد محمد خالد", "دينية"]];
+    const books = [];
+    for (const [i, [title, author, category]] of BOOKS.entries()) {
+      const [b] = await q(`INSERT INTO library_books (tenant_id, title, author, category, shelf, copies) VALUES (app_tenant(), $1, $2, $3, $4, $5) RETURNING id`,
+        [title, author, category, `${String.fromCharCode(1571 + (i % 4))}-${1 + (i % 6)}`, between(2, 6)]);
+      books.push(b.id);
+    }
+    let loans = 0;
+    for (const st of sample(students, 60)) {
+      const d = pick(term2Days);
+      const returned = chance(0.9);
+      await q(`INSERT INTO library_loans (tenant_id, book_id, student_id, loaned_on, due_on, returned_on, created_by)
+               VALUES (app_tenant(), $1, $2, $3::date, $3::date + 14, CASE WHEN $4 THEN $3::date + $5::int END, 'أمين المكتبة')`,
+        [pick(books), st.id, d, returned, between(3, 16)]);
+      loans++;
+    }
+    out.library = { books: BOOKS.length, loans };
+
+    // المخزون والعهد
+    const ITEMS = [["أقلام سبورة", "قرطاسية", "علبة", 40, 10], ["ورق تصوير A4", "قرطاسية", "كرتون", 25, 5], ["طباشير ملون", "قرطاسية", "علبة", 30, 8],
+      ["جهاز عرض (بروجكتر)", "أجهزة", "جهاز", 6, 1], ["حاسوب محمول", "أجهزة", "جهاز", 10, 2], ["كرات قدم", "رياضة", "قطعة", 12, 4],
+      ["منظفات", "نظافة", "لتر", 60, 20], ["كراسي طلاب", "أثاث", "قطعة", 40, 10], ["حقيبة إسعافات أولية", "العيادة", "حقيبة", 8, 2]];
+    for (const [name, category, unit, qty, min] of ITEMS) {
+      const [it] = await q(`INSERT INTO inventory_items (tenant_id, name, category, unit, quantity, min_quantity, location) VALUES (app_tenant(), $1, $2, $3, 0, $4, 'المخزن الرئيسي') RETURNING id`,
+        [name, category, unit, min]);
+      const moves = [["in", qty, null, `${y0}-09-01`, "رصيد بداية العام"]];
+      if (category === "أجهزة") moves.push(["custody", 2, staffRows[0].id, `${y0}-09-10`, "عهدة للإدارة"]);
+      else if (category !== "أثاث") moves.push(["out", Math.round(qty * (0.4 + R() * 0.5)), null, `${y0 + 1}-03-01`, "صرف للفصول"]);
+      let bal = 0;
+      for (const [kind, n, staffId, day, note] of moves) {
+        bal += kind === "in" ? n : -n;
+        await q(`INSERT INTO inventory_moves (tenant_id, item_id, kind, qty, staff_id, day, note, created_by) VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, 'أمين المخزن')`,
+          [it.id, kind, n, staffId, day, note]);
+      }
+      await q("UPDATE inventory_items SET quantity = $2 WHERE id = $1", [it.id, bal]);
+    }
+
+    // العيادة: ملفات صحية لبعض الطلاب وزيارات
+    const BLOOD = ["A+", "O+", "B+", "O-", "AB+", "A-"];
+    for (const st of sample(students, 40)) {
+      await q(`INSERT INTO health_profiles (tenant_id, student_id, blood_type, allergies, chronic, emergency_phone, updated_by) VALUES (app_tenant(), $1, $2, $3, $4, $5, 'ممرض المدرسة')`,
+        [st.id, pick(BLOOD), chance(0.2) ? pick(["حساسية من الفول السوداني", "حساسية غبار", "حساسية من البنسلين"]) : null,
+         chance(0.08) ? pick(["ربو", "سكري النوع الأول"]) : null, st.phone]);
+    }
+    const COMPLAINTS = [["صداع", "راحة وماء ومسكن خفيف"], ["ألم في البطن", "راحة ومتابعة"], ["ارتفاع حرارة", "خافض حرارة والتواصل مع ولي الأمر"],
+      ["إصابة خفيفة في الملعب", "تنظيف وتضميد"], ["دوار", "راحة في العيادة"]];
+    for (const st of sample(students, 35)) {
+      const [complaint, action] = pick(COMPLAINTS);
+      const hot = complaint === "ارتفاع حرارة";
+      await q(`INSERT INTO clinic_visits (tenant_id, student_id, visited_at, complaint, action, temperature, sent_home, recorded_by)
+               VALUES (app_tenant(), $1, $2::date + time '09:30', $3, $4, $5, $6, 'ممرض المدرسة')`,
+        [st.id, pick(term2Days), complaint, action, hot ? 38 + between(0, 9) / 10 : 36.8, hot && chance(0.7)]);
+    }
+
+    // استبيان رضا أولياء الأمور (مغلق بنتائجه) واستبيان المنسوبين
+    const SQ = [{ id: "q_rate01", type: "rating", text: "ما تقييمك العام للمدرسة؟", required: true },
+      { id: "q_comm01", type: "choice", text: "أفضل وسيلة للتواصل معكم؟", required: true, options: ["إشعارات التطبيق", "واتساب", "رسالة نصية", "اتصال"] },
+      { id: "q_bus001", type: "yesno", text: "هل أنتم راضون عن خدمة النقل؟", required: false },
+      { id: "q_note01", type: "text", text: "اقتراحاتكم لتطوير المدرسة", required: false }];
+    const [sv] = await q(`INSERT INTO surveys (tenant_id, title, description, audience, questions, anonymous, status, closes_on, created_by, created_at)
+                          VALUES (app_tenant(), 'رضا أولياء الأمور — نهاية العام', 'نسعد برأيكم لتطوير المدرسة في العام القادم', 'parents', $1, false, 'closed', $2, 'الإدارة', $3::date)
+                          RETURNING id`, [JSON.stringify(SQ), `${y0 + 1}-06-20`, `${y0 + 1}-06-01`]);
+    const NOTES = ["زيادة الأنشطة الرياضية", "تفعيل نادي القراءة", "ممتازون، بارك الله فيكم", "تحسين المقصف المدرسي", null, null];
+    const respondents = sample(students, 120);
+    for (const st of respondents) {
+      const a = { q_rate01: chance(0.55) ? 5 : chance(0.7) ? 4 : 3, q_comm01: chance(0.6) ? 0 : chance(0.6) ? 1 : 2 };
+      if (chance(0.5)) a.q_bus001 = chance(0.8);
+      const note = pick(NOTES); if (note) a.q_note01 = note;
+      await q(`INSERT INTO survey_responses (tenant_id, survey_id, student_id, answers, created_at) VALUES (app_tenant(), $1, $2, $3, $4::date + time '18:00')`,
+        [sv.id, st.id, JSON.stringify(a), `${y0 + 1}-06-${String(between(1, 15)).padStart(2, "0")}`]);
+    }
+    await q(`INSERT INTO surveys (tenant_id, title, audience, questions, anonymous, status, created_by)
+             VALUES (app_tenant(), 'بيئة العمل للعام القادم', 'staff', $1, true, 'open', 'الإدارة')`,
+      [JSON.stringify([{ id: "q_load01", type: "rating", text: "ما مدى رضاك عن توزيع النصاب؟", required: true },
+        { id: "q_need01", type: "text", text: "ما الذي تحتاجه لتطوير أدائك؟", required: false }])]);
+    out.survey_responses = respondents.length;
+
+    // مواعيد أولياء الأمور: فترات لمعلمين في أسبوع اجتماع نهاية العام، بعضها محجوز
+    let booked = 0;
+    for (const t of sample(teachers, 4)) {
+      for (let k = 0; k < 4; k++) {
+        const [slot] = await q(`INSERT INTO meeting_slots (tenant_id, teacher_id, host_name, day, start_time, minutes, location, created_by)
+                                VALUES (app_tenant(), $1, $2, $3, $4::time, 15, 'غرفة المعلمين', $2) RETURNING id`,
+          [t.id, t.name, `${y0 + 1}-06-${String(14 + (k % 2)).padStart(2, "0")}`, `${9 + Math.floor(k / 2)}:${k % 2 ? "15" : "00"}`]);
+        if (k < 2) {
+          await q(`INSERT INTO meeting_bookings (tenant_id, slot_id, student_id, topic, status) VALUES (app_tenant(), $1, $2, $3, 'done')`,
+            [slot.id, pick(students).id, pick(["مستوى الطالب في المادة", "خطة المراجعة للصيف", null])]);
+          booked++;
+        }
+      }
+    }
+    out.meetings_booked = booked;
 
     /* 13) صفحة المدرسة العامة وقوالب الرسائل */
     await q(`UPDATE school_public_settings SET show_classes = true, show_teachers = true, show_announcements = true, show_timetable = true,
