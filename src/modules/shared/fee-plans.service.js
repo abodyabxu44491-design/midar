@@ -2,6 +2,7 @@
 // القالب يُطبَّق على صف أو شعبة أو طلاب محددين، ويُنشئ فواتير الدفعات دفعة واحدة.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
+import { notify } from "./notify.service.js";
 
 export const KINDS = { discount: "خصم", scholarship: "منحة", exemption: "إعفاء كامل", extra: "رسوم إضافية" };
 
@@ -136,6 +137,7 @@ export async function applyPlan(q, planId, b, actor) {
   if (b.dry_run) return { students: preview.length, invoices: 0, skipped: 0, preview };
 
   let created = 0, skipped = 0;
+  const billed = new Set();
   for (const p of preview) {
     if (p.exempt) { skipped++; continue; }
     await q("UPDATE students SET fees_enabled = true WHERE id = $1 AND NOT fees_enabled", [p.student_id]);
@@ -151,8 +153,12 @@ export async function applyPlan(q, planId, b, actor) {
          VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, current_term())
          ON CONFLICT DO NOTHING RETURNING id`,
         [p.student_id, title, amount, due, actor, planId, n]);
-      if (rows.length) created++; else skipped++;
+      if (rows.length) { created++; billed.add(p.student_id); } else skipped++;
     }
+  }
+  if (billed.size) {
+    await notify(q, { event: "invoice", students: [...billed], title: `فواتير جديدة: ${plan.name}`,
+      body: installments > 1 ? `مقسمة على ${installments} دفعات، أولها تستحق ${firstDue}` : `تستحق ${firstDue}`, link: "fees" });
   }
   return { students: preview.length, invoices: created, skipped, preview };
 }

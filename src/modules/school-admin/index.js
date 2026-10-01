@@ -31,9 +31,15 @@ import setup from "./setup.js";
 import customFields from "./custom-fields.js";
 import homework from "./homework.js";
 import admissions from "./admissions.js";
+import communication from "./communication.js";
+import { behaviorRouter } from "../shared/behavior.routes.js";
+import certificates from "./certificates.js";
+import { staff as staffAffairs, calendar } from "./staff-affairs.js";
+import { onlineExamsRouter } from "../shared/online-exams.routes.js";
 import { papersRouter, papersAdminSettingsRouter } from "../shared/exam-papers.routes.js";
 import { adminSyncRouter } from "../shared/sync.routes.js";
 import { jobsRouter } from "../shared/jobs.routes.js";
+import { staffNotificationsRouter } from "../shared/notifications.routes.js";
 
 const r = Router();
 r.use(logoutRouter("admin"));            // /logout (بدون حارس)
@@ -48,11 +54,13 @@ r.use("/exams", requireModule("exams"), exams);
 r.use("/finance", requireModule("fees"), finance);
 r.use("/ledger", requireModule("finance"), ledger);
 r.use("/users", users);
+r.use("/notifications", staffNotificationsRouter());   // صندوق الإشعارات والإشعار الفوري
 r.use("/jobs", jobsRouter("school"));     // تقدم العمليات الطويلة (الاستيراد)
-r.use("/assistant", requireModule("data_assistant"), assistant);   // مساعد إدخال البيانات (ميزة مدفوعة)
+r.use("/assistant", requireModule("data_assistant"), assistant);   // مساعد إدخال البيانات
 r.use("/password-requests", passwordRequests);
 r.use("/announcements", requireModule("announcements"), announcements);
 r.use("/settings", settings);
+r.use("/communication", communication);   // الإشعارات والرسائل النصية وإعدادات الأقسام الجديدة
 r.use("/subscription", subscription);     // متاح حتى عند توقف الاشتراك (للتجديد)
 r.use("/academic", academic);
 r.use("/analytics", requireModule("analytics"), analytics);
@@ -60,8 +68,13 @@ r.use("/timetable", requireModule("timetable"), timetable);
 r.use("/reports", requireModule("exams", "reports"), reports);
 r.use("/messaging", requireModule("messaging"), messaging);
 r.use("/homework", requireModule("homework"), homework);
+r.use("/behavior", requireModule("behavior"), behaviorRouter("admin"));
+r.use("/certificates", requireModule("certificates"), certificates);
+r.use("/staff-affairs", staffAffairs);   // كل قسم داخله بحارسه
+r.use("/calendar", requireModule("calendar"), calendar);
 r.use("/admissions", requireModule("admissions"), admissions);
 r.use("/papers", requireModule("exam_papers"), papersRouter("admin"));
+r.use("/online-exams", requireModule("online_exams"), onlineExamsRouter("admin"));
 r.use("/papers-settings", requireModule("exam_papers"), papersAdminSettingsRouter());
 r.use("/sync", adminSyncRouter());         // تعارضات المزامنة والأجهزة
 r.use("/import", importData);

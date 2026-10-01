@@ -93,3 +93,28 @@ self.addEventListener("fetch", (e) => {
   }
   // كل شيء آخر (الصفحات، /api، الإصدارات الأخرى) من الشبكة مباشرة
 });
+
+// ===================== الإشعارات الفورية =====================
+// الإشعار يصل حتى والتطبيق مغلق. نعرض العنوان والنص فقط (لا بيانات أخرى في الإشعار).
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: e.data?.text() || "مدار" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "مدار", {
+    body: d.body || "", tag: d.tag || undefined, renotify: Boolean(d.tag), lang: "ar", dir: "rtl",
+    icon: "/brand/icon-192.png", badge: "/brand/favicon-32.png", data: { url: d.url || "/" },
+    requireInteraction: Boolean(d.urgent),
+  }));
+});
+
+// الضغط على الإشعار: يفتح الصفحة المعنية (أو يركّز نافذة مفتوحة منها)
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const target = new URL(e.notification.data?.url || "/", location.origin);
+  if (target.origin !== location.origin) return;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const same = wins.find((w) => new URL(w.url).pathname === target.pathname);
+    if (same) { await same.focus(); same.postMessage({ type: "midar:notification", url: target.href }); return; }
+    await self.clients.openWindow(target.href);
+  })());
+});

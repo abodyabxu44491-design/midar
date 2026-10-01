@@ -105,7 +105,10 @@ async function listPlans(q) {
   return plans.map((p) => ({ ...p, features: feats.filter((f) => f.plan_id === p.id).map((f) => f.feature_key) }));
 }
 
-async function writeFeatures(q, planId, keys) {
+// كل المميزات تدخل في كل باقة تلقائيًا، والاختيار للخدمات فقط (الدعم والتدريب…)
+async function writeFeatures(q, planId, chosen) {
+  const all = (await q("SELECT key FROM features WHERE kind IN ('core', 'module') AND is_active ORDER BY sort, key")).map((r) => r.key);
+  const keys = [...new Set([...all, ...chosen])];
   const valid = new Set((await q("SELECT key FROM features WHERE key = ANY($1)", [keys])).map((r) => r.key));
   await q("DELETE FROM plan_features WHERE plan_id = $1", [planId]);
   let i = 0;

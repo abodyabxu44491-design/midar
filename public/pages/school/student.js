@@ -6,19 +6,23 @@ import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, ME
 import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
+import { inboxList, pushToggle } from "../shared/js/inbox.js";
+import { currentChild, closeChild, rememberChild, forgetChild, isRemembered } from "../shared/js/children.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
-const KEY = `midar_student_${school}`;
 const back = () => { location.href = `/${encodeURIComponent(school)}`; };
-const creds = JSON.parse(sessionStorage.getItem(KEY) || "null");
+const creds = currentChild(school);
 
 async function load() {
   if (!creds) return back();
-  try { render(await api(`${P}/student`, { student_id: creds.id, key: creds.key })); }
-  catch (e) {
-    if (e.status === 401 || e.status === 404) { sessionStorage.removeItem(KEY); return back(); }
+  try {
+    const who = { student_id: creds.id, key: creds.key };
+    const [d, inbox] = await Promise.all([api(`${P}/student`, who), api(`${P}/student/inbox`, who).catch(() => null)]);
+    render(d, inbox);
+  } catch (e) {
+    if (e.status === 401 || e.status === 404) { closeChild(school); forgetChild(school, creds.id); return back(); }
     mount(app, topbar({}), h("main", {}, notice(e.message, "err"), btn("إعادة المحاولة", load)), footer());
   }
 }
@@ -26,7 +30,7 @@ async function load() {
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
 
-function render(d) {
+function render(d, inbox) {
   if (d.currency) setCurrency(d.currency);
   const s = d.student, f = d.fees;
   schoolName = d.school; studentName = s.name; className = s.class_name;
@@ -34,19 +38,50 @@ function render(d) {
 
   // ملف الطالب: مصدره المشترك public/shared/js/student-file.js (نفسه الذي تراه الإدارة، لكن هنا مع زر الدفع)
   const who = { student_id: creds.id, key: creds.key };
-  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, actions: {
+  const remember = () => rememberChild(school, { id: creds.id, key: creds.key, name: s.name, class_name: s.class_name });
+  if (isRemembered(school, creds.id)) remember();   // تحديث الاسم والفصل المحفوظين
+  const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
+    view: ({ reopen }) => inboxSection(inbox, who, remember, reopen) }] : [];
+  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, actions: {
     excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
+    who, api: (path, body) => api(`${P}${path}`, { ...who, ...body }),
+    printCertificate: (id) => api(`${P}/student/certificates/print`, { ...who, id }),
   } });
 
   mount(app,
-    topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب", onLogout: () => { sessionStorage.removeItem(KEY); back(); } }),
+    topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب", onLogout: () => { closeChild(school); back(); } }),
     h("main", { class: "profile-page" },
       h("div", { class: "toolbar" }, btn("الرجوع لقائمة الطلاب", back, "ghost sm"), btn("طباعة", () => window.print(), "ghost sm")),
       file.el),
     footer());
 
   showInstallBar();
+  // فتح القسم المطلوب من الإشعار (#attendance مثلًا) أو صندوق الإشعارات
+  const want = location.hash.slice(1);
+  if (new URLSearchParams(location.search).get("n") && inbox) file.open("inbox");
+  else if (want) { try { file.open({ absence: "attendance", late: "attendance" }[want] || want); } catch { /* قسم غير متاح */ } }
+}
+
+// صندوق الإشعارات وتفعيل الإشعارات الفورية على هذا الجهاز
+function inboxSection(inbox, who, remember, reopen) {
+  if (inbox.unread) {
+    api(`${P}/student/inbox/read`, { ...who, all: true }).catch(() => {});
+    inbox.unread = 0;
+  }
+  const saved = isRemembered(school, who.student_id);
+  return [
+    section("الإشعارات على هذا الجهاز",
+      inbox.push.key ? pushToggle({ key: inbox.push.key,
+        save: async (s) => { remember(); await api(`${P}/student/push`, { ...who, subscription: s }); },
+        remove: (endpoint) => api(`${P}/student/push/remove`, { ...who, endpoint }),
+        label: "إشعار فوري بالغياب والدرجات والرسوم" }) : sub("الإشعارات الفورية غير مفعّلة في هذه المدرسة. تصلك الإشعارات هنا."),
+      line(h("div", {}, h("b", {}, "حفظ ملف الطالب على هذا الجهاز"),
+        sub(saved ? "محفوظ: يفتح مباشرة من التطبيق ومن الإشعارات." : "يفتح الملف مباشرة دون إدخال المعرّف كل مرة. لا تفعّله على جهاز مشترك.")),
+        saved ? btn("إزالة من الجهاز", () => { forgetChild(school, who.student_id); toast("أُزيل من هذا الجهاز"); reopen(); }, "ghost sm")
+          : btn("حفظ", () => { remember(); toast("حُفظ على هذا الجهاز"); reopen(); }, "sm"))),
+    section("الإشعارات", inboxList(inbox.items, { onOpen: (n) => n.link && document.querySelector(`.profile-nav [data-k="${n.link}"]`)?.click() })),
+  ];
 }
 
 // سطر درجة واحد

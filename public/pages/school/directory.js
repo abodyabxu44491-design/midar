@@ -10,6 +10,7 @@ import { fmtDate } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { detectPhone } from "../shared/js/phone.js";
+import { rememberedChildren, openChild } from "../shared/js/children.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -112,7 +113,13 @@ function findByKey() {
     key.value = v.length > 4 ? `${v.slice(0, 4)}-${v.slice(4)}` : v;
   });
   key.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
-  return h("div", {}, h("div", { class: "ss-keyrow" }, key, go), msg);
+  // الأبناء المحفوظون على هذا الجهاز: فتح مباشر بضغطة
+  const kids = rememberedChildren(school);
+  return h("div", {},
+    kids.length ? h("div", { class: "ss-kids" }, kids.map((c) => h("button", { type: "button", class: "ss-kid",
+      onclick: () => { openChild(school, c); location.href = `/${encodeURIComponent(school)}/student`; } },
+      h("b", {}, c.name || "ملف الطالب"), c.class_name ? h("small", {}, c.class_name) : null))) : null,
+    h("div", { class: "ss-keyrow" }, key, go), msg);
 }
 
 /* ======================= الطلاب: المراحل والصفوف ======================= */

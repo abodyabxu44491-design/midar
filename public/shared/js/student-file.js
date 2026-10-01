@@ -6,6 +6,7 @@ import { money, fmtDate, fmtDay, ATTENDANCE } from "./format.js";
 import { alertCard } from "./student-alerts.js";
 import { icons } from "./icons.js";
 import { timetableGrid } from "./timetable.js";
+import { featureSections } from "./student-file-features.js";
 
 export const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 export const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
@@ -33,7 +34,7 @@ export function feesReadOnly(f, compact = false) {
  * @param {{fees?: (f, compact) => Node, toolbar?: Node|Node[], photo?: string|null}} opts
  * @returns {{ el: HTMLElement, open: (key:string)=>void }}
  */
-export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {} } = {}) {
+export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [] } = {}) {
   const s = d.student, f = d.fees;
   const avg = d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
   const count = (st) => d.attendance.filter((a) => a.status === st).length;
@@ -65,6 +66,9 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     ...(f ? [{ key: "fees", name: "الرسوم والسداد", note: f.status === "unpaid" ? money(f.remaining) : "مسدد" }] : []),
     ...(d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
     ...(d.announcements.length ? [{ key: "news", name: "التعاميم", note: `${d.announcements.length}` }] : []),
+    // أقسام إضافية (الإشعارات، السلوك، الصحة، النقل، الاختبارات الإلكترونية، الشهادات…) كل منها يأتي بعرضه
+    ...featureSections(d, actions),
+    ...extra.map(({ key, name, note }) => ({ key, name, note })),
   ];
 
   const views = {
@@ -101,6 +105,8 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     teachers: () => section("المعلمون والمواد", teacherCards(d.teachers)),
     news: () => section("التعاميم", d.announcements.map((a) => line(
       h("div", {}, h("b", {}, a.title), sub(fmtDate(a.created_at)), a.body ? sub(a.body) : null)))),
+    ...Object.fromEntries(featureSections(d, actions).map((x) => [x.key, x.view])),
+    ...Object.fromEntries(extra.map((x) => [x.key, () => x.view({ reopen: () => open(x.key, true) })])),
   };
 
   // الحضور: ملخص، ونسبة، وتصفية، وسبب كل غياب أو تأخر، وإرسال عذر من ولي الأمر

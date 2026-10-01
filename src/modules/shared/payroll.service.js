@@ -5,6 +5,8 @@
 import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { addSystemEntry } from "./ledger.service.js";
+import { absenceDeductions } from "./staff-affairs.service.js";
+import { activeModules } from "./notify.service.js";
 
 // الأنواع بالترتيب الذي تظهر به: [المفرد، الجمع]
 export const CATEGORIES = {
@@ -162,7 +164,20 @@ export async function createRun(q, b, actor) {
   await q(`INSERT INTO payroll_items (tenant_id, run_id, staff_id, base, allowances)
            SELECT app_tenant(), $1, s, b, a FROM unnest($2::bigint[], $3::numeric[], $4::numeric[]) AS x(s, b, a)`,
     [run.id, staff.map((s) => s.id), staff.map((s) => s.base_salary), staff.map((s) => s.allowance)]);
-  return { id: run.id, employees: staff.length };
+  // خصم الغياب تلقائيًا من حضور الموظفين (إن كان القسم مفعّلًا وخصم الغياب مفعّلًا في إعداداته)
+  let deducted = 0;
+  if ((await activeModules(q)).staff_attendance) {
+    const { map, working_days } = await absenceDeductions(q, period);
+    for (const s of staff) {
+      const d = map.get(Number(s.id));
+      if (!d?.days) continue;
+      const amount = Math.round(((Number(s.base_salary) + Number(s.allowance)) / working_days) * d.days * 100) / 100;
+      const note = [d.absent ? `غياب ${d.absent} يوم` : null, d.unpaid ? `إجازة بدون راتب ${d.unpaid} يوم` : null].filter(Boolean).join(" + ");
+      await q("UPDATE payroll_items SET deductions = $3, note = $4 WHERE run_id = $1 AND staff_id = $2", [run.id, s.id, amount, `خصم ${note}`]);
+      deducted++;
+    }
+  }
+  return { id: run.id, employees: staff.length, deducted };
 }
 
 async function getRun(q, id, lock = false) {

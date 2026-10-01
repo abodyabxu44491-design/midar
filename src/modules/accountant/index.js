@@ -12,6 +12,7 @@ import { structure } from "../shared/structure.service.js";
 import { parse, t } from "../../core/http/validate.js";
 import ledger from "../school-admin/ledger.js";
 import fees from "../school-admin/finance.js";
+import { staffNotificationsRouter } from "../shared/notifications.routes.js";
 
 const r = Router();
 r.use(logoutRouter("accountant"));
@@ -57,6 +58,7 @@ r.get("/messaging/templates", handle(async (req, res) => {
   res.json(await inTenant(req, getTemplates));
 }));
 
+r.use("/notifications", staffNotificationsRouter());
 r.use("/ledger", requireModule("finance"), ledger);
 r.use("/finance", requireModule("fees"), fees);
 

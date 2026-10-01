@@ -1,5 +1,6 @@
 // الرئيسية: الملخص وبيانات الجلسة
 import { Router } from "express";
+import { env } from "../../config/env.js";
 import { logoId } from "../shared/school-logo.service.js";
 import { accessSummary } from "../shared/subscription.service.js";
 import { schoolLinks } from "../../core/links.js";
@@ -16,6 +17,7 @@ r.get("/me", handle(async (req, res) => {
   const [p] = await inTenant(req, (q) => q("SELECT setup_completed_at FROM school_profile WHERE tenant_id = app_tenant()"));
   res.json({
     modules: req.modules,
+    ai_ready: Boolean(env.ANTHROPIC_API_KEY),
     setup_completed: Boolean(p?.setup_completed_at),
     name: req.user.full_name,
     must_change_password: req.user.must_change_password,

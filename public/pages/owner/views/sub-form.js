@@ -48,9 +48,9 @@ export function subForm(refs, defaults = {}) {
   const drawAddons = () => {
     const p = selPlan();
     const inPlan = new Set(p ? p.features : [...customBox.querySelectorAll("input:checked")].map((x) => x.value));
-    const extra = catalog.filter((f) => !inPlan.has(f.key));
+    const extra = catalog.filter((f) => f.kind === "service" && !inPlan.has(f.key));
     mount(addonsBox, extra.length ? h("details", { open: addonState.size > 0 },
-      h("summary", { class: "small", style: "cursor:pointer;margin:6px 0" }, `مميزات إضافية خارج الباقة (${addonState.size})`),
+      h("summary", { class: "small", style: "cursor:pointer;margin:6px 0" }, `خدمات إضافية خارج الباقة (${addonState.size})`),
       extra.map((f) => {
         const cur = addonState.get(f.key);
         const chk = h("input", { type: "checkbox", checked: !!cur, style: "width:18px;height:18px;flex:none" });
@@ -64,8 +64,8 @@ export function subForm(refs, defaults = {}) {
   const drawCustom = () => {
     if (selPlan()) return mount(customBox);
     const chosen = new Set(defaults.features || catalog.filter((f) => f.kind === "core").map((f) => f.key));
-    mount(customBox, field("اسم الباقة", planName), h("div", { class: "xb-toggles", style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 12px" },
-      catalog.map((f) => h("label", { class: "row", style: "align-items:center;gap:6px;min-width:0" },
+    mount(customBox, field("اسم الباقة", planName), sub("كل المميزات والأقسام مشمولة. اختر الخدمات فقط:"), h("div", { class: "xb-toggles", style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 12px" },
+      catalog.filter((f) => f.kind === "service").map((f) => h("label", { class: "row", style: "align-items:center;gap:6px;min-width:0" },
         h("input", { type: "checkbox", value: f.key, checked: chosen.has(f.key), style: "width:18px;height:18px;flex:none", onchange: drawAddons }), f.name))));
   };
   const draw = () => {

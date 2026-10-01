@@ -104,6 +104,7 @@ export function createApp() {
   app.get("/reset", send("reset", "index.html"));     // صفحة تغيير كلمة المرور بالرابط
   app.get("/reset/", send("reset", "index.html"));
   app.get("/", send("home", "index.html"));
+  app.get("/verify/:code", send("verify", "index.html"));   // التحقق من الشهادات برمز QR
 
   const school = (handler) => (req, res, next) =>
     (isSchoolCode(req.params.school) ? handler(req, res) : next());

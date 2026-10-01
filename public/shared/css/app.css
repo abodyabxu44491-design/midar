@@ -1135,3 +1135,143 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .tabs-layout > [role="tabpanel"], .profile-layout > * { min-width: 0; }
 .panel { min-width: 0; }
 .panel > table, .panel > .grid, .panel > div > table.grid { display: block; overflow-x: auto; max-width: 100%; }
+
+/* ===================== الإشعارات ===================== */
+.bell-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff; cursor: pointer; -webkit-app-region: no-drag; }
+.bell-btn:hover { background: rgba(255,255,255,.12); }
+.bell-count { position: absolute; top: -6px; inset-inline-end: -6px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px;
+  background: var(--amber); color: var(--navy); font-size: 11px; font-weight: 700; line-height: 19px; text-align: center; }
+.inbox-dialog { display: grid; gap: 12px; min-width: min(460px, 86vw); }
+.inbox-list { display: grid; gap: 6px; max-height: 60vh; overflow-y: auto; }
+.inbox-item { display: flex; gap: 10px; align-items: flex-start; text-align: start; width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit; cursor: pointer; }
+.inbox-item.unread { border-color: var(--teal); background: var(--teal-soft); }
+.inbox-item .ic { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--navy-soft); color: var(--navy); }
+.inbox-item .tx { display: grid; gap: 2px; min-width: 0; }
+.inbox-item .tx small { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.inbox-item .tx small.muted { font-size: 11.5px; }
+.push-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+.push-toggle .sub { margin: 0; }
+.rules-table { width: 100%; border-collapse: collapse; }
+.rules-table th, .rules-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: start; }
+.rules-table td.c, .rules-table th.c { text-align: center; width: 92px; }
+@media (max-width: 640px) { .bell-btn { width: 34px; height: 34px; } }
+
+/* ===================== السلوك ===================== */
+.beh-kpis .s-present b { color: var(--teal); } .beh-kpis .s-absent b { color: var(--red); }
+.beh-list { display: grid; gap: 6px; }
+.beh-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #fff; border: 1px solid var(--line); }
+.beh-row .pts { flex: none; min-width: 46px; text-align: center; font-weight: 700; border-radius: 8px; padding: 4px 6px; }
+.beh-row.positive .pts { color: var(--teal); background: var(--teal-soft); }
+.beh-row.negative .pts { color: var(--red); background: var(--red-soft); }
+.beh-row small.muted { color: var(--muted); font-size: 12px; }
+.beh-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.beh-cat { border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 6px 12px; font: inherit; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.beh-cat.positive { border-color: var(--teal); color: var(--teal); }
+.beh-cat.negative { border-color: var(--red); color: var(--red); }
+.beh-cat.on.positive { background: var(--teal); color: #fff; }
+.beh-cat.on.negative { background: var(--red); color: #fff; }
+.beh-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 320px; overflow-y: auto; }
+.beh-pick label { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; }
+.beh-pick label:has(input:checked) { border-color: var(--teal); background: var(--teal-soft); }
+.score-pill { display: inline-block; min-width: 44px; text-align: center; padding: 2px 8px; border-radius: 12px; font-weight: 700; background: var(--teal-soft); color: var(--teal); }
+.score-pill.low { background: var(--red-soft); color: var(--red); }
+
+/* ===================== الشهادات ===================== */
+.verify-card .verify-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+.verify-card .verify-head h1 { margin: 0; font-size: 22px; }
+.verify-card .verify-head p { margin: 2px 0 0; color: var(--muted); }
+.verify-card.valid .verify-head { color: var(--teal); }
+.verify-card.revoked .verify-head { color: var(--red); }
+.cert-sheet { display: grid; gap: 18px; }
+.cert { background: #fff; border: 3px double var(--navy); border-radius: 6px; padding: 26px 30px; position: relative; color: var(--ink); }
+.cert .cert-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 2px solid var(--navy); padding-bottom: 10px; }
+.cert .cert-top .doc-school-logo, .cert .cert-top img { max-height: 64px; max-width: 120px; }
+.cert .cert-school { font-weight: 700; font-size: 18px; color: var(--navy); }
+.cert h2.cert-title { text-align: center; font-size: 24px; margin: 18px 0 6px; color: var(--navy); }
+.cert .cert-scope { text-align: center; color: var(--muted); margin-bottom: 14px; }
+.cert .cert-intro { text-align: center; font-size: 16px; line-height: 2; margin: 0 0 12px; }
+.cert .cert-intro b { font-size: 19px; }
+.cert table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 14px; }
+.cert th, .cert td { border: 1px solid var(--line); padding: 6px 8px; text-align: center; }
+.cert th { background: var(--navy-soft); color: var(--navy); }
+.cert .cert-result { text-align: center; font-size: 18px; font-weight: 700; margin: 10px 0; }
+.cert .cert-result.pass { color: var(--teal); } .cert .cert-result.fail { color: var(--red); }
+.cert .cert-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-top: 18px; }
+.cert .cert-qr { text-align: center; font-size: 11px; color: var(--muted); }
+.cert .cert-qr img { width: 92px; height: 92px; display: block; margin: 0 auto 4px; }
+.cert .cert-sign { text-align: center; min-width: 180px; }
+.cert .cert-sign .line-sign { border-top: 1px solid var(--ink); margin-top: 38px; padding-top: 4px; }
+.cert.revoked::after { content: "ملغاة"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 80px; color: rgba(184,65,47,.18); transform: rotate(-20deg); pointer-events: none; }
+@media print {
+  .cert-sheet { gap: 0; }
+  .cert { break-after: page; page-break-after: always; border-radius: 0; min-height: 26cm; }
+  .cert:last-child { break-after: auto; page-break-after: auto; }
+}
+@media (max-width: 640px) { .cert { padding: 16px 12px; } .cert h2.cert-title { font-size: 19px; } .cert table { font-size: 12px; } }
+
+/* ===================== الاختبار الإلكتروني ===================== */
+.oe-take { display: grid; gap: 12px; }
+.oe-bar { position: sticky; top: 0; z-index: 15; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: var(--navy); color: #fff; padding: 10px 14px; border-radius: 12px; }
+.oe-bar small { display: block; color: rgba(255,255,255,.8); }
+.oe-bar-side { display: flex; align-items: center; gap: 12px; text-align: end; }
+.oe-timer { font-size: 22px; font-variant-numeric: tabular-nums; direction: ltr; background: rgba(255,255,255,.12); padding: 2px 10px; border-radius: 8px; }
+.oe-timer.low { background: var(--red); }
+.oe-section h3 { margin: 6px 0 2px; color: var(--navy); }
+.oe-question { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.oe-qhead { display: flex; justify-content: space-between; align-items: center; }
+.oe-qtext { font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+.oe-img { display: block; margin: 0 auto; height: auto; border-radius: 8px; max-height: 360px; }
+.oe-choices { display: grid; gap: 8px; }
+.oe-choices.tf { grid-template-columns: 1fr 1fr; }
+.oe-choices label { display: flex; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; min-height: 48px; }
+.oe-choices label:has(input:checked) { border-color: var(--teal); background: var(--teal-soft); }
+.oe-choices input { width: 20px; height: 20px; flex: none; }
+.oe-fill { display: grid; gap: 8px; }
+.oe-match { display: grid; gap: 8px; }
+.oe-match-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; }
+.oe-match-row select { width: 100%; min-height: 44px; }
+.oe-order { margin: 0; padding-inline-start: 22px; display: grid; gap: 6px; }
+.oe-order li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.oe-order-btns { display: flex; gap: 4px; flex: none; }
+.oe-table { border-collapse: collapse; width: 100%; } .oe-table td, .oe-table th { border: 1px solid var(--line); padding: 6px; text-align: center; }
+.oe-submit { padding: 6px 0 20px; }
+.oe-done { text-align: center; } .oe-score { font-size: 22px; font-weight: 700; color: var(--teal); }
+.oe-review-list { display: grid; gap: 10px; max-height: 70vh; overflow-y: auto; min-width: min(560px, 86vw); }
+.oe-review { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; background: #fff; }
+.oe-opts { margin: 0; padding-inline-start: 18px; } .oe-opts li.right { color: var(--teal); font-weight: 700; } .oe-opts li.picked::after { content: " ← إجابته"; color: var(--muted); font-weight: 400; font-size: 12px; }
+.oe-essay { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+@media (max-width: 640px) { .oe-match-row { grid-template-columns: 1fr; } }
+
+/* ===================== شؤون الموظفين ===================== */
+.sa-list { display: grid; gap: 6px; margin: 10px 0; }
+.sa-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.sa-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+.sa-st { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; min-height: 34px; }
+.sa-st.on.s-present { background: var(--teal); color: #fff; border-color: var(--teal); }
+.sa-st.on.s-late { background: var(--amber); color: var(--navy); border-color: var(--amber); }
+.sa-st.on.s-absent { background: var(--red); color: #fff; border-color: var(--red); }
+.sa-st.on.s-leave, .sa-st.on.s-excused { background: var(--violet); color: #fff; border-color: var(--violet); }
+.lp-view { display: grid; gap: 8px; min-width: min(560px, 86vw); }
+.lp-block p { margin: 2px 0 0; white-space: pre-wrap; }
+.lp-form textarea { min-height: 70px; }
+.cal-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-month .dow { text-align: center; font-size: 12px; color: var(--muted); font-weight: 700; }
+.cal-day { min-height: 84px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 4px; display: grid; align-content: start; gap: 2px; min-width: 0; }
+.cal-day.out { background: transparent; border-style: dashed; opacity: .55; }
+.cal-day.today { border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+.cal-day .n { font-size: 12px; font-weight: 700; color: var(--navy); }
+.cal-ev { font-size: 11px; line-height: 1.35; border-radius: 4px; padding: 1px 4px; background: var(--navy-soft); color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; border: 0; text-align: start; font-family: inherit; }
+.cal-ev.holiday { background: var(--amber-soft); color: var(--amber-ink); }
+.cal-ev.exam { background: var(--red-soft); color: var(--red); }
+.cal-ev.term { background: var(--teal-soft); color: var(--teal); }
+.cal-list { display: grid; gap: 6px; }
+.cal-item { display: flex; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; align-items: flex-start; }
+.cal-item .d { flex: none; width: 54px; text-align: center; border-radius: 8px; background: var(--navy-soft); color: var(--navy); padding: 4px; font-weight: 700; line-height: 1.2; }
+.cal-item .d small { display: block; font-weight: 400; font-size: 11px; }
+@media (max-width: 640px) {
+  .sa-row { grid-template-columns: 1fr; }
+  .cal-month { display: none; }
+}

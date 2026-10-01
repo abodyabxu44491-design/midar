@@ -181,6 +181,7 @@ export default async function students({ me, refresh }) {
         if (tab) f.open(tab);
       };
       const actions = {
+        printCertificate: (id) => api(`${A}/certificates/print`, { ids: [id] }),
         addAlert: () => alertDialog(s.name, async (b) => {
           await api(`${A}/students/${s.id}/alerts`, b);
           data.alerts = await api(`${A}/students/${s.id}/alerts`);

@@ -801,7 +801,12 @@ test("أقسام المنصة: الإيقاف يخفي القسم ويرفضه �
   assert.equal((await tc.get("/api/teacher/attendance/class/1?date=2026-09-10")).status, 404);
 
   // قيود منطقية: كشوف الدرجات لا تعمل بدون الاختبارات، والتبرعات بدون المالية
-  assert.equal((await S.admin.put("/api/admin/settings/modules", { exams: false })).status, 400, "كشوف الدرجات تحتاج الاختبارات");
+  // إيقاف الاختبارات يوقف ما يعتمد عليها (كشوف الدرجات والاختبارات الإلكترونية)، وتشغيلها وحدها يحتاجها
+  const off = await S.admin.put("/api/admin/settings/modules", { exams: false });
+  assert.equal(off.status, 200);
+  assert.equal(off.data.reports, false, "كشوف الدرجات أُوقفت معها");
+  assert.equal((await S.admin.put("/api/admin/settings/modules", { reports: true })).status, 400, "كشوف الدرجات تحتاج الاختبارات");
+  assert.equal((await S.admin.put("/api/admin/settings/modules", { exams: true, reports: true })).status, 200);
   assert.equal((await S.admin.put("/api/admin/settings/modules", { finance: false, donations: true })).status, 400);
 
   // التشغيل من جديد يعيد القسم كما كان

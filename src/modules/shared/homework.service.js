@@ -1,6 +1,7 @@
 // الواجبات: المعلم ينشئها ويرصد التسليم، وولي الأمر يتابعها في ملف الطالب
 import { z, t } from "../../core/http/validate.js";
 import { notFound } from "../../core/http/errors.js";
+import { notify } from "./notify.service.js";
 
 export const createSchema = z.object({
   class_id: t.id,
@@ -44,6 +45,9 @@ export async function create(q, b, { teacherId = null, actor }) {
     `INSERT INTO assignments (tenant_id, class_id, subject_id, teacher_id, title, details, due_date, created_by)
      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
     [b.class_id, b.subject_id, teacherId, b.title, b.details, b.due_date, actor]);
+  const students = await q("SELECT id FROM students WHERE class_id = $1 AND archived_at IS NULL", [b.class_id]);
+  await notify(q, { event: "homework", students: students.map((s) => s.id), title: `واجب جديد: ${b.title}`,
+    body: b.due_date ? `التسليم ${b.due_date}` : null, link: "homework" });
   return row;
 }
 
