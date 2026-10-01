@@ -87,8 +87,12 @@ export async function transaction(ctx, fn) {
               set_config('app.ip', ${lit(ctx.ip || "")}, true), set_config('app.platform', ${lit(ctx.platform ? "on" : "off")}, true),
               set_config('app.session_hash', ${lit(ctx.sessionHash || "")}, true)`);
     const q = async (sql, params = []) => (await client.query(sql, params)).rows;
+    // أعمال تُنفذ بعد نجاح المعاملة فقط (إرسال إشعار أو رسالة): لا يُرسل شيء عن بيانات أُلغيت
+    const after = [];
+    q.afterCommit = (job) => after.push(job);
     const result = await fn(q, client);
     await client.query("COMMIT");
+    for (const job of after) Promise.resolve().then(job).catch((e) => console.error("[after-commit]", e.message));
     return result;
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});

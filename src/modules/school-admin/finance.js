@@ -1,7 +1,7 @@
 // الرسوم: الفواتير، الدفعات النقدية، الاسترداد، الإلغاء
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle } from "../../core/http/errors.js";
+import { handle, notFound } from "../../core/http/errors.js";
 import { parse, t } from "../../core/http/validate.js";
 import * as finance from "../shared/finance.service.js";
 import * as payments from "../shared/payments.service.js";
@@ -69,7 +69,10 @@ r.post("/invoices/:id/void", handle(async (req, res) => {
 
 r.get("/students/:id/payments", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  res.json(await inTenant(req, (q) => finance.listPayments(q, id)));
+  res.json(await inTenant(req, async (q) => {
+    if (!(await q("SELECT 1 FROM students WHERE id = $1", [id])).length) throw notFound("الطالب غير موجود");
+    return finance.listPayments(q, id);
+  }));
 }));
 
 // إشعارات التحويل البنكي من أولياء الأمور

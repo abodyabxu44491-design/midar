@@ -7,12 +7,11 @@ import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
 
 export default async function dashboard({ me, goTo }) {
-  const [d, alerts, notifications, templates, completeness] = await Promise.all([
+  const [d, alerts, notifications, templates] = await Promise.all([
     api(`${A}/dashboard`),
     optional(api(`${A}/analytics/alerts`), { counts: {}, absentees: [], overdue: [] }),
     optional(api(`${A}/analytics/notifications`), { items: [], counts: {} }),
-    optional(api(`${A}/messaging/templates`), null),
-    me.modules?.data_assistant ? optional(api(`${A}/assistant/checklist`), null) : null]);
+    optional(api(`${A}/messaging/templates`), null)]);
   const canMessage = Boolean(templates);
   const c = alerts.counts;
 
@@ -63,12 +62,6 @@ export default async function dashboard({ me, goTo }) {
       me.modules?.fees === false ? null : ["رسوم غير محصّلة", money(d.fees_remaining), `المحصّل ${money(d.fees_paid)}`],
     ].filter(Boolean)),
 
-    // اكتمال البيانات: يظهر فقط ما دامت ناقصة، ويفتح مساعد الإدخال
-    completeness && completeness.score < 100 ? panel("اكتمال بيانات المدرسة", null,
-      h("div", { class: "dash-complete" }, h("b", {}, `${completeness.score}%`), h("div", { class: "bar" }, h("i", { style: `width:${completeness.score}%` })),
-        btn("أكمل البيانات", () => goTo?.("assistant"), "soft sm")),
-      sub(completeness.items.filter((x) => x.level === "todo" || x.level === "warn").slice(0, 3).map((x) => x.hint || x.title).join(" · "))) : null,
-
     center(notifications, goTo || (() => {})),
 
     quickSearch(goTo || (() => {})),
@@ -90,7 +83,6 @@ export default async function dashboard({ me, goTo }) {
     // الروابط: كل رابط يُفتح بالضغط ويُنسخ بزر واحد
     panel("روابط مدرستك", null,
       linkRow("صفحة الطلاب وأولياء الأمور", L?.public?.home || directoryLink(me), { note: "شاركها مع الأهالي" }),
-      copyRow("رمز فتح صفحة الطلاب", me.school.directory_code, { note: "يُطلب عند فتح الصفحة إن كانت برمز" }),
       linkRow("دخول الإدارة والمعلمين والمحاسبين", staffLink(me), { note: "خاص بمنسوبي المدرسة" }),
       sub("معرّف كل طالب (لفتح ملفه) تجده في تبويب الطلاب.")),
   ];

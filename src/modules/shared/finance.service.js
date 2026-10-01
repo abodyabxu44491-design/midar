@@ -3,6 +3,7 @@
 import { z, t } from "../../core/http/validate.js";
 import { notFound, badRequest } from "../../core/http/errors.js";
 import { addSystemEntry } from "./ledger.service.js";
+import { notify } from "./notify.service.js";
 
 export const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };
 
@@ -87,6 +88,8 @@ export async function createInvoices(q, b, actor) {
              VALUES (app_tenant(), $1, $2, $3, $4, $5)`, [s.id, b.title, b.amount, b.due_date, actor]);
     await q("UPDATE students SET fees_enabled = true WHERE id = $1 AND NOT fees_enabled", [s.id]);
   }
+  await notify(q, { event: "invoice", students: students.map((s) => s.id), title: `فاتورة جديدة: ${b.title}`,
+    body: `المبلغ ${b.amount}${b.due_date ? ` — تستحق ${b.due_date}` : ""}`, link: "fees" });
   return students.length;
 }
 
@@ -128,6 +131,11 @@ export async function recordPayment(q, { invoiceId, kind = "payment", amount, me
     sourceType: kind === "refund" ? "refund" : "fee",
     sourceId: payment.id, actor,
   });
+  if (kind === "payment" && !paidOn) {
+    const [st] = await q("SELECT student_id FROM invoices WHERE id = $1", [invoiceId]);
+    await notify(q, { event: "payment", students: [st.student_id], title: `تم استلام دفعة: ${amount}`,
+      body: `${info?.title || "رسوم"} — إيصال ${receipt}`, link: "fees" });
+  }
   return { receipt, amount };
 }
 

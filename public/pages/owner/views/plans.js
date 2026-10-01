@@ -29,7 +29,9 @@ export default async function plans({ refresh }) {
       h("div", {}, sub("تجربة مجانية"), h("b", {}, p.trial_enabled ? "متاحة" : "لا"))),
     p.discount_kind && p.discount_kind !== "none" ? sub(`خصم: ${{ percent: `${Number(p.discount_value)}%`, amount: `${Number(p.discount_value)} ${CUR[p.currency] || ""}`,
       price: `سعر بعد الخصم ${p.sale_monthly_price ?? "—"} شهري / ${p.sale_yearly_price ?? "—"} سنوي` }[p.discount_kind]}${p.discount_starts_at ? ` من ${String(p.discount_starts_at).slice(0, 10)}` : ""}${p.discount_ends_at ? ` حتى ${String(p.discount_ends_at).slice(0, 10)}` : ""}`) : null,
-    h("div", { class: "xb-chips", style: "margin-top:10px" }, p.features.map((k) => h("span", { class: "xb-chip", style: "cursor:default" }, icons.check({ size: 12 }), " ", byKey.get(k)?.name || k))));
+    h("div", { class: "xb-chips", style: "margin-top:10px" },
+      h("span", { class: "xb-chip", style: "cursor:default" }, icons.check({ size: 12 }), " كل المميزات والأقسام"),
+      p.features.filter((k) => byKey.get(k)?.kind === "service").map((k) => h("span", { class: "xb-chip", style: "cursor:default" }, icons.check({ size: 12 }), " ", byKey.get(k)?.name || k))));
 
   return [
     h("div", { class: "row", style: "justify-content:space-between;align-items:center;margin-bottom:10px" },
@@ -74,13 +76,16 @@ function editor(p, catalog, refresh) {
 
   // المميزات: علامة لكل ميزة، والترتيب بأزرار أعلى/أسفل
   let order = [...p.features, ...catalog.filter((c) => !p.features.includes(c.key) && c.is_active).map((c) => c.key)];
-  const on = new Set(p.features);
+  // كل الأقسام والمميزات الأساسية مشمولة في كل باقة دائمًا (لا مميزات مدفوعة منفصلة)، والاختيار للخدمات فقط
+  const always = (c) => c.kind === "core" || c.kind === "module";
+  const on = new Set([...p.features, ...catalog.filter(always).map((c) => c.key)]);
   const featBox = h("div");
   const byKey = new Map(catalog.map((c) => [c.key, c]));
   const drawFeats = () => mount(featBox, order.filter((k) => byKey.has(k)).map((k, i) => {
     const c = byKey.get(k);
     return h("div", { class: "row", style: "align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--line)" },
-      h("input", { type: "checkbox", checked: on.has(k), style: "width:18px;height:18px;flex:none", onchange: (e) => { if (e.target.checked) on.add(k); else on.delete(k); } }),
+      h("input", { type: "checkbox", checked: on.has(k) || always(c), disabled: always(c), title: always(c) ? "مشمولة في كل الباقات" : "",
+        style: "width:18px;height:18px;flex:none", onchange: (e) => { if (e.target.checked) on.add(k); else on.delete(k); } }),
       h("span", { style: "flex:1;min-width:0" }, c.name, " ", h("small", { class: "sub" }, `${c.category}${c.kind === "module" ? " — قسم" : c.kind === "core" ? " — أساسي" : " — خدمة"}${c.is_active ? "" : " — متوقفة"}`)),
       h("button", { type: "button", class: "xb-icon", "aria-label": "أعلى", onclick: () => { if (i > 0) { [order[i - 1], order[i]] = [order[i], order[i - 1]]; drawFeats(); } } }, icons.up({ size: 14 })),
       h("button", { type: "button", class: "xb-icon", "aria-label": "أسفل", onclick: () => { if (i < order.length - 1) { [order[i + 1], order[i]] = [order[i], order[i + 1]]; drawFeats(); } } }, icons.down({ size: 14 })));
@@ -174,12 +179,12 @@ async function applyDialog(p, plan, done) {
 function catalogPanel(catalog, refresh) {
   const KIND = { core: "أساسي", module: "قسم برمجي", service: "خدمة" };
   return panel("كتالوج المميزات", btn("+ ميزة (خدمة)", () => featureDialog(null, refresh), "sm"),
-    sub("الأقسام البرمجية الجديدة تظهر هنا تلقائيًا عند إضافتها للمنصة، ثم تحدد أنت الباقات التي تشملها. الخدمات (دعم، تدريب…) تضيفها من هنا."),
+    sub("كل الأقسام البرمجية مشمولة في كل الباقات تلقائيًا ولا تُباع منفصلة، والمدرسة توقف ما لا تحتاجه من إعداداتها. الخدمات (دعم، تدريب…) تضيفها من هنا وتحدد الباقات التي تشملها."),
     catalog.map((c) => h("div", { class: "xb-list-row" },
       h("div", { class: c.is_active ? "" : "muted-row" }, h("b", {}, c.name), " ", badge(KIND[c.kind], c.kind === "module" ? "blue" : "gray"),
         c.is_active ? null : badge("متوقفة", "red"),
-        sub([c.category, c.description, `في ${c.plans} باقة`, c.requestable ? "تُطلب كإضافة" : null,
-          c.addon_yearly != null ? `سعر الإضافة سنويًا ${c.addon_yearly}` : null].filter(Boolean).join(" — "))),
+        sub([c.category, c.description, c.kind === "service" ? `في ${c.plans} باقة` : "في كل الباقات", c.kind === "service" && c.requestable ? "تُطلب كإضافة" : null,
+          c.kind === "service" && c.addon_yearly != null ? `سعر الإضافة سنويًا ${c.addon_yearly}` : null].filter(Boolean).join(" — "))),
       h("div", { class: "acts" }, btn("تعديل", () => featureDialog(c, refresh), "ghost sm")))));
 }
 
@@ -196,8 +201,9 @@ function featureDialog(c, refresh) {
   const d = dialog(isNew ? "ميزة جديدة" : `تعديل — ${c.name}`, h("div", {},
     isNew ? field("المفتاح", f.key, "إنجليزي صغير و _") : null,
     h("div", { class: "row" }, field("الاسم", f.name), field("الفئة", f.category)), field("الوصف", f.description),
-    h("div", { class: "row" }, field("سعر الإضافة شهريًا", f.addon_monthly), field("سنويًا", f.addon_yearly), field("الترتيب", f.sort)),
-    h("label", { class: "row", style: "align-items:center;gap:6px" }, f.requestable, "تستطيع المدرسة طلبها كإضافة"),
+    !c || c.kind === "service" ? [h("div", { class: "row" }, field("سعر الإضافة شهريًا", f.addon_monthly), field("سنويًا", f.addon_yearly), field("الترتيب", f.sort)),
+      h("label", { class: "row", style: "align-items:center;gap:6px" }, f.requestable, "تستطيع المدرسة طلبها كإضافة")]
+      : [notice("قسم برمجي: مشمول في كل الباقات دائمًا ولا يُباع منفصلًا.", ""), field("الترتيب", f.sort)],
     !isNew ? h("label", { class: "row", style: "align-items:center;gap:6px" }, f.is_active, "مفعّلة في الكتالوج") : null),
   [btn("حفظ", async () => {
     const num = (el) => (el.value === "" ? null : Number(el.value));

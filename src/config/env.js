@@ -26,6 +26,12 @@ const schema = z.object({
   OWNER_ALLOWED_IPS: z.string().default(""),
   // مفتاح تشفير كلمات المرور المؤقتة للمعلمين (64 خانة hex). بدونه لا تُحفظ نسخة قابلة للعرض ويعمل النظام كالسابق. أنشئه: npm run credential:key
   CREDENTIAL_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "CREDENTIAL_KEY يجب أن يكون 64 خانة hex (npm run credential:key)").optional().or(z.literal("")),
+  // الإشعارات الفورية (Web Push): مفاتيح VAPID اختيارية. بدونها تُشتق تلقائيًا من مفتاح الخادم (ثابتة ما دام ثابتًا)
+  VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/).optional().or(z.literal("")),
+  VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/).optional().or(z.literal("")),
+  // المساعد الذكي: يظهر للمدارس فقط عند ضبط المفتاح
+  ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional().or(z.literal("")),
+  AI_MODEL: z.string().regex(/^claude-[a-z0-9.-]+$/).optional().or(z.literal("")),
   COOKIE_SECURE: bool.default("true"),
   // separate = كوكي منفصل لكل دور (سيرفر خاص) | single = كوكي واحد باسم __session (مطلوب في Firebase Hosting)
   SESSION_COOKIE_MODE: z.enum(["separate", "single"]).default("separate"),

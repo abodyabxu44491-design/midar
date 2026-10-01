@@ -22,11 +22,30 @@ const open = {
   accountant: portal("../accountant/app.js", "startAccountant"),
 };
 
+// التطبيق المثبّت يتبع الدور: بعد معرفة دور الحساب يصبح رابط الصفحة وملف التطبيق لهذا الدور،
+// فإذا ثبّت المدير التطبيق يفتح على الإدارة، والمعلم على بوابة المعلم، والمحاسب على المحاسب.
+const urlRole = new URLSearchParams(location.search).get("role");
+function setAppRole(role) {
+  const u = new URL(location.href);
+  if (u.searchParams.get("role") !== role) {
+    u.searchParams.set("role", role);
+    history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+  }
+  const link = document.querySelector('link[rel="manifest"]');
+  const href = `/${encodeURIComponent(school)}/app.webmanifest?as=${role}`;
+  if (link && link.getAttribute("href") !== href) link.setAttribute("href", href);
+  document.documentElement.dataset.app = { admin: "الإدارة", teacher: "المعلم", accountant: "المحاسب" }[role];
+  document.querySelector(".install-bar b")?.replaceChildren(`ثبّت تطبيق ${document.documentElement.dataset.app}`);
+}
+const enter = (role, ...args) => { setAppRole(role); return open[role](...args); };
+
 async function start() {
   // لو كانت هناك جلسة سارية نفتح لوحتها مباشرة.
   // كوكي كل دور مقصور على مسار واجهته (/api/admin …)، فنسأل الدور الأخير أولًا (طلب واحد غالبًا)،
   // ثم بقية الأدوار معًا بالتوازي بدل واحد بعد الآخر.
-  const last = sessionStorage.getItem("midar_role") || localStorage.getItem("midar_last_role");
+  // تطبيق مثبّت لدور معيّن يفتح ذلك الدور فقط (لا يفتح لوحة دور آخر مسجل على الجهاز نفسه)
+  const pinned = open[urlRole] ? urlRole : null;
+  const last = pinned || sessionStorage.getItem("midar_role") || localStorage.getItem("midar_last_role");
   const roles = ["admin", "teacher", "accountant"];
   // الشبكة لا تستجيب (حتى لو قال المتصفح إنه متصل: واي فاي بلا إنترنت، أو الخادم غير متاح)
   let netDown = !navigator.onLine;
@@ -37,13 +56,13 @@ async function start() {
   let role = null;
   if (navigator.onLine) {
     if (last && open[last]) role = await probe(last).catch(() => null);
-    if (!role) role = await Promise.any(roles.filter((r) => r !== last).map(probe)).catch(() => null);
+    if (!role && !pinned) role = await Promise.any(roles.filter((r) => r !== last).map(probe)).catch(() => null);
   }
-  if (role) { sessionStorage.setItem("midar_role", role); localStorage.setItem("midar_last_role", role); return open[role](); }
+  if (role) { sessionStorage.setItem("midar_role", role); localStorage.setItem("midar_last_role", role); return enter(role); }
   // بدون اتصال: المعلم يكمل عمله من بيانات جهازه (إن سبق تجهيزها خلال آخر 7 أيام)
   const profile = offlineProfile();
-  if (netDown && profile?.role === "teacher" && profile.me?.school?.id === school && Date.now() - profile.savedAt < 7 * 86400000) {
-    return open.teacher(profile.me);
+  if (netDown && (!pinned || pinned === "teacher") && profile?.role === "teacher" && profile.me?.school?.id === school && Date.now() - profile.savedAt < 7 * 86400000) {
+    return enter("teacher", profile.me);
   }
   showLogin(netDown ? "لا يوجد اتصال بالإنترنت. سجّل الدخول مرة واحدة متصلًا لتجهيز العمل بدون اتصال." : undefined);
 }
@@ -112,7 +131,7 @@ function showLogin(error) {
       localStorage.setItem("midar_last_role", r.role);
       localStorage.setItem("midar_school", school);
       mount(app, h("p", { class: "empty loading" }, "جارٍ فتح لوحتك…"));
-      await open[r.role]();
+      await enter(r.role);
     } catch (e) {
       if (e.code === "locked" && e.retryAfter) {
         const until = Date.now() + e.retryAfter * 1000;

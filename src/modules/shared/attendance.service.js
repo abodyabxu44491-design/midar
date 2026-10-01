@@ -1,6 +1,7 @@
 // منطق الحضور (مشترك بين الإدارة والمعلم)
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
+import { notify } from "./notify.service.js";
 
 export const STATUSES = ["present", "absent", "late", "excused"];
 const LABEL = { present: "حاضر", absent: "غائب", late: "متأخر", excused: "غياب بعذر" };
@@ -70,6 +71,18 @@ export async function mark(q, { date, reason, entries }, { actor, allowedClass }
             OR (EXCLUDED.excuse IS NOT NULL AND attendance.excuse IS DISTINCT FROM EXCLUDED.excuse)`,
       [e.student_id, date, e.status, existing.has(e.student_id) && changes.includes(e) ? `تعديل من ${LABEL[existing.get(e.student_id)]}: ${reason}` : null, actor, excuse],
     );
+  }
+  // إشعار ولي الأمر بالغياب أو التأخر الجديد (لأيام قريبة فقط، لا عند إدخال سجلات قديمة)
+  const fresh = entries.filter((e) => (e.status === "absent" || e.status === "late") && existing.get(e.student_id) !== e.status);
+  if (fresh.length && date >= new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)) {
+    const names = new Map(students.map((s) => [Number(s.id), s.full_name]));
+    for (const e of fresh) {
+      const name = names.get(Number(e.student_id));
+      await notify(q, { event: e.status === "absent" ? "absence" : "late", students: [e.student_id], urgent: e.status === "absent",
+        title: e.status === "absent" ? `غياب: ${name}` : `تأخر: ${name}`,
+        body: `${e.status === "absent" ? "سُجّل غياب" : "سُجّل تأخر"} ${name} يوم ${date}${e.excuse ? ` — ${e.excuse}` : ""}.`,
+        link: "attendance" });
+    }
   }
   return { saved: entries.length, changed: changes.length };
 }

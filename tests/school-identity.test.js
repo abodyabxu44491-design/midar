@@ -83,8 +83,8 @@ test("صور المعلمين: للإدارة دائمًا، ولولي الأم
   assert.equal((await A.admin.put("/api/admin/settings/public-page", { show_teacher_photos: true })).status, 200);
   assert.match((await parent()).teachers[0].photo, /^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "ولي الأمر بعد التفعيل (بلا أسطر داخل base64)");
   assert.match((await section()).teachers[0].photo, /^data:image\/png;base64,/);
-  assert.equal((await client(srv.base).post(`/api/public/${A.id}/section`, { access: "WRONG123", class_id: s.cls })).status, 401, "لا صور بدون رمز الصفحة");
 
   await A.admin.put("/api/admin/settings/public-page", { show_teacher_photos: false });
+  assert.equal((await client(srv.base).post(`/api/public/${A.id}/section`, { class_id: s.cls })).data.teachers[0].photo, null, "إيقاف النشر يخفي الصور عن الصفحة المفتوحة");
   assert.equal((await parent()).teachers[0].photo, null, "الإيقاف يخفيها فورًا");
 });

@@ -61,13 +61,16 @@ export const LOCK_MESSAGE = {
   ended: "لا يوجد اشتراك فعّال لمدرستك. تواصل مع إدارة المنصة.",
 };
 
-// المميزات المستحقة = لقطة الباقة وقت التفعيل + الإضافات السارية
+// كل المميزات مشمولة لكل المدارس (لا توجد مميزات مدفوعة منفصلة): الباقات تختلف بالسعر والمدة وحدود الطلاب والمعلمين فقط.
+// المدرسة تشغّل وتوقف ما تريد من «الإعدادات ← أقسام المنصة». الخدمات (الدعم والتدريب) تبقى حسب الباقة.
 export function entitlements(sub, now = today()) {
-  if (!sub) return new Set(KEYS);
-  const set = new Set(sub.snapshot?.features || []);
-  for (const a of sub.addons || []) if (!a.until || a.until >= now) set.add(a.key);
+  const set = new Set(KEYS);
+  for (const k of sub?.snapshot?.features || []) set.add(k);
+  for (const a of sub?.addons || []) if (!a.until || a.until >= now) set.add(a.key);
   return set;
 }
+// مفاتيح كل المميزات الأساسية والأقسام (تدخل في كل باقة تلقائيًا)
+export const allFeatureKeys = async (q) => (await q("SELECT key FROM features WHERE kind IN ('core', 'module') AND is_active ORDER BY sort, key")).map((r) => r.key);
 
 // الاشتراك الحالي للمدرسة (داخل سياق المدرسة)
 export async function currentSub(q) {
@@ -91,7 +94,7 @@ export async function planSnapshot(q, planId) {
   return {
     plan: p,
     snapshot: {
-      features: feats.map((f) => f.feature_key),
+      features: [...new Set([...(await allFeatureKeys(q)), ...feats.map((f) => f.feature_key)])],
       limits: { max_students: p.max_students, max_teachers: p.max_teachers },
       prices: { monthly: p.monthly_price, yearly: p.yearly_price, setup_fee: p.setup_fee, currency: p.currency },
       plan_code: p.code, captured_at: new Date().toISOString(),
@@ -154,8 +157,8 @@ export async function activate(q, tenantId, b, actor, opts = {}) {
   let plan = null; let snapshot;
   if (b.plan_id) ({ plan, snapshot } = await planSnapshot(q, b.plan_id));
   else {
-    if (!b.features?.length) throw badRequest("اختر الباقة أو حدد المميزات");
-    const valid = (await q("SELECT key FROM features WHERE key = ANY($1)", [b.features])).map((r) => r.key);
+    const valid = [...new Set([...(await allFeatureKeys(q)),
+      ...(await q("SELECT key FROM features WHERE key = ANY($1)", [b.features || []])).map((r) => r.key)])];
     snapshot = { features: valid, limits: { max_students: b.max_students || null, max_teachers: b.max_teachers || null }, captured_at: new Date().toISOString() };
   }
   if (plan && plan.status === "archived") throw badRequest("الباقة مؤرشفة. اخترْ باقة فعالة.");

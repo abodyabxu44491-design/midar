@@ -5,8 +5,6 @@ import { panel, field, input, select, btn, empty, line, sub } from "../../shared
 import { fmtDateTime, csv } from "../../shared/js/format.js";
 import { A } from "./common.js";
 
-const show = (v) => (v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
-
 export default async function audit() {
   const filters = await api(`${A}/audit/filters`);
   const table = select([["", "كل الأقسام"], ...filters.tables.map((t) => [t.key, t.name])]);
@@ -35,7 +33,7 @@ export default async function audit() {
     for (const a of rows) {
       box.append(line(
         h("div", {}, h("span", {}, a.summary),
-          a.changes?.length ? a.changes.slice(0, 6).map((c) => sub(`${c.field}: ${show(c.from)} ← ${show(c.to)}`)) : null),
+          a.changes?.length ? a.changes.slice(0, 6).map((c) => sub(`${c.field}: ${c.from} ← ${c.to}`)) : null),
         sub(`${a.actor}${a.ip ? ` — ${a.ip}` : ""} — ${fmtDateTime(a.created_at)}`)));
       last = a.id;
     }

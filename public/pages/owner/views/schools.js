@@ -77,7 +77,7 @@ async function schoolPage(id, root, back) {
 
     panel("روابط المدرسة", null,
       h("h4", { class: "sec-title" }, "الصفحة العامة (لأولياء الأمور)"),
-      linkRow("صفحة الطلاب وأولياء الأمور", L.public.home, { note: s.directory_code ? `رمز الصفحة: ${s.directory_code}` : null }),
+      linkRow("صفحة الطلاب وأولياء الأمور", L.public.home, { note: "مفتوحة للجميع" }),
       linkRow("قائمة الطلاب", L.public.students),
       h("h4", { class: "sec-title" }, "روابط الدخول (خاصة بالمنسوبين)"),
       linkRow("الإدارة", L.staff.admin), linkRow("المعلمون", L.staff.teacher), linkRow("المحاسب", L.staff.accountant),

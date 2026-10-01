@@ -1,7 +1,7 @@
 // تبويب الرسوم: الفواتير، الدفعات، الاسترداد، الإلغاء
 import { h, mount } from "../../shared/js/dom.js";
 import { api, idempotencyKey } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, notice, confirmAction, skeleton } from "../../shared/js/ui.js";
+import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, notice, confirmAction, skeleton, switchBtn } from "../../shared/js/ui.js";
 import { money, csv, fmtDate, fmtDateTime, today, METHODS, CURRENCIES, getCurrency } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { receiptDialog, statementDialog } from "../../shared/js/receipt.js";
@@ -30,9 +30,11 @@ export default async function finance({ refresh }) {
   const due = input({ type: "date" });
 
   const plansPanel = await feePlansPanel(refresh, me2);
+  const instPanel = me2.modules?.installments && A === "/api/admin" ? await installmentsPanel() : null;
 
   return [
     plansPanel,
+    instPanel,
     stats([["إجمالي الفواتير", money(totals.fees_total)], ["المحصّل", money(totals.fees_paid)], ["المتبقي", money(totals.fees_remaining)],
       ["تحويلات بانتظار التأكيد", pending.length]]),
     panel(`إشعارات التحويل البنكي (${pending.length} بانتظار المراجعة)`, null,
@@ -233,7 +235,8 @@ function applyDialog(plan, grades, refresh) {
         h("div", { class: "scroll" }, h("table", { class: "grid" },
           h("thead", {}, h("tr", {}, h("th", {}, "الطالب"), h("th", {}, "الإجمالي"), h("th", {}, "كل دفعة"))),
           h("tbody", {}, r.preview.slice(0, 12).map((x) => h("tr", {},
-            h("td", {}, x.name), h("td", {}, x.exempt ? "معفى" : money(x.total)),
+            h("td", {}, x.name, x.sibling ? h("small", { class: "sub" }, ` خصم إخوة ${x.sibling.percent}% (الأخ ${x.sibling.rank})`) : null),
+            h("td", {}, x.exempt ? "معفى" : money(x.total)),
             h("td", {}, x.exempt ? "—" : money(x.per_installment))))))));
     } catch (e) { mount(out, notice(e.message, "err")); }
   };
@@ -256,6 +259,19 @@ function applyDialog(plan, grades, refresh) {
   preview();
 }
 
+
+// الأقساط وخصم الإخوة: الخصم يُحتسب تلقائيًا عند تطبيق القوالب، والتذكير يصل لولي الأمر قبل الاستحقاق وبعد فواته
+async function installmentsPanel() {
+  const s = (await api(`${A}/communication/features`)).fees;
+  const save = async (patch) => { Object.assign(s, await api(`${A}/communication/features/fees`, patch, "PUT")); toast("تم الحفظ"); return true; };
+  const num = (key, max) => { const el = input({ type: "number", min: 0, max, value: s[key], class: "ltr" }); el.addEventListener("change", () => save({ [key]: Number(el.value) })); return el; };
+  return panel("الأقساط وخصم الإخوة", null,
+    line(h("div", {}, h("b", {}, "خصم الإخوة التلقائي"), sub("الإخوة = نفس جوال ولي الأمر. الأقدم تسجيلًا يدفع كاملًا، ويُخصم للبقية عند تطبيق قوالب الرسوم.")),
+      switchBtn(s.sibling_discount, "خصم الإخوة", (v) => save({ sibling_discount: v }))),
+    h("div", { class: "row" }, field("خصم الأخ الثاني (%)", num("sibling_second_pct", 100)), field("الثالث فأكثر (%)", num("sibling_third_pct", 100)),
+      field("تذكير ولي الأمر قبل الاستحقاق (أيام)", num("reminder_days", 30), "0 = بلا تذكير مسبق")),
+    sub("القسط الذي يفوت موعده دون سداد يصل عنه تذكير لولي الأمر في اليوم التالي."));
+}
 
 // قائمة الفواتير: بحث وتصفية في الخادم، و«عرض المزيد» بدل عرض آلاف الصفوف مرة واحدة
 function invoicesPanel(first, { classes, templates, me, refresh, PAGE }) {

@@ -36,9 +36,8 @@ async function cardsView() {
         h("div", { class: "id-name" }, s.name),
         h("div", { class: "id-class" }, s.class_name || "بدون فصل"),
         h("div", { class: "id-row" }, h("span", {}, "رابط الصفحة"), h("b", { class: "ltr" }, link)),
-        h("div", { class: "id-row" }, h("span", {}, "رمز المدرسة"), h("b", { class: "ltr" }, d.directory_code)),
         h("div", { class: "id-row big" }, h("span", {}, "معرّف الطالب"), h("b", { class: "ltr" }, s.access_key)),
-        h("p", { class: "id-note" }, "افتح الرابط، أدخل رمز المدرسة، ثم اسم ابنك ومعرّفه. لا تشارك المعرّف مع أحد.")))));
+        h("p", { class: "id-note" }, "افتح الرابط، ثم أدخل معرّف ابنك في «ملف الطالب». لا تشارك المعرّف مع أحد.")))));
   };
   pick.addEventListener("change", load);
   await load();

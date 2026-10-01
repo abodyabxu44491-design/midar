@@ -23,7 +23,7 @@ const SECTIONS = [
   { key: "users", name: "المستخدمون والصلاحيات", note: "حسابات المحاسبين" },
   { key: "passwords", name: "طلبات كلمات المرور", note: "تحقق من هوية الطالب ثم أحِل الطلب" },
   { key: "money", name: "العملة", note: "عملة المدرسة الأساسية" },
-  { key: "access", name: "الدخول والأمان", note: "رمز الصفحة وكلمة المرور والجلسات" },
+  { key: "access", name: "الدخول والأمان", note: "كلمة المرور والجلسات" },
   { key: "sync", name: "المزامنة والأجهزة", note: "العمل بدون إنترنت: التعارضات والأجهزة" },
   { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
   { key: "subscription", name: "اشتراكي", note: "الباقة والمميزات والتجديد والترقية" },
@@ -51,20 +51,43 @@ const MODULE_GROUPS = [
     ["exams", "الاختبارات والدرجات", "إدخال الدرجات واعتمادها ونشرها"],
     ["reports", "كشوف الدرجات", "يحتاج تشغيل الاختبارات"],
     ["exam_papers", "مصمم الاختبارات الورقية", "بنك الأسئلة وإنشاء أوراق الاختبارات وطباعتها"],
+    ["online_exams", "الاختبارات الإلكترونية", "الطالب يحل من جواله والتصحيح تلقائي — يحتاج مصمم الاختبارات"],
+    ["certificates", "الشهادات الرسمية", "شهادات الفصل والعام برمز تحقق QR"],
     ["homework", "الواجبات", "ينشرها المعلم ويتابعها ولي الأمر"],
+    ["behavior", "السلوك والانضباط", "المخالفات والإنجازات بالنقاط لكل طالب"],
+    ["lesson_plans", "تحضير الدروس", "خطط المعلمين الأسبوعية واعتمادها"],
+    ["calendar", "التقويم المدرسي", "الاختبارات والإجازات والفعاليات في تقويم واحد"],
+  ]],
+  ["الموظفون", [
+    ["staff_attendance", "حضور الموظفين والإجازات", "حضور المعلمين والموظفين وطلبات الإجازة وخصم الغياب من الراتب"],
+    ["substitutes", "حصص الانتظار", "معلم بديل لحصص المعلم الغائب — يحتاج الجدول"],
   ]],
   ["التواصل والتسجيل", [
     ["announcements", "التعاميم", "رسائل المدرسة لأولياء الأمور"],
+    ["notifications", "الإشعارات الفورية", "إشعار على جوال ولي الأمر والمعلم من التطبيق المثبّت"],
+    ["sms", "الرسائل النصية", "رسائل SMS لأولياء الأمور من رصيد الرسائل"],
     ["messaging", "رسائل واتساب", "أزرار تنبيه ولي الأمر بالغياب والرسوم"],
+    ["surveys", "الاستبيانات", "استبيانات لأولياء الأمور والمعلمين ونتائجها"],
+    ["meetings", "مواعيد أولياء الأمور", "حجز موعد مع المعلم أو الإدارة"],
     ["admissions", "طلبات التسجيل", "طلبات التحاق الطلاب الجدد"],
     ["analytics", "التحليلات", "نسب الحضور ومتوسطات الدرجات"],
   ]],
+  ["المساعدة الذكية", [
+    ["ai_assistant", "المساعد الذكي", "اسأل عن بيانات مدرستك بلغتك"],
+  ]],
   ["المالية", [
     ["fees", "الرسوم والفواتير", "فواتير الطلاب والسداد والإيصالات"],
+    ["installments", "الأقساط وخصم الإخوة", "تذكير الأقساط وخصم تلقائي للإخوة — يحتاج الرسوم"],
     ["finance", "النظام المالي", "الحسابات والصناديق وسجل الحركات"],
     ["donations", "التبرعات", "يحتاج تشغيل النظام المالي"],
     ["payroll", "الرواتب", "الموظفون ومسير الرواتب — يحتاج النظام المالي"],
     ["transfers", "التحويل بين الحسابات", "يحتاج تشغيل النظام المالي"],
+  ]],
+  ["الخدمات", [
+    ["transport", "النقل المدرسي", "الحافلات وخطوطها والطلاب وتنبيه الصعود والنزول"],
+    ["library", "المكتبة", "الكتب والإعارة والإرجاع"],
+    ["inventory", "العهد والمخزون", "الأصناف والعهد المسلّمة للموظفين"],
+    ["clinic", "العيادة المدرسية", "الملف الصحي وزيارات العيادة"],
   ]],
 ];
 
@@ -73,23 +96,26 @@ async function modulesView() {
   // القسم غير المشمول في الباقة يظهر مقفلًا (والخادم يرفضه حتى لو فُعّل)
   const locked = new Set((subInfo?.features || []).filter((f) => !f.included).map((f) => f.key));
   const msg = h("div");
+  const box = h("div");
   const save = async (patch) => {
     mount(msg);
     try {
+      const before = { ...mods };
       Object.assign(mods, await api(`${A}/settings/modules`, patch, "PUT"));
-      toast("تم الحفظ. حدّث الصفحة لتظهر التبويبات الجديدة.");
+      // إيقاف قسم أساسي يوقف ما يعتمد عليه: نعيد الرسم ليظهر ذلك
+      const cascaded = Object.keys(mods).filter((k) => !(k in patch) && mods[k] !== before[k]);
+      toast(cascaded.length ? "تم الحفظ، وأُوقفت الأقسام المعتمدة عليه أيضًا. حدّث الصفحة لتتغير التبويبات." : "تم الحفظ. حدّث الصفحة لتظهر التبويبات الجديدة.");
+      if (cascaded.length) setTimeout(draw, 0);
       return true;
     } catch (e) { mount(msg, notice(e.message, "err")); return false; }
   };
-
-  return [
-    msg,
-    ...MODULE_GROUPS.map(([title, items]) => panel(title, null,
-      items.map(([key, name, note]) => line(
-        h("div", {}, h("b", {}, name), locked.has(key) ? badge("غير متاحة في باقتك", "gray") : null, note ? sub(note) : null),
-        locked.has(key) ? h("span", { class: "sub", style: "flex:none" }, "اطلبها من «اشتراكي»")
-          : switchBtn(mods[key], name, (next) => save({ [key]: next })))))),
-  ];
+  const draw = () => mount(box, MODULE_GROUPS.map(([title, items]) => panel(title, null,
+    items.map(([key, name, note]) => line(
+      h("div", {}, h("b", {}, name), locked.has(key) ? badge("غير متاحة في باقتك", "gray") : null, note ? sub(note) : null),
+      locked.has(key) ? h("span", { class: "sub", style: "flex:none" }, "اطلبها من «اشتراكي»")
+        : switchBtn(mods[key], name, (next) => save({ [key]: next })))))));
+  draw();
+  return [msg, box];
 }
 
 /* ===================== الحقول المخصصة ===================== */
@@ -173,9 +199,6 @@ async function pageView({ me }) {
     catch (e) { mount(msg, notice(e.message, "err")); return false; }
   };
 
-  const mode = select([["code", "تحتاج رمزًا (أكثر خصوصية)"], ["open", "مفتوحة لمن يعرف الرابط"]], { value: pub.access_mode });
-  mode.addEventListener("change", () => save({ access_mode: mode.value }));
-
   // واجهة الموقع المصغّر: النبذة وبيانات التواصل
   const about = textarea({ rows: 3, value: pub.about || "", placeholder: "نبذة قصيرة عن المدرسة تظهر في أعلى الصفحة (اختياري)", maxLength: 800 });
   const L = me.links;
@@ -186,8 +209,8 @@ async function pageView({ me }) {
       linkRow("قائمة الطلاب مباشرة", L.public.students),
       h("h4", { style: "margin:14px 0 6px" }, "روابط الدخول (للمنسوبين فقط)"),
       linkRow("دخول الإدارة", L.staff.admin), linkRow("دخول المعلمين", L.staff.teacher), linkRow("دخول المحاسب", L.staff.accountant)),
-    panel("طريقة الدخول", btn("معاينة", () => window.open(L.public.home, "_blank"), "ghost sm"),
-      field("دخول صفحة المدرسة", mode), msg),
+    panel("الدخول للصفحة", btn("معاينة", () => window.open(L.public.home, "_blank"), "ghost sm"),
+      sub("صفحة المدرسة مفتوحة للجميع بلا رمز، وتعرض فقط ما تفعّله من الخيارات بالأسفل. ملف كل طالب لا يُفتح إلا بمعرّفه الخاص."), msg),
     panel("واجهة الصفحة", null,
       field("نبذة عن المدرسة", about),
       btn("حفظ النبذة", () => save({ about: about.value.trim() || null }), "primary sm"),
@@ -423,16 +446,6 @@ async function accessView({ me, refresh }) {
   const cur = passwordInput({ autocomplete: "current-password" });
   const nxt = passwordInput({ autocomplete: "new-password" });
   return [
-    panel("رمز صفحة الطلاب", null,
-      line(h("span", {}, "الرمز الحالي"), keyText(me.school.directory_code)),
-      sub("إنشاء رمز جديد يوقف الرمز الحالي فورًا."),
-      h("div", { class: "spaced" }, btn("إنشاء رمز جديد", async () => {
-        if (!confirmAction("إنشاء رمز جديد لصفحة الطلاب؟")) return;
-        const r = await api(`${A}/settings/directory-code`, {});
-        toast(`الرمز الجديد: ${r.directory_code}`);
-        refresh();
-      }, "soft"))),
-
     panel("تغيير كلمة المرور", null,
       field("كلمة المرور الحالية", cur),
       field("الجديدة", nxt, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),
@@ -464,7 +477,7 @@ async function dataView({ me }) {
           }
           toast("تم تنزيل الملفات");
         }, "soft"),
-        btn("تصدير نسخة كاملة (JSON)", async () => {
+        btn("تنزيل نسخة كاملة من بيانات المدرسة", async () => {
           const d = await api(`${A}/export`);
           const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(d, null, 2)], { type: "application/json" })),
             download: `midar-${d.school}-${new Date().toISOString().slice(0, 10)}.json` });

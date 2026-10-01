@@ -8,6 +8,7 @@ import { current } from "./academic.service.js";
 import { list as listFields, valuesOf } from "./custom-fields.service.js";
 import { logoId } from "./school-logo.service.js";
 import { list as listAlerts } from "./student-alerts.service.js";
+import { studentExtras } from "./student-extras.service.js";
 
 const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, "•") : null);
 const ALL_ON = { profile_show_grades: true, profile_show_attendance: true, profile_show_teachers: true,
@@ -71,6 +72,7 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     academic: term, attendance, absence_warning: absenceWarning, alerts, grades, teachers, announcements: news, fees,
     timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],
     homework: settings.profile_show_homework && s.class_id ? await listForStudent(q, s) : [],
+    features: await studentExtras(q, s, { admin }),
   };
 }
 

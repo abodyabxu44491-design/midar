@@ -111,3 +111,17 @@ test("لا تُنشأ مرتين بنفس الرمز، وكلمات المرور
   assert.equal(second.secret, undefined, "النتيجة السرية تُسلَّم مرة واحدة");
   assert.equal(second.summary.counts.students, r.data.summary.students);
 });
+
+test("الميزات الإضافية فيها بيانات: السلوك والنقل والمكتبة والمخزون والعيادة والاستبيان والمواعيد", async () => {
+  const c = await q1(`SELECT (SELECT count(*) FROM behavior_records)::int AS behavior, (SELECT count(*) FROM staff_attendance)::int AS staff_att,
+      (SELECT count(*) FROM leave_requests)::int AS leaves, (SELECT count(*) FROM calendar_events)::int AS events,
+      (SELECT count(*) FROM lesson_plans)::int AS plans, (SELECT count(*) FROM buses)::int AS buses, (SELECT count(*) FROM bus_students)::int AS riders,
+      (SELECT count(*) FROM library_loans)::int AS loans, (SELECT count(*) FROM inventory_items WHERE quantity >= 0)::int AS items,
+      (SELECT count(*) FROM clinic_visits)::int AS visits, (SELECT count(*) FROM survey_responses)::int AS responses,
+      (SELECT count(*) FROM meeting_bookings)::int AS bookings,
+      (SELECT count(*) FROM inventory_items i WHERE i.quantity <> (SELECT COALESCE(SUM(CASE WHEN kind = 'in' THEN qty ELSE -qty END), 0) FROM inventory_moves m WHERE m.item_id = i.id))::int AS stock_mismatch`);
+  for (const k of ["behavior", "staff_att", "leaves", "events", "plans", "buses", "riders", "loans", "items", "visits", "responses", "bookings"]) assert.ok(c[k] > 0, k);
+  assert.equal(c.stock_mismatch, 0, "رصيد المخزون يطابق الحركات");
+  const cap = await q1("SELECT count(*)::int AS n FROM buses b WHERE (SELECT count(*) FROM bus_students s WHERE s.bus_id = b.id) > b.capacity");
+  assert.equal(cap.n, 0, "لا حافلة فوق سعتها");
+});

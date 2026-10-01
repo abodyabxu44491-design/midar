@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
+import { tableLabel } from "../src/modules/shared/danger-zone.service.js";
 
 let srv, owner;
 const A = {}, B = {};
@@ -173,4 +174,10 @@ test("حذف المدرسة نهائيًا: يُشترط الأرشفة، وتب
   assert.ok(backups.some((b) => b.id === res.data.backup_id), "النسخة الأخيرة باقية");
   const [log] = await transaction({ tenantId: B.id }, (q) => q("SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action LIKE 'منطقة الحذر%'", [B.id]));
   assert.ok(log.n >= 3, "سجل العمليات محفوظ بعد الحذف");
+});
+
+test("كل جدول تشمله عمليات الحذف له اسم عربي يظهر في «ما سيتأثر»", async () => {
+  const names = await transaction({ platform: true }, async (q) => (await q("SELECT name FROM danger_tables() WHERE kind IN ('data', 'transient', 'billing')")).map((r) => r.name));
+  assert.ok(names.length > 50);
+  assert.deepEqual(names.filter((t) => tableLabel(t) === t), []);
 });

@@ -4,6 +4,7 @@ import { $, mount, h } from "../shared/js/dom.js";
 import { startSync, wipeLocal, saveOfflineProfile, warmOfflineShell } from "../shared/js/offline/sync.js";
 import { syncIndicator } from "./offline.js";
 import { api } from "../shared/js/api.js";
+import { attachBell } from "../shared/js/inbox.js";
 import { topbar, footer, tabs, lazy, panel, notice, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import home from "./views/home.js";
 const attendance = lazy(() => import("./views/attendance.js"), new URL("./views/attendance.js", import.meta.url).pathname);
@@ -14,6 +15,12 @@ const account = lazy(() => import("./views/account.js"), new URL("./views/accoun
 const timetable = lazy(() => import("./views/timetable.js"), new URL("./views/timetable.js", import.meta.url).pathname);
 const homework = lazy(() => import("./views/homework.js"), new URL("./views/homework.js", import.meta.url).pathname);
 const papers = lazy(() => import("./views/papers.js"), new URL("./views/papers.js", import.meta.url).pathname);
+const behavior = lazy(() => import("./views/behavior.js"), new URL("./views/behavior.js", import.meta.url).pathname);
+const lessons = lazy(() => import("./views/lessons.js"), new URL("./views/lessons.js", import.meta.url).pathname);
+const calendar = lazy(() => import("./views/calendar.js"), new URL("./views/calendar.js", import.meta.url).pathname);
+const meetings = lazy(() => import("./views/meetings.js"), new URL("./views/meetings.js", import.meta.url).pathname);
+const surveys = lazy(() => import("./views/surveys.js"), new URL("./views/surveys.js", import.meta.url).pathname);
+const mine = lazy(() => import("./views/mine.js"), new URL("./views/mine.js", import.meta.url).pathname);
 
 const app = $("#app");
 
@@ -32,9 +39,12 @@ export async function startTeacher(offlineMe = null) {
     return passwordChangeScreen({ endpoint: "/api/teacher/password", logoutEndpoint: "/api/teacher/logout", school: me.school.name, name: me.name });
   }
   const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
-    homework: "homework", announcements: "announcements", papers: "exam_papers" };
-  const list = [["home", "الرئيسية"], ["students", "طلابي"], ["attendance", "الحضور"], ["timetable", "جدولي"], ["papers", "الاختبارات والامتحانات"], ["exams", "رصد الدرجات"],
-    ["homework", "الواجبات"], ["announcements", "التعاميم"], ["account", "حسابي"]]
+    homework: "homework", announcements: "announcements", papers: "exam_papers",
+    behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance" };
+  const list = [["home", "الرئيسية"], ["students", "طلابي"], ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "جدولي"],
+    ["papers", "الاختبارات والامتحانات"], ["exams", "رصد الدرجات"], ["homework", "الواجبات"], ["lessons", "تحضير الدروس"],
+    ["calendar", "التقويم"], ["meetings", "المواعيد"], ["surveys", "الاستبيانات"], ["announcements", "التعاميم"],
+    ["me", "حضوري وإجازاتي"], ["account", "حسابي"]]
     .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
   // العمل بدون إنترنت: قاعدة محلية لهذا المستخدم ومحرك المزامنة
   if (!me.offline) saveOfflineProfile({ role: "teacher", tenantId: me.school.id, userId: me.user_id, savedAt: Date.now(), me: { ...me, offline: true } });
@@ -46,10 +56,11 @@ export async function startTeacher(offlineMe = null) {
     location.reload();
   };
   const ctx = { me };
-  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account }, ctx);
+  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine }, ctx);
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);
+  attachBell(bar, "/api/teacher", (n) => { const tab = { substitute: "me", lesson_plan: "lessons", leave: "me", meeting: "meetings", survey: "surveys" }[n.kind]; if (tab) t.show(tab); });
   mount(app, bar, h("main", {}, t.el), footer());
   t.start("home");
 }

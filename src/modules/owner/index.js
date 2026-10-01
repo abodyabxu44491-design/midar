@@ -14,6 +14,7 @@ import billing from "./billing.js";
 import plans from "./plans.js";
 import { subscriptions, requests } from "./subscriptions.js";
 import danger from "./danger.js";
+import sms from "./sms.js";
 
 const r = Router();
 r.use(ownerNetwork);       // عنوان IP غير مسموح = "غير موجود"
@@ -35,6 +36,7 @@ r.use("/billing", billing);
 r.use("/", plans);                      // /catalog و /plans و /prices
 r.use("/subscriptions", subscriptions);
 r.use("/requests", requests);
+r.use("/sms", sms);                    // مزوّد الرسائل النصية ورصيد المدارس
 r.use("/audit", audit);
 r.use("/danger", danger);            // منطقة الحذر (منفصلة تمامًا عن الاشتراكات)
 export default r;

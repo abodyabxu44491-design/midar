@@ -48,18 +48,19 @@ test("الصفحة العامة تقرأ الباقات والأسعار وال�
   const before = await site();
   const basic = before.plans.find((p) => p.code === "basic");
   assert.ok(basic.features.some((f) => f.key === "attendance"));
-  assert.ok(!basic.features.some((f) => f.key === "timetable"), "الأساسية لا تشمل الجدول");
+  assert.ok(basic.features.some((f) => f.key === "timetable") && basic.features.some((f) => f.key === "ai_assistant"), "كل المميزات في كل باقة");
 
   // تغيير السعر وإضافة ميزة وعرض مؤقت من لوحة المالك يظهر فورًا
+  // حتى لو حاول المالك حذف ميزة من الباقة تبقى مشمولة (لا مميزات مدفوعة منفصلة)
   const plan = { ...s.basic, monthly_price: 349, discount_kind: "percent", discount_value: 20, promo_label: "عرض الافتتاح", discount_ends_at: day(10),
-    features: [...s.basic.features, "timetable"] };
+    features: s.basic.features.filter((k) => k !== "timetable") };
   const up = await owner.put(`/api/owner/plans/${s.basic.id}`, { plan, apply: "new" });
   assert.equal(up.status, 200, JSON.stringify(up.data));
   const after1 = (await site()).plans.find((p) => p.code === "basic");
   assert.equal(after1.monthly.base, 349);
   assert.equal(after1.monthly.final, 279.2, "العرض المؤقت 20%");
   assert.equal(after1.promo_label, "عرض الافتتاح");
-  assert.ok(after1.features.some((f) => f.key === "timetable"));
+  assert.ok(after1.features.some((f) => f.key === "timetable"), "الجدول باقٍ في الباقة");
 
   // إخفاء من الموقع وإيقاف مؤقت
   await owner.put(`/api/owner/plans/${s.basic.id}`, { plan: { ...plan, is_public: false }, apply: "new" });
@@ -114,45 +115,30 @@ test("طلب تجربة من الصفحة العامة ← يصل للمالك �
   assert.equal(me.data.access.days_left, 30);
 });
 
-test("الميزة غير المشمولة في الباقة تُرفض في الخادم حتى لو فعّلتها الإدارة", async () => {
-  await s.admin.put("/api/admin/settings/modules", { timetable: true });
-  assert.equal((await s.admin.get("/api/admin/timetable")).status, 404, "رابط مباشر لقسم خارج الباقة");
-  assert.equal((await s.admin.get("/api/admin/me")).data.modules.timetable, false);
+test("كل المميزات متاحة لكل مدرسة بلا طلب ولا دفع، والمدرسة تشغّل وتوقف ما تريد", async () => {
+  await s.admin.put("/api/admin/settings/modules", { timetable: true, transport: true });
+  assert.equal((await s.admin.get("/api/admin/timetable")).status, 200, "الجدول متاح في الأساسية");
+  assert.equal((await s.admin.get("/api/admin/services/transport")).status, 200, "النقل متاح بلا طلب");
   const sub = await s.admin.get("/api/admin/subscription");
   assert.equal(sub.status, 200);
-  const tt = sub.data.features.find((f) => f.key === "timetable");
-  assert.equal(tt.included, false, "تظهر مقفلة في صفحة المميزات");
-  assert.equal(sub.data.usage.students, 0);
-
-  // مساعد إدخال البيانات ميزة مدفوعة تُطلب: غير مشمول في الباقة، ومقفل في الخادم، ويظهر قابلًا للطلب
-  assert.equal((await s.admin.get("/api/admin/assistant/checklist")).status, 404, "مساعد الإدخال خارج الباقة");
-  const da = sub.data.features.find((f) => f.key === "data_assistant");
-  assert.equal(da.included, false);
-  assert.equal(da.requestable, true);
-
-  // طلب الميزة ← يصل للمالك ← الموافقة مجانًا لفترة محددة
-  const req = await s.admin.post("/api/admin/subscription/requests", { kind: "feature", feature_key: "timetable", note: "نحتاج الجدول" });
-  assert.equal(req.status, 201, JSON.stringify(req.data));
-  assert.equal((await s.admin.post("/api/admin/subscription/requests", { kind: "feature", feature_key: "timetable" })).status, 400, "لا تكرار");
-  assert.equal((await s.admin.post("/api/admin/subscription/requests", { kind: "feature", feature_key: "attendance" })).status, 400, "ميزة موجودة أصلًا");
-  const ownerReq = (await owner.get("/api/owner/requests?kind=feature")).data.find((x) => x.id === req.data.id);
-  assert.equal(ownerReq.feature_name, "الجدول الدراسي");
-  const grant = await owner.post(`/api/owner/requests/${req.data.id}/grant-feature`, { price: 0, until: day(60) });
-  assert.equal(grant.status, 200, JSON.stringify(grant.data));
-  assert.equal((await s.admin.get("/api/admin/timetable")).status, 200, "الإضافة تفتح القسم");
-  const after = await s.admin.get("/api/admin/subscription");
-  assert.equal(after.data.features.find((f) => f.key === "timetable").addon, true);
+  assert.ok(sub.data.features.filter((f) => f.kind !== "service").every((f) => f.included), "كل المميزات مشمولة");
+  assert.ok(!sub.data.features.some((f) => f.kind !== "service" && f.requestable), "لا ميزة تُطلب أو تُشترى");
+  // طلب ميزة موجودة أصلًا يُرفض بوضوح
+  assert.equal((await s.admin.post("/api/admin/subscription/requests", { kind: "feature", feature_key: "timetable" })).status, 400);
+  // الإيقاف من الإعدادات ما زال يعمل
+  await s.admin.put("/api/admin/settings/modules", { timetable: false });
+  assert.equal((await s.admin.get("/api/admin/timetable")).status, 404);
+  await s.admin.put("/api/admin/settings/modules", { timetable: true });
 });
 
-test("اللقطة: تعديل الباقة لا يغيّر الاشتراكات القائمة إلا بقرار مؤكد", async () => {
-  const plan = { ...s.basic, features: [...s.basic.features, "analytics"] };
+test("تعديل الباقة: الحدود والسعر لا تتغير للاشتراكات القائمة إلا بقرار مؤكد", async () => {
+  const plan = { ...s.basic, max_students: 999 };
   await owner.put(`/api/owner/plans/${s.basic.id}`, { plan, apply: "new" });
-  assert.equal((await s.admin.get("/api/admin/analytics?months=6")).status, 404, "الاشتراك القائم على لقطته القديمة");
+  assert.notEqual((await owner.get(`/api/owner/subscriptions/${s.school}`)).data.current.max_students, 999, "الاشتراك القائم على لقطته");
   assert.equal((await owner.put(`/api/owner/plans/${s.basic.id}`, { plan, apply: "existing" })).status, 400, "يحتاج تأكيدًا");
   const applied = await owner.put(`/api/owner/plans/${s.basic.id}`, { plan, apply: "tenant", tenant_id: s.school, confirm: true });
   assert.equal(applied.data.affected, 1);
-  await s.admin.put("/api/admin/settings/modules", { analytics: true });
-  assert.equal((await s.admin.get("/api/admin/analytics?months=6")).status, 200, "طُبّق على هذه المدرسة فقط");
+  assert.equal((await owner.get(`/api/owner/subscriptions/${s.school}`)).data.current.max_students, 999, "طُبّق على هذه المدرسة فقط");
   await owner.put(`/api/owner/plans/${s.basic.id}`, { plan: s.basic, apply: "new" });
 });
 

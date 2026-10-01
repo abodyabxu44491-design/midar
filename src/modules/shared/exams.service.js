@@ -1,6 +1,7 @@
 // منطق الاختبارات والدرجات
 import { z, t } from "../../core/http/validate.js";
 import { notFound } from "../../core/http/errors.js";
+import { notify } from "./notify.service.js";
 
 export const createSchema = z.object({
   class_id: t.id, subject_id: t.id,
@@ -62,4 +63,14 @@ export async function saveScores(q, exam, scores, actor) {
 
 export async function setStatus(q, exam, status) {
   await q("UPDATE exams SET status = $2 WHERE id = $1", [exam.id, status]);
+  if (status === "published" && exam.status !== "published") {
+    const rows = await q(
+      `SELECT sc.student_id, sc.score, e.max_score, e.title, sub.name AS subject
+         FROM scores sc JOIN exams e ON e.id = sc.exam_id JOIN subjects sub ON sub.id = e.subject_id
+        WHERE sc.exam_id = $1 AND sc.score IS NOT NULL`, [exam.id]);
+    for (const r of rows) {
+      await notify(q, { event: "grades", students: [r.student_id], title: `درجة جديدة: ${r.subject}`,
+        body: `${r.title}: ${r.score} من ${r.max_score}`, link: "grades" });
+    }
+  }
 }

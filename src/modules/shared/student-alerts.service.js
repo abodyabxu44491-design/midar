@@ -2,6 +2,7 @@
 // ما حُدد لولي الأمر يظهر في ملف الطالب، ويستطيع ولي الأمر تأكيد الاطلاع عليه.
 import { z, t } from "../../core/http/validate.js";
 import { notFound, forbidden } from "../../core/http/errors.js";
+import { notify } from "./notify.service.js";
 
 export const KINDS = ["note", "attendance", "behavior", "academic", "health", "praise"];
 export const LEVELS = ["info", "warning", "urgent", "positive"];
@@ -37,6 +38,9 @@ export async function create(q, studentId, b, { actor, teacherId = null }) {
     `INSERT INTO student_alerts (tenant_id, student_id, kind, level, title, body, for_parent, created_by, teacher_id)
      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
     [studentId, b.kind, b.level, b.title, b.body ?? null, b.for_parent, actor, teacherId]);
+  if (b.for_parent) {
+    await notify(q, { event: "alert", students: [studentId], title: b.title, body: b.body ?? null, link: "alerts", urgent: b.level === "urgent" });
+  }
   return row;
 }
 

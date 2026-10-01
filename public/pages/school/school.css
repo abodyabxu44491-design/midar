@@ -108,3 +108,9 @@
 .ss-tiles.n1 { grid-template-columns: 1fr; }
 @media (min-width: 640px) { .ss-tiles.n2 { grid-template-columns: 1fr 1fr; } .ss-tiles.n3 { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 380px) { .ss-crow { flex-wrap: wrap; } .ss-crow .acts { width: 100%; } .ss-crow .acts .btn { flex: 1; } }
+
+/* الأبناء المحفوظون على هذا الجهاز */
+.ss-kids { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.ss-kid { display: grid; gap: 2px; text-align: start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--teal); background: var(--teal-soft);
+  color: var(--navy); font: inherit; cursor: pointer; }
+.ss-kid small { color: var(--muted); }

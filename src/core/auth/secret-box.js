@@ -45,3 +45,12 @@ const box = createBox(resolveKey());
 export const credentialsEnabled = box.enabled;
 export const sealCredential = box.seal;
 export const openCredential = box.open;
+
+// مفتاح مشتق لغرض محدد (مثل مفاتيح الإشعارات الفورية) من المصدر نفسه: ثابت ما دام المصدر ثابتًا، ولا يُخزَّن في القاعدة
+export function deriveSecret(info, env = process.env) {
+  const base = resolveKey(env);
+  return base ? Buffer.from(crypto.hkdfSync("sha256", Buffer.from(base, "hex"), "midar", String(info), 32)) : null;
+}
+// صندوق تشفير لغرض محدد (AAD يحدد السياق)، للأسرار الصغيرة مثل مفتاح مزوّد الرسائل
+export const sealSecret = (plain, aad) => box.seal(plain, aad);
+export const openSecret = (blob, aad) => box.open(blob, aad);

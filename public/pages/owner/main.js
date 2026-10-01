@@ -13,6 +13,7 @@ import passwordRequests from "./views/password-requests.js";
 import settings from "./views/settings.js";
 import billing from "./views/billing.js";
 import danger from "./views/danger.js";
+import sms from "./views/sms.js";
 
 const app = $("#app");
 export const API = "/api/owner";
@@ -31,8 +32,8 @@ async function start() {
   }
   const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"],
     ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["billing", "الفواتير"], ["passwords", "طلبات كلمات المرور"],
-    ["settings", "إعدادات المنصة والتجربة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, settings, audit, danger }, {});
+    ["sms", "الرسائل النصية"], ["settings", "إعدادات المنصة والتجربة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
+    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, audit, danger }, {});
   // عدّاد «طلب جديد» على تبويب الطلبات، مع تنبيه عند وصول طلب جديد
   let lastUnseen = null;
   const badgeTick = async () => {
@@ -57,4 +58,5 @@ async function start() {
   t.start("overview");
 }
 start();
+document.documentElement.dataset.app = "لوحة المالك";
 showInstallBar();

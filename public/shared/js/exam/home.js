@@ -173,6 +173,11 @@ export async function examSection({ base, me, admin = false }) {
       h("div", { class: "acts" },
         act(p.status === "draft" || p.status === "ready" ? "تعديل" : "فتح", () => nav.open(p.id)),
         act(p.status === "approved" || p.status === "printed" ? "طباعة" : "معاينة", () => nav.open(p.id, "preview")),
+        (p.status === "approved" || p.status === "printed") && me.modules?.online_exams ? act("نشر إلكترونيًا", async () => {
+          const { publishDialog, onlineBaseOf } = await import("../online-exams-staff.js");
+          const classes = [...new Map(ctx.load.filter((l) => l.subject_id === p.subject_id).map((l) => [l.class_id, { id: l.class_id, name: l.class_name }])).values()];
+          publishDialog({ base: onlineBaseOf(base), paper: p, classes });
+        }) : null,
         act("نسخ", async () => { const r = await api(`${base}/${p.id}/copy`, {}); toast("أُنشئت نسخة"); nav.open(r.id); }),
         p.status === "archived"
           ? act("استعادة", async () => { await api(`${base}/${p.id}/status`, { action: "unarchive" }); drawList(); })

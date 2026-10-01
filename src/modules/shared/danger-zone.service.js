@@ -162,7 +162,24 @@ const TABLE_LABEL = {
   timetable_settings: "إعدادات الجدول", school_messages: "قوالب الرسائل", exam_images: "صور الاختبارات والشعار", attachments: "المرفقات",
   academic_years: "السنوات الدراسية", terms: "الفصول الدراسية", holidays: "الإجازات", fee_plans: "خطط الرسوم", staff: "الموظفون",
   subscriptions: "سجلات الاشتراك", subscription_invoices: "فواتير الاشتراك",
+  custom_fields: "الحقول المخصصة", custom_values: "قيم الحقول المخصصة", exam_types: "أنواع الاختبارات",
+  subject_grades: "ربط المواد بالصفوف", finance_accounts: "الحسابات المالية", finance_categories: "تصنيفات المالية",
+  finance_method_accounts: "ربط طرق الدفع بالحسابات", payment_accounts: "حسابات التحويل البنكي", school_profile: "ملف المدرسة",
+  school_modules: "الأقسام المفعّلة", tenant_counters: "عدادات الأرقام", jobs: "العمليات الطويلة", password_requests: "طلبات استعادة كلمة المرور",
+  sync_changes: "تغييرات المزامنة", sync_devices: "أجهزة المزامنة", sync_operations: "عمليات المزامنة",
+  notifications: "الإشعارات", push_subscriptions: "اشتراكات الإشعار الفوري", school_notify: "إعدادات الإشعارات",
+  school_feature_settings: "إعدادات الأقسام", behavior_categories: "تصنيفات السلوك", behavior_records: "سجلات السلوك",
+  certificates: "الشهادات الصادرة", online_exams: "الاختبارات الإلكترونية", online_attempts: "محاولات الاختبارات الإلكترونية",
+  staff_attendance: "دوام الموظفين", leave_requests: "طلبات الإجازة", substitutions: "حصص الانتظار", lesson_plans: "خطط الدروس",
+  calendar_events: "فعاليات التقويم", buses: "الحافلات", bus_students: "ركاب الحافلات", bus_events: "سجل صعود ونزول الحافلات",
+  library_books: "كتب المكتبة", library_loans: "إعارات المكتبة", inventory_items: "أصناف المخزون", inventory_moves: "حركات المخزون",
+  health_profiles: "الملفات الصحية", clinic_visits: "زيارات العيادة", surveys: "الاستبيانات", survey_responses: "إجابات الاستبيانات",
+  meeting_slots: "فترات المواعيد", meeting_bookings: "حجوزات المواعيد", reminder_log: "سجل التذكيرات",
+  renewal_requests: "طلبات التجديد", subscription_events: "سجل أحداث الاشتراك", leads: "طلبات الاهتمام", sms_ledger: "رصيد الرسائل النصية",
+  tenant_prices: "أسعار المدرسة الخاصة",
+  school_ai: "مفتاح المساعد الذكي", school_sms_gateway: "بوابة رسائل المدرسة", wa_outbox: "قائمة إرسال واتساب",
 };
+export const tableLabel = (t) => TABLE_LABEL[t] || t;
 async function counts(q, tid, tables) {
   const out = [];
   for (const t of tables) {

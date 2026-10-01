@@ -2,7 +2,8 @@
 // برمجة وتطوير: المبرمج عبدالله السكني
 import express from "express";
 import compression from "compression";
-import { staticRoutes, sendPage, serviceWorker } from "./core/web.js";
+import { staticRoutes, sendPage, renderPage, serviceWorker } from "./core/web.js";
+import { ownerManifest, schoolManifest, withManifest, appKind } from "./core/manifest.js";
 import { APP_VERSION, APP_RELEASE, BUILD_HASH, STARTED_AT } from "./core/version.js";
 import { perfMiddleware } from "./core/perf.js";
 import { siteData } from "./modules/shared/plans-public.service.js";
@@ -97,16 +98,24 @@ export function createApp() {
   const file = (...p) => path.join(pages, ...p);
   const send = (...p) => sendPage(file(...p), { isProd: env.isProd });   // HTML بلا كاش ويشير للإصدار الحالي
 
+  // ملف التطبيق لكل دور (التثبيت على الجوال يفتح لوحة صاحبه مباشرة)
+  app.get(`${env.OWNER_PATH}/app.webmanifest`, ownerNetwork, ownerManifest(env.OWNER_PATH));
   app.use(env.OWNER_PATH, ownerNetwork, express.static(file("owner"), { index: "index.html", redirect: true }));
   app.get("/reset", send("reset", "index.html"));     // صفحة تغيير كلمة المرور بالرابط
   app.get("/reset/", send("reset", "index.html"));
   app.get("/", send("home", "index.html"));
+  app.get("/verify/:code", send("verify", "index.html"));   // التحقق من الشهادات برمز QR
 
   const school = (handler) => (req, res, next) =>
     (isSchoolCode(req.params.school) ? handler(req, res) : next());
-  app.get("/:school", school(send("school", "index.html")));
-  app.get("/:school/student", school(send("school", "student.html")));
-  app.get("/:school/idara", school(send("staff", "index.html")));
+  // صفحات المدرسة: كل صفحة تشير لتطبيقها. المنسوبون حسب الدور في الرابط (?role=)، والزائر وولي الأمر لصفحة المدرسة
+  const appPage = (as, ...p) => (req, res) => res.set("Cache-Control", "no-cache").type("html").send(withManifest(
+    renderPage(file(...p), { isProd: env.isProd }), `/${req.params.school.toLowerCase()}/app.webmanifest?as=${as(req)}`));
+  const staffAs = (req) => { const r = appKind(String(req.query.role || "")); return r === "parent" ? "staff" : r; };
+  app.get("/:school/app.webmanifest", school(schoolManifest()));
+  app.get("/:school", school(appPage(() => "parent", "school", "index.html")));
+  app.get("/:school/student", school(appPage(() => "parent", "school", "student.html")));
+  app.get("/:school/idara", school(appPage(staffAs, "staff", "index.html")));
 
   app.use((req, res) => res.status(404).sendFile(path.join(pages, "404.html")));
   app.use(errorHandler);

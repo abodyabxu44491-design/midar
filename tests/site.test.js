@@ -50,7 +50,7 @@ test("الرئيسية: الاسم والنبذة والتواصل حسب إعد
   assert.ok(!/idara|\/api\/admin|password/.test(JSON.stringify(home.data)), "لا روابط دخول ولا بيانات حساسة في الصفحة العامة");
   await admin.put("/api/admin/settings/public-page", { show_contact: false });
   assert.equal((await pub("/home")).data.contact, null, "التواصل يختفي عند إيقافه");
-  assert.equal((await client(srv.base).post(`/api/public/${s.id}/home`, { access: "WRONG123" })).status, 401, "وضع الرمز محمي");
+  assert.equal((await client(srv.base).post(`/api/public/${s.id}/home`, {})).status, 200, "الصفحة مفتوحة للجميع بلا رمز");
 });
 
 test("الطلاب: المراحل ← الصفوف ← الشعب ← الطلاب صفحة بعد صفحة (الاسم فقط)", async () => {

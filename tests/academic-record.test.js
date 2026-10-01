@@ -88,7 +88,7 @@ test("تغيير نمط التسمية: نفس الصفوف بأسماء جدي�
   const change = audit.find((x) => x.summary.endsWith(`#${g7.id}`));
   assert.ok(change, "تغيير الصف مسجل");
   assert.match(change.summary, /الصفوف/);
-  assert.deepEqual(change.changes, [{ field: "name", from: "الصف 7", to: "أول متوسط" }], "القيمة القديمة والجديدة");
+  assert.deepEqual(change.changes, [{ field: "الاسم", from: "الصف 7", to: "أول متوسط" }], "القيمة القديمة والجديدة");
   assert.ok(!audit.some((x) => x.changes?.some((c) => /^~/.test(String(c.to)))), "لا أسماء مؤقتة بلا داعٍ");
 
   // الرجوع للنمط الأول يعمل أيضًا، وأسماء متبادلة لا تصطدم بالقيد الفريد

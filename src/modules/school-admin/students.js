@@ -185,7 +185,10 @@ r.delete("/:id/photo", handle(async (req, res) => {
 r.get("/alerts/recent", handle(async (req, res) => res.json(await inTenant(req, (q) => alerts.recent(q)))));
 r.get("/:id/alerts", handle(async (req, res) => {
   const { id } = parse(z.object({ id: t.id }), req.params);
-  res.json(await inTenant(req, (q) => alerts.list(q, id)));
+  res.json(await inTenant(req, async (q) => {
+    if (!(await q("SELECT 1 FROM students WHERE id = $1", [id])).length) throw notFound("الطالب غير موجود");
+    return alerts.list(q, id);
+  }));
 }));
 r.post("/:id/alerts", handle(async (req, res) => {
   const { id } = parse(z.object({ id: t.id }), req.params);

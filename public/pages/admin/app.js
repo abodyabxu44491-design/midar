@@ -4,6 +4,7 @@ import { $, mount, h } from "../shared/js/dom.js";
 import { mySubscription, accessBanner, lockScreen } from "./views/my-subscription.js";
 import { api } from "../shared/js/api.js";
 import { setCurrency } from "../shared/js/format.js";
+import { attachBell } from "../shared/js/inbox.js";
 import { topbar, footer, tabs, lazy, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
@@ -24,8 +25,14 @@ const reports = lazy(() => import("./views/reports.js"), new URL("./views/report
 const sheets = lazy(() => import("./views/sheets.js"), new URL("./views/sheets.js", import.meta.url).pathname);
 const analytics = lazy(() => import("./views/analytics.js"), new URL("./views/analytics.js", import.meta.url).pathname);
 const admissions = lazy(() => import("./views/admissions.js"), new URL("./views/admissions.js", import.meta.url).pathname);
-const assistant = lazy(() => import("./views/assistant.js"), new URL("./views/assistant.js", import.meta.url).pathname);
 const papers = lazy(() => import("./views/papers.js"), new URL("./views/papers.js", import.meta.url).pathname);
+const communication = lazy(() => import("./views/communication.js"), new URL("./views/communication.js", import.meta.url).pathname);
+const staffAffairs = lazy(() => import("./views/staff-affairs.js"), new URL("./views/staff-affairs.js", import.meta.url).pathname);
+const behavior = lazy(() => import("./views/behavior.js"), new URL("./views/behavior.js", import.meta.url).pathname);
+const calendar = lazy(() => import("./views/calendar.js"), new URL("./views/calendar.js", import.meta.url).pathname);
+const certificates = lazy(() => import("./views/certificates.js"), new URL("./views/certificates.js", import.meta.url).pathname);
+const services = lazy(() => import("./views/services.js"), new URL("./views/services.js", import.meta.url).pathname);
+const aiAssistant = lazy(() => import("./views/ai.js"), new URL("./views/ai.js", import.meta.url).pathname);
 
 const app = $("#app");
 
@@ -54,26 +61,32 @@ export async function startAdmin() {
     attendance: "attendance", timetable: "timetable", exams: "exams", reports: "reports",
     analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions", sheets: "attendance",
     distribution: "timetable",
-    announcements: "announcements", papers: "exam_papers", assistant: "data_assistant",
+    announcements: "announcements", papers: "exam_papers",
+    // الأقسام الجامعة: تظهر إذا كان أي قسم فيها مفعّلًا
+    communication: ["notifications", "messaging", "sms", "surveys", "meetings"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
+    behavior: "behavior", calendar: "calendar", certificates: "certificates",
+    services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant",
   };
+  const enabled = (m) => [].concat(m).some((k) => me.modules?.[k]);
   // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
-    ["dashboard", "الرئيسية"], ["assistant", "مساعد الإدخال"],
-    ["students", "الطلاب"], ["teachers", "المعلمون"],
-    ["attendance", "الحضور"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
-    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"],
-    ["academic", "السنة الدراسية"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
-    ["finance", "الرسوم"], ["ledger", "المالية"], ["admissions", "طلبات التسجيل"],
-    ["announcements", "التعاميم"], ["subscription", "اشتراكي"],
+    ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
+    ["students", "الطلاب"], ["teachers", "المعلمون"], ["staff", "شؤون الموظفين"],
+    ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
+    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"],
+    ["academic", "السنة الدراسية"], ["calendar", "التقويم"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
+    ["finance", "الرسوم"], ["ledger", "المالية"], ["services", "الخدمات"], ["admissions", "طلبات التسجيل"],
+    ["announcements", "التعاميم"], ["communication", "التواصل"], ["subscription", "اشتراكي"],
     ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
-    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]])
+    .filter(([key]) => !MODULE_OF[key] || enabled(MODULE_OF[key]))
     // مع النظام المالي تصبح «الرسوم» جزءًا من «المالية» (تبويب واحد لكل المال)
     .filter(([key]) => !(key === "finance" && me.modules?.finance));
 
   const ctx = { me };
   const t = tabs(allTabs,
-    { dashboard, assistant, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
+    { dashboard, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
+      communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant }, ctx);
   ctx.goTo = (key) => {
     // روابط «الرسوم» القديمة (من الرئيسية والتنبيهات) تفتح قسم الرسوم داخل المالية
     if (key === "finance" && me.modules?.finance) {
@@ -83,9 +96,9 @@ export async function startAdmin() {
     return t.show(key);
   };
 
-  mount(app,
-    topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
-      onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
-    h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
+  const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
+    onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } });
+  attachBell(bar, "/api/admin", (n) => { const tab = { leave: "staff", meeting: "communication", survey: "communication" }[n.kind]; if (tab) ctx.goTo(tab); });
+  mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
   t.start("dashboard");
 }

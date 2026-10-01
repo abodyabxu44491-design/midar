@@ -1,15 +1,22 @@
 // سجل العمليات (قراءة فقط)
+import { tableLabel } from "../shared/danger-zone.service.js";
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
+import { describeChanges } from "../shared/audit-labels.js";
 
 const r = Router();
 const TABLES = { students: "الطلاب", attendance: "الحضور", exams: "الاختبارات", scores: "الدرجات", invoices: "الفواتير",
   payments: "المدفوعات", teachers: "المعلمون", users: "الحسابات", classes: "الشعب", subjects: "المواد",
   teacher_assignments: "إسناد المعلمين", announcements: "الإعلانات", tenants: "إعدادات المدرسة",
   stages: "المراحل", grades: "الصفوف", subject_grades: "ربط المواد بالصفوف", academic_years: "السنوات الدراسية",
-  terms: "الفصول الدراسية", holidays: "الإجازات", school_profile: "ملف المدرسة والإعداد" };
+  terms: "الفصول الدراسية", holidays: "الإجازات", school_profile: "ملف المدرسة والإعداد", timetable_slots: "الجدول الدراسي",
+  finance_entries: "القيود المالية", payroll_items: "مسير الرواتب", payroll_runs: "دورات الرواتب", staff: "الموظفون",
+  school_modules: "أقسام المنصة المفعلة", school_public_settings: "إعدادات الصفحة العامة", assignments: "الواجبات",
+  student_alerts: "تنبيهات الطلاب", exam_papers: "أوراق الاختبارات", finance_accounts: "الحسابات المالية",
+  admissions: "طلبات القبول", fee_plans: "خطط الرسوم", fee_adjustments: "تعديلات الرسوم", donations: "التبرعات",
+  payment_claims: "إشعارات الدفع", custom_fields: "الحقول المخصصة", attachments: "المرفقات", subscriptions: "الاشتراك" };
 const OPS = { insert: "إضافة", update: "تعديل", delete: "حذف" };
 
 // قائمة الأقسام للتصفية في الواجهة
@@ -46,11 +53,10 @@ r.get("/", handle(async (req, res) => {
       ORDER BY id DESC LIMIT 100`,
     [f.before ?? null, f.table ?? null, f.action ?? null, f.actor ?? null, f.from ?? null, f.to ?? null, f.q ?? null]));
   res.json(rows.map((a) => ({
-    id: a.id, actor: a.actor, ip: a.ip, created_at: a.created_at,
-    summary: a.table_name ? `${OPS[a.action] || a.action} — ${TABLES[a.table_name] || a.table_name} #${a.record_id ?? ""}` : a.action,
+    id: a.id, actor: a.actor === "system" ? "النظام" : a.actor, ip: a.ip, created_at: a.created_at,
+    summary: a.table_name ? `${OPS[a.action] || a.action} — ${TABLES[a.table_name] || tableLabel(a.table_name)} #${a.record_id ?? ""}` : a.action.replace("(undefined)", "(محاسب)"),
     changes: a.action === "update" && a.old_data && a.new_data
-      ? Object.keys(a.new_data).filter((k) => !["updated_at", "version"].includes(k) && JSON.stringify(a.old_data[k]) !== JSON.stringify(a.new_data[k]))
-          .map((k) => ({ field: k, from: a.old_data[k], to: a.new_data[k] }))
+      ? describeChanges(a.old_data, a.new_data)
       : null,
   })));
 }));
