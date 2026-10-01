@@ -57,4 +57,5 @@ async function start() {
   t.start("overview");
 }
 start();
+document.documentElement.dataset.app = "لوحة المالك";
 showInstallBar();

@@ -374,9 +374,8 @@ function card2(me, s) {
     h("div", { class: "print-only" }, docLogo("print-logo")),
     h("p", {}, `الطالب: ${s.name}`), h("p", {}, `المدرسة: ${me.school.name}`),
     line(h("span", {}, "رابط الصفحة"), keyText(directoryLink(me))),
-    line(h("span", {}, "رمز الصفحة"), keyText(me.school.directory_code)),
     line(h("span", {}, "معرّف الطالب"), keyText(s.access_key)),
-    notice("افتح الرابط، أدخل رمز الصفحة، ثم اسم ابنك ومعرّفه. لا تشارك المعرّف.", "warn")),
+    notice("افتح الرابط، ثم أدخل معرّف ابنك في «ملف الطالب». لا تشارك المعرّف.", "warn")),
   [btn("طباعة", () => window.print())]);
 }
 

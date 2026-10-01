@@ -2,14 +2,13 @@
 import { z } from "../../core/http/validate.js";
 
 export const FIELDS = [
-  "access_mode", "show_classes", "show_student_names", "show_search", "show_teachers",
+  "show_classes", "show_student_names", "show_search", "show_teachers",
   "show_class_counts", "show_announcements", "public_fee_badges", "show_timetable", "show_admissions",
   "profile_show_grades", "profile_show_attendance", "profile_show_teachers", "profile_show_timetable", "profile_show_homework",
   "about", "show_contact", "show_teacher_photos", "absence_alert_threshold", "allow_parent_excuses",
 ];
 
 export const settingsSchema = z.object({
-  access_mode: z.enum(["code", "open"]),
   show_classes: z.boolean(),
   show_student_names: z.boolean(),
   show_search: z.boolean(),

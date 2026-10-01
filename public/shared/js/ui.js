@@ -58,7 +58,7 @@ export function showInstallBar() {
   const close = h("button", { class: "install-close", type: "button", "aria-label": "إخفاء", onclick: dismiss }, icons.close({ size: 16 }));
   const bar = h("div", { class: "install-bar", role: "complementary", "aria-label": "تثبيت التطبيق" },
     h("img", { src: "/brand/mark.svg", alt: "", class: "install-mark", width: 34, height: 26 }),
-    h("div", { class: "install-text" }, h("b", {}, "ثبّت مدار كتطبيق"),
+    h("div", { class: "install-text" }, h("b", {}, document.documentElement.dataset.app ? `ثبّت تطبيق ${document.documentElement.dataset.app}` : "ثبّت مدار كتطبيق"),
       h("span", {}, isIOS() ? "على شاشة جهازك، بخطوتين" : "على جوالك أو جهازك، بضغطة")),
     action, close);
   document.body.append(bar);
@@ -353,7 +353,7 @@ export function dialog(title, content, actions = []) {
 }
 
 const CRED_LABELS = { school: "رمز المدرسة", username: "اسم المستخدم", password: "كلمة المرور المؤقتة",
-  directory_code: "رمز صفحة الطلاب", access_key: "معرّف الطالب" };
+  access_key: "معرّف الطالب" };
 // شاشة إلزامية عند الدخول بكلمة مرور مؤقتة: لا يُفتح شيء في اللوحة قبل اختيار كلمة مرور خاصة
 export function passwordChangeScreen({ endpoint, logoutEndpoint, school, name }) {
   const cur = passwordInput({ autocomplete: "current-password" });
@@ -376,7 +376,9 @@ export function passwordChangeScreen({ endpoint, logoutEndpoint, school, name })
     footer());
 }
 
-export function showCredentials(title, creds, note) {
+export function showCredentials(title, all, note) {
+  // صفحة المدرسة مفتوحة بلا رمز، فلا يُعرض رمزها القديم
+  const creds = Object.fromEntries(Object.entries(all).filter(([k]) => k !== "directory_code"));
   const text = Object.entries(creds).map(([k, v]) => `${CRED_LABELS[k] || k}: ${v}`).join("\n");
   dialog(title, h("div", {},
     notice(note || "انسخها الآن وسلّمها لصاحبها. كلمة المرور لن تظهر مرة أخرى.", "warn"),

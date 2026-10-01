@@ -50,7 +50,6 @@ export function handoverCard(r, extra = []) {
   const rows = [
     ["اسم المدرسة", r.school.name],
     ["رابط الطلاب وأولياء الأمور", publicLink],
-    ["رمز صفحة الطلاب", r.credentials.directory_code],
     ["رابط دخول المدير والمعلمين", staffLink],
     ["اسم المستخدم", r.credentials.username],
     ["كلمة المرور المؤقتة", r.credentials.password],

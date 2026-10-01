@@ -169,7 +169,7 @@ test("المعلم لا يتجاوز فصوله، والدرجات تُقفل ب
 
 test("صفحة الطلاب: الأسماء فقط، والملف بالمعرّف فقط، والدرجات بعد النشر فقط", async () => {
   const anon = client(srv.base);
-  assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: "WRONGCODE" })).status, 401);
+  assert.equal((await anon.post(`/api/public/${A.id}/page`, {})).status, 200, "الصفحة مفتوحة بلا رمز");
   const dir = await anon.post(`/api/public/${A.id}/page`, { access: A.directory });
   assert.equal(dir.status, 200);
   const listed = dir.data.classes.flatMap((c) => c.students);
@@ -194,13 +194,11 @@ test("إعدادات الصفحة العامة: كل عنصر اختياري", a
   const page = () => anon.post(`/api/public/${A.id}/page`, { access: A.directory });
   const set = (patch) => A.admin.put("/api/admin/settings/public-page", patch);
 
-  // الوضع المفتوح: بلا رمز
-  assert.equal((await anon.post(`/api/public/${A.id}/page`, {})).status, 401);
-  assert.equal((await set({ access_mode: "open" })).status, 200);
+  // الصفحة مفتوحة للجميع بلا رمز، ورمز قديم ترسله نسخة سابقة من الواجهة لا يعطلها
   const open = await anon.post(`/api/public/${A.id}/page`, {});
   assert.equal(open.status, 200);
   assert.ok(open.data.classes.length);
-  await set({ access_mode: "code" });
+  assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: "WRONG123" })).status, 200);
 
   // إخفاء الصفوف والأسماء يبقي البحث فقط
   assert.equal((await set({ show_classes: false, show_student_names: false })).status, 200);
@@ -234,8 +232,10 @@ test("إعدادات الصفحة العامة: كل عنصر اختياري", a
   await set({ profile_show_grades: true });
 
   // مدرسة ب لا تتأثر بإعدادات مدرسة أ
+  await set({ profile_show_homework: false });
   const bSettings = await B.admin.get("/api/admin/settings/public-page");
-  assert.equal(bSettings.data.access_mode, "code");
+  assert.equal(bSettings.data.profile_show_homework, true);
+  await set({ profile_show_homework: true });
 });
 
 test("الجدول الدراسي: يُحفظ ويمنع تعارض المعلمين", async () => {
@@ -498,7 +498,6 @@ test("طلبات التسجيل: تُرسل من صفحة المدرسة وتُ�
   assert.equal((await anon.post(`/api/public/${A.id}/admissions`, body)).status, 403);
   assert.equal((await A.admin.put("/api/admin/settings/public-page", { show_admissions: true })).status, 200);
   assert.equal((await anon.post(`/api/public/${A.id}/admissions`, body)).status, 201);
-  assert.equal((await anon.post(`/api/public/${A.id}/admissions`, { ...body, access: "WRONG" })).status, 401, "الرمز مطلوب في وضع الرمز");
 
   const list = await A.admin.get("/api/admin/admissions");
   const req = list.data.find((x) => x.student_name === "طالب جديد");

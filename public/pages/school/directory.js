@@ -9,12 +9,11 @@ import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandL
 import { fmtDate } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
+import { detectPhone } from "../shared/js/phone.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
-const ACCESS = `midar_access_${school}`;
-const access = () => sessionStorage.getItem(ACCESS) || undefined;
 const PAGE = 30;
 let home = null;   // بيانات الرئيسية (تُحمّل مرة واحدة)
 
@@ -23,8 +22,7 @@ function shell(content, { crumbs = [] } = {}) {
   const logo = home?.school.logo ? h("img", { class: "ss-logo", src: `${P}/logo?v=${home.school.logo_v}&size=thumb`, alt: "", width: 44, height: 44 }) : null;
   mount(app,
     h("header", { class: "ss-top" }, h("div", { class: "in" },
-      h("a", { class: "ss-brand", href: "#/" }, logo, h("div", {}, h("b", {}, home?.school.name || ""), h("small", {}, "الطلاب وأولياء الأمور"))),
-      home?.features.access_mode === "code" ? h("button", { class: "btn ghost sm", type: "button", onclick: () => { sessionStorage.removeItem(ACCESS); location.hash = ""; location.reload(); } }, "خروج") : null)),
+      h("a", { class: "ss-brand", href: "#/" }, logo, h("div", {}, h("b", {}, home?.school.name || ""), h("small", {}, "الطلاب وأولياء الأمور"))))),
     crumbs.length ? h("nav", { class: "ss-crumbs", "aria-label": "المسار" }, h("div", { class: "in" },
       [["الرئيسية", "#/"], ...crumbs].map(([label, href], i, a) => [
         i ? h("span", { class: "sep", "aria-hidden": "true" }, "‹") : null,
@@ -39,36 +37,16 @@ const emptyState = (icon, title, text) => h("div", { class: "ss-empty" }, icon, 
 async function route() {
   const [, page, a, b] = (location.hash || "#/").split("/");
   try {
-    if (!home) home = await api(`${P}/home`, { access: access() });
+    if (!home) home = await api(`${P}/home`, {});
     if (page === "students") return await studentsPage();
     if (page === "grade") return await gradePage(Number(a), b ? Number(b) : null);
     return homePage();
   } catch (e) {
     if (e.status === 404) return mount(app, h("main", { class: "ss-main" }, emptyState(icons.close({ size: 40 }), "المدرسة غير متاحة", "الرابط غير صحيح أو الصفحة غير متاحة حاليًا.")), footer());
-    if (e.status === 401 && !home) { sessionStorage.removeItem(ACCESS); return askAccess(access() ? e.message : null); }
     shell(notice(e.message, "err"));
   }
 }
 window.addEventListener("hashchange", route);
-
-/* ======================= رمز الصفحة (وضع الرمز) ======================= */
-function askAccess(error) {
-  const code = input({ class: "ltr", placeholder: "رمز الصفحة", autocomplete: "off" });
-  const msg = h("div", {}, error ? notice(error, "err") : null);
-  const go = btn("دخول", async () => {
-    try {
-      await api(`${P}/open`, { access: code.value });
-      sessionStorage.setItem(ACCESS, code.value.trim().toUpperCase());
-      route();
-    } catch (e) { mount(msg, notice(e.message, "err")); }
-  }, "wide");
-  code.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
-  mount(app,
-    h("div", { class: "auth-hero" }, h("div", { class: "in" }, brandLogo("hero-logo", true, "stacked"), h("p", { class: "role" }, "صفحة الطلاب وأولياء الأمور"))),
-    h("main", {}, h("div", { class: "auth-card" }, h("h2", {}, "أدخل رمز صفحة المدرسة"), sub("الرمز من إدارة المدرسة."), field("رمز الصفحة", code), msg, go)),
-    footer());
-  code.focus();
-}
 
 /* ======================= الرئيسية ======================= */
 function homePage() {
@@ -98,7 +76,7 @@ function homePage() {
 // التواصل: بطاقة واحدة مرتبة — كل وسيلة في سطر بأيقونتها وزر إجرائها
 function contactCard(c) {
   if (!c || !(c.phone || c.email || c.address || c.city)) return null;
-  const intl = c.phone ? String(c.phone).replace(/\D/g, "").replace(/^0/, "966") : null;
+  const intl = c.phone ? detectPhone(c.phone)?.intl : null;
   const rowOf = (icon, label, value, action) => h("div", { class: "ss-crow" },
     h("span", { class: "ic" }, icon), h("div", { class: "tx" }, h("small", {}, label), h("b", {}, value)), action || null);
   return h("section", { class: "ss-card", id: "contact" }, h("h2", {}, icons.phone({ size: 20 }), "تواصل مع المدرسة"),
@@ -123,7 +101,7 @@ function findByKey() {
     const k = key.value.trim().toUpperCase();
     if (!/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(k)) return mount(msg, notice("المعرّف 8 أحرف وأرقام مثل ABCD-2345", "err"));
     try {
-      const r = await api(`${P}/find`, { access: access(), key: k });
+      const r = await api(`${P}/find`, { key: k });
       sessionStorage.setItem(`midar_student_${school}`, JSON.stringify({ id: r.student_id, key: k }));
       location.href = `/${encodeURIComponent(school)}/student`;
     } catch (e) { mount(msg, notice(e.message, "err")); }
@@ -140,7 +118,7 @@ function findByKey() {
 /* ======================= الطلاب: المراحل والصفوف ======================= */
 async function studentsPage() {
   shell(skeleton(6), { crumbs: [["الطلاب", "#/students"]] });
-  const data = await api(`${P}/structure`, { access: access() });
+  const data = await api(`${P}/structure`, {});
   const search = home.features.search ? nameSearch() : null;
   shell([
     h("div", { class: "ss-head" }, h("h1", {}, "الطلاب"), sub("اختر الصف لعرض شعبه وطلابه.")),
@@ -167,7 +145,7 @@ function nameSearch() {
       if (v.length < 2) return mount(out);
       mount(out, skeleton(2));
       try {
-        const r = await api(`${P}/search`, { access: access(), q: v });
+        const r = await api(`${P}/search`, { q: v });
         mount(out, r.results.length ? h("div", { class: "ss-students" }, r.results.map((s) => studentCard(s, s.class_name)))
           : emptyState(icons.search({ size: 32 }), "لا توجد نتائج", "تأكد من كتابة الاسم."));
       } catch (e) { mount(out, notice(e.message, "err")); }
@@ -179,7 +157,7 @@ function nameSearch() {
 /* ======================= صفحة الصف: الشعب والطلاب ======================= */
 async function gradePage(gradeId, sectionId) {
   shell(skeleton(6), { crumbs: [["الطلاب", "#/students"], ["…", "#"]] });
-  const g = await api(`${P}/grade`, { access: access(), grade_id: gradeId });
+  const g = await api(`${P}/grade`, { grade_id: gradeId });
   const crumbs = [["الطلاب", "#/students"], ...(g.grade.stage ? [[g.grade.stage, "#/students"]] : []), [g.grade.name, `#/grade/${gradeId}`]];
   document.title = `${g.grade.name} — ${home.school.name}`;
   if (!g.sections.length) return shell(emptyState(icons.users({ size: 40 }), "لا توجد شعب في هذا الصف"), { crumbs });
@@ -202,7 +180,7 @@ async function sectionView(body, section, namesShown) {
   const count = h("small", { class: "sub" });
   const load = async (reset) => {
     if (reset) { offset = 0; mount(list, skeleton(3)); }
-    const r = await api(`${P}/section`, { access: access(), class_id: section.id, offset, limit: PAGE, q: q.value.trim() || undefined });
+    const r = await api(`${P}/section`, { class_id: section.id, offset, limit: PAGE, q: q.value.trim() || undefined });
     if (offset === 0) {
       mount(info,
         r.teachers?.length ? h("details", { class: "ss-card" }, h("summary", {}, "معلمو الشعبة"),
@@ -247,7 +225,7 @@ function admissionForm() {
   const send = btn("إرسال الطلب", async () => {
     mount(msg);
     try {
-      await api(`${P}/admissions`, { access: access(), ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])) });
+      await api(`${P}/admissions`, { ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])) });
       mount(msg, notice("وصل طلبك. ستتواصل معك المدرسة قريبًا.", ""));
       for (const el of Object.values(f)) el.value = "";
     } catch (e) { mount(msg, notice(e.message, "err")); }
@@ -279,4 +257,5 @@ function askKey(student) {
 }
 
 route();
+document.documentElement.dataset.app = "صفحة المدرسة";
 showInstallBar();

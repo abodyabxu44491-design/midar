@@ -117,7 +117,7 @@ export function handoverText(r) {
   const link = `${location.origin}/${r.credentials.school}`;
   return [`مرحبًا ${r.lead?.contact_name || ""}، تم تفعيل حساب ${r.school.name} على منصة مدار.`,
     `رابط دخول الإدارة: ${link}/idara`, `اسم المستخدم: ${r.credentials.username}`, `كلمة المرور المؤقتة: ${r.credentials.password}`,
-    `رابط أولياء الأمور: ${link} — رمز الصفحة: ${r.credentials.directory_code}`,
+    `رابط صفحة المدرسة وأولياء الأمور: ${link}`,
     "بعد الدخول سيطلب النظام تغيير كلمة المرور، ثم يبدأ معالج إعداد المدرسة."].join("\n");
 }
 

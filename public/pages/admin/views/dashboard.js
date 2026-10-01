@@ -90,7 +90,6 @@ export default async function dashboard({ me, goTo }) {
     // الروابط: كل رابط يُفتح بالضغط ويُنسخ بزر واحد
     panel("روابط مدرستك", null,
       linkRow("صفحة الطلاب وأولياء الأمور", L?.public?.home || directoryLink(me), { note: "شاركها مع الأهالي" }),
-      copyRow("رمز فتح صفحة الطلاب", me.school.directory_code, { note: "يُطلب عند فتح الصفحة إن كانت برمز" }),
       linkRow("دخول الإدارة والمعلمين والمحاسبين", staffLink(me), { note: "خاص بمنسوبي المدرسة" }),
       sub("معرّف كل طالب (لفتح ملفه) تجده في تبويب الطلاب.")),
   ];

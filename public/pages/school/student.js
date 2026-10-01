@@ -154,4 +154,5 @@ function payDialog(f, inv, available) {
 }
 
 load();
+document.documentElement.dataset.app = "صفحة المدرسة";
 showInstallBar();

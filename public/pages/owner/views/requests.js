@@ -75,8 +75,7 @@ async function convert(r, refresh) {
     dialog("تم تفعيل المدرسة", h("div", {},
       notice("أرسل بيانات الدخول للمدرسة الآن. كلمة المرور لن تظهر مرة أخرى.", "warn"),
       [["رابط الدخول", `${location.origin}/${res.credentials.school}/idara`], ["اسم المستخدم", res.credentials.username],
-        ["كلمة المرور المؤقتة", res.credentials.password], ["رابط أولياء الأمور", `${location.origin}/${res.credentials.school}`],
-        ["رمز صفحة الطلاب", res.credentials.directory_code]].map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
+        ["كلمة المرور المؤقتة", res.credentials.password], ["رابط أولياء الأمور", `${location.origin}/${res.credentials.school}`]].map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
       sub("بعد أول دخول: تغيير كلمة المرور ← معالج إعداد المدرسة ← لوحة التحكم.")),
     [wa ? h("a", { class: "btn", href: wa, target: "_blank", rel: "noopener" }, "إرسال عبر واتساب") : null,
       btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }, "ghost")].filter(Boolean));

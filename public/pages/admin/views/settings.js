@@ -23,7 +23,7 @@ const SECTIONS = [
   { key: "users", name: "المستخدمون والصلاحيات", note: "حسابات المحاسبين" },
   { key: "passwords", name: "طلبات كلمات المرور", note: "تحقق من هوية الطالب ثم أحِل الطلب" },
   { key: "money", name: "العملة", note: "عملة المدرسة الأساسية" },
-  { key: "access", name: "الدخول والأمان", note: "رمز الصفحة وكلمة المرور والجلسات" },
+  { key: "access", name: "الدخول والأمان", note: "كلمة المرور والجلسات" },
   { key: "sync", name: "المزامنة والأجهزة", note: "العمل بدون إنترنت: التعارضات والأجهزة" },
   { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
   { key: "subscription", name: "اشتراكي", note: "الباقة والمميزات والتجديد والترقية" },
@@ -173,9 +173,6 @@ async function pageView({ me }) {
     catch (e) { mount(msg, notice(e.message, "err")); return false; }
   };
 
-  const mode = select([["code", "تحتاج رمزًا (أكثر خصوصية)"], ["open", "مفتوحة لمن يعرف الرابط"]], { value: pub.access_mode });
-  mode.addEventListener("change", () => save({ access_mode: mode.value }));
-
   // واجهة الموقع المصغّر: النبذة وبيانات التواصل
   const about = textarea({ rows: 3, value: pub.about || "", placeholder: "نبذة قصيرة عن المدرسة تظهر في أعلى الصفحة (اختياري)", maxLength: 800 });
   const L = me.links;
@@ -186,8 +183,8 @@ async function pageView({ me }) {
       linkRow("قائمة الطلاب مباشرة", L.public.students),
       h("h4", { style: "margin:14px 0 6px" }, "روابط الدخول (للمنسوبين فقط)"),
       linkRow("دخول الإدارة", L.staff.admin), linkRow("دخول المعلمين", L.staff.teacher), linkRow("دخول المحاسب", L.staff.accountant)),
-    panel("طريقة الدخول", btn("معاينة", () => window.open(L.public.home, "_blank"), "ghost sm"),
-      field("دخول صفحة المدرسة", mode), msg),
+    panel("الدخول للصفحة", btn("معاينة", () => window.open(L.public.home, "_blank"), "ghost sm"),
+      sub("صفحة المدرسة مفتوحة للجميع بلا رمز، وتعرض فقط ما تفعّله من الخيارات بالأسفل. ملف كل طالب لا يُفتح إلا بمعرّفه الخاص."), msg),
     panel("واجهة الصفحة", null,
       field("نبذة عن المدرسة", about),
       btn("حفظ النبذة", () => save({ about: about.value.trim() || null }), "primary sm"),
@@ -423,16 +420,6 @@ async function accessView({ me, refresh }) {
   const cur = passwordInput({ autocomplete: "current-password" });
   const nxt = passwordInput({ autocomplete: "new-password" });
   return [
-    panel("رمز صفحة الطلاب", null,
-      line(h("span", {}, "الرمز الحالي"), keyText(me.school.directory_code)),
-      sub("إنشاء رمز جديد يوقف الرمز الحالي فورًا."),
-      h("div", { class: "spaced" }, btn("إنشاء رمز جديد", async () => {
-        if (!confirmAction("إنشاء رمز جديد لصفحة الطلاب؟")) return;
-        const r = await api(`${A}/settings/directory-code`, {});
-        toast(`الرمز الجديد: ${r.directory_code}`);
-        refresh();
-      }, "soft"))),
-
     panel("تغيير كلمة المرور", null,
       field("كلمة المرور الحالية", cur),
       field("الجديدة", nxt, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),

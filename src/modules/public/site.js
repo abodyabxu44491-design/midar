@@ -8,15 +8,14 @@ import { parse, t, z } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
 import { recentFailures, securityEvent } from "../../core/audit.js";
 import { transaction } from "../../core/db/pool.js";
-import { inSchool, accessSchema, checkAccess } from "./context.js";
+import { inSchool, accessSchema } from "./context.js";
 import { getSettings } from "../shared/public-settings.service.js";
 import { studentSummaries } from "../shared/finance.service.js";
 import { forAllClasses } from "../shared/timetable.service.js";
 import { logoId } from "../shared/school-logo.service.js";
 
 const r = Router({ mergeParams: true });
-const base = accessSchema.partial();
-const gate = (settings, tenant, access) => { if (settings.access_mode === "code") checkAccess(tenant, access); };
+const base = accessSchema;
 const ACTIVE = "s.status = 'active'";
 
 // بطاقة الطالب: الاسم، وحالة السداد فقط إن فعّلت المدرسة إظهارها للجميع
@@ -34,7 +33,6 @@ r.post("/home", limits.api, handle(async (req, res) => {
   const b = parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
-    gate(settings, tenant, b.access);
     const [profile] = settings.show_contact
       ? await q("SELECT city, address, phone, email FROM school_profile WHERE tenant_id = app_tenant()") : [];
     const logo = await logoId(q);
@@ -45,7 +43,7 @@ r.post("/home", limits.api, handle(async (req, res) => {
         ? await q("SELECT title, body, created_at FROM announcements WHERE class_id IS NULL ORDER BY id DESC LIMIT 6") : [],
       features: {
         directory: settings.show_classes, names: settings.show_student_names, search: settings.show_search,
-        admissions: settings.show_admissions, find_by_key: true, access_mode: settings.access_mode,
+        admissions: settings.show_admissions, find_by_key: true,
       },
     };
   }));
@@ -56,7 +54,6 @@ r.post("/structure", limits.api, handle(async (req, res) => {
   const b = parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
-    gate(settings, tenant, b.access);
     if (!settings.show_classes) throw forbidden("قائمة الصفوف غير معروضة في هذه المدرسة");
     const rows = await q(
       `SELECT st.id AS stage_id, st.name AS stage, g.id AS grade_id, g.name AS grade,
@@ -84,7 +81,6 @@ r.post("/grade", limits.api, handle(async (req, res) => {
   const b = parse(base.extend({ grade_id: z.coerce.number().int().min(0) }), req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
-    gate(settings, tenant, b.access);
     if (!settings.show_classes) throw forbidden("قائمة الصفوف غير معروضة في هذه المدرسة");
     const [grade] = b.grade_id ? await q(
       `SELECT g.id, g.name, st.name AS stage FROM grades g LEFT JOIN stages st ON st.id = g.stage_id WHERE g.id = $1`, [b.grade_id])
@@ -108,7 +104,6 @@ r.post("/section", limits.api, handle(async (req, res) => {
   }), req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
-    gate(settings, tenant, b.access);
     if (!settings.show_classes) throw forbidden("قائمة الصفوف غير معروضة في هذه المدرسة");
     const [cls] = await q("SELECT id, name FROM classes WHERE id = $1", [b.class_id]);
     if (!cls) throw notFound("الشعبة غير موجودة");
@@ -148,7 +143,6 @@ r.post("/find", limits.studentKey, handle(async (req, res) => {
   const b = parse(base.extend({ key: t.studentKey }), req.body);
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
     const settings = await getSettings(q);
-    gate(settings, tenant, b.access);
     const ipSubject = `${tenant.id}:find:${req.ip || "unknown"}`;
     if ((await recentFailures(q, "student_key_failed_ip", ipSubject, 30)) >= 10) {
       throw unauthorized("تم إيقاف المحاولة مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد 30 دقيقة.");
