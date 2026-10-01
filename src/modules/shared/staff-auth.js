@@ -37,7 +37,7 @@ async function unlockIn(q, user, ipKey, acctKey) {
 const locked = (seconds) => ({ locked: true, retry_after: seconds,
   error: "تم إيقاف الدخول مؤقتًا بسبب محاولات خاطئة متكررة." });
 
-const label = { admin: "إدارة", teacher: "معلم" };
+const label = { admin: "إدارة", teacher: "معلم", accountant: "محاسب" };
 
 /**
  * باب واحد لمنسوبي المدرسة: النظام يعرف من الحساب هل هو مدير أو معلم،
@@ -82,7 +82,7 @@ export const staffLoginRouter = () => {
       await q("DELETE FROM security_events WHERE kind = $1 AND subject = $2", [FAIL_IP, ipKey]);   // نجاح الدخول يصفّر عدّاد هذا العنوان
       await q("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [user.id]);
       await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);
-      await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role]})${b.remember ? " - تذكرني" : ""}` });
+      await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role] || "موظف"})${b.remember ? " - تذكرني" : ""}` });
       return { role: user.role };
     });
     if (outcome.locked) throw new AppError(429, outcome.error, "locked", { retry_after: outcome.retry_after });

@@ -464,7 +464,7 @@ async function dataView({ me }) {
           }
           toast("تم تنزيل الملفات");
         }, "soft"),
-        btn("تصدير نسخة كاملة (JSON)", async () => {
+        btn("تنزيل نسخة كاملة من بيانات المدرسة", async () => {
           const d = await api(`${A}/export`);
           const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(d, null, 2)], { type: "application/json" })),
             download: `midar-${d.school}-${new Date().toISOString().slice(0, 10)}.json` });

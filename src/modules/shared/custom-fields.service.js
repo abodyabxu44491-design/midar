@@ -64,7 +64,17 @@ export async function removeField(q, id) {
 }
 
 /** قيم كيان واحد: { key: value } */
+// صاحب القيم يجب أن يكون موجودًا في هذه المدرسة (لا قيم معلّقة بمعرّف غير موجود)
+const ENTITY_TABLE = { student: "students", teacher: "teachers", staff: "staff" };
+async function assertEntity(q, entity, entityId) {
+  const table = ENTITY_TABLE[entity];
+  if (!table) throw badRequest("نوع غير معروف");
+  const [row] = await q(`SELECT 1 FROM ${table} WHERE id = $1`, [entityId]);
+  if (!row) throw notFound("السجل غير موجود");
+}
+
 export async function valuesOf(q, entity, entityId) {
+  await assertEntity(q, entity, entityId);
   const rows = await q(
     `SELECT f.key, v.value FROM custom_values v JOIN custom_fields f ON f.id = v.field_id
       WHERE f.entity = $1 AND v.entity_id = $2`, [entity, entityId]);
@@ -87,6 +97,7 @@ export async function valuesFor(q, entity, ids) {
 
 /** حفظ القيم مع التحقق من النوع والإلزامية */
 export async function saveValues(q, entity, entityId, values) {
+  await assertEntity(q, entity, entityId);
   const fields = await q("SELECT id, key, label, type, options, required FROM custom_fields WHERE entity = $1 AND is_active", [entity]);
   for (const f of fields) {
     const raw = values[f.key];

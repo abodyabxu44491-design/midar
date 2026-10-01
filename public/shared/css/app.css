@@ -337,7 +337,7 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 
 /* --- الشاشات الكبيرة: التبويبات عمود جانبي ثابت --- */
 @media (min-width: 1080px) {
-  .tabs-layout { display: grid; grid-template-columns: 216px 1fr; gap: 18px; align-items: start; }
+  .tabs-layout { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 18px; align-items: start; }
   /* الكمبيوتر: عمود جانبي ثابت، أيقونة بجانب اسم القسم */
   .tabs-layout > .tabs {
     flex-direction: column; gap: 2px; overflow: visible; padding: 8px; margin: 0;
@@ -550,7 +550,7 @@ button.section-chip:hover { border-color: var(--accent); }
 
 /* ملف الطالب: قائمة أقسام جانبية ومحتوى واسع */
 .profile-page { max-width: 1180px; }
-.profile-layout { display: grid; gap: 14px; grid-template-columns: 1fr; }
+.profile-layout { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
 .profile-nav { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .profile-nav button { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; white-space: nowrap;
   background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; cursor: pointer;
@@ -561,7 +561,7 @@ button.section-chip:hover { border-color: var(--accent); }
 .kpis.inline div { background: var(--bg); border-radius: 10px; padding: 8px 14px; text-align: center; font-size: 12px; color: var(--muted); }
 .kpis.inline b { display: block; font-size: 18px; color: var(--navy); }
 @media (min-width: 900px) {
-  .profile-layout { grid-template-columns: 220px 1fr; align-items: start; }
+  .profile-layout { grid-template-columns: 220px minmax(0, 1fr); align-items: start; }
   .profile-nav { flex-direction: column; overflow: visible; position: sticky; top: 16px; }
   .profile-nav button { width: 100%; }
 }
@@ -799,7 +799,7 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .student-file .ph-row { display: flex; gap: 14px; align-items: center; }
 .student-file .ph-row h1 { margin: 0; }
 .student-file .profile-layout { display: grid; gap: 12px; }
-@media (min-width: 720px) { .student-file .profile-layout { grid-template-columns: 200px 1fr; align-items: start; } }
+@media (min-width: 720px) { .student-file .profile-layout { grid-template-columns: 200px minmax(0, 1fr); align-items: start; } }
 .student-file .profile-nav { display: flex; gap: 6px; overflow-x: auto; }
 @media (min-width: 720px) { .student-file .profile-nav { flex-direction: column; overflow: visible; } }
 .student-file .profile-nav button { text-align: start; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; cursor: pointer; white-space: nowrap; display: flex; flex-direction: column; }
@@ -1129,3 +1129,9 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   .pay-net { flex-direction: row; align-items: center; }
 }
 input.num { text-align: left; font-variant-numeric: tabular-nums; }
+
+/* محتوى الأقسام لا يتمدد بعرض أعرض جدول فيه (عمود الشبكة الافتراضي يتمدد بحسب المحتوى):
+   الجدول العريض يتمرر داخل لوحته بدل أن تتجاوز الصفحة عرض الشاشة */
+.tabs-layout > [role="tabpanel"], .profile-layout > * { min-width: 0; }
+.panel { min-width: 0; }
+.panel > table, .panel > .grid, .panel > div > table.grid { display: block; overflow-x: auto; max-width: 100%; }

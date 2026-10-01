@@ -173,7 +173,10 @@ r.post("/payroll", requireModule("payroll"), canPayroll, handle(async (req, res)
 }));
 r.get("/payroll/:id/items", requireModule("payroll"), handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  res.json(await inTenant(req, (q) => payroll.runItems(q, id)));
+  res.json(await inTenant(req, async (q) => {
+    if (!(await q("SELECT 1 FROM payroll_runs WHERE id = $1", [id])).length) throw notFound("مسير الرواتب غير موجود");
+    return payroll.runItems(q, id);
+  }));
 }));
 r.patch("/payroll/:id/items/:itemId", requireModule("payroll"), canPayroll, handle(async (req, res) => {
   const id = parse(t.id, req.params.id), itemId = parse(t.id, req.params.itemId);
@@ -204,7 +207,10 @@ r.post("/entries/:id/attachments", handle(async (req, res) => {
 
 r.get("/entries/:id/attachments", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  res.json(await inTenant(req, (q) => files.list(q, "finance_entry", id)));
+  res.json(await inTenant(req, async (q) => {
+    if (!(await q("SELECT 1 FROM finance_entries WHERE id = $1", [id])).length) throw notFound("الحركة غير موجودة");
+    return files.list(q, "finance_entry", id);
+  }));
 }));
 
 // تنزيل المرفق (داخل جلسة المدرسة فقط)

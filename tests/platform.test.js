@@ -397,7 +397,7 @@ test("طلب من موقع خارجي يُرفض (CSRF)", async () => {
 
 test("سجل التدقيق يسجل التعديلات بالقيم", async () => {
   const r = await A.admin.get("/api/admin/audit");
-  assert.ok(r.data.some((a) => a.changes?.some((c) => c.field === "guardian_name")));
+  assert.ok(r.data.some((a) => a.changes?.some((c) => c.field === "اسم ولي الأمر")));
 });
 
 test("قفل الدخول 5 دقائق بعد 5 محاولات خاطئة، مع الوقت المتبقي للعد التنازلي", async () => {

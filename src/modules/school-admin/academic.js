@@ -1,7 +1,7 @@
 // السنة الدراسية والفصول الدراسية
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle } from "../../core/http/errors.js";
+import { handle, notFound } from "../../core/http/errors.js";
 import { parse, t } from "../../core/http/validate.js";
 import * as academic from "../shared/academic.service.js";
 
@@ -90,10 +90,13 @@ r.post("/start-year", handle(async (req, res) => {
 // سجل الطالب عبر السنوات
 r.get("/students/:id/history", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  res.json(await inTenant(req, (q) => q(
+  res.json(await inTenant(req, async (q) => {
+    if (!(await q("SELECT 1 FROM students WHERE id = $1", [id])).length) throw notFound("الطالب غير موجود");
+    return q(
     `SELECT sy.year_id, y.name AS year_name, sy.class_name, sy.result, sy.outcome, sy.average, sy.attendance_rate, sy.note, sy.archived_at
        FROM student_years sy JOIN academic_years y ON y.id = sy.year_id
-      WHERE sy.student_id = $1 ORDER BY y.start_date DESC`, [id])));
+      WHERE sy.student_id = $1 ORDER BY y.start_date DESC`, [id]);
+  }));
 }));
 
 export default r;

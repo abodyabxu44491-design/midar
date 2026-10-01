@@ -48,7 +48,9 @@ export default async function ledgerView({ refresh, me }) {
   const views = {
     overview: (ctx) => overview(ctx), fees: async () => (await import("./finance.js")).default({ refresh: () => show("fees"), me }),
     staff: (ctx) => staffView(ctx), payroll: (ctx) => payrollView(ctx), money: (ctx) => expenses(ctx), entries: (ctx) => entries(ctx),
-    donations: (ctx) => donationsView(ctx), accounts: async (ctx) => [...(mods.transfers !== false ? await transfer(ctx) : []), ...(await accounts(ctx))],
+    donations: (ctx) => donationsView(ctx),
+    // التحويل بين الحسابات ثم الحسابات والتصنيفات (كل دالة تعيد عنصرًا أو قائمة عناصر)
+    accounts: async (ctx) => [mods.transfers !== false ? await transfer(ctx) : null, await accounts(ctx)].flat(),
   };
   const show = async (next = part) => {
     part = next;

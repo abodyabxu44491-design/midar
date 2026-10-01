@@ -335,7 +335,7 @@ export async function dangerZone({ base, scope }) {
         h("td", {}, b.created_by), h("td", {}, fmtDateTime(b.created_at)), h("td", {}, kb(b.size_bytes)),
         h("td", {}, h("a", { class: "btn ghost sm", href: `${base}/backups/${b.id}/download` }, "تنزيل"))))));
     return [h("div", { class: "table-wrap" }, table),
-      sub("التنزيل ملف JSON مضغوط (gzip) بكل بيانات المدرسة، ويُسجَّل في سجل العمليات. احفظه في مكان آمن.")];
+      sub("التنزيل ملف مضغوط فيه كل بيانات المدرسة، ويُسجَّل في سجل العمليات. احفظه في مكان آمن.")];
   }
 
   paintTabs();

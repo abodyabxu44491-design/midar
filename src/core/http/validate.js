@@ -10,6 +10,8 @@ const FIELD_LABELS = {
   username: "اسم المستخدم", password: "كلمة المرور", school: "رمز المدرسة", name: "الاسم", class_id: "الفصل", subject_id: "المادة",
   amount: "المبلغ", date: "التاريخ", title: "العنوان", total_marks: "الدرجة النهائية", price: "السعر", feature_key: "الميزة",
   student_id: "الطالب", key: "معرّف الطالب", addon_keys: "المميزات الإضافية", note: "الملاحظات",
+  from: "تاريخ البداية", to: "تاريخ النهاية", month: "الشهر", period: "الشهر", q: "نص البحث", term_id: "الفصل الدراسي",
+  grade_id: "الصف", stage_id: "المرحلة", teacher_id: "المعلم", invoice_id: "الفاتورة", status: "الحالة", reason: "السبب",
 };
 const fieldLabel = (path) => FIELD_LABELS[path[path.length - 1]] || (path.length ? "أحد الحقول" : "الطلب");
 
@@ -17,8 +19,10 @@ export const parse = (schema, data) => {
   const r = schema.safeParse(data ?? {});
   if (!r.success) {
     const i = r.error.issues[0];
-    throw badRequest(i.message.startsWith("Expected") || i.message.startsWith("Invalid") || i.message.startsWith("String") || i.message.startsWith("Number")
-      ? `قيمة غير صحيحة في: ${fieldLabel(i.path)}` : i.message);
+    // رسائل zod الإنجليزية الافتراضية لا تصل للمستخدم: «Required» ← حقل مطلوب، والباقي ← قيمة غير صحيحة
+    const msg = i.message;
+    if (msg === "Required") throw badRequest(`حقل مطلوب: ${fieldLabel(i.path)}`);
+    throw badRequest(/^[A-Za-z]/.test(msg) ? `قيمة غير صحيحة في: ${fieldLabel(i.path)}` : msg);
   }
   return r.data;
 };
