@@ -10,6 +10,8 @@ import { ensureDefaults } from "../shared/academic.service.js";
 import { clearLoginFailures } from "../../core/audit.js";
 import { activate, activateSchema } from "../shared/subscription.service.js";
 import { schoolLinks } from "../../core/links.js";
+import { buildShowcase } from "../shared/showcase-school.service.js";
+import { startJob } from "../../core/jobs.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -24,7 +26,7 @@ const createSchema = z.object({
   plan: z.enum(["basic", "pro", "enterprise"]).default("basic"),
   max_students: z.coerce.number().int().min(1).max(100000).default(200),
   subscription_end: t.optDate,
-  currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
+  currency: z.enum(["SAR", "YER", "USD"]).default("YER"),
   subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
   // الاشتراك عند الإنشاء: باقة وتجربة أو اشتراك. بدونه تأخذ المدرسة كل المميزات (السلوك السابق)
@@ -75,7 +77,7 @@ export async function createTenant(req, b) {
                subscription_price, grace_days, currency)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [b.id, b.name, b.plan ?? "basic", b.max_students ?? 200, b.subscription_end ?? null, directory,
-       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "SAR"]);
+       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER"]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);          // سنة دراسية وفصولها جاهزة من اليوم الأول
@@ -94,6 +96,30 @@ export async function createTenant(req, b) {
 r.post("/", handle(async (req, res) => {
   const b = parse(createSchema, req.body);
   res.status(201).json(await createTenant(req, b));
+}));
+
+// مدرسة عرض كاملة (عدن، بنين، الأساسي والثانوي) أنهت عامًا دراسيًا كاملًا بكل أقسام المنصة — للعرض على العملاء
+const showcaseSchema = z.object({
+  id: codeSchema.default("alrowad-aden"),
+  name: t.shortText("اسم المدرسة", 150).default("مدارس الرواد الأهلية للبنين"),
+  per_section: z.coerce.number().int().min(5).max(35).default(24),
+});
+export async function createShowcase(req, b, progress) {
+  const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله محمد باوزير", plan: "enterprise", max_students: 2000, currency: "YER" });
+  const summary = await buildShowcase(b.id, { actor: req.actor, ip: req.ip, perSection: b.per_section, progress });
+  return { ...created, summary, links: schoolLinks(req, b.id) };
+}
+// في الخلفية (تستغرق ثواني طويلة): يُرد برقم العملية، وبيانات الدخول تُسلَّم للمالك من الذاكرة عند الانتهاء ولا تُحفظ في jobs
+r.post("/showcase", handle(async (req, res) => {
+  const b = parse(showcaseSchema, req.body || {});
+  const [taken] = await platform(req, (q) => q("SELECT 1 FROM tenants WHERE id = $1", [b.id]));
+  if (taken) throw conflict("هذا الرمز مستخدم لمدرسة أخرى");
+  const links = schoolLinks(req, b.id);
+  res.status(202).json(await startJob({ kind: "showcase_school", total: 100, step: "إنشاء المدرسة", req }, async ({ progress }) => {
+    const r = await createShowcase(req, b, progress);
+    const { teacher_samples, parent_samples, accountant, ...counts } = r.summary;   // كلمات المرور لا تُحفظ في سجل العمليات
+    return { summary: { school: r.school, counts }, secret: { ...r, links } };
+  }));
 }));
 
 r.patch("/:id", handle(async (req, res) => {

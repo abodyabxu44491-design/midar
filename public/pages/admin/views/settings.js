@@ -27,7 +27,7 @@ const SECTIONS = [
   { key: "sync", name: "المزامنة والأجهزة", note: "العمل بدون إنترنت: التعارضات والأجهزة" },
   { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
   { key: "subscription", name: "اشتراكي", note: "الباقة والمميزات والتجديد والترقية" },
-  { key: "danger", name: "⚠️ منطقة الحذر", note: "عمليات حساسة: الجلسات والحسابات والنسخ الاحتياطي وحذف بيانات محددة" },
+  { key: "danger", name: "منطقة الحذر", note: "عمليات حساسة: الجلسات والحسابات والنسخ الاحتياطي وحذف بيانات محددة" },
 ];
 
 export default function settings(ctx) {
@@ -213,22 +213,22 @@ async function pageView({ me }) {
 /* ===================== 3) طرق السداد ===================== */
 async function paymentView({ show }) {
   const pay = await api(`${A}/settings/payment`);
-  const acc = { bank: input({ placeholder: "اسم البنك" }), holder: input(),
-    iban: input({ class: "ltr", placeholder: "SA00 0000 0000 0000 0000 0000" }), number: input({ class: "ltr" }) };
+  const acc = { bank: input({ placeholder: "مثال: بنك الكريمي، محفظة جوالي" }), holder: input(),
+    iban: input({ class: "ltr", placeholder: "اختياري" }), number: input({ class: "ltr", inputMode: "numeric" }) };
   const note = textarea({ rows: 2, value: pay.payment_note || "", placeholder: "مواعيد استلام الدفع النقدي ومكانه" });
 
   return [
     panel("الحسابات البنكية", null,
-      sub("تظهر لولي الأمر عند الضغط على «ادفع»."),
+      sub("تظهر لولي الأمر عند الضغط على «ادفع». أضف حساب البنك أو رقم المحفظة (جوالي، ون كاش، الكريمي…)."),
       pay.accounts.length ? pay.accounts.map((a) => line(
         h("div", { class: a.is_active ? "" : "muted-row" }, h("b", {}, a.bank_name), " ", a.is_active ? null : badge("موقوف", "gray"),
-          sub(`${a.account_holder} — `, keyText(a.iban), a.account_number ? ` — ${a.account_number}` : "")),
+          sub(`${a.account_holder} — `, keyText(a.account_number || a.iban), a.account_number && a.iban ? ` — ${a.iban}` : "")),
         btn(a.is_active ? "إيقاف" : "تفعيل", async () => {
           await api(`${A}/settings/payment/accounts/${a.id}`, { active: !a.is_active }, "PATCH"); show();
         }, "ghost sm"))) : empty("لا توجد حسابات بنكية بعد."),
-      h("h3", { class: "sec-title" }, "إضافة حساب بنكي"),
-      h("div", { class: "row" }, field("اسم البنك", acc.bank), field("اسم صاحب الحساب", acc.holder)),
-      h("div", { class: "row" }, field("الآيبان (IBAN)", acc.iban), field("رقم الحساب (اختياري)", acc.number)),
+      h("h3", { class: "sec-title" }, "إضافة حساب أو محفظة"),
+      h("div", { class: "row" }, field("البنك أو المحفظة", acc.bank), field("اسم صاحب الحساب", acc.holder)),
+      h("div", { class: "row" }, field("رقم الحساب أو المحفظة", acc.number), field("الآيبان (إن وُجد)", acc.iban)),
       btn("إضافة الحساب", async () => {
         await api(`${A}/settings/payment/accounts`, { bank_name: acc.bank.value, account_holder: acc.holder.value,
           iban: acc.iban.value, account_number: acc.number.value });

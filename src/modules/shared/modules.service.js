@@ -11,6 +11,7 @@ export const MODULES = [
   { key: "announcements", name: "التعاميم", note: "رسائل المدرسة لأولياء الأمور" },
   { key: "admissions", name: "طلبات التسجيل", note: "طلبات التحاق الطلاب الجدد" },
   { key: "analytics", name: "التحليلات", note: "نسب الحضور ومتوسطات الدرجات" },
+  { key: "data_assistant", name: "مساعد إدخال البيانات", note: "إضافة الطلاب والمعلمين بلصق قائمة، وإكمال الناقص (ميزة مدفوعة تُطلب)" },
   { key: "messaging", name: "رسائل واتساب", note: "أزرار التنبيه لأولياء الأمور" },
   { key: "fees", name: "الرسوم والفواتير", note: "فواتير الطلاب والسداد والإيصالات" },
   { key: "finance", name: "النظام المالي", note: "الحسابات والصناديق وسجل الحركات" },
@@ -21,7 +22,7 @@ export const MODULES = [
 export const KEYS = MODULES.map((m) => m.key);
 
 // القيم الافتراضية إذا لم يُنشأ صف المدرسة بعد
-export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, !["donations", "payroll"].includes(k)]));
+export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, k !== "donations"]));
 
 export const modulesSchema = z.object(Object.fromEntries(KEYS.map((k) => [k, z.boolean()]))).partial();
 

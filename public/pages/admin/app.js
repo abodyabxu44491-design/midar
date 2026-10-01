@@ -24,6 +24,7 @@ const reports = lazy(() => import("./views/reports.js"), new URL("./views/report
 const sheets = lazy(() => import("./views/sheets.js"), new URL("./views/sheets.js", import.meta.url).pathname);
 const analytics = lazy(() => import("./views/analytics.js"), new URL("./views/analytics.js", import.meta.url).pathname);
 const admissions = lazy(() => import("./views/admissions.js"), new URL("./views/admissions.js", import.meta.url).pathname);
+const assistant = lazy(() => import("./views/assistant.js"), new URL("./views/assistant.js", import.meta.url).pathname);
 const papers = lazy(() => import("./views/papers.js"), new URL("./views/papers.js", import.meta.url).pathname);
 
 const app = $("#app");
@@ -53,11 +54,11 @@ export async function startAdmin() {
     attendance: "attendance", timetable: "timetable", exams: "exams", reports: "reports",
     analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions", sheets: "attendance",
     distribution: "timetable",
-    announcements: "announcements", papers: "exam_papers",
+    announcements: "announcements", papers: "exam_papers", assistant: "data_assistant",
   };
   // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
-    ["dashboard", "الرئيسية"],
+    ["dashboard", "الرئيسية"], ["assistant", "مساعد الإدخال"],
     ["students", "الطلاب"], ["teachers", "المعلمون"],
     ["attendance", "الحضور"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
     ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"],
@@ -66,16 +67,25 @@ export async function startAdmin() {
     ["announcements", "التعاميم"], ["subscription", "اشتراكي"],
     ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
-    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
+    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]])
+    // مع النظام المالي تصبح «الرسوم» جزءًا من «المالية» (تبويب واحد لكل المال)
+    .filter(([key]) => !(key === "finance" && me.modules?.finance));
 
   const ctx = { me };
   const t = tabs(allTabs,
-    { dashboard, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
-  ctx.goTo = (key) => t.show(key);
+    { dashboard, assistant, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit }, ctx);
+  ctx.goTo = (key) => {
+    // روابط «الرسوم» القديمة (من الرئيسية والتنبيهات) تفتح قسم الرسوم داخل المالية
+    if (key === "finance" && me.modules?.finance) {
+      try { sessionStorage.setItem("midar_finance_part", "fees"); } catch { /* تجاهل */ }
+      key = "ledger";
+    }
+    return t.show(key);
+  };
 
   mount(app,
     topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
       onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
     h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
-  t.show("dashboard");
+  t.start("dashboard");
 }

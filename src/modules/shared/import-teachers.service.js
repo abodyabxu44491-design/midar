@@ -227,7 +227,11 @@ export async function commit(q, tenantId, rawRows, opts = {}) {
     for (const l of load) await q(`INSERT INTO teacher_assignments (tenant_id, teacher_id, class_id, subject_id) VALUES (app_tenant(), $1, $2, $3) ON CONFLICT DO NOTHING`, [teacherId, l.class_id, l.subject_id]);
   };
 
-  for (const r of rows.filter((x) => x.status === "ok" && x.action === "create")) {
+  const creates = rows.filter((x) => x.status === "ok" && x.action === "create");
+  const updates = rows.filter((x) => x.status === "ok" && x.action === "update");
+  let n = 0;
+  const report = () => opts.onProgress?.(++n, creates.length + updates.length);
+  for (const r of creates) {
     const d = r.data;
     const [t] = await q(
       `INSERT INTO teachers (tenant_id, full_name, phone, employee_no, national_id, email, specialty, department, gender, birth_date, job_title, qualification, hire_date, employment_type)
@@ -239,13 +243,15 @@ export async function commit(q, tenantId, rawRows, opts = {}) {
              VALUES (app_tenant(), 'teacher', $1, $2, $3, $4, true, $5)`, [d.name, r.username, await hashPassword(password), t.id, sealCredential(password, tenantId)]);
     await addLoad(t.id, r.load);
     credentials.push({ name: d.name, username: r.username, password, school: tenantId });
+    report();
   }
-  for (const r of rows.filter((x) => x.status === "ok" && x.action === "update")) {
+  for (const r of updates) {
     const sets = [], vals = [r.existing_id];
     for (const [k, v] of Object.entries(r.changes)) { vals.push(v); sets.push(`${COL[k]} = $${vals.length}`); }
     if (sets.length) await q(`UPDATE teachers SET ${sets.join(", ")} WHERE id = $1`, vals);
     if (r.changes.name) await q("UPDATE users SET full_name = $2 WHERE teacher_id = $1", [r.existing_id, r.changes.name]);
     await addLoad(r.existing_id, r.load);
+    report();
   }
   const failed = rows.filter((r) => r.status !== "ok");
   return {

@@ -202,8 +202,14 @@ r.get("/notifications", handle(async (req, res) => {
                     AND NOT EXISTS (SELECT 1 FROM payroll_runs
                                      WHERE period = date_trunc('month', CURRENT_DATE)::date AND status <> 'void')
               THEN 1 ELSE 0 END)::int AS payroll_due,
-      (SELECT count(*) FROM students s WHERE s.status = 'active'
-         AND NOT EXISTS (SELECT 1 FROM attendance a WHERE a.student_id = s.id AND a.day = CURRENT_DATE))::int AS attendance_missing`);
+      -- حضور اليوم الناقص يُنبَّه عليه فقط في يوم دراسي: داخل السنة الحالية، ومن أيام الدوام، وليس إجازة
+      CASE WHEN EXISTS (SELECT 1 FROM academic_years y WHERE y.is_current AND CURRENT_DATE BETWEEN y.start_date AND y.end_date)
+            AND NOT EXISTS (SELECT 1 FROM holidays h WHERE h.affects_attendance AND CURRENT_DATE BETWEEN h.start_date AND h.end_date)
+            AND COALESCE((SELECT extract(dow FROM CURRENT_DATE)::int = ANY(ts.days) FROM timetable_settings ts WHERE ts.tenant_id = app_tenant()),
+                         extract(dow FROM CURRENT_DATE) <= 4)
+       THEN (SELECT count(*) FROM students s WHERE s.status = 'active'
+               AND NOT EXISTS (SELECT 1 FROM attendance a WHERE a.student_id = s.id AND a.day = CURRENT_DATE))
+       ELSE 0 END::int AS attendance_missing`);
 
     // تعارضات الجدول (معلم في مكانين)
     const conflicts = await q(

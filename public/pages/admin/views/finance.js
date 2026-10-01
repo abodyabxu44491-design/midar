@@ -60,7 +60,7 @@ function claimRow(c, refresh) {
     h("div", { class: c.status === "pending" ? "" : "muted-row" },
       h("b", {}, `${c.student_name} — ${money(c.amount)}`), " ", badge(...CLAIM[c.status]),
       sub(`${c.invoice_title} (#${c.invoice_id}) — ${c.class_name || ""} — المتبقي على الفاتورة ${money(c.invoice_amount - c.invoice_paid)}`),
-      sub(`المحوِّل: ${c.sender_name} — بتاريخ ${fmtDate(c.transfer_date)}${c.bank_name ? ` — إلى ${c.bank_name} (${c.iban.slice(-4)})` : ""}${c.bank_reference ? ` — مرجع ${c.bank_reference}` : ""}`),
+      sub(`المحوِّل: ${c.sender_name} — بتاريخ ${fmtDate(c.transfer_date)}${c.bank_name ? ` — إلى ${c.bank_name} (${String(c.account_number || c.iban || "").slice(-4)})` : ""}${c.bank_reference ? ` — مرجع ${c.bank_reference}` : ""}`),
       c.status !== "pending" ? sub(`${c.reviewed_by || ""} — ${fmtDateTime(c.reviewed_at)}${c.review_note ? ` — ${c.review_note}` : ""}${c.receipt_no ? ` — إيصال ${c.receipt_no}` : ""}`) : null),
     c.status === "pending" && h("div", { class: "row", style: "flex:none" },
       btn("تأكيد الاستلام", () => {

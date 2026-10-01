@@ -2,7 +2,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast,
-  dialog, notice, confirmAction, docLogo, sectionMenu } from "../../shared/js/ui.js";
+  dialog, notice, confirmAction, docLogo } from "../../shared/js/ui.js";
 import { barChart } from "../../shared/js/charts.js";
 import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
 import { A } from "./common.js";
@@ -23,34 +23,47 @@ function periodRange(key) {
   return { from: monthStart(), to: today() };
 }
 
-export default function ledgerView({ refresh, me }) {
-  // يظهر القسم إذا كان مفعّلًا في المدرسة، وكان لدى المستخدم صلاحيته
+// أقسام المالية بالترتيب: كل ما يحتاجه المحاسب والمدير في شريط واحد، بلا قوائم متداخلة
+const PARTS = {
+  overview: "نظرة عامة", fees: "الرسوم", staff: "الموظفون", payroll: "الرواتب",
+  money: "مصروف أو إيراد", entries: "سجل الحركات", donations: "التبرعات", accounts: "الحسابات",
+};
+// فتح قسم معيّن من خارج المالية (مثل «فواتير متأخرة» في الرئيسية)
+export const openFinancePart = (part) => { try { sessionStorage.setItem("midar_finance_part", part); } catch { /* تجاهل */ } };
+
+export default async function ledgerView({ refresh, me }) {
   const perms = me?.permissions || { approve: true, payroll: true, accounts: true };
   const mods = me?.modules || {};
-  const sections = [["dashboard", "لوحة التحكم"], ["entries", "سجل الحركات"], ["expenses", "مصروف أو سحب"]];
-  if (mods.donations !== false) sections.push(["donations", "التبرعات"]);
-  if (perms.payroll && mods.payroll !== false) sections.push(["payroll", "الرواتب"]);
-  if (perms.accounts && mods.transfers !== false) sections.push(["transfer", "تحويل بين الحسابات"]);
-  if (perms.accounts) sections.push(["accounts", "الحسابات والتصنيفات"]);
-  const NOTES = {
-    dashboard: "الأرصدة والمداخيل والمصروفات",
-    entries: "كل العمليات مع تصفية وتصدير",
-    expenses: "تسجيل مصروف أو سحب أو إيراد",
-    donations: "تبرعات المدرسة",
-    payroll: "الموظفون ومسير الرواتب",
-    transfer: "نقل مبلغ بين صندوق وحساب",
-    accounts: "الصناديق والحسابات والتصنيفات",
+  const list = ["overview"];
+  if (mods.fees !== false) list.push("fees");
+  if (perms.payroll && mods.payroll !== false) list.push("staff", "payroll");
+  list.push("money", "entries");
+  if (mods.donations) list.push("donations");
+  if (perms.accounts) list.push("accounts");
+
+  let part = "overview";
+  try { const want = sessionStorage.getItem("midar_finance_part"); if (want && list.includes(want)) part = want; sessionStorage.removeItem("midar_finance_part"); } catch { /* تجاهل */ }
+  const chips = h("div", { class: "xb-chips fin-parts", role: "tablist" });
+  const box = h("div");
+  const views = {
+    overview: (ctx) => overview(ctx), fees: async () => (await import("./finance.js")).default({ refresh: () => show("fees"), me }),
+    staff: (ctx) => staffView(ctx), payroll: (ctx) => payrollView(ctx), money: (ctx) => expenses(ctx), entries: (ctx) => entries(ctx),
+    donations: (ctx) => donationsView(ctx), accounts: async (ctx) => [...(mods.transfers !== false ? await transfer(ctx) : []), ...(await accounts(ctx))],
   };
-  const views = { dashboard, entries, expenses, donations: donationsView, payroll, accounts, transfer };
-  return sectionMenu({
-    title: "المالية",
-    items: sections.map(([key, name]) => ({ key, name, note: NOTES[key] })),
-    render: (key, { reload }) => views[key]({ refresh, show: reload, me }),
-  });
+  const show = async (next = part) => {
+    part = next;
+    mount(chips, list.map((k) => h("button", { type: "button", role: "tab", "aria-selected": String(k === part),
+      class: `xb-chip${k === part ? " on" : ""}`, onclick: () => show(k) }, PARTS[k])));
+    mount(box, empty("جارٍ التحميل…"));
+    try { mount(box, await views[part]({ show: () => show(part), go: show, me, refresh })); }
+    catch (e) { mount(box, notice(e.message, "err")); }
+  };
+  await show(part);
+  return [chips, box];
 }
 
-/* ---------------- لوحة التحكم المالية ---------------- */
-async function dashboard({ show }) {
+/* ---------------- نظرة عامة ---------------- */
+async function overview({ show, go }) {
   const range = select([["today", "اليوم"], ["week", "هذا الأسبوع"], ["month", "هذا الشهر"], ["year", "هذا العام"], ["custom", "فترة مخصصة"]], { value: "month" });
   const from = input({ type: "date", value: monthStart() });
   const to = input({ type: "date", value: today() });
@@ -58,34 +71,39 @@ async function dashboard({ show }) {
 
   const load = async () => {
     mount(box, empty("جارٍ الحساب…"));
-    const d = await api(`${A}/ledger/summary?from=${from.value}&to=${to.value}`);
+    const d = await api(`${A}/ledger/overview?from=${from.value}&to=${to.value}`);
     if (d.currency) setCurrency(d.currency);
     const low = d.accounts.filter((a) => a.is_active && a.low_balance !== null && Number(a.balance) < Number(a.low_balance));
+    const p = d.payroll;
+    const monthLabel = p ? new Date(`${p.period}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "long", year: "numeric" }) : "";
+    const payState = !p ? null : !p.run ? ["لم يُنشأ مسير هذا الشهر", "amber", "إنشاء المسير"]
+      : p.run.status === "draft" ? ["مسودة بانتظار الاعتماد", "amber", "مراجعة واعتماد"]
+      : p.run.status === "approved" ? ["معتمد، بانتظار الصرف", "amber", "صرف الرواتب"] : ["مصروف", "", "عرض المسير"];
     mount(box,
       stats([
         ["الرصيد الحالي", money(d.balance), "مجموع الحسابات"],
-        ["إجمالي المداخيل", money(d.income)],
-        ["إجمالي المصروفات", money(d.expense)],
-        ["صافي الحركة", money(d.net)],
-      ]),
-      stats([
-        ["الرسوم المسددة", money(d.fees)],
-        ["الرسوم غير المسددة", money(d.unpaid_fees), d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : ""],
-        ["التبرعات", money(d.donations)],
-        ["الرواتب", money(d.salaries)],
-        ["المصروفات التشغيلية", money(d.operating)],
-        ["السحوبات", money(d.withdrawals)],
+        ["المداخيل", money(d.income), "في الفترة"],
+        ["المصروفات", money(d.expense), "في الفترة"],
+        ["الصافي", money(d.net)],
       ]),
       d.pending ? notice(`${d.pending} حركة بانتظار الاعتماد في «سجل الحركات».`, "warn") : null,
       low.length ? notice(`رصيد منخفض: ${low.map((a) => `${a.name} (${money(a.balance)})`).join("، ")}`, "err") : null,
+
+      h("div", { class: "fin-cards" },
+        finCard("الرسوم", [["المحصّل في الفترة", money(d.fees)], ["غير المسدد", money(d.unpaid_fees)]],
+          d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", "go", () => go("fees")),
+        d.staff ? finCard("الموظفون والرواتب", [["الموظفون", String(d.staff.count)], ["الرواتب الشهرية", money(d.staff.monthly)]],
+          d.staff.no_salary ? `${d.staff.no_salary} بلا راتب محدد` : d.staff.types.map((x) => `${x.name} ${x.count}`).join(" · "), "go", () => go("staff")) : null,
+        p ? finCard(`رواتب ${monthLabel}`, [["الإجمالي", money(p.run ? p.run.total : p.total)], ["الحالة", payState[0]]],
+          p.run?.paid_at ? `صُرفت في ${fmtDate(p.run.paid_at)}` : null, payState[2], () => go("payroll"), payState[1]) : null,
+        finCard("المصروفات", [["الرواتب في الفترة", money(d.salaries)], ["التشغيلية", money(d.operating + d.withdrawals)]],
+          null, "تسجيل مصروف", () => go("money"))),
 
       panel("أرصدة الحسابات", null,
         d.accounts.filter((a) => a.is_active).map((a) => line(
           h("div", {}, h("b", {}, a.name), " ", a.currency !== d.currency ? badge(CURRENCIES[a.currency].name, "gray") : null,
             sub(`${KINDS[a.kind]}${a.methods.length ? ` — ${a.methods.map((m) => METHODS[m]).join("، ")}` : ""}`)),
-          h("b", { class: Number(a.balance) < 0 ? "danger-text" : "" }, money(a.balance, a.currency)))),
-        d.accounts.some((a) => a.is_active && a.currency !== d.currency)
-          ? sub("«الرصيد الحالي» أعلى الصفحة يجمع حسابات العملة الأساسية فقط. حسابات العملات الأخرى تظهر كل واحد بعملته.") : null),
+          h("b", { class: Number(a.balance) < 0 ? "danger-text" : "" }, money(a.balance, a.currency))))),
 
       panel("الحركة الشهرية", null,
         barChart(d.by_month.map((m) => ({ label: monthName(m.month), value: Math.round(m.income), color: "var(--teal)" }))),
@@ -112,8 +130,16 @@ async function dashboard({ show }) {
   from.addEventListener("change", load);
   to.addEventListener("change", load);
   await load();
+  return [h("div", { class: "row fin-range" }, field("الفترة", range), field("من", from), field("إلى", to)), box];
+}
 
-  return [panel("الفترة", null, h("div", { class: "row" }, field("المدة", range), field("من", from), field("إلى", to))), box];
+// بطاقة مختصرة في النظرة العامة: رقمان وسطر وزر ينقل للقسم
+function finCard(title, rows, note, action, onClick, tone = "") {
+  return h("section", { class: `panel fin-card${tone ? ` ${tone}` : ""}` },
+    h("h3", {}, title),
+    rows.map(([k, v]) => h("div", { class: "fin-row" }, h("span", { class: "sub" }, k), h("b", {}, v))),
+    note ? sub(note) : null,
+    btn(action === "go" ? "فتح" : action, onClick, "soft sm"));
 }
 
 // تقرير مالي مختصر جاهز للطباعة أو الحفظ PDF
@@ -378,100 +404,169 @@ async function donationsView({ show }) {
 }
 
 /* ---------------- الرواتب ---------------- */
-async function payroll({ show }) {
-  const [staff, runs] = await Promise.all([api(`${A}/ledger/staff`), api(`${A}/ledger/payroll`)]);
-  const f = { name: input(), title: input(), category: select([["teacher", "معلم"], ["admin", "إداري"], ["worker", "عامل"], ["other", "أخرى"]]),
-    phone: input({ class: "ltr" }), iban: input({ class: "ltr" }), salary: input({ type: "number", min: 0, step: "0.01", value: 0 }) };
-  const period = input({ type: "month", value: today().slice(0, 7) });
-  const totalSalaries = staff.filter((s) => s.is_active).reduce((sum, s) => sum + Number(s.base_salary), 0);
+/* ---------------- الموظفون ---------------- */
+// كل من يعمل في المدرسة: المعلمون تلقائيًا من قائمة المعلمين، وبقية الأنواع تُضاف هنا. الراتب يُعدَّل من السطر مباشرة.
+let staffFilter = "all";
+async function staffView({ show }) {
+  const { staff, summary, categories } = await api(`${A}/ledger/staff`);
+  const CAT = Object.fromEntries(Object.entries(categories).map(([k, v]) => [k, v[0]]));
+  const counts = Object.fromEntries(summary.types.map((x) => [x.key, x.count]));
+  const shown = staff.filter((s) => (staffFilter === "all" ? s.is_active : staffFilter === "off" ? !s.is_active : s.is_active && s.category === staffFilter));
+  const filters = [["all", `الكل (${summary.count})`], ...summary.types.map((x) => [x.key, `${x.name} (${x.count})`]),
+    ...(staff.some((s) => !s.is_active) ? [["off", "الموقوفون"]] : [])];
+
+  const row = (s) => {
+    const base = input({ class: "ltr num", value: Number(s.base_salary), "aria-label": "الراتب الأساسي", inputMode: "decimal" });
+    const allow = input({ class: "ltr num", value: Number(s.allowance), "aria-label": "البدل", inputMode: "decimal" });
+    const save = btn("حفظ", async () => {
+      await api(`${A}/ledger/staff/${s.id}/salary`, { base_salary: base.value || 0, allowance: allow.value || 0 }, "PATCH");
+      toast(`حُفظ راتب ${s.full_name}`); show();
+    }, "soft sm");
+    save.hidden = true;
+    for (const el of [base, allow]) el.addEventListener("input", () => { save.hidden = false; });
+    return h("div", { class: `st-row${s.is_active ? "" : " muted-row"}` },
+      h("div", { class: "st-who" },
+        h("b", {}, s.full_name), " ", badge(CAT[s.category] || s.category, s.category === "teacher" ? "" : "gray"),
+        s.base_salary > 0 ? null : badge("بلا راتب", "amber"),
+        sub([s.job_title, s.subjects, s.phone].filter(Boolean).join(" · ") || "—"),
+        s.teacher_id ? sub("من قائمة المعلمين — الاسم والجوال يُعدَّلان من ملف المعلم") : null),
+      h("div", { class: "st-pay" },
+        field("الأساسي", base), field("البدل", allow),
+        h("div", { class: "st-total" }, h("span", { class: "sub" }, "الشهري"), h("b", {}, money(Number(s.base_salary) + Number(s.allowance))))),
+      h("div", { class: "st-acts" }, save,
+        btn("تعديل", () => staffDialog(categories, show, s), "ghost sm"),
+        btn(s.is_active ? "إيقاف" : "تفعيل", async () => {
+          if (s.is_active && !confirmAction(`إيقاف ${s.full_name}؟ لن يدخل في مسيرات الرواتب القادمة.`)) return;
+          await api(`${A}/ledger/staff/${s.id}/active`, { active: !s.is_active }, "PATCH"); show();
+        }, "ghost sm")));
+  };
 
   return [
-    stats([["موظف نشط", staff.filter((s) => s.is_active).length], ["إجمالي الرواتب الأساسية", money(totalSalaries)],
-      ["مسيرات هذا العام", runs.length]]),
-
-    panel("إضافة موظف", btn("استيراد المعلمين", async () => {
-      const r = await api(`${A}/ledger/staff/import-teachers`, {});
-      toast(r.added ? `أُضيف ${r.added} معلمًا` : "كل المعلمين مضافون"); show();
-    }, "ghost sm"),
-      h("div", { class: "row" }, field("الاسم", f.name), field("المسمى الوظيفي", f.title), field("النوع", f.category)),
-      h("div", { class: "row" }, field("الجوال", f.phone), field("الآيبان", f.iban), field("الراتب الأساسي", f.salary)),
-      btn("إضافة", async () => {
-        await api(`${A}/ledger/staff`, { full_name: f.name.value, job_title: f.title.value || null, category: f.category.value,
-          phone: f.phone.value || null, iban: f.iban.value || "", base_salary: f.salary.value });
-        toast("أُضيف الموظف"); show();
-      })),
-
-    panel("الموظفون", null, staff.length ? staff.map((s) => line(
-      h("div", { class: s.is_active ? "" : "muted-row" }, h("b", {}, s.full_name), " ",
-        s.is_active ? null : badge("موقوف", "gray"),
-        sub(`${s.job_title || ""}${s.phone ? ` — ${s.phone}` : ""}`)),
-      h("div", { class: "row", style: "flex:none" }, h("b", {}, money(s.base_salary)),
-        btn(s.is_active ? "إيقاف" : "تفعيل", async () => {
-          await api(`${A}/ledger/staff/${s.id}/active`, { active: !s.is_active }, "PATCH"); show();
-        }, "ghost sm")))) : empty("لا يوجد موظفون. أضفهم أو استورد المعلمين.")),
-
-    panel("مسير الرواتب", null,
-      h("div", { class: "row" }, field("الشهر", period),
-        btn("إنشاء مسير الشهر", async () => {
-          const r = await api(`${A}/ledger/payroll`, { period: `${period.value}-01` });
-          toast(`أُنشئ المسير لـ ${r.employees} موظفًا`); show();
-        }, "soft")),
-      runs.length ? runs.map((r) => runRow(r, show)) : empty("لا توجد مسيرات بعد.")),
+    stats([["الموظفون", summary.count], ["الرواتب الشهرية", money(summary.monthly)],
+      ...summary.types.slice(0, 2).map((x) => [x.name, x.count, money(x.monthly)])]),
+    summary.no_salary ? notice(`${summary.no_salary} موظفًا بلا راتب محدد. اكتب الراتب في السطر واضغط «حفظ» ليدخلوا في مسير الرواتب بمبلغهم.`, "warn") : null,
+    panel("الموظفون", btn("إضافة موظف", () => staffDialog(categories, show), "sm"),
+      h("div", { class: "xb-chips" }, filters.map(([k, label]) => h("button", { type: "button", class: `xb-chip${k === staffFilter ? " on" : ""}`,
+        onclick: () => { staffFilter = k; show(); } }, label))),
+      shown.length ? shown.map(row) : empty(staffFilter === "all" ? "لا يوجد موظفون بعد. المعلمون يظهرون هنا تلقائيًا، وأضف البقية بزر «إضافة موظف»." : "لا يوجد في هذا النوع."),
+      sub("المعلمون يُضافون هنا تلقائيًا عند إضافتهم في «المعلمون». الإداريون والحراس والسائقون وغيرهم يُضافون من «إضافة موظف».")),
   ];
 }
 
-function runRow(run, show) {
-  const STATUS_R = { draft: ["مسودة", "gray"], approved: ["معتمد", "amber"], paid: ["مصروف", ""], void: ["ملغي", "gray"] };
-  const box = h("div", { class: "hidden", style: "width:100%;background:var(--bg);border-radius:8px;padding:10px;margin-top:8px" });
-  return line(
-    h("div", {}, h("b", {}, `مسير ${String(run.period).slice(0, 7)}`), " ", badge(...STATUS_R[run.status]),
-      sub(`${run.employees} موظف — إجمالي ${money(run.total)}${run.approved_by ? ` — اعتمده ${run.approved_by}` : ""}`)),
-    h("div", { class: "row", style: "flex:none" },
-      btn("التفاصيل", async () => {
-        if (!box.classList.contains("hidden")) return box.classList.add("hidden");
-        const items = await api(`${A}/ledger/payroll/${run.id}/items`);
-        mount(box, items.map((i) => itemRow(run, i, show)));
-        box.classList.remove("hidden");
-      }, "ghost sm"),
-      run.status === "draft" ? btn("اعتماد", async () => {
-        if (!confirmAction("اعتماد المسير؟ لن يمكن تعديله بعدها.")) return;
-        await api(`${A}/ledger/payroll/${run.id}/approve`, {}); toast("اعتُمد المسير"); show();
-      }, "sm") : null,
-      run.status === "approved" ? btn("صرف الرواتب", () => {
-        const method = select(Object.entries(METHODS), { value: "transfer" });
-        const d = dialog("صرف الرواتب", h("div", {},
-          sub(`سيُسجَّل مصروف لكل موظف بإجمالي ${money(run.total)}.`), field("طريقة الصرف", method)),
-        [btn("تأكيد الصرف", async () => {
-          const r = await api(`${A}/ledger/payroll/${run.id}/pay`, { method: method.value });
-          d.close(); toast(`صُرفت رواتب ${r.paid} موظفًا`); show();
-        })]);
-      }, "sm") : null),
-    box);
+function staffDialog(categories, show, s = null) {
+  const linked = Boolean(s?.teacher_id);
+  const f = {
+    name: input({ value: s?.full_name || "", disabled: linked }),
+    category: select(Object.entries(categories).filter(([k]) => linked || k !== "teacher").map(([k, v]) => [k, v[0]]), { value: s?.category || "admin", disabled: linked }),
+    title: input({ value: s?.job_title || "", placeholder: "مثال: حارس المبنى، سائق الباص 2" }),
+    phone: input({ class: "ltr", inputMode: "tel", value: s?.phone || "", disabled: linked }),
+    base: input({ class: "ltr num", inputMode: "decimal", value: s ? Number(s.base_salary) : 0 }),
+    allow: input({ class: "ltr num", inputMode: "decimal", value: s ? Number(s.allowance) : 0 }),
+    method: select([["cash", "نقدًا"], ["transfer", "تحويل (بنك أو محفظة)"]], { value: s?.pay_method || "cash" }),
+    account: input({ class: "ltr", inputMode: "numeric", value: s?.account_number || "", placeholder: "رقم الحساب أو المحفظة" }),
+    hire: input({ type: "date", value: s?.hire_date || "" }),
+    notes: input({ value: s?.notes || "" }),
+  };
+  const d = dialog(s ? `تعديل: ${s.full_name}` : "إضافة موظف", h("div", {},
+    linked ? notice("هذا معلم: اسمه وجواله من ملفه في «المعلمون». الراتب وطريقة الصرف من هنا.", "") : null,
+    h("div", { class: "row" }, field("الاسم", f.name), field("النوع", f.category)),
+    h("div", { class: "row" }, field("المسمى الوظيفي", f.title), field("الجوال", f.phone)),
+    h("div", { class: "row" }, field("الراتب الأساسي الشهري", f.base), field("بدل ثابت شهري", f.allow, "مواصلات أو سكن…")),
+    h("div", { class: "row" }, field("طريقة الصرف", f.method), field("رقم الحساب أو المحفظة", f.account)),
+    h("div", { class: "row" }, field("تاريخ التعيين", f.hire), field("ملاحظات", f.notes))),
+  [btn(s ? "حفظ" : "إضافة", async () => {
+    const body = { full_name: s?.full_name || f.name.value, category: linked ? "teacher" : f.category.value, job_title: f.title.value || null,
+      phone: linked ? s.phone : f.phone.value || null, base_salary: f.base.value || 0, allowance: f.allow.value || 0,
+      pay_method: f.method.value, account_number: f.account.value || null, hire_date: f.hire.value || null, notes: f.notes.value || null };
+    if (s) await api(`${A}/ledger/staff/${s.id}`, body, "PATCH"); else await api(`${A}/ledger/staff`, body);
+    d.close(); toast(s ? "حُفظت بيانات الموظف" : "أُضيف الموظف"); show();
+  })]);
 }
 
-function itemRow(run, i, show) {
-  const editable = run.status === "draft";
-  const f = {
-    allowances: input({ type: "number", min: 0, step: "0.01", value: i.allowances, disabled: !editable, style: "width:90px" }),
-    bonus: input({ type: "number", min: 0, step: "0.01", value: i.bonus, disabled: !editable, style: "width:90px" }),
-    deductions: input({ type: "number", min: 0, step: "0.01", value: i.deductions, disabled: !editable, style: "width:90px" }),
-    advances: input({ type: "number", min: 0, step: "0.01", value: i.advances, disabled: !editable, style: "width:90px" }),
+/* ---------------- الرواتب: مسير لكل شهر ---------------- */
+let payMonth = null;
+async function payrollView({ show, go }) {
+  payMonth ??= today().slice(0, 7);
+  const [m, runs] = await Promise.all([api(`${A}/ledger/payroll/month?period=${payMonth}-01`), api(`${A}/ledger/payroll`)]);
+  const monthIn = input({ type: "month", value: payMonth });
+  monthIn.addEventListener("change", () => { if (monthIn.value) { payMonth = monthIn.value; show(); } });
+  const label = new Date(`${m.period}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "long", year: "numeric" });
+  const CAT = { teacher: "معلم", admin: "إداري", accountant: "محاسب", supervisor: "مشرف", guard: "حارس", driver: "سائق", cleaner: "عامل نظافة", worker: "عامل", other: "أخرى" };
+  const STATUS_R = { draft: ["مسودة", "gray"], approved: ["معتمد", "amber"], paid: ["مصروف", ""] };
+  const head = h("div", { class: "row fin-range" }, field("الشهر", monthIn));
+
+  if (!m.run) {
+    const zero = m.preview.filter((x) => Number(x.net) === 0).length;
+    return [head,
+      panel(`رواتب ${label}`, null,
+        m.preview.length ? [
+          stats([["الموظفون", m.preview.length], ["الإجمالي المتوقع", money(m.total)]]),
+          zero ? notice(`${zero} موظفًا راتبهم صفر. حدّد رواتبهم من «الموظفون» قبل إنشاء المسير.`, "warn") : null,
+          h("div", { class: "pay-list" }, m.preview.map((x) => h("div", { class: "pay-line" },
+            h("div", {}, h("b", {}, x.full_name), sub(x.job_title || CAT[x.category] || "")), h("b", {}, money(x.net))))),
+          h("div", { class: "row spaced" }, btn("الموظفون ورواتبهم", () => go("staff"), "ghost"),
+            btn(`إنشاء مسير ${label}`, async () => {
+              const r = await api(`${A}/ledger/payroll`, { period: m.period });
+              toast(`أُنشئ المسير لـ ${r.employees} موظفًا`); show();
+            })),
+        ] : empty("لا يوجد موظفون نشطون. أضفهم من «الموظفون».")),
+      historyPanel(runs, show)];
+  }
+
+  const run = m.run, editable = run.status === "draft";
+  const item = (i) => {
+    const num = (v) => input({ class: "ltr num", inputMode: "decimal", value: Number(v), disabled: !editable });
+    const f = { allowances: num(i.allowances), bonus: num(i.bonus), deductions: num(i.deductions), advances: num(i.advances) };
+    const net = h("b", {}, money(i.net));
+    const save = btn("حفظ", async () => {
+      const r = await api(`${A}/ledger/payroll/${run.id}/items/${i.id}`, Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value || 0])), "PATCH");
+      mount(net, money(r.net)); save.hidden = true; toast(`صافي ${i.full_name}: ${money(r.net)}`);
+    }, "soft sm");
+    save.hidden = true;
+    for (const el of Object.values(f)) el.addEventListener("input", () => { save.hidden = false; });
+    return h("div", { class: "pay-item" },
+      h("div", { class: "pay-who" }, h("b", {}, i.full_name), sub(`${i.job_title || CAT[i.category] || ""} — الأساسي ${money(i.base)}`),
+        i.entry_no ? sub(`صُرف — حركة ${i.entry_no}`) : null),
+      h("div", { class: "pay-fields" }, field("بدلات", f.allowances), field("مكافأة", f.bonus), field("خصم", f.deductions), field("سلفة", f.advances)),
+      h("div", { class: "pay-net" }, h("span", { class: "sub" }, "الصافي"), net, editable ? save : null));
   };
-  return line(
-    h("div", {}, h("b", {}, i.full_name), sub(`${i.job_title || ""} — الأساسي ${money(i.base)}`),
-      i.entry_no ? sub(`حركة ${i.entry_no}`) : null),
-    h("div", { class: "row", style: "flex:none;align-items:center" },
-      h("span", { class: "sub" }, "بدلات"), f.allowances,
-      h("span", { class: "sub" }, "مكافأة"), f.bonus,
-      h("span", { class: "sub" }, "خصومات"), f.deductions,
-      h("span", { class: "sub" }, "سلف"), f.advances,
-      h("b", {}, money(i.net)),
-      editable ? btn("حفظ", async () => {
-        const r = await api(`${A}/ledger/payroll/${run.id}/items/${i.id}`, {
-          allowances: f.allowances.value, bonus: f.bonus.value, deductions: f.deductions.value, advances: f.advances.value,
-        }, "PATCH");
-        toast(`الصافي ${money(r.net)}`); show();
-      }, "soft sm") : null));
+  return [head,
+    panel(h("span", {}, `مسير ${label} `, badge(...STATUS_R[run.status])), null,
+      stats([["الموظفون", run.employees], ["إجمالي الصافي", money(run.total)],
+        ...(run.approved_by ? [["اعتمده", run.approved_by]] : []), ...(run.paid_at ? [["صُرف في", fmtDate(run.paid_at)]] : [])]),
+      editable ? sub("عدّل البدلات والمكافآت والخصومات والسلف لكل موظف ثم اعتمد المسير. بعد الاعتماد لا يُعدَّل.") : null,
+      m.items.map(item),
+      h("div", { class: "row spaced" },
+        editable ? btn("حذف المسودة", async () => {
+          if (!confirmAction("حذف مسودة هذا الشهر؟ يمكنك إنشاؤها من جديد.")) return;
+          await api(`${A}/ledger/payroll/${run.id}`, undefined, "DELETE"); toast("حُذفت المسودة"); show();
+        }, "ghost") : h("span"),
+        editable ? btn("اعتماد المسير", async () => {
+          if (!confirmAction(`اعتماد مسير ${label} بإجمالي ${money(run.total)}؟ لن يمكن تعديله بعدها.`)) return;
+          await api(`${A}/ledger/payroll/${run.id}/approve`, {}); toast("اعتُمد المسير"); show();
+        }) : null,
+        run.status === "approved" ? btn("صرف الرواتب", () => {
+          const method = select(Object.entries(METHODS), { value: "cash" });
+          const on = input({ type: "date", value: today(), max: today() });
+          const d = dialog(`صرف رواتب ${label}`, h("div", {},
+            sub(`يُسجَّل مصروف لكل موظف في سجل الحركات بإجمالي ${money(run.total)}.`),
+            h("div", { class: "row" }, field("طريقة الصرف", method), field("تاريخ الصرف", on))),
+          [btn("تأكيد الصرف", async () => {
+            const r = await api(`${A}/ledger/payroll/${run.id}/pay`, { method: method.value, paid_on: on.value || null });
+            d.close(); toast(`صُرفت رواتب ${r.paid} موظفًا`); show();
+          })]);
+        }) : null)),
+    historyPanel(runs, show)];
+}
+
+function historyPanel(runs, show) {
+  const STATUS_R = { draft: ["مسودة", "gray"], approved: ["معتمد", "amber"], paid: ["مصروف", ""] };
+  if (!runs.length) return null;
+  return panel("المسيرات السابقة", null, runs.map((r) => line(
+    h("div", {}, h("b", {}, new Date(`${r.period}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "long", year: "numeric" })), " ",
+      badge(...STATUS_R[r.status]), sub(`${r.employees} موظف`)),
+    h("div", { class: "row", style: "flex:none;align-items:center" }, h("b", {}, money(r.total)),
+      btn("فتح", () => { payMonth = r.period.slice(0, 7); show(); }, "ghost sm")))));
 }
 
 /* ---------------- الحسابات والتصنيفات ---------------- */

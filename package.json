@@ -13,6 +13,7 @@
     "dev": "node --watch src/server.js",
     "migrate": "node scripts/migrate.js",
     "seed:demo": "node scripts/seed-demo.js",
+    "seed:showcase": "node scripts/seed-showcase.js",
     "owner:password": "node scripts/owner-password.js",
     "credential:key": "node scripts/credential-key.js",
     "owner:totp": "node scripts/owner-totp.js",

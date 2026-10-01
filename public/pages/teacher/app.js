@@ -51,5 +51,5 @@ export async function startTeacher(offlineMe = null) {
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);
   mount(app, bar, h("main", {}, t.el), footer());
-  t.show("home");
+  t.start("home");
 }

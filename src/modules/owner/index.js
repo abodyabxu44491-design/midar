@@ -4,6 +4,7 @@ import { ownerNetwork, requireOwner } from "../../core/auth/guards.js";
 import { env } from "../../config/env.js";
 import auth from "./auth.js";
 import tenants from "./tenants.js";
+import { jobsRouter } from "../shared/jobs.routes.js";
 import audit from "./audit.js";
 import leads from "./leads.js";
 import renewals from "./renewals.js";
@@ -25,6 +26,7 @@ r.get("/network", (req, res) => res.json({
   trust_proxy: env.TRUST_PROXY, ip_allowlist_enabled: env.ownerIps.length > 0,
 }));
 r.use("/tenants", tenants);
+r.use("/jobs", jobsRouter("owner"));    // تقدم العمليات الطويلة (مدرسة العرض)
 r.use("/leads", leads);
 r.use("/renewals", renewals);
 r.use("/password-requests", passwordRequests);

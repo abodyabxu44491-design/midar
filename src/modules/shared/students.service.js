@@ -1,8 +1,9 @@
 // منطق الطلاب
-import { z, t } from "../../core/http/validate.js";
+import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, conflict, notFound } from "../../core/http/errors.js";
 import { newStudentKey } from "../../core/auth/codes.js";
 import { resolveClassForGrade } from "./structure.service.js";
+import { storedPhone } from "../../../public/shared/js/phone.js";
 
 // حقول الطالب الأساسية الجديدة (كلها اختيارية). "" أو null تعني المسح عند التعديل.
 const blankToNull = (v) => (v === undefined ? undefined : v || null);
@@ -51,14 +52,11 @@ export function guardianFromStudent(fullName) {
  *   0501234567 (محلي) → يبقى كما هو، ويُكمَّل برمز الدولة عند إرسال واتساب
  * تُحذف المسافات والرموز فقط، ولا يُفرض رمز دولة معيّن.
  */
+// صيغة واحدة للحفظ، والدولة من الرقم: يمني 9 أرقام، سعودي 05…، وغيرهما +المفتاح (نفس منطق الواجهة)
 export function normalizePhone(v) {
-  const raw = String(v || "").trim();
+  const raw = asciiDigits(String(v || "")).trim();
   if (!raw) return null;
-  const digits = raw.replace(/[^\d+]/g, "");
-  if (!digits.replace(/\+/g, "")) return null;
-  if (digits.startsWith("00")) return "+" + digits.slice(2).replace(/\+/g, "");
-  if (digits.startsWith("+")) return "+" + digits.slice(1).replace(/\+/g, "");
-  return digits.slice(0, 20);
+  return storedPhone(raw)?.slice(0, 20) || null;
 }
 
 export async function get(q, id, { includeArchived = false } = {}) {
@@ -112,13 +110,13 @@ export async function guardianByPhone(q, phone) {
   return { phone: p, guardian_name: rows[0]?.guardian_name || null, siblings: rows.map(({ id, name, class_name }) => ({ id, name, class_name })) };
 }
 
-export async function create(q, tenant, list) {
+export async function create(q, tenant, list, onEach = null) {
   // قفل صف المدرسة حتى لا تتجاوز عمليتان متزامنتان حد الباقة
   await q("SELECT id FROM tenants WHERE id = app_tenant() FOR UPDATE");
   await ensureCapacity(q, tenant, list.length);
   await ensureStudentNos(q, list.map((x) => x.student_no));
   const out = [];
-  for (const s of list) out.push(await insertOne(q, s));
+  for (const s of list) { out.push(await insertOne(q, s)); onEach?.(out.length, list.length); }
   return out;
 }
 

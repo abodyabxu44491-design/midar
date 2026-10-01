@@ -3,7 +3,7 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction, skeleton,
   stats as statCards } from "../../shared/js/ui.js";
-import { fmtDate, fmtDateTime, csv, EXAM } from "../../shared/js/format.js";
+import { fmtDate, fmtDateTime, csv, EXAM, money } from "../../shared/js/format.js";
 import { timetableGrid } from "../../shared/js/timetable.js";
 import { A, loadClasses, loadSubjects, staffLink, rememberField } from "./common.js";
 import { openTeacherImport } from "./teacher-import.js";
@@ -187,7 +187,9 @@ export default async function teachers({ me, refresh }) {
         infoBlock("التدريس", [["المواد", subjectNames.join("، ")], ["المراحل", pl.stages.join("، ")], ["الصفوف", pl.grades.join("، ")],
           sectionsOn ? ["الشعب", pl.sections.join("، ")] : [null, null]]),
         infoBlock("الوظيفة", [["الرقم الوظيفي", t.employee_no, "ltr"], ["المسمى الوظيفي", t.job_title], ["التخصص", t.specialty],
-          ["المؤهل", t.qualification], ["القسم", t.department], ["نوع التوظيف", EMPLOYMENT[t.employment_type]], ["تاريخ التعيين", t.hire_date ? fmtDate(t.hire_date) : null]]),
+          ["المؤهل", t.qualification], ["القسم", t.department], ["نوع التوظيف", EMPLOYMENT[t.employment_type]], ["تاريخ التعيين", t.hire_date ? fmtDate(t.hire_date) : null],
+          // الراتب من المالية ← الموظفون (المعلم موظف تلقائيًا)
+          ["الراتب الشهري", t.monthly_salary === null || t.monthly_salary === undefined ? null : Number(t.monthly_salary) ? money(t.monthly_salary) : "لم يُحدد (المالية ← الموظفون)"]]),
         infoBlock("التواصل", [["الجوال", t.phone, "ltr"], ["البريد", t.email, "ltr"], ["العنوان", t.address],
           ["الطوارئ", [t.emergency_name, t.emergency_phone].filter(Boolean).join(" — ")]]),
         infoBlock("شخصي", [["الجنس", GENDER[t.gender]], ["تاريخ الميلاد", t.birth_date ? fmtDate(t.birth_date) : null], ["رقم الهوية", t.national_id, "ltr"],

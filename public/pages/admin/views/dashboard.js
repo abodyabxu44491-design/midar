@@ -7,11 +7,12 @@ import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
 
 export default async function dashboard({ me, goTo }) {
-  const [d, alerts, notifications, templates] = await Promise.all([
+  const [d, alerts, notifications, templates, completeness] = await Promise.all([
     api(`${A}/dashboard`),
     optional(api(`${A}/analytics/alerts`), { counts: {}, absentees: [], overdue: [] }),
     optional(api(`${A}/analytics/notifications`), { items: [], counts: {} }),
-    optional(api(`${A}/messaging/templates`), null)]);
+    optional(api(`${A}/messaging/templates`), null),
+    me.modules?.data_assistant ? optional(api(`${A}/assistant/checklist`), null) : null]);
   const canMessage = Boolean(templates);
   const c = alerts.counts;
 
@@ -62,23 +63,29 @@ export default async function dashboard({ me, goTo }) {
       me.modules?.fees === false ? null : ["رسوم غير محصّلة", money(d.fees_remaining), `المحصّل ${money(d.fees_paid)}`],
     ].filter(Boolean)),
 
+    // اكتمال البيانات: يظهر فقط ما دامت ناقصة، ويفتح مساعد الإدخال
+    completeness && completeness.score < 100 ? panel("اكتمال بيانات المدرسة", null,
+      h("div", { class: "dash-complete" }, h("b", {}, `${completeness.score}%`), h("div", { class: "bar" }, h("i", { style: `width:${completeness.score}%` })),
+        btn("أكمل البيانات", () => goTo?.("assistant"), "soft sm")),
+      sub(completeness.items.filter((x) => x.level === "todo" || x.level === "warn").slice(0, 3).map((x) => x.hint || x.title).join(" · "))) : null,
+
     center(notifications, goTo || (() => {})),
 
     quickSearch(goTo || (() => {})),
 
-    alerts.absentees.length ? panel("غياب متكرر (آخر 30 يومًا)", null,
-      alerts.absentees.map((s) => line(
+    shortList("غياب متكرر (آخر 30 يومًا)", alerts.absentees, c.frequent_absentees, (s) => line(
         h("div", {}, h("b", {}, s.name), sub(`${s.class_name || "—"} — ${s.absences} أيام غياب`)),
         canMessage ? waButton({ phone: s.guardian_phone, template: templates.absence, countryCode: templates.country_code,
-          vars: messageVars({ student: s, school: me.school.name }), label: "تنبيه ولي الأمر" }) : null))) : null,
+          vars: messageVars({ student: s, school: me.school.name }), label: "تنبيه ولي الأمر" }) : null),
+      () => goTo?.("attendance"), "كل الغياب في قسم الحضور"),
 
-    alerts.overdue.length ? panel("فواتير متأخرة", null,
-      alerts.overdue.map((i) => line(
+    shortList("فواتير متأخرة", alerts.overdue, c.overdue_invoices, (i) => line(
         h("div", {}, h("b", {}, `${i.student_name} — ${money(i.remaining)}`),
           sub(`${i.title} — استحقت ${fmtDate(i.due_date)}${i.class_name ? ` — ${i.class_name}` : ""}`)),
         canMessage ? waButton({ phone: i.guardian_phone, template: templates.fees, countryCode: templates.country_code,
           vars: messageVars({ student: { name: i.student_name, class_name: i.class_name }, school: me.school.name,
-            fees: { remaining: i.remaining }, link: directoryLink(me) }), label: "تذكير واتساب" }) : null))) : null,
+            fees: { remaining: i.remaining }, link: directoryLink(me) }), label: "تذكير واتساب" }) : null),
+      () => goTo?.("finance"), "كل الفواتير في قسم الرسوم"),
 
     // الروابط: كل رابط يُفتح بالضغط ويُنسخ بزر واحد
     panel("روابط مدرستك", null,
@@ -87,6 +94,17 @@ export default async function dashboard({ me, goTo }) {
       linkRow("دخول الإدارة والمعلمين والمحاسبين", staffLink(me), { note: "خاص بمنسوبي المدرسة" }),
       sub("معرّف كل طالب (لفتح ملفه) تجده في تبويب الطلاب.")),
   ];
+}
+
+// قائمة مختصرة في الرئيسية: أول 5 فقط، و«عرض المزيد» يكمل هنا، ورابط للقسم الكامل
+const SHORT = 5;
+function shortList(title, rows, total, row, openTab, openLabel) {
+  if (!rows.length) return null;
+  const count = Math.max(total || 0, rows.length);
+  const box = h("div", {}, rows.slice(0, SHORT).map(row));
+  const more = rows.length > SHORT ? btn(`عرض المزيد (${rows.length - SHORT})`, () => { mount(box, rows.map(row)); more.remove(); }, "ghost sm") : null;
+  return panel(h("span", {}, title, " ", badge(String(count), "gray")), null, box,
+    h("div", { class: "row spaced" }, more, count > SHORT ? btn(openLabel, openTab, "ghost sm") : null));
 }
 
 // بحث سريع في الطلاب والمعلمين والفواتير

@@ -4,6 +4,7 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, btn, toast, passwordInput, notice, line, sub, copyRow, stats } from "../../shared/js/ui.js";
 import { fmtDate, fmtDateTime } from "../../shared/js/format.js";
+import { icons } from "../../shared/js/icons.js";
 
 const GENDER = { male: "ذكر", female: "أنثى" };
 const EMPLOYMENT = { full_time: "دوام كامل", part_time: "دوام جزئي", contract: "عقد", volunteer: "تطوع" };
@@ -70,8 +71,8 @@ function passwordPanel() {
   const again = passwordInput({ autocomplete: "new-password" });
   const hint = h("div", { class: "pw-rules" });
   const rules = [["10 أحرف على الأقل", (v) => v.length >= 10], ["حرف إنجليزي", (v) => /[A-Za-z]/.test(v)], ["رقم", (v) => /[0-9]/.test(v)]];
-  const paint = () => mount(hint, rules.map(([label, ok]) => h("span", { class: ok(nxt.value) ? "ok" : "" }, `${ok(nxt.value) ? "✓" : "•"} ${label}`)),
-    again.value && again.value !== nxt.value ? h("span", { class: "bad" }, "× التأكيد غير مطابق") : null);
+  const paint = () => mount(hint, rules.map(([label, ok]) => h("span", { class: ok(nxt.value) ? "ok" : "" }, ok(nxt.value) ? icons.check({ size: 14 }) : h("i", { class: "dot" }), label)),
+    again.value && again.value !== nxt.value ? h("span", { class: "bad" }, "التأكيد غير مطابق") : null);
   nxt.addEventListener("input", paint); again.addEventListener("input", paint); paint();
   const el = panel("تغيير كلمة المرور", null,
     field("كلمة المرور الحالية", cur),

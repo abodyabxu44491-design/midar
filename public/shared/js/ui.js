@@ -113,7 +113,19 @@ export const footer = () => h("footer", { class: "dev" }, h("small", { class: "a
 
 /* ---------- عناصر ---------- */
 export const field = (label, control, hint) => h("label", { class: "f" }, h("span", {}, label), control, hint && h("small", { class: "sub" }, hint));
-export const input = (props = {}) => h("input", props);
+// حقول الأرقام (الجوال، المبالغ، الأرقام): الأرقام العربية ٠١٢ تتحول فورًا إلى 012 أثناء الكتابة
+const NUMERIC_MODES = new Set(["tel", "numeric", "decimal"]);
+export const toAsciiDigits = (v) => String(v).replace(/[\u0660-\u0669]/g, (d) => d.charCodeAt(0) - 0x0660).replace(/[\u06F0-\u06F9]/g, (d) => d.charCodeAt(0) - 0x06F0);
+export const input = (props = {}) => {
+  const el = h("input", props);
+  if (NUMERIC_MODES.has(props.inputMode) || props.type === "tel") {
+    el.addEventListener("input", () => {
+      const next = toAsciiDigits(el.value);
+      if (next !== el.value) { const at = el.selectionStart; el.value = next; try { el.setSelectionRange(at, at); } catch { /* نوع لا يدعم التحديد */ } }
+    });
+  }
+  return el;
+};
 
 /**
  * حقل كلمة مرور مع زر إظهار واضح.
@@ -277,15 +289,19 @@ const TAB_ICONS = {
   sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",
   homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus",
-  billing: "money", passwords: "key", danger: "lock",
+  billing: "money", passwords: "key", danger: "lock", assistant: "wand",
 };
 
 export function tabs(list, views, ctx) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
   let current;
-  const show = async (key) => {
+  // رابط لكل قسم (#/students): يبقى القسم نفسه بعد التحديث، ويعمل زر الرجوع، ويمكن مشاركة الرابط
+  const keys = new Set(list.filter(([k]) => k).map(([k]) => k));
+  const fromHash = () => { const k = decodeURIComponent((location.hash.match(/^#\/([\w-]+)/) || [])[1] || ""); return keys.has(k) ? k : null; };
+  const show = async (key, { push = true } = {}) => {
     if (current && applyPendingUpdate()) return;   // إصدار جديد منشور: التحديث عند الانتقال بين الأقسام
+    if (push && keys.has(key) && fromHash() !== key) history.pushState(null, "", `#/${key}`);
     current = key;
     bar.querySelectorAll("button").forEach((b) => {
       b.setAttribute("aria-selected", String(b.dataset.k === key));
@@ -313,7 +329,16 @@ export function tabs(list, views, ctx) {
       onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() },
       icon ? icon({ size: 18 }) : null, h("span", { class: "tab-label" }, label)));
   }
-  return { el: h("div", { class: "tabs-layout" }, bar, body), show };
+  let home = null;
+  window.addEventListener("popstate", () => { const k = fromHash() || home; if (k && k !== current) show(k, { push: false }); });
+  // البداية: القسم المذكور في الرابط إن وُجد، وإلا القسم الافتراضي (دون إضافة خطوة في سجل المتصفح)
+  const start = (fallback) => {
+    home = fallback;
+    const k = fromHash();
+    if (!k && location.hash) history.replaceState(null, "", location.pathname + location.search);
+    return show(k || fallback, { push: false });
+  };
+  return { el: h("div", { class: "tabs-layout" }, bar, body), show, start };
 }
 
 /* ---------- النوافذ ---------- */

@@ -2,7 +2,7 @@
 // كل ما يولّده القالب قابل للتعديل والحذف والإضافة بعد ذلك.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
-import { STAGES, TEMPLATES, SUBJECT_LIBRARY, GRADE_SETS, sectionName, gradeNames, catalog } from "./academic-catalog.js";
+import { STAGES, TEMPLATES, SUBJECT_LIBRARY, GRADE_SETS, COUNTRIES, sectionName, gradeNames, stageName, countryKey, catalog } from "./academic-catalog.js";
 
 export { catalog };
 
@@ -93,6 +93,7 @@ export async function structure(q) {
 /* ---------- ملف المدرسة ---------- */
 export async function updateProfile(q, b) {
   await q("INSERT INTO school_profile (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+  const [before] = await q("SELECT country FROM school_profile WHERE tenant_id = app_tenant()");
   if (b.name) await q("UPDATE tenants SET name = $1 WHERE id = app_tenant()", [b.name]);
   await q(
     `UPDATE school_profile SET
@@ -102,7 +103,23 @@ export async function updateProfile(q, b) {
      WHERE tenant_id = app_tenant()`,
     [b.school_type ?? null, b.gender ?? null, b.country ?? null, b.city ?? null, b.address ?? null,
      b.email ?? null, b.phone ?? null]);
+  // تغيير الدولة يضبط ما يتبعها: رمز الاتصال لرسائل واتساب، والعملة (ما لم تُسجَّل حركات مالية)
+  if (b.country && countryKey(b.country) !== countryKey(before?.country)) await applyCountry(q, countryKey(b.country));
   return getProfile(q);
+}
+
+export async function applyCountry(q, key) {
+  const c = COUNTRIES[key];
+  if (!c) return;
+  if (c.dial) {
+    await q("INSERT INTO school_messages (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+    await q("UPDATE school_messages SET country_code = $1 WHERE tenant_id = app_tenant()", [c.dial]);
+  }
+  const [used] = c.currency ? await q("SELECT 1 FROM finance_entries LIMIT 1") : [true];
+  if (!used) {
+    await q("UPDATE tenants SET currency = $1 WHERE id = app_tenant() AND currency <> $1", [c.currency]);
+    await q("UPDATE finance_accounts SET currency = $1 WHERE currency <> $1", [c.currency]);
+  }
 }
 
 /* ---------- شعار المدرسة ---------- */
@@ -207,7 +224,7 @@ async function cascadeGradeRename(q, gradeId, oldName, newName) {
  */
 export const renamePatternSchema = z.object({ grade_set: z.enum(Object.keys(GRADE_SETS)) });
 export async function renameGradesByPattern(q, gradeSet) {
-  const stages = await q("SELECT id, code FROM stages WHERE code IS NOT NULL ORDER BY sort_order, id");
+  const stages = (await q("SELECT id, code FROM stages WHERE code IS NOT NULL ORDER BY sort_order, id")).filter((st) => STAGES[st.code]);
   const changes = [];
   for (const st of stages) {
     const names = GRADE_SETS[gradeSet][st.code];
@@ -230,7 +247,18 @@ export async function renameGradesByPattern(q, gradeSet) {
     await q("UPDATE grades SET name = $2 WHERE id = $1", [c.id, c.next]);
     await cascadeGradeRename(q, c.id, c.old, c.next);
   }
-  return { renamed: changes.length };
+  // اسم المرحلة يتبع النمط (اليمن: الأساسي والثانوي) فقط إن كان ما يزال اسمًا افتراضيًا لم يغيّره المدير
+  let stagesRenamed = 0;
+  for (const st of stages) {
+    const [cur] = await q("SELECT name FROM stages WHERE id = $1", [st.id]);
+    const defaults = new Set([STAGES[st.code]?.name, ...Object.keys(GRADE_SETS).map((k) => stageName(st.code, k))].filter(Boolean));
+    const next = stageName(st.code, gradeSet);
+    if (cur && defaults.has(cur.name) && cur.name !== next) {
+      const [clash] = await q("SELECT 1 FROM stages WHERE name = $1 AND id <> $2", [next, st.id]);
+      if (!clash) { await q("UPDATE stages SET name = $2 WHERE id = $1", [st.id, next]); stagesRenamed++; }
+    }
+  }
+  return { renamed: changes.length, stages: stagesRenamed };
 }
 
 export async function deleteGrade(q, id) {
@@ -389,7 +417,7 @@ export async function applyTemplate(q, b) {
 
   // مراحل الكتالوج (بالمفتاح) ثم المراحل المخصصة (بالاسم)، كلها بنفس المسار
   const defs = [
-    ...keys.map((key) => ({ key, name: STAGES[key].name, code: key,
+    ...keys.map((key) => ({ key, name: stageName(key, b.grade_set), code: key,
       grades: b.custom_grades?.[key]?.length ? b.custom_grades[key] : gradeNames(key, b.grade_set) })),
     ...custom.map((c, i) => ({ key: `custom_${i}`, name: c.name.trim(), code: null, grades: c.grades })),
   ];

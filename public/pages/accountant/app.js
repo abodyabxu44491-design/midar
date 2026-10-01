@@ -24,7 +24,7 @@ export async function startAccountant() {
   const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
   const list = [
     ...(me.modules?.finance ? [["ledger", "المالية"]] : []),
-    ...(me.modules?.fees ? [["fees", "الرسوم"]] : []),
+    ...(me.modules?.fees && !me.modules?.finance ? [["fees", "الرسوم"]] : []),   // مع المالية تكون الرسوم داخلها
     ["account", "حسابي"],
   ];
   const t = tabs(list, { ledger, fees, account }, { me });
@@ -32,7 +32,7 @@ export async function startAccountant() {
     topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `المحاسب — ${me.name}`,
       onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } }),
     h("main", {}, t.el), footer());
-  t.show("ledger");
+  t.start(me.modules?.finance ? "ledger" : "fees");
 }
 
 function account({ me }) {
