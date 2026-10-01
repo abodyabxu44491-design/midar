@@ -49,6 +49,7 @@ a { color: var(--accent); }
   .row:has(> .f:nth-child(3)) > .f { width: 100%; min-width: 0; }
 }
 label.f { display: block; margin-bottom: 12px; }
+[hidden] { display: none !important; }
 label.f > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 label.f.remember-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer; }
 label.f.remember-row input { margin: 0; width: 16px; height: 16px; flex: none; }
@@ -1271,3 +1272,28 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .ai-wait span:nth-child(2) { animation-delay: .15s; } .ai-wait span:nth-child(3) { animation-delay: .3s; }
 @keyframes ai-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 @media (max-width: 600px) { .ai-ask { flex-direction: column; align-items: stretch; } .ai-q { max-width: 100%; } }
+.ai-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 12px 0; }
+.ai-card { display: flex; gap: 10px; align-items: flex-start; text-align: right; font: inherit; padding: 12px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; cursor: pointer; color: var(--ink); }
+.ai-card:hover { border-color: var(--teal); }
+.ai-card.on { border-color: var(--teal); background: var(--teal-soft); }
+.ai-card b { display: block; font-size: 15px; }
+.ai-card small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.ai-card-icon { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--teal-soft); color: var(--teal); }
+.ai-params { align-items: end; margin-bottom: 6px; }
+.ai-report { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+.ai-tips { background: var(--amber-soft); border-radius: 12px; padding: 10px 14px; margin-top: 10px; }
+.ai-tips ul { margin: 6px 0 0; }
+@media (max-width: 600px) { .ai-cards { grid-template-columns: 1fr 1fr; } .ai-card { flex-direction: column; } }
+/* قائمة واتساب وبوابة المدرسة */
+.gw-steps { margin: 6px 0 10px; padding-inline-start: 20px; line-height: 1.9; }
+.wa-vars { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.wa-vars .chip { color: var(--teal); }
+.wa-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; color: var(--muted); font-size: 13px; }
+.wa-progress .bar { flex: 1; height: 8px; margin: 0; }
+.wa-progress .bar > i { background: var(--teal); }
+.wa-card { border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--bg); }
+.wa-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; line-height: 1.8; }
+.wa-actions { display: flex; gap: 8px; margin: 12px 0 6px; }
+.wa-actions .wa-send { flex: 1; text-align: center; background: #1f9d55; border-color: #1f9d55; }
+.wa-done { text-align: center; padding: 18px 0; }
+.sw-line { display: inline-flex; align-items: center; gap: 8px; }

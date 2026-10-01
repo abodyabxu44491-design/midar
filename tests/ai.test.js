@@ -2,6 +2,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, readySchool, endPool } from "./helpers.js";
+import { transaction } from "../src/core/db/pool.js";
 import { setAiClient, _tools } from "../src/modules/shared/ai.service.js";
 
 let srv, A, B, requests;
@@ -26,9 +27,13 @@ after(async () => { setAiClient(null); await srv.close(); await endPool(); });
 
 test("بدون مفتاح: المساعد غير جاهز ويرفض السؤال برسالة واضحة", async () => {
   setAiClient(null);
-  assert.equal((await A.admin.get("/api/admin/me")).data.ai_ready, false);
+  const st = (await A.admin.get("/api/admin/ai")).data;
+  assert.equal(st.ready, false);
+  assert.equal(st.source, null);
+  assert.ok(st.reports.length >= 6, "التقارير المجانية متاحة بلا مفتاح");
   const r = await A.admin.post("/api/admin/ai/ask", { question: "كم عدد الطلاب؟" });
   assert.equal(r.status, 503);
+  assert.match(r.data.error, /مفتاح/);
 });
 
 test("حلقة الأدوات: ينفذ الأدوات داخل المدرسة ويعيد النتائج ويسجل السؤال", async () => {
@@ -41,7 +46,7 @@ test("حلقة الأدوات: ينفذ الأدوات داخل المدرسة �
     seen = body.messages.at(-1).content;
     return { stop_reason: "end_turn", usage, content: [{ type: "text", text: "في المدرسة 3 طلاب." }] };
   }));
-  assert.equal((await A.admin.get("/api/admin/me")).data.ai_ready, true);
+  assert.equal((await A.admin.get("/api/admin/ai")).data.ready, true);
   const r = await A.admin.post("/api/admin/ai/ask", { question: "كم عدد الطلاب؟" });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.answer, "في المدرسة 3 طلاب.");
@@ -115,4 +120,48 @@ test("الرفض والتاريخ والتحقق والإيقاف والصلاح
   await A.admin.put("/api/admin/settings/modules", { ai_assistant: false });
   assert.equal((await A.admin.post("/api/admin/ai/ask", { question: "كم؟" })).status, 404);
   await A.admin.put("/api/admin/settings/modules", { ai_assistant: true });
+});
+
+test("التقارير الذكية المجانية: كلها تعمل بلا مفتاح ولا شبكة، وتحترم الأقسام والعزل", async () => {
+  setAiClient(null);
+  const { reports } = (await A.admin.get("/api/admin/ai")).data;
+  for (const rep of reports) {
+    const r = await A.admin.post(`/api/admin/ai/report/${rep.key}`, rep.params.includes("name") ? { name: "المنفرد" } : {});
+    assert.equal(r.status, 200, `${rep.key}: ${JSON.stringify(r.data)}`);
+    assert.ok(Array.isArray(r.data.lines) && r.data.lines.length, rep.key);
+    assert.ok(Array.isArray(r.data.tables) && Array.isArray(r.data.tips), rep.key);
+  }
+  const ov = (await A.admin.post("/api/admin/ai/report/overview", {})).data;
+  assert.match(ov.lines[0], /\*\*4\*\* طالبًا/, "أعداد مدرسة A فقط (3 + المنفرد)");
+  const st = (await B.admin.post("/api/admin/ai/report/student", { name: "المنفرد" })).data;
+  assert.match(st.lines[0], /لم أجد/, "B لا ترى طالب A");
+  assert.equal((await A.admin.post("/api/admin/ai/report/nope", {})).status, 404);
+  await A.admin.put("/api/admin/settings/modules", { behavior: false });
+  assert.equal((await A.admin.get("/api/admin/ai")).data.reports.some((x) => x.key === "behavior"), false);
+  assert.equal((await A.admin.post("/api/admin/ai/report/behavior", {})).status, 404);
+  await A.admin.put("/api/admin/settings/modules", { behavior: true });
+  assert.equal((await A.teacher.post("/api/admin/ai/report/overview", {})).status >= 401, true);
+});
+
+test("مفتاح المدرسة: يُتحقق منه، يُحفظ مشفّرًا، لا يُعاد ولا يُسجَّل، ويُستخدم للأسئلة", async () => {
+  const KEY = "sk-ant-api03-SchoolTestKey_1234567890abcdWXYZ";
+  let checked = 0;
+  setAiClient({ models: { retrieve: async () => { checked++; return { id: "m" }; } },
+    beta: { messages: { create: async () => ({ stop_reason: "end_turn", usage, content: [{ type: "text", text: "تم" }] }) } } });
+  assert.equal((await A.admin.put("/api/admin/ai/key", { key: "abc" })).status, 400);
+  const r = await A.admin.put("/api/admin/ai/key", { key: KEY });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(checked, 1);
+  assert.equal(r.data.source, "school");
+  assert.equal(r.data.key_hint, "WXYZ");
+  const st = await A.admin.get("/api/admin/ai");
+  assert.equal(JSON.stringify(st.data).includes(KEY), false, "المفتاح لا يعود للواجهة");
+  const row = await transaction({ tenantId: A.id }, async (q) => (await q("SELECT key_sealed FROM school_ai"))[0]);
+  assert.equal(row.key_sealed.includes("SchoolTestKey"), false, "محفوظ مشفّرًا");
+  const leaked = await transaction({ platform: true }, async (q) => (await q("SELECT count(*)::int AS n FROM audit_log WHERE action ILIKE '%SchoolTestKey%' OR new_data::text ILIKE '%SchoolTestKey%'"))[0].n);
+  assert.equal(leaked, 0, "لا أثر للمفتاح في السجل");
+  const a = await A.admin.post("/api/admin/ai/ask", { question: "سؤال" });
+  assert.equal(a.data.source, "school");
+  assert.equal((await B.admin.get("/api/admin/ai")).data.source, "platform", "مفتاح A لا يخص B");
+  assert.equal((await A.admin.del("/api/admin/ai/key")).data.source, "platform");
 });

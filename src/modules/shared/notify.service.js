@@ -1,13 +1,15 @@
 // مركز الإشعارات: مكان واحد تمر منه كل رسائل المدرسة لأولياء الأمور والمنسوبين
 //   1) صندوق إشعارات داخل المنصة (يبقى في ملف الطالب أو لوحة المستخدم)
 //   2) إشعار فوري على الجهاز (Web Push) لمن ثبّت التطبيق وسمح بالإشعارات
-//   3) رسالة نصية SMS عبر مزوّد يضبطه المالك، برصيد رسائل لكل مدرسة
-// المدرسة تختار لكل حدث: إشعار فوري، رسالة نصية، أو لا شيء. والإرسال يتم بعد نجاح المعاملة فقط.
+//   3) رسالة نصية SMS: عبر بوابة المدرسة الخاصة (جوالها بشريحتها، بلا رصيد ولا تكلفة على المنصة)
+//      أو عبر مزوّد يضبطه المالك برصيد رسائل لكل مدرسة
+//   4) قائمة إرسال واتساب: رسائل جاهزة يرسلها الإداري من جواله واحدة تلو الأخرى (مجانًا)
+// المدرسة تختار لكل حدث: إشعار فوري، رسالة نصية، واتساب، أو لا شيء. والإرسال يتم بعد نجاح المعاملة فقط.
 import webpush from "web-push";
 import crypto from "node:crypto";
 import { env } from "../../config/env.js";
 import { transaction } from "../../core/db/pool.js";
-import { deriveSecret, openSecret } from "../../core/auth/secret-box.js";
+import { deriveSecret, openSecret, sealSecret } from "../../core/auth/secret-box.js";
 import { z } from "../../core/http/validate.js";
 import { detectPhone } from "../../../public/shared/js/phone.js";
 import { getModules, effectiveModules } from "./modules.service.js";
@@ -38,7 +40,7 @@ export const EVENTS = {
   lesson_plan:  { name: "مراجعة تحضير الدروس", audience: "staff", push: true, sms: false },
 };
 export const rulesSchema = z.object(Object.fromEntries(Object.keys(EVENTS).map((k) =>
-  [k, z.object({ push: z.boolean(), sms: z.boolean() }).partial()]))).partial();
+  [k, z.object({ push: z.boolean(), sms: z.boolean(), wa: z.boolean() }).partial()]))).partial();
 
 const rulesCache = new WeakMap();
 export async function getRules(q) {
@@ -46,7 +48,7 @@ export async function getRules(q) {
   const [row] = await q("SELECT rules FROM school_notify WHERE tenant_id = app_tenant()");
   const saved = row?.rules || {};
   const rules = Object.fromEntries(Object.entries(EVENTS).map(([k, e]) => [k, {
-    push: saved[k]?.push ?? e.push, sms: saved[k]?.sms ?? e.sms }]));
+    push: saved[k]?.push ?? e.push, sms: saved[k]?.sms ?? e.sms, wa: saved[k]?.wa ?? false }]));
   rulesCache.set(q, rules);
   return rules;
 }
@@ -142,10 +144,10 @@ export async function notify(q, n) {
   const e = EVENTS[n.event];
   if (!e) throw new Error(`حدث غير معروف: ${n.event}`);
   const mods = await activeModules(q);
-  if (!mods.notifications && !mods.sms) return { inbox: 0, sms: 0 };
+  if (!mods.notifications && !mods.sms && !mods.messaging) return { inbox: 0, sms: 0, wa: 0 };
   const students = [...new Set((n.students || []).map(Number))].filter(Boolean);
   const users = [...new Set((n.users || []).map(Number))].filter(Boolean);
-  if (!students.length && !users.length) return { inbox: 0, sms: 0 };
+  if (!students.length && !users.length) return { inbox: 0, sms: 0, wa: 0 };
   const rules = await getRules(q);
   const rule = rules[n.event];
   const title = String(n.title).slice(0, 140);
@@ -169,12 +171,45 @@ export async function notify(q, n) {
     smsIds = await queueSms(q, students, String(n.sms || [title, body].filter(Boolean).join(": ")), n.event);
   }
 
+  // 3) قائمة واتساب: تُجهّز الرسائل ليرسلها الإداري من جواله (مجانًا)
+  let wa = 0;
+  if (mods.messaging && rule?.wa && students.length) {
+    wa = await queueWhatsApp(q, students, [title, body].filter(Boolean).join("\n"), n.event);
+  }
+
   const ids = inbox.map((r) => r.id);
   const urgent = Boolean(n.urgent);
   if ((ids.length && rule?.push) || smsIds.length) {
     q.afterCommit?.(() => deliver(tenant, { notificationIds: rule?.push ? ids : [], smsIds, urgent }));
   }
-  return { inbox: ids.length, sms: smsIds.length };
+  return { inbox: ids.length, sms: smsIds.length, wa };
+}
+
+/**
+ * إضافة رسائل لقائمة واتساب: رسالة لكل رقم (الإخوة رقم واحد)، ولا تكرار لنفس النص المنتظر.
+ * vars: دالة اختيارية تعطي نص كل طالب (للرسائل بمتغيرات). @returns عدد الرسائل المضافة
+ */
+export async function queueWhatsApp(q, studentIds, text, kind, { perStudent = null } = {}) {
+  const [{ dial, school }] = await q(`SELECT COALESCE((SELECT country_code FROM school_messages WHERE tenant_id = app_tenant()), '967') AS dial,
+                                             (SELECT name FROM tenants WHERE id = app_tenant()) AS school`);
+  const rows = await q(`SELECT s.id, s.full_name, s.guardian_phone, c.name AS class_name FROM students s LEFT JOIN classes c ON c.id = s.class_id
+                         WHERE s.id = ANY($1) AND s.guardian_phone IS NOT NULL AND s.archived_at IS NULL ORDER BY c.name, s.full_name`, [studentIds]);
+  const seen = new Set();
+  let added = 0;
+  for (const s of rows) {
+    const ph = detectPhone(s.guardian_phone, dial);
+    if (!ph?.intl || !/^[0-9]{8,15}$/.test(ph.intl)) continue;
+    const msg = `${(perStudent ? perStudent(s) : text).trim()}\n— ${school}`.slice(0, 1500);
+    const k = `${ph.intl}|${msg}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const [dup] = await q("SELECT 1 FROM wa_outbox WHERE status = 'pending' AND phone = $1 AND body = $2", [ph.intl, msg]);
+    if (dup) continue;
+    await q(`INSERT INTO wa_outbox (tenant_id, student_id, phone, body, kind, created_by)
+             VALUES (app_tenant(), $1, $2, $3, $4, COALESCE(NULLIF(current_setting('app.actor', true), ''), 'النظام'))`, [s.id, ph.intl, msg, kind]);
+    added++;
+  }
+  return added;
 }
 
 /**
@@ -187,7 +222,8 @@ export async function queueSms(q, studentIds, rawText, kind) {
   const [{ dial }] = await q("SELECT COALESCE((SELECT country_code FROM school_messages WHERE tenant_id = app_tenant()), '967') AS dial");
   const rows = await q("SELECT id, guardian_phone FROM students WHERE id = ANY($1) AND guardian_phone IS NOT NULL", [studentIds]);
   const seg = smsSegments(text);
-  let balance = await smsBalance(q);
+  const own = await schoolGatewayOn(q);        // بوابة المدرسة: بلا رصيد
+  let balance = own ? Infinity : await smsBalance(q);
   const ids = [];
   const seen = new Set();   // الإخوة لهم رقم واحد: رسالة واحدة لنفس الرقم ونفس النص
   for (const s of rows) {
@@ -196,10 +232,11 @@ export async function queueSms(q, studentIds, rawText, kind) {
     seen.add(ph.intl);
     const enough = balance >= seg;
     const [m] = await q(
-      `INSERT INTO sms_messages (tenant_id, student_id, to_phone, body, kind, segments, status, error, created_by)
-       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, current_setting('app.actor', true)) RETURNING id`,
-      [s.id, ph.intl, text, kind, seg, enough ? "queued" : "no_credit", enough ? null : "رصيد الرسائل لا يكفي"]);
+      `INSERT INTO sms_messages (tenant_id, student_id, to_phone, body, kind, segments, status, error, created_by, via)
+       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, current_setting('app.actor', true), $8) RETURNING id`,
+      [s.id, ph.intl, text, kind, seg, enough ? "queued" : "no_credit", enough ? null : "رصيد الرسائل لا يكفي", own ? "school" : "platform"]);
     if (!enough) continue;
+    if (own) { ids.push(m.id); continue; }
     // حجز الرصيد الآن (يُعاد تلقائيًا إذا فشل الإرسال)
     await q("INSERT INTO sms_ledger (tenant_id, delta, reason, message_id, created_by) VALUES (app_tenant(), $1, 'رسالة نصية', $2, current_setting('app.actor', true))", [-seg, m.id]);
     balance -= seg;
@@ -244,9 +281,11 @@ export async function deliver(tenantId, { notificationIds = [], smsIds = [], urg
     });
   }
   if (smsIds.length) {
-    const gateway = await loadGateway();
-    const msgs = await transaction({ tenantId, actor: "النظام" }, (q) => q("SELECT id, to_phone, body, segments FROM sms_messages WHERE id = ANY($1) AND status = 'queued'", [smsIds]));
+    const msgs = await transaction({ tenantId, actor: "النظام" }, (q) => q("SELECT id, to_phone, body, segments, via FROM sms_messages WHERE id = ANY($1) AND status = 'queued'", [smsIds]));
+    const platformGw = msgs.some((m) => m.via === "platform") ? await loadGateway() : null;
+    const schoolGw = msgs.some((m) => m.via === "school") ? await transaction({ tenantId, actor: "النظام" }, loadSchoolGateway) : null;
     for (const m of msgs) {
+      const gateway = m.via === "school" ? schoolGw : platformGw;
       let error = null;
       if (!gateway) error = "مزوّد الرسائل غير مهيأ";
       else {
@@ -255,7 +294,8 @@ export async function deliver(tenantId, { notificationIds = [], smsIds = [], urg
       await transaction({ tenantId, actor: "النظام" }, (q) => q(
         "UPDATE sms_messages SET status = $2, error = $3, sent_at = CASE WHEN $2 = 'sent' THEN now() END WHERE id = $1",
         [m.id, error ? (gateway ? "failed" : "disabled") : "sent", error]));
-      if (error) {
+      if (error && m.via === "school") results.sms_failed++;   // بوابة المدرسة: لا رصيد يُعاد
+      else if (error) {
         results.sms_failed++;
         // الرسالة لم تُرسل: يعود رصيدها للمدرسة
         await transaction({ platform: true, actor: "النظام" }, (q) => q(
@@ -272,4 +312,23 @@ export async function loadGateway() {
   const [g] = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT * FROM sms_gateway WHERE id = 1"));
   if (!g?.enabled || !g.url) return null;
   return { ...g, headers: g.headers_sealed ? openSecret(g.headers_sealed, "sms-gateway") : null };
+}
+
+/* ---------- بوابة المدرسة الخاصة (جوال أندرويد بشريحتها أو مزوّدها) ---------- */
+// إعداد جاهز لتطبيق «SMS Gateway for Android» مفتوح المصدر بوضعه السحابي: الجوال يرسل من شريحته
+export const ANDROID_PRESET = {
+  url: "https://api.sms-gate.app/3rdparty/v1/message", method: "POST", content_type: "json",
+  body_template: '{"textMessage":{"text":"{message}"},"phoneNumbers":["+{to}"]}', success_match: "",
+};
+const schoolAad = (tid) => `school-sms:${tid}`;
+export const sealSchoolHeaders = (tid, obj) => sealSecret(JSON.stringify(obj), schoolAad(tid));
+async function schoolGatewayOn(q) {
+  const [g] = await q("SELECT enabled, url FROM school_sms_gateway WHERE tenant_id = app_tenant()");
+  return Boolean(g?.enabled && g.url);
+}
+/** بوابة المدرسة جاهزة للإرسال (داخل معاملة المدرسة)، أو null */
+export async function loadSchoolGateway(q) {
+  const [g] = await q("SELECT * FROM school_sms_gateway WHERE tenant_id = app_tenant()");
+  if (!g?.enabled || !g.url) return null;
+  return { ...g, headers: g.headers_sealed ? openSecret(g.headers_sealed, schoolAad(g.tenant_id)) : null };
 }

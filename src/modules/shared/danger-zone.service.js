@@ -177,6 +177,7 @@ const TABLE_LABEL = {
   meeting_slots: "فترات المواعيد", meeting_bookings: "حجوزات المواعيد", reminder_log: "سجل التذكيرات",
   renewal_requests: "طلبات التجديد", subscription_events: "سجل أحداث الاشتراك", leads: "طلبات الاهتمام", sms_ledger: "رصيد الرسائل النصية",
   tenant_prices: "أسعار المدرسة الخاصة",
+  school_ai: "مفتاح المساعد الذكي", school_sms_gateway: "بوابة رسائل المدرسة", wa_outbox: "قائمة إرسال واتساب",
 };
 export const tableLabel = (t) => TABLE_LABEL[t] || t;
 async function counts(q, tid, tables) {

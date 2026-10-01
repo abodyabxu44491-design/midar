@@ -63,7 +63,7 @@ export async function startAdmin() {
     distribution: "timetable",
     announcements: "announcements", papers: "exam_papers",
     // الأقسام الجامعة: تظهر إذا كان أي قسم فيها مفعّلًا
-    communication: ["notifications", "sms", "surveys", "meetings"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
+    communication: ["notifications", "messaging", "sms", "surveys", "meetings"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
     behavior: "behavior", calendar: "calendar", certificates: "certificates",
     services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant",
   };
@@ -80,8 +80,6 @@ export async function startAdmin() {
     ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
     .filter(([key]) => !MODULE_OF[key] || enabled(MODULE_OF[key]))
-    // المساعد الذكي يظهر فقط إذا كان مهيأً على الخادم
-    .filter(([key]) => key !== "ai" || me.ai_ready)
     // مع النظام المالي تصبح «الرسوم» جزءًا من «المالية» (تبويب واحد لكل المال)
     .filter(([key]) => !(key === "finance" && me.modules?.finance));
 

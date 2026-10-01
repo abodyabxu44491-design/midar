@@ -1,25 +1,91 @@
 // المساعد الذكي للإدارة: يجيب عن أسئلة المدير من بيانات مدرسته عبر أدوات قراءة فقط.
 // - كل أداة تعمل في معاملة قصيرة خاصة بالمدرسة (RLS)، فلا يُحجز اتصال قاعدة البيانات أثناء انتظار النموذج
 // - لا ترسل الأدوات أرقام الهواتف ولا مفاتيح الدخول ولا أي بيانات اعتماد
-// - المفتاح من البيئة فقط ولا يُسجَّل؛ يُحفظ السؤال والجواب وعدد الرموز في ai_queries
+// - المفتاح: مفتاح المدرسة الخاص إن أضافته (التكلفة عليها)، وإلا مفتاح المنصة من البيئة إن وُجد.
+//   مفتاح المدرسة يُحفظ مشفّرًا ولا يُعاد للواجهة ولا يُسجَّل؛ يُحفظ السؤال والجواب وعدد الرموز في ai_queries
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../../config/env.js";
 import { inTenant } from "../../core/db/pool.js";
-import { AppError } from "../../core/http/errors.js";
+import { AppError, badRequest } from "../../core/http/errors.js";
+import { sealSecret, openSecret, credentialsEnabled } from "../../core/auth/secret-box.js";
+import { logEvent } from "../../core/audit.js";
 import { z } from "../../core/http/validate.js";
 
 const MODEL = () => env.AI_MODEL || "claude-opus-5-5";
 const MAX_ROUNDS = 8;          // أقصى عدد جولات أدوات للسؤال الواحد
-const DAILY_LIMIT = 100;       // أسئلة المدرسة في اليوم
+const DAILY_LIMIT = { platform: 100, school: 500 };   // أسئلة المدرسة في اليوم حسب صاحب المفتاح
 const RESULT_CAP = 24000;      // حد حجم نتيجة الأداة (حرف)
 
 let testClient = null;
-/** للاختبارات: عميل بديل له beta.messages.create */
+/** للاختبارات: عميل بديل له beta.messages.create (و models.retrieve اختياريًا) */
 export const setAiClient = (c) => { testClient = c; };
-export const aiReady = () => Boolean(testClient || env.ANTHROPIC_API_KEY);
+/** هل للمنصة مفتاح عام؟ */
+export const platformAiReady = () => Boolean(testClient || env.ANTHROPIC_API_KEY);
 
-let realClient = null;
-const client = () => testClient || (realClient ||= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 90_000, maxRetries: 2 }));
+const clients = new Map();
+const clientFor = (apiKey) => {
+  if (testClient) return testClient;
+  if (!clients.has(apiKey)) {
+    if (clients.size > 200) clients.clear();
+    clients.set(apiKey, new Anthropic({ apiKey, timeout: 90_000, maxRetries: 2 }));
+  }
+  return clients.get(apiKey);
+};
+
+/* ---------- مفتاح المدرسة الخاص ---------- */
+const aad = (tid) => `ai-key:${tid}`;
+async function schoolKeyRow(req) {
+  const [row] = await inTenant(req, (q) => q("SELECT key_sealed, key_hint, updated_at FROM school_ai WHERE tenant_id = app_tenant()"));
+  return row || null;
+}
+/** حالة المساعد للمدرسة: جاهز؟ ومن صاحب المفتاح؟ (بلا المفتاح نفسه) */
+export async function aiStatus(req) {
+  const row = await schoolKeyRow(req);
+  const source = row ? "school" : platformAiReady() ? "platform" : null;
+  return { ready: Boolean(source), source, key_hint: row?.key_hint || null, key_updated_at: row?.updated_at || null, can_store: credentialsEnabled() };
+}
+async function resolveKey(req) {
+  const row = await schoolKeyRow(req);
+  if (row) {
+    const key = testClient ? "test" : openSecret(row.key_sealed, aad(req.tenant.id));
+    if (!key) throw new AppError(503, "تعذر قراءة مفتاح المدرسة، أعد إدخاله من إعدادات المساعد", "ai_unavailable");
+    return { key, source: "school" };
+  }
+  if (platformAiReady()) return { key: env.ANTHROPIC_API_KEY || "test", source: "platform" };
+  return null;
+}
+
+const KEY_RE = /^sk-ant-[A-Za-z0-9_-]{20,300}$/;
+/** حفظ مفتاح المدرسة بعد التحقق منه لدى Anthropic (طلب مجاني بلا رموز) */
+export async function setSchoolKey(req, rawKey) {
+  const key = String(rawKey || "").trim();
+  if (!KEY_RE.test(key)) throw badRequest("المفتاح غير صحيح الشكل، يبدأ بـ sk-ant-");
+  if (!credentialsEnabled()) throw badRequest("لا يمكن حفظ المفتاح: مفتاح التشفير غير مضبوط على الخادم");
+  const c = testClient || new Anthropic({ apiKey: key, timeout: 20_000, maxRetries: 1 });
+  try {
+    await c.models?.retrieve?.(MODEL());
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw badRequest("Anthropic رفضت المفتاح، تأكد من نسخه كاملًا وأنه فعّال");
+    if (e instanceof Anthropic.NotFoundError) throw badRequest("المفتاح صحيح لكن حسابه لا يملك صلاحية النموذج المطلوب");
+    if (e instanceof Anthropic.APIError) throw badRequest("تعذر التحقق من المفتاح الآن، حاول بعد قليل");
+    throw e;
+  }
+  const hint = key.slice(-4).replace(/[^A-Za-z0-9_-]/g, "x");
+  await inTenant(req, async (q) => {
+    await q(`INSERT INTO school_ai (tenant_id, key_sealed, key_hint, updated_by) VALUES (app_tenant(), $1, $2, $3)
+             ON CONFLICT (tenant_id) DO UPDATE SET key_sealed = EXCLUDED.key_sealed, key_hint = EXCLUDED.key_hint, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+      [sealSecret(key, aad(req.tenant.id)), hint, req.actor || "الإدارة"]);
+    await logEvent(q, { tenantId: req.tenant.id, actor: req.actor || "الإدارة", action: `حفظ مفتاح المساعد الذكي الخاص بالمدرسة (ينتهي بـ ${hint})` });
+  });
+  return aiStatus(req);
+}
+export async function deleteSchoolKey(req) {
+  await inTenant(req, async (q) => {
+    const rows = await q("DELETE FROM school_ai WHERE tenant_id = app_tenant() RETURNING key_hint");
+    if (rows.length) await logEvent(q, { tenantId: req.tenant.id, actor: req.actor || "الإدارة", action: "حذف مفتاح المساعد الذكي الخاص بالمدرسة" });
+  });
+  return aiStatus(req);
+}
 
 /* ---------- نص التعليمات (ثابت تمامًا ليُخزَّن مؤقتًا مع الأدوات) ---------- */
 const SYSTEM = `أنت «مساعد مدار»، مساعد تحليلي لمدير مدرسة على منصة مدار. تجيب بالعربية الفصحى المبسطة عن أسئلة المدير حول بيانات مدرسته.
@@ -247,9 +313,11 @@ const textOf = (content) => content.filter((b) => b.type === "text").map((b) => 
 
 /** يجيب عن سؤال المدير. history: آخر أسئلة وأجوبة الجلسة كنصوص */
 export async function ask(req, { question, history = [] }) {
-  if (!aiReady()) throw new AppError(503, "المساعد الذكي غير مفعّل على المنصة بعد", "ai_unavailable");
+  const auth = await resolveKey(req);
+  if (!auth) throw new AppError(503, "الأسئلة الحرة تحتاج مفتاح Anthropic خاصًا بالمدرسة، أضفه من إعدادات المساعد. التقارير الذكية تعمل مجانًا بدونه.", "ai_unavailable");
+  const limit = DAILY_LIMIT[auth.source];
   const [{ used }] = await inTenant(req, (q) => q(`SELECT count(*)::int AS used FROM ai_queries WHERE created_at > now() - interval '1 day'`));
-  if (used >= DAILY_LIMIT) throw new AppError(429, `بلغت المدرسة حد ${DAILY_LIMIT} سؤالًا في اليوم، حاول لاحقًا`, "rate_limited");
+  if (used >= limit) throw new AppError(429, `بلغت المدرسة حد ${limit} سؤالًا في اليوم، حاول لاحقًا`, "rate_limited");
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
   const context = `السياق: المدرسة «${req.tenant.name}»، العملة ${req.tenant.currency || "YER"}، تاريخ اليوم ${today}، السائل: ${req.user.full_name}.`;
@@ -264,7 +332,7 @@ export async function ask(req, { question, history = [] }) {
   for (let round = 0; ; round++) {
     let res;
     try {
-      res = await client().beta.messages.create({
+      res = await clientFor(auth.key).beta.messages.create({
         model: MODEL(),
         max_tokens: 16000,
         betas: ["server-side-fallback-2026-07-01"],
@@ -279,8 +347,8 @@ export async function ask(req, { question, history = [] }) {
     } catch (e) {
       if (e instanceof Anthropic.RateLimitError) throw new AppError(429, "المساعد مشغول الآن، حاول بعد قليل", "rate_limited");
       if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) {
-        console.error("ai auth failed", e.status);
-        throw new AppError(503, "إعداد المساعد على المنصة غير صحيح، تواصل مع الدعم", "ai_unavailable");
+        console.error("ai auth failed", auth.source, e.status);
+        throw new AppError(503, auth.source === "school" ? "Anthropic رفضت مفتاح المدرسة، أعد إدخاله من إعدادات المساعد" : "إعداد المساعد على المنصة غير صحيح، تواصل مع الدعم", "ai_unavailable");
       }
       if (e instanceof Anthropic.APIError) { console.error("ai api error", e.status, e.message); throw new AppError(502, "تعذر الوصول إلى المساعد الآن، حاول بعد قليل", "ai_unavailable"); }
       throw e;
@@ -312,7 +380,7 @@ export async function ask(req, { question, history = [] }) {
     `INSERT INTO ai_queries (tenant_id, user_id, question, answer, tokens_in, tokens_out)
      VALUES (app_tenant(), $1, $2, $3, $4, $5) RETURNING id, created_at`,
     [req.user.id ?? null, question, answer, tokensIn, tokensOut]));
-  return { id: row.id, answer, created_at: row.created_at, tools: [...new Set(used_tools)], remaining_today: DAILY_LIMIT - used - 1 };
+  return { id: row.id, answer, created_at: row.created_at, tools: [...new Set(used_tools)], remaining_today: limit - used - 1, source: auth.source };
 }
 
 export const recentQuestions = (req) => inTenant(req, (q) => q(
@@ -320,3 +388,4 @@ export const recentQuestions = (req) => inTenant(req, (q) => q(
 
 // للاختبارات
 export const _tools = { TOOLS, RUN, INPUTS };
+export const dataTools = RUN;
