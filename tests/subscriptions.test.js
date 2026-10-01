@@ -48,7 +48,7 @@ test("الصفحة العامة تقرأ الباقات والأسعار وال�
   const before = await site();
   const basic = before.plans.find((p) => p.code === "basic");
   assert.ok(basic.features.some((f) => f.key === "attendance"));
-  assert.ok(basic.features.some((f) => f.key === "timetable") && basic.features.some((f) => f.key === "data_assistant"), "كل المميزات في كل باقة");
+  assert.ok(basic.features.some((f) => f.key === "timetable") && basic.features.some((f) => f.key === "ai_assistant"), "كل المميزات في كل باقة");
 
   // تغيير السعر وإضافة ميزة وعرض مؤقت من لوحة المالك يظهر فورًا
   // حتى لو حاول المالك حذف ميزة من الباقة تبقى مشمولة (لا مميزات مدفوعة منفصلة)
@@ -116,9 +116,9 @@ test("طلب تجربة من الصفحة العامة ← يصل للمالك �
 });
 
 test("كل المميزات متاحة لكل مدرسة بلا طلب ولا دفع، والمدرسة تشغّل وتوقف ما تريد", async () => {
-  await s.admin.put("/api/admin/settings/modules", { timetable: true, data_assistant: true });
+  await s.admin.put("/api/admin/settings/modules", { timetable: true, transport: true });
   assert.equal((await s.admin.get("/api/admin/timetable")).status, 200, "الجدول متاح في الأساسية");
-  assert.equal((await s.admin.get("/api/admin/assistant/checklist")).status, 200, "مساعد الإدخال متاح بلا طلب");
+  assert.equal((await s.admin.get("/api/admin/services/transport")).status, 200, "النقل متاح بلا طلب");
   const sub = await s.admin.get("/api/admin/subscription");
   assert.equal(sub.status, 200);
   assert.ok(sub.data.features.filter((f) => f.kind !== "service").every((f) => f.included), "كل المميزات مشمولة");

@@ -26,7 +26,6 @@ import reports from "./reports.js";
 import messaging from "./messaging.js";
 import exportData from "./export.js";
 import importData from "./import.js";
-import assistant from "./assistant.js";
 import sheets from "./sheets.js";
 import setup from "./setup.js";
 import customFields from "./custom-fields.js";
@@ -59,7 +58,6 @@ r.use("/ledger", requireModule("finance"), ledger);
 r.use("/users", users);
 r.use("/notifications", staffNotificationsRouter());   // صندوق الإشعارات والإشعار الفوري
 r.use("/jobs", jobsRouter("school"));     // تقدم العمليات الطويلة (الاستيراد)
-r.use("/assistant", requireModule("data_assistant"), assistant);   // مساعد إدخال البيانات
 r.use("/password-requests", passwordRequests);
 r.use("/announcements", requireModule("announcements"), announcements);
 r.use("/settings", settings);

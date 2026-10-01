@@ -289,7 +289,7 @@ const TAB_ICONS = {
   sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",
   homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus",
-  billing: "money", passwords: "key", danger: "lock", assistant: "wand",
+  billing: "money", passwords: "key", danger: "lock",
   communication: "message", staff: "briefcase", behavior: "star", calendar: "calendar", certificates: "award", services: "box",
   ai: "sparkle", lessons: "clipboard", meetings: "clock", surveys: "poll", me: "briefcase", sms: "message", "online-exams": "monitor",
 };

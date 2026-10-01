@@ -25,7 +25,6 @@ const reports = lazy(() => import("./views/reports.js"), new URL("./views/report
 const sheets = lazy(() => import("./views/sheets.js"), new URL("./views/sheets.js", import.meta.url).pathname);
 const analytics = lazy(() => import("./views/analytics.js"), new URL("./views/analytics.js", import.meta.url).pathname);
 const admissions = lazy(() => import("./views/admissions.js"), new URL("./views/admissions.js", import.meta.url).pathname);
-const assistant = lazy(() => import("./views/assistant.js"), new URL("./views/assistant.js", import.meta.url).pathname);
 const papers = lazy(() => import("./views/papers.js"), new URL("./views/papers.js", import.meta.url).pathname);
 const communication = lazy(() => import("./views/communication.js"), new URL("./views/communication.js", import.meta.url).pathname);
 const staffAffairs = lazy(() => import("./views/staff-affairs.js"), new URL("./views/staff-affairs.js", import.meta.url).pathname);
@@ -62,7 +61,7 @@ export async function startAdmin() {
     attendance: "attendance", timetable: "timetable", exams: "exams", reports: "reports",
     analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions", sheets: "attendance",
     distribution: "timetable",
-    announcements: "announcements", papers: "exam_papers", assistant: "data_assistant",
+    announcements: "announcements", papers: "exam_papers",
     // الأقسام الجامعة: تظهر إذا كان أي قسم فيها مفعّلًا
     communication: ["notifications", "sms", "surveys", "meetings"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
     behavior: "behavior", calendar: "calendar", certificates: "certificates",
@@ -71,7 +70,7 @@ export async function startAdmin() {
   const enabled = (m) => [].concat(m).some((k) => me.modules?.[k]);
   // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
-    ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"], ["assistant", "مساعد الإدخال"],
+    ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
     ["students", "الطلاب"], ["teachers", "المعلمون"], ["staff", "شؤون الموظفين"],
     ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
     ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"],
@@ -88,7 +87,7 @@ export async function startAdmin() {
 
   const ctx = { me };
   const t = tabs(allTabs,
-    { dashboard, assistant, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
+    { dashboard, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
       communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant }, ctx);
   ctx.goTo = (key) => {
     // روابط «الرسوم» القديمة (من الرئيسية والتنبيهات) تفتح قسم الرسوم داخل المالية

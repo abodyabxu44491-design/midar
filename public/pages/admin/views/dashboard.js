@@ -7,12 +7,11 @@ import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
 
 export default async function dashboard({ me, goTo }) {
-  const [d, alerts, notifications, templates, completeness] = await Promise.all([
+  const [d, alerts, notifications, templates] = await Promise.all([
     api(`${A}/dashboard`),
     optional(api(`${A}/analytics/alerts`), { counts: {}, absentees: [], overdue: [] }),
     optional(api(`${A}/analytics/notifications`), { items: [], counts: {} }),
-    optional(api(`${A}/messaging/templates`), null),
-    me.modules?.data_assistant ? optional(api(`${A}/assistant/checklist`), null) : null]);
+    optional(api(`${A}/messaging/templates`), null)]);
   const canMessage = Boolean(templates);
   const c = alerts.counts;
 
@@ -62,12 +61,6 @@ export default async function dashboard({ me, goTo }) {
         : ["غائب اليوم", d.absent_today, d.recorded_today ? `سُجل ${d.recorded_today} طالب` : todayText || "لم يُسجل الحضور بعد"],
       me.modules?.fees === false ? null : ["رسوم غير محصّلة", money(d.fees_remaining), `المحصّل ${money(d.fees_paid)}`],
     ].filter(Boolean)),
-
-    // اكتمال البيانات: يظهر فقط ما دامت ناقصة، ويفتح مساعد الإدخال
-    completeness && completeness.score < 100 ? panel("اكتمال بيانات المدرسة", null,
-      h("div", { class: "dash-complete" }, h("b", {}, `${completeness.score}%`), h("div", { class: "bar" }, h("i", { style: `width:${completeness.score}%` })),
-        btn("أكمل البيانات", () => goTo?.("assistant"), "soft sm")),
-      sub(completeness.items.filter((x) => x.level === "todo" || x.level === "warn").slice(0, 3).map((x) => x.hint || x.title).join(" · "))) : null,
 
     center(notifications, goTo || (() => {})),
 
