@@ -5,6 +5,7 @@ import { getPool, closePool, healthCheck } from "./core/db/pool.js";
 import { runMaintenance } from "./core/auth/sessions.js";
 import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
 import { runReminders } from "./modules/shared/reminders.service.js";
+import { ensureDemoSchool } from "./modules/owner/demo-provision.js";
 
 try {
   await healthCheck();
@@ -22,6 +23,8 @@ const server = createApp().listen(env.PORT, () => {
   console.log("  /admin  إدارة المدرسة   |  /teacher  المعلمون   |  /<رمز-المدرسة>  صفحة الطلاب");
   console.log(`  ${env.OWNER_PATH}  لوحة المالك (سرّي)`);
 });
+// مدرسة العرض التجريبي تُجهَّز مرة واحدة في الخلفية (لا تؤخر بدء الخادم)
+if (process.env.DEMO_AUTO !== "false") ensureDemoSchool().catch((e) => console.error("[العرض التجريبي]", e.message));
 server.headersTimeout = 20_000;
 server.requestTimeout = 30_000;
 

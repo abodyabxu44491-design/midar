@@ -121,3 +121,17 @@ test("الصفحات العامة: الخصوصية والشروط ومحركا�
     assert.equal((await A.owner.post("/api/owner/tenants", { id: code, name: "محجوز" })).status, 400);
   }
 });
+
+test("التجهيز التلقائي مرة واحدة: يحترم مدرسة العرض التي اختارها المالك ولا يتكرر", async () => {
+  const { ensureDemoSchool } = await import("../src/modules/owner/demo-provision.js");
+  await transaction({ platform: true }, (q) => q("UPDATE platform_settings SET demo_provisioned_at = NULL WHERE id"));
+  assert.equal((await A.owner.patch(`/api/owner/tenants/${A.id}`, { is_demo: true })).status, 200);
+  assert.equal(await ensureDemoSchool({ log: () => {} }), A.id);
+  const [s] = await transaction({ platform: true }, (q) => q("SELECT demo_provisioned_at FROM platform_settings WHERE id"));
+  assert.ok(s.demo_provisioned_at);
+  // بعد التجهيز لا يعود أبدًا، حتى لو أوقف المالك العرض
+  await A.owner.patch(`/api/owner/tenants/${A.id}`, { is_demo: false });
+  assert.equal(await ensureDemoSchool({ log: () => {} }), null);
+  const [d] = await transaction({ platform: true }, (q) => q("SELECT count(*)::int AS n FROM tenants WHERE is_demo"));
+  assert.equal(d.n, 0);
+});
