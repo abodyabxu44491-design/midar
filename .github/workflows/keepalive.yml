@@ -1,0 +1,21 @@
+# إبقاء الخادم المجاني مستيقظًا: الخطة المجانية في Render تُنيم الخادم بعد 15 دقيقة خمول،
+# وأول زائر بعدها ينتظر قرابة دقيقة. نوقظه كل 10 دقائق طوال اليوم (زوار التسويق يأتون مساءً أيضًا).
+# الفحص /healthz لا يلمس قاعدة البيانات، فلا يستهلك ساعات حوسبة Neon. ساعات Render المجانية (750) تكفي الشهر كاملًا.
+# رابط الموقع من متغيّر المستودع SITE_URL إن وُجد، وإلا الرابط الحالي.
+name: Keep alive
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: إيقاظ الخادم
+        env:
+          SITE: ${{ vars.SITE_URL || 'https://midar.onrender.com' }}
+        run: curl -fsS --max-time 90 "$SITE/healthz" || exit 0
