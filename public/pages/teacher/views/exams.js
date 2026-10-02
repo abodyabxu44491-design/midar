@@ -21,20 +21,46 @@ export default async function exams({ me, refresh }) {
     offline = true;
   }
   const pair = select(me.load.map((l) => [`${l.class_id}:${l.subject_id}`, `${l.class_name} — ${l.subject_name}`]));
-  const title = input({ placeholder: "عنوان الاختبار" });
+  const title = input({ placeholder: "مثال: اختبار شهري، مشاركة الأسبوع الثالث" });
   const date = input({ type: "date", value: today() });
   const max = input({ type: "number", value: 20, min: 0.25, step: "0.25" });
+  // نوع الدرجة من «توزيع الدرجات» الذي حددته الإدارة لصف هذا الفصل
+  const kind = select([]);
+  const kindField = field("نوع الدرجة", kind, "يُحسب في نتيجة الشهادة حسب وزنه");
+  kindField.hidden = true;
+  let autoTitle = "";
+  const loadKinds = async () => {
+    const [class_id] = pair.value.split(":");
+    let comps = [];
+    try { comps = await api(`${T}/components?class_id=${class_id}`); } catch { comps = []; }
+    mount(kind, comps.map((c) => h("option", { value: c.id }, `${c.name} — ${Number(c.weight)}%`)));
+    const def = comps.find((c) => c.is_default) || comps[0];
+    if (def) kind.value = String(def.id);
+    kindField.hidden = !comps.length;
+    kind.comps = comps;
+    syncTitle();
+  };
+  const syncTitle = () => {
+    const c = (kind.comps || []).find((x) => String(x.id) === kind.value);
+    if (c && (!title.value || title.value === autoTitle)) { autoTitle = c.name; title.value = c.name; }
+  };
+  pair.addEventListener("change", loadKinds);
+  kind.addEventListener("change", syncTitle);
+  if (!offline) queueMicrotask(loadKinds);
   return [
-    panel("اختبار جديد", null,
-      h("div", { class: "row" }, field("العنوان", title), field("الفصل والمادة", pair)),
-      h("div", { class: "row" }, field("التاريخ", date), field("الدرجة القصوى", max)),
-      btn("إنشاء الاختبار", async () => {
+    panel("رصد درجات جديد", null,
+      sub("كل أنواع الدرجات من هنا: اختبار، مشاركة، واجبات، مشروع… اختر النوع ثم أدخل درجات الطلاب."),
+      h("div", { class: "row" }, field("الفصل والمادة", pair), kindField),
+      h("div", { class: "row" }, field("العنوان", title), field("الدرجة القصوى", max)),
+      field("التاريخ", date),
+      btn("إنشاء", async () => {
         const [class_id, subject_id] = pair.value.split(":");
-        await api(T, { class_id, subject_id, title: title.value, exam_date: date.value || null, max_score: max.value });
-        toast("تم إنشاء الاختبار"); refresh();
+        await api(T, { class_id, subject_id, title: title.value, exam_date: date.value || null, max_score: max.value,
+          component_id: !kindField.hidden && kind.value ? Number(kind.value) : undefined });
+        toast("تم الإنشاء، أدخل الدرجات"); refresh();
       })),
     offline ? notice("غير متصل: تظهر الاختبارات المحفوظة على جهازك. يمكنك إدخال الدرجات الآن وتُرسل تلقائيًا عند عودة الاتصال.", "warn") : null,
-    panel("اختباراتي", null, list.length ? list.map((e) => examRow(e, refresh)) : empty("لا توجد اختبارات بعد.")),
+    panel("درجاتي المرصودة", null, list.length ? list.map((e) => examRow(e, refresh)) : empty("لم ترصد درجات بعد.")),
   ];
 }
 
@@ -83,7 +109,7 @@ function examRow(e, refresh) {
     box.classList.remove("hidden");
   }, "ghost sm");
   return line(
-    h("div", {}, h("b", {}, e.title), " ", badge(...EXAM[e.status]),
+    h("div", {}, h("b", {}, e.title), " ", e.component_name ? badge(e.component_name, "gray") : null, " ", badge(...EXAM[e.status]),
       sub(`${e.class_name} — ${e.subject_name} — ${fmtDate(e.exam_date)} — من ${e.max_score} — أُدخلت ${e.graded}`)),
     toggle, box);
 }

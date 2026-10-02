@@ -62,11 +62,14 @@ function reportCard(c, me) {
       c.rank ? h("div", {}, h("b", {}, "الترتيب في الصف: "), `${c.rank.position} من ${c.rank.of}`) : null),
 
     c.subjects.length ? h("div", { class: "scroll" }, h("table", { class: "grid" },
-      h("thead", {}, h("tr", {}, h("th", {}, "المادة"), h("th", {}, "الدرجة"), h("th", {}, "من"), h("th", {}, "النسبة"), h("th", {}, "التقدير"), h("th", {}, "الاختبارات"))),
+      h("thead", {}, h("tr", {}, h("th", {}, "المادة"), h("th", {}, "الدرجة"), h("th", {}, "من"), h("th", {}, "النسبة"), h("th", {}, "التقدير"), h("th", {}, c.weighted ? "توزيع الدرجات" : "الاختبارات"))),
       h("tbody", {}, c.subjects.map((s) => h("tr", {},
         h("td", {}, s.subject), h("td", {}, s.score), h("td", {}, s.max),
-        h("td", {}, s.percent === null ? "—" : `${s.percent}%`), h("td", {}, s.grade),
-        h("td", { class: "small muted" }, s.exams.map((e) => `${e.title}: ${e.score}/${e.max}`).join(" — "))))))
+        h("td", {}, s.percent === null ? "—" : `${s.percent}%`, s.partial ? h("div", { class: "small muted" }, "حتى الآن") : null), h("td", {}, s.grade),
+        h("td", { class: "small muted" }, s.components
+          // مع توزيع الدرجات: كل نوع بوزنه وما حصّله الطالب منه
+          ? s.components.map((p) => `${p.name} (${p.weight}): ${p.earned === null ? "لم يُرصد" : `${p.earned} — ${p.score}/${p.max}`}`).join(" · ")
+          : s.exams.map((e) => `${e.title}: ${e.score}/${e.max}`).join(" — "))))))
       )
       : empty("لا توجد درجات منشورة لهذا الطالب."),
 

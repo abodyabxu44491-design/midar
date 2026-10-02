@@ -1,10 +1,12 @@
-// بناء كشف الدرجات من الاختبارات المنشورة فقط
+// بناء كشف الدرجات من الاختبارات المنشورة فقط، موزونة حسب توزيع الدرجات إن حددته المدرسة
+import { forClass, subjectResult } from "./grade-components.service.js";
+
 const round = (n, d = 1) => (n === null || n === undefined ? null : Math.round(n * 10 ** d) / 10 ** d);
 const gradeWord = (p) => (p === null ? "—" : p >= 90 ? "ممتاز" : p >= 80 ? "جيد جدًا" : p >= 65 ? "جيد" : p >= 50 ? "مقبول" : "يحتاج متابعة");
 
 export async function buildReportCard(q, studentId, termId = null) {
   const [student] = await q(
-    `SELECT s.id, s.full_name AS name, s.guardian_name, c.name AS class_name
+    `SELECT s.id, s.full_name AS name, s.guardian_name, c.name AS class_name, s.class_id
        FROM students s LEFT JOIN classes c ON c.id = s.class_id WHERE s.id = $1`, [studentId]);
   if (!student) return null;
   const [school] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
@@ -16,8 +18,10 @@ export async function buildReportCard(q, studentId, termId = null) {
       WHERE ($1::bigint IS NULL AND t.is_current) OR t.id = $1`, [termId]);
 
   const rows = await q(
-    `SELECT sub.name AS subject, e.title, e.exam_date, e.max_score, sc.score, tr.name AS term_name, tr.ordinal
+    `SELECT sub.name AS subject, e.title, e.exam_date, e.max_score, sc.score, tr.name AS term_name, tr.ordinal,
+            e.component_id, gc.name AS component
        FROM exams e JOIN subjects sub ON sub.id = e.subject_id
+       LEFT JOIN grade_components gc ON gc.id = e.component_id
        JOIN scores sc ON sc.exam_id = e.id AND sc.student_id = $1
        LEFT JOIN terms tr ON tr.id = e.term_id
       WHERE e.status = 'published' AND sc.score IS NOT NULL
@@ -26,19 +30,19 @@ export async function buildReportCard(q, studentId, termId = null) {
       ORDER BY sub.name, tr.ordinal NULLS LAST, e.exam_date NULLS LAST, e.id`,
     [studentId, termId, termId ? null : scope?.year_id ?? null]);
 
+  const comps = student.class_id ? await forClass(q, student.class_id) : [];
   const subjects = [];
   for (const row of rows) {
     let s = subjects.find((x) => x.subject === row.subject);
-    if (!s) subjects.push((s = { subject: row.subject, exams: [], score: 0, max: 0 }));
-    s.exams.push({ title: row.title, date: row.exam_date, score: row.score, max: row.max_score, term: row.term_name });
-    s.score += Number(row.score);
-    s.max += Number(row.max_score);
+    if (!s) subjects.push((s = { subject: row.subject, exams: [], rows: [] }));
+    s.exams.push({ title: row.title, date: row.exam_date, score: row.score, max: row.max_score, term: row.term_name, component: row.component });
+    s.rows.push(row);
   }
   for (const s of subjects) {
-    s.percent = s.max ? round((s.score / s.max) * 100) : null;
+    const r = subjectResult(s.rows, comps);
+    delete s.rows;
+    Object.assign(s, { score: r.score, max: r.max, percent: r.percent, components: r.components, partial: r.partial });
     s.grade = gradeWord(s.percent);
-    s.score = round(s.score, 2);
-    s.max = round(s.max, 2);
   }
   const total = subjects.reduce((a, s) => a + s.score, 0);
   const totalMax = subjects.reduce((a, s) => a + s.max, 0);
@@ -61,7 +65,8 @@ export async function buildReportCard(q, studentId, termId = null) {
   return {
     school: school.name,
     scope: scope ? { term_id: scope.term_id, term: termId ? scope.term_name : null, year: scope.year_name } : null,
-    student,
+    student: { id: student.id, name: student.name, guardian_name: student.guardian_name, class_name: student.class_name },
+    weighted: comps.length > 0,
     subjects,
     summary: { total: round(total, 2), max: round(totalMax, 2), percent, grade: gradeWord(percent) },
     attendance: { ...att, rate: att.recorded ? round(((att.present + att.late) / att.recorded) * 100) : null },

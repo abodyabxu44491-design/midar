@@ -9,6 +9,7 @@ import { list as listFields, valuesOf } from "./custom-fields.service.js";
 import { logoId } from "./school-logo.service.js";
 import { list as listAlerts } from "./student-alerts.service.js";
 import { studentExtras } from "./student-extras.service.js";
+import { buildReportCard } from "./reports.service.js";
 
 const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, "•") : null);
 const ALL_ON = { profile_show_grades: true, profile_show_attendance: true, profile_show_teachers: true,
@@ -35,8 +36,9 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     .map(({ teacher_id, for_parent, ...a }) => (admin ? { ...a, teacher_id, for_parent } : { ...a, for_parent }));
   const term = await current(q);
   const grades = settings.profile_show_grades ? await q(
-    `SELECT e.title, e.exam_date, e.max_score, sub.name AS subject, sc.score
+    `SELECT e.title, e.exam_date, e.max_score, sub.name AS subject, sc.score, gc.name AS component
        FROM exams e JOIN scores sc ON sc.exam_id = e.id AND sc.student_id = $1 JOIN subjects sub ON sub.id = e.subject_id
+       LEFT JOIN grade_components gc ON gc.id = e.component_id
       WHERE e.status = 'published' AND sc.score IS NOT NULL ORDER BY e.exam_date DESC NULLS LAST, e.id DESC`, [s.id]) : [];
   // معلم واحد بكل مواده في الفصل، وصورته للإدارة دائمًا ولولي الأمر إن فعّلت المدرسة نشر صور المعلمين
   const teachers = settings.profile_show_teachers ? await q(
@@ -70,6 +72,8 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     custom: await customValues(q, s.id, admin),
     settings: { ...settings, allow_parent_excuses: settings.allow_parent_excuses && settings.profile_show_attendance },
     academic: term, attendance, absence_warning: absenceWarning, alerts, grades, teachers, announcements: news, fees,
+    // النسبة العامة للفصل الحالي بنفس حساب كشف الدرجات والشهادة (موزونة بتوزيع الدرجات إن وُجد)
+    grades_percent: settings.profile_show_grades && grades.length ? (await buildReportCard(q, s.id))?.summary.percent ?? null : null,
     timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],
     homework: settings.profile_show_homework && s.class_id ? await listForStudent(q, s) : [],
     features: await studentExtras(q, s, { admin }),

@@ -14,7 +14,7 @@ const TABLES = { students: "الطلاب", attendance: "الحضور", exams: "�
   terms: "الفصول الدراسية", holidays: "الإجازات", school_profile: "ملف المدرسة والإعداد", timetable_slots: "الجدول الدراسي",
   finance_entries: "القيود المالية", payroll_items: "مسير الرواتب", payroll_runs: "دورات الرواتب", staff: "الموظفون",
   school_modules: "أقسام المنصة المفعلة", school_public_settings: "إعدادات الصفحة العامة", assignments: "الواجبات",
-  student_alerts: "تنبيهات الطلاب", exam_papers: "أوراق الاختبارات", finance_accounts: "الحسابات المالية",
+  student_alerts: "تنبيهات الطلاب", exam_papers: "أوراق الاختبارات", grade_components: "توزيع الدرجات", finance_accounts: "الحسابات المالية",
   admissions: "طلبات القبول", fee_plans: "خطط الرسوم", fee_adjustments: "تعديلات الرسوم", donations: "التبرعات",
   payment_claims: "إشعارات الدفع", custom_fields: "الحقول المخصصة", attachments: "المرفقات", subscriptions: "الاشتراك" };
 const OPS = { insert: "إضافة", update: "تعديل", delete: "حذف" };
