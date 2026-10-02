@@ -11,7 +11,7 @@ import { featureSections } from "./student-file-features.js";
 export const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 export const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
 export const gradeLine = (g) => line(
-  h("div", {}, h("b", {}, g.subject), sub(`${g.title}${g.exam_date ? ` — ${fmtDate(g.exam_date)}` : ""}`)),
+  h("div", {}, h("b", {}, g.subject), sub(`${g.component && g.component !== g.title ? `${g.component} — ` : ""}${g.title}${g.exam_date ? ` — ${fmtDate(g.exam_date)}` : ""}`)),
   h("b", {}, `${g.score} / ${g.max_score}`));
 const GENDER = { male: "ذكر", female: "أنثى" };
 
@@ -36,7 +36,8 @@ export function feesReadOnly(f, compact = false) {
  */
 export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [] } = {}) {
   const s = d.student, f = d.fees;
-  const avg = d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
+  const avg = d.grades_percent !== undefined && d.grades_percent !== null ? Math.round(d.grades_percent)
+    : d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
   const count = (st) => d.attendance.filter((a) => a.status === st).length;
   const alerts = d.alerts || [];
   const unread = alerts.filter((a) => a.for_parent && !a.acknowledged_at).length;

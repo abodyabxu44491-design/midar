@@ -15,7 +15,7 @@ export default async function exams({ refresh }) {
   return panel("الاختبارات", null,
     sub("الدرجات لا تظهر لأولياء الأمور قبل اعتمادها."),
     list.length ? list.map((e) => line(
-      h("div", {}, h("b", {}, e.title), " ", badge(...EXAM[e.status]),
+      h("div", {}, h("b", {}, e.title), " ", e.component_name ? badge(e.component_name, "gray") : null, " ", badge(...EXAM[e.status]),
         sub(`${e.class_name} — ${e.subject_name} — ${fmtDate(e.exam_date)} — من ${e.max_score} — أُدخلت ${e.graded} درجة — ${e.created_by}`)),
       h("div", { class: "row", style: "flex:none" },
         btn("الدرجات", async () => {

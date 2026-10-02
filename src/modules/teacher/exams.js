@@ -5,6 +5,7 @@ import { handle, forbidden, badRequest } from "../../core/http/errors.js";
 import { parse, t } from "../../core/http/validate.js";
 import * as exams from "../shared/exams.service.js";
 import { teachesPair } from "./access.js";
+import { forClass } from "../shared/grade-components.service.js";
 
 const r = Router();
 
@@ -15,6 +16,16 @@ async function myExam(q, req) {
 }
 
 r.get("/", handle(async (req, res) => res.json(await inTenant(req, (q) => exams.listForTeacher(q, req.user.teacher_id)))));
+
+// أنواع الدرجات المتاحة لفصل يدرّسه المعلم (توزيع الدرجات الذي حددته الإدارة)
+r.get("/components", handle(async (req, res) => {
+  const classId = parse(t.id, req.query.class_id);
+  res.json(await inTenant(req, async (q) => {
+    const [ok] = await q("SELECT 1 FROM teacher_assignments WHERE teacher_id = $1 AND class_id = $2 LIMIT 1", [req.user.teacher_id, classId]);
+    if (!ok) throw forbidden("هذا الفصل غير مسند لك");
+    return forClass(q, classId);
+  }));
+}));
 
 r.post("/", handle(async (req, res) => {
   const b = parse(exams.createSchema, req.body);

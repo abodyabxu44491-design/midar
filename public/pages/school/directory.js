@@ -113,6 +113,13 @@ function findByKey() {
     key.value = v.length > 4 ? `${v.slice(0, 4)}-${v.slice(4)}` : v;
   });
   key.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
+  // رابط البطاقة (رمز QR): ?k=المعرّف يفتح الملف مباشرة، ثم يُحذف المعرّف من شريط العنوان
+  const fromCard = new URLSearchParams(location.search).get("k");
+  if (fromCard) {
+    history.replaceState(null, "", location.pathname + location.hash);
+    key.value = fromCard.toUpperCase().slice(0, 9);
+    queueMicrotask(() => go.click());
+  }
   // الأبناء المحفوظون على هذا الجهاز: فتح مباشر بضغطة
   const kids = rememberedChildren(school);
   return h("div", {},

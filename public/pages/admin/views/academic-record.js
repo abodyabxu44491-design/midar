@@ -3,7 +3,7 @@
 // التي يحفظ فيها معالج أول دخول، فأي تعديل هنا يظهر في المعالج والنظام كله، والعكس.
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, select, btn, sub, empty, notice, toast, confirmAction, line, badge, stats } from "../../shared/js/ui.js";
+import { panel, field, select, input, btn, sub, empty, notice, toast, confirmAction, line, badge, stats } from "../../shared/js/ui.js";
 import { A } from "./common.js";
 import { loadStructure, stagesParts, subjectsPanel, sectionsModePanel } from "./structure.js";
 import { yearParts, daysParts } from "./academic.js";
@@ -13,6 +13,7 @@ const PARTS = [
   ["subjects", "المواد"],
   ["year", "السنة والفصول"],
   ["days", "أيام الدراسة والإجازات"],
+  ["grading", "توزيع الدرجات"],
   ["system", "إعدادات النظام الأكاديمي"],
 ];
 
@@ -40,6 +41,7 @@ export default async function academicRecord() {
     subjects: async (refresh) => subjectsPanel(await loadStructure(), refresh),
     year: (refresh) => yearParts({ refresh }),
     days: (refresh) => daysParts({ refresh }),
+    grading: (refresh) => gradingPanel(refresh),
     system: async (refresh) => {
       const d = await loadStructure();
       return [sectionsModePanel(d, refresh), namingPanel(d, refresh), wizardPanel(d)];
@@ -102,4 +104,69 @@ function wizardPanel(d) {
       await api(`${A}/setup/reopen`, {});
       location.reload();
     }, "ghost"));
+}
+
+// توزيع الدرجات: أنواع الدرجات التي يرصدها المعلم ووزن كل نوع من 100، لكل المدرسة أو لصف بعينه
+let gradingScope = "";
+async function gradingPanel(refresh) {
+  const d = await api(`${A}/grade-components`);
+  const scope = select([["", "كل الصفوف (التوزيع العام)"], ...d.grades.map((g) => [g.id, `${g.stage} — ${g.name}`])], { value: gradingScope });
+  const rowsBox = h("div", { class: "gc-rows" });
+  const total = h("b");
+  const msg = h("div");
+  let rows = [];
+  const load = () => {
+    const sid = scope.value ? Number(scope.value) : null;
+    rows = d.items.filter((x) => (x.grade_id ?? null) === sid).map((x) => ({ ...x }));
+    draw();
+  };
+  const sum = () => Math.round(rows.reduce((a, r) => a + (Number(r.weight) || 0), 0) * 100) / 100;
+  const draw = () => {
+    mount(rowsBox, rows.length ? rows.map((r, i) => {
+      const name = input({ value: r.name, maxLength: 40, placeholder: "اسم النوع", "aria-label": "اسم نوع الدرجة" });
+      const weight = input({ type: "number", value: r.weight, min: 0.5, max: 100, step: "0.5", class: "ltr", style: "width:90px", "aria-label": "الوزن" });
+      const def = h("input", { type: "radio", name: "gc-default", checked: !!r.is_default, "aria-label": "النوع الافتراضي" });
+      name.addEventListener("input", () => { r.name = name.value; });
+      weight.addEventListener("input", () => { r.weight = Number(weight.value); paintTotal(); });
+      def.addEventListener("change", () => rows.forEach((x, j) => { x.is_default = j === i; }));
+      return h("div", { class: "gc-row" },
+        h("span", { class: "gc-n" }, String(i + 1)), name,
+        h("label", { class: "gc-w" }, weight, h("span", {}, "من 100")),
+        h("label", { class: "gc-d" }, def, h("span", {}, "افتراضي")),
+        r.used ? badge(`${r.used} رصد`, "gray") : btn("حذف", () => { rows.splice(i, 1); draw(); }, "ghost sm"));
+    }) : empty("لا يوجد توزيع لهذا النطاق. اختر قالبًا جاهزًا أو أضف الأنواع بنفسك."));
+    paintTotal();
+  };
+  const paintTotal = () => {
+    const t = sum();
+    total.textContent = `${t} من 100`;
+    total.className = rows.length && t !== 100 ? "danger-text" : "";
+  };
+  scope.addEventListener("change", () => { gradingScope = scope.value; load(); });
+  const templates = h("div", { class: "row", style: "flex-wrap:wrap;justify-content:flex-start" },
+    d.templates.map((tp) => btn(tp.name, () => {
+      if (rows.some((r) => r.used)) return toast("هذا التوزيع عليه درجات مرصودة؛ عدّل الأنواع بدل استبدالها", true);
+      rows = tp.items.map((x) => ({ ...x })); draw();
+    }, "soft sm")));
+  load();
+  return [
+    panel("توزيع الدرجات", null,
+      sub("حدد أنواع الدرجات التي يرصدها المعلم (مشاركة، واجبات، اختبارات قصيرة، شهري، نهائي…) ووزن كل نوع. نتيجة المادة في كشف الدرجات والشهادة = مجموع (نسبة الطالب في كل نوع × وزنه)."),
+      field("النطاق", scope, "توزيع خاص بصف يتقدم على التوزيع العام لذلك الصف."),
+      h("div", {}, h("span", { class: "sub" }, "قوالب جاهزة: "), templates),
+      rowsBox,
+      line(h("span", {}, "مجموع الأوزان"), total),
+      sub("النوع «الافتراضي» تُحسب عليه الدرجات التي لم يُحدَّد نوعها (مثل درجات الاختبارات الإلكترونية والدرجات القديمة)."),
+      msg,
+      h("div", { class: "row", style: "justify-content:flex-start" },
+        btn("+ نوع", () => { rows.push({ name: "", weight: 0, is_default: !rows.length }); draw(); }, "ghost"),
+        btn("حفظ التوزيع", async () => {
+          mount(msg);
+          try {
+            await api(`${A}/grade-components`, { grade_id: scope.value ? Number(scope.value) : null,
+              items: rows.map((r) => ({ id: r.id, name: (r.name || "").trim(), weight: Number(r.weight), is_default: !!r.is_default })) }, "PUT");
+            toast("تم حفظ توزيع الدرجات"); refresh();
+          } catch (e) { mount(msg, notice(e.message, "err")); }
+        }))),
+  ];
 }

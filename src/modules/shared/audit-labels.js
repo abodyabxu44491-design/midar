@@ -17,7 +17,7 @@ const FIELDS = {
   plan_name: "الباقة", max_students: "حد الطلاب", max_teachers: "حد المعلمين", billing_cycle: "دورة الفوترة", grace_days: "أيام السماح",
   attendance: "الحضور", exams: "الاختبارات", homework: "الواجبات", timetable: "الجدول", finance: "المالية", payroll: "الرواتب",
   reports: "التقارير", analytics: "الإحصاءات", announcements: "الإعلانات", messaging: "الرسائل", admissions: "القبول",
-  transfers: "التحويلات", donations: "التبرعات", exam_papers: "أوراق الاختبارات",
+  transfers: "التحويلات", donations: "التبرعات", exam_papers: "أوراق الاختبارات", grade_components: "توزيع الدرجات",
 };
 const SHOW = { show_admissions: "القبول", show_announcements: "الإعلانات", show_class_counts: "أعداد الشعب", show_classes: "الشعب",
   show_contact: "التواصل", show_search: "البحث", show_student_names: "أسماء الطلاب", show_teachers: "المعلمين", show_timetable: "الجدول",

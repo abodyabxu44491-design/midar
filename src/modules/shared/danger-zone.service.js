@@ -155,7 +155,7 @@ const TABLE_LABEL = {
   students: "الطلاب", attendance: "سجلات الحضور", scores: "الدرجات المرصودة", exams: "الاختبارات", invoices: "الفواتير", payments: "الدفعات",
   payment_claims: "إشعارات التحويل", fee_adjustments: "تعديلات الرسوم", student_alerts: "تنبيهات الطلاب", student_years: "السجل الأكاديمي السنوي",
   assignment_submissions: "تسليمات الواجبات", assignments: "الواجبات", announcements: "التعاميم", timetable_slots: "حصص الجدول",
-  admissions: "طلبات التسجيل", exam_papers: "أوراق الاختبارات", exam_instruction_presets: "التعليمات المحفوظة", question_bank: "أسئلة البنك",
+  admissions: "طلبات التسجيل", exam_papers: "أوراق الاختبارات", grade_components: "توزيع الدرجات", exam_instruction_presets: "التعليمات المحفوظة", question_bank: "أسئلة البنك",
   donations: "التبرعات", payroll_items: "بنود الرواتب", payroll_runs: "مسيرات الرواتب", finance_entries: "القيود المالية",
   teacher_assignments: "إسنادات المعلمين", teachers: "المعلمون", users: "الحسابات", classes: "الشعب", grades: "الصفوف", stages: "المراحل",
   subjects: "المواد", sessions: "الجلسات المفتوحة", school_public_settings: "إعدادات الصفحة العامة", exam_paper_settings: "إعدادات أوراق الاختبارات",

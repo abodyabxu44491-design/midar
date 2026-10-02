@@ -2,12 +2,14 @@
 import { z, t } from "../../core/http/validate.js";
 import { notFound } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
+import { resolveForExam } from "./grade-components.service.js";
 
 export const createSchema = z.object({
   class_id: t.id, subject_id: t.id,
   title: t.shortText("عنوان الاختبار"),
   exam_date: t.optDate,
   max_score: z.coerce.number().positive("الدرجة القصوى غير صحيحة").max(1000).multipleOf(0.25),
+  component_id: t.id.nullable().optional(),   // نوع الدرجة من توزيع الدرجات (بلا اختيار = النوع الافتراضي)
 });
 export const scoresSchema = z.object({
   scores: z.record(z.string().regex(/^\d+$/),
@@ -16,9 +18,10 @@ export const scoresSchema = z.object({
 
 const SELECT = `SELECT e.id, e.title, e.exam_date, e.max_score, e.status, e.published_at, e.created_by,
     e.class_id, e.subject_id, e.term_id, tr.name AS term_name, c.name AS class_name, s.name AS subject_name,
+    e.component_id, gc.name AS component_name, gc.weight AS component_weight,
     (SELECT count(*) FROM scores x WHERE x.exam_id = e.id AND x.score IS NOT NULL)::int AS graded
   FROM exams e JOIN classes c ON c.id = e.class_id JOIN subjects s ON s.id = e.subject_id
-  LEFT JOIN terms tr ON tr.id = e.term_id`;
+  LEFT JOIN terms tr ON tr.id = e.term_id LEFT JOIN grade_components gc ON gc.id = e.component_id`;
 
 export const listAll = (q) => q(`${SELECT} ORDER BY e.id DESC LIMIT 500`);
 export const listForTeacher = (q, teacherId) => q(
@@ -32,10 +35,11 @@ export async function get(q, id) {
 }
 
 export async function create(q, b, actor) {
+  const component = await resolveForExam(q, b.class_id, b.component_id);
   const [row] = await q(
-    `INSERT INTO exams (tenant_id, class_id, subject_id, title, exam_date, max_score, created_by)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6) RETURNING id`,
-    [b.class_id, b.subject_id, b.title, b.exam_date, b.max_score, actor]);
+    `INSERT INTO exams (tenant_id, class_id, subject_id, title, exam_date, max_score, created_by, component_id)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id, component_id`,
+    [b.class_id, b.subject_id, b.title, b.exam_date, b.max_score, actor, component]);
   return row;
 }
 

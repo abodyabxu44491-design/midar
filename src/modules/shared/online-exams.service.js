@@ -9,6 +9,7 @@ import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { getFor } from "./exam-papers.service.js";
 import { notify } from "./notify.service.js";
+import { resolveForExam } from "./grade-components.service.js";
 
 const AUTO = new Set(["mcq", "multi", "truefalse", "fill", "match", "order"]);
 const GRACE_MS = 60_000;   // تأخر الشبكة عند التسليم
@@ -137,9 +138,11 @@ export async function publish(q, who, b, actor) {
   const title = b.title || paper.title;
   let examId = null;
   if (b.link_exam) {
-    const [e] = await q(`INSERT INTO exams (tenant_id, class_id, subject_id, title, exam_date, max_score, created_by)
-      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6) RETURNING id`,
-      [classId, paper.subject_id, `${title} (إلكتروني)`, b.opens_at.toISOString().slice(0, 10), Math.ceil(max * 4) / 4, actor]);
+    // الدرجة تُرصد على النوع الافتراضي في توزيع الدرجات (إن وُجد)
+    const component = await resolveForExam(q, classId, null);
+    const [e] = await q(`INSERT INTO exams (tenant_id, class_id, subject_id, title, exam_date, max_score, created_by, component_id)
+      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [classId, paper.subject_id, `${title} (إلكتروني)`, b.opens_at.toISOString().slice(0, 10), Math.ceil(max * 4) / 4, actor, component]);
     examId = e.id;
   }
   const [row] = await q(
