@@ -34,6 +34,26 @@ export function applyPendingUpdate() {
   return false;
 }
 
+/* ======================= العرض التجريبي ======================= */
+// الخادم يعلّم كل استجابة من مدرسة العرض (X-Demo)، فيظهر شريط ثابت يوضح أنها للتصفح فقط
+let demoShown = false;
+function announceDemo() {
+  if (demoShown) return;
+  demoShown = true;
+  document.documentElement.classList.add("demo-mode");
+  const bar = document.createElement("div");
+  bar.className = "demo-bar";
+  bar.setAttribute("role", "note");
+  const txt = document.createElement("span");
+  txt.textContent = "أنت تتصفح مدرسة تجريبية للعرض — التعديل غير متاح.";
+  const go = document.createElement("a");
+  go.className = "btn sm"; go.href = "/?trial=1"; go.textContent = "اطلب تجربتك المجانية";
+  const out = document.createElement("a");
+  out.className = "btn ghost sm"; out.href = "/#demo"; out.textContent = "أدوار أخرى";
+  bar.append(txt, go, out);
+  document.body.append(bar);
+}
+
 /* ======================= الطلبات ======================= */
 const inflight = new Map();   // GET نفسه أثناء التنفيذ ← نفس الوعد (لا تكرار)
 const cache = new Map();      // كاش قصير للبيانات المرجعية
@@ -63,6 +83,7 @@ async function once(url, method, body, timeoutMs) {
   } finally {
     clearTimeout(timer);
   }
+  if (res.headers.get("X-Demo") === "1") announceDemo();
   const v = res.headers.get("X-App-Version");
   if (v && APP_VERSION !== "dev" && v !== APP_VERSION) announceUpdate(v);
   let data = null;

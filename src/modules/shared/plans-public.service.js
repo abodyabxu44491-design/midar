@@ -1,5 +1,6 @@
 // الباقات كما تظهر للزائر وللمدرسة: من قاعدة البيانات مباشرة (لا أسعار ولا مميزات ثابتة في الكود)
 import { transaction } from "../../core/db/pool.js";
+import { demoSchool } from "./demo.service.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -60,8 +61,10 @@ export async function siteData() {
   const [s] = await transaction({}, (q) => q(
     `SELECT landing_mode, brand_phone, brand_email, support_whatsapp, trial_enabled, trial_days, trial_without_plan,
             site_headline, site_subheadline FROM platform_settings WHERE id`));
-  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode };
+  // الصفحة الفاضية: لا باقات ولا مميزات، وبيانات التواصل فقط (تظهر في صفحتي الخصوصية والشروط)
+  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, support_whatsapp: s.support_whatsapp };
   const features = await transaction({}, (q) => q(
     `SELECT key, name, description, category, kind, requestable FROM features WHERE is_active ORDER BY sort, key`));
-  return { ...s, plans: await publicPlans(), features };
+  // العرض التجريبي متاح إذا اختار المالك مدرسة عرض (ولا يُكشف رمزها هنا)
+  return { ...s, plans: await publicPlans(), features, demo: Boolean(await demoSchool()) };
 }

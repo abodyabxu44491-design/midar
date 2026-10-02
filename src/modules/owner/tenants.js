@@ -12,6 +12,7 @@ import { activate, activateSchema } from "../shared/subscription.service.js";
 import { schoolLinks } from "../../core/links.js";
 import { buildShowcase } from "../shared/showcase-school.service.js";
 import { startJob } from "../../core/jobs.js";
+import { forgetDemoCache } from "../shared/demo.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -40,12 +41,13 @@ const updateSchema = z.object({
   subscription_end: t.optDate,
   subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
+  is_demo: z.boolean().optional(),   // مدرسة العرض التجريبي (للقراءة فقط، واحدة على المنصة)
 });
 
 r.get("/", handle(async (req, res) => {
   res.json(await platform(req, (q) => q(
     `SELECT t.id, t.name, t.status, t.plan, t.max_students, t.subscription_end, t.subscription_price, t.grace_days,
-            t.auto_suspended_at, t.created_at,
+            t.auto_suspended_at, t.created_at, t.is_demo,
             u.students, u.teachers, u.open_sessions
        FROM tenants t JOIN platform_tenant_usage() u ON u.tenant_id = t.id
       ORDER BY t.created_at DESC`)));
@@ -137,6 +139,14 @@ r.patch("/:id", handle(async (req, res) => {
     if (b.status && b.status !== "active") await q("DELETE FROM sessions WHERE tenant_id = $1", [id]); // إخراج الجميع فورًا
     return cur;
   });
+  // مدرسة العرض: واحدة فقط على المنصة، وحساباتها بلا شاشة «تغيير كلمة المرور» حتى يدخلها الزائر مباشرة
+  if (b.is_demo !== undefined) {
+    await transaction({ platform: true, actor: req.actor, ip: req.ip }, async (pq) => {
+      if (b.is_demo) await pq("UPDATE tenants SET is_demo = false WHERE is_demo AND id <> $1", [id]);
+      await pq("UPDATE tenants SET is_demo = $2 WHERE id = $1", [id, b.is_demo]);
+    });
+    forgetDemoCache();
+  }
   // بعد انتهاء المعاملة الأولى (لا معاملة داخل معاملة تمسك قفل المدرسة نفسها)
   // تعديل التاريخ أو السعر أو الحد من نموذج المدرسة ينعكس على الاشتراك الحالي (هو الذي يحدد الوصول)
   if (b.subscription_end !== undefined || b.subscription_price !== undefined || b.grace_days !== undefined || b.max_students !== undefined) {
@@ -162,7 +172,7 @@ r.get("/:id/overview", handle(async (req, res) => {
   const id = parse(codeSchema, req.params.id);
   const data = await inSchool(req, id, async (q) => {
     const [t] = await q(
-      `SELECT t.id, t.name, t.status, t.directory_code, t.created_at, t.currency,
+      `SELECT t.id, t.name, t.status, t.directory_code, t.created_at, t.currency, t.is_demo,
               (SELECT count(*) FROM students WHERE status = 'active')::int AS students,
               (SELECT count(*) FROM teachers)::int AS teachers,
               (SELECT count(*) FROM classes)::int AS sections

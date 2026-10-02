@@ -1,0 +1,57 @@
+# فحص تلقائي: كل الاختبارات على قاعدة بيانات نظيفة مع كل طلب دمج وكل رفع على main
+name: الاختبارات
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      PGPASSWORD: postgres
+      DATABASE_URL: postgres://midar_app:ci-app-pass@127.0.0.1:5432/midar
+      MIGRATION_DATABASE_URL: postgres://midar_owner:ci-owner-pass@127.0.0.1:5432/midar
+      OWNER_PATH: /control-ci-secret-path
+      OWNER_USERNAME: owner
+      TEST_OWNER_PASSWORD: Test-Owner-Pass-2026
+      COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # نفس أدوار الإنتاج: مالك الجداول (للترحيلات) ومستخدم التطبيق بلا صلاحيات إدارية (تختبر العزل الحقيقي)
+      - name: تجهيز قاعدة البيانات
+        run: |
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE midar_owner LOGIN PASSWORD 'ci-owner-pass'" \
+            -c "CREATE ROLE midar_app LOGIN PASSWORD 'ci-app-pass' NOSUPERUSER NOCREATEDB NOCREATEROLE" \
+            -c "CREATE DATABASE midar OWNER midar_owner"
+          psql -h 127.0.0.1 -U postgres -d midar -v ON_ERROR_STOP=1 \
+            -c "ALTER SCHEMA public OWNER TO midar_owner" -c "GRANT USAGE ON SCHEMA public TO midar_app"
+          npm run migrate
+      - name: بصمة كلمة مرور المالك للاختبار
+        run: echo "OWNER_PASSWORD_HASH=$(node scripts/owner-password.js "$TEST_OWNER_PASSWORD" | grep -o 'scrypt\$.*')" >> "$GITHUB_ENV"
+      - run: npm test

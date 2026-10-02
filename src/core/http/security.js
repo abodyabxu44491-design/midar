@@ -31,8 +31,10 @@ export const securityHeaders = helmet({
   referrerPolicy: { policy: "same-origin" },
 });
 
+// كل المنصة مخفية عن محركات البحث (صفحات المدارس فيها أسماء طلاب)، عدا الصفحات التسويقية العامة
+export const INDEXABLE = new Set(["/", "/privacy", "/terms", "/robots.txt", "/sitemap.xml"]);
 export function noIndex(req, res, next) {
-  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  if (!((req.method === "GET" || req.method === "HEAD") && INDEXABLE.has(req.path))) res.setHeader("X-Robots-Tag", "noindex, nofollow");
   next();
 }
 

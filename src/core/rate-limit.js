@@ -5,6 +5,7 @@
 // في قاعدة البيانات، أما الحد العام فيبقى في الذاكرة حتى لا نضيف كتابة في قاعدة البيانات لكل طلب.
 import rateLimit from "express-rate-limit";
 import { transaction } from "./db/pool.js";
+import { isDemoSchool } from "../modules/shared/demo.service.js";
 
 // في بيئة الاختبار تُرفع الحدود حتى لا تتداخل مع الاختبارات الآلية، ويُستخدم مخزن الذاكرة
 const isTest = process.env.NODE_ENV === "test";
@@ -42,8 +43,9 @@ export class PgStore {
   }
 }
 
-const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSuccessfulRequests = false } = {}) => rateLimit({
+const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSuccessfulRequests = false, skip } = {}) => rateLimit({
   ...(keyGenerator ? { keyGenerator } : {}),
+  ...(skip ? { skip } : {}),
   skipSuccessfulRequests,
   windowMs: windowMin * 60_000,
   limit: limit * factor,
@@ -63,6 +65,8 @@ export const limits = {
   staffLogin: make("staffLogin", 15, 20, { shared: true, skipSuccessfulRequests: true,
     keyGenerator: (req) => `${req.ip}|${String(req.body?.school || "").toLowerCase()}|${String(req.body?.username || "").toLowerCase()}`.slice(0, 200) }),
   staffLoginNet: make("staffLoginNet", 15, 300, { shared: true, skipSuccessfulRequests: true }),   // سقف واسع للشبكة الواحدة
-  studentKey: make("studentKey", 10, 20, { shared: true }),   // إدخال معرّف الطالب ورمز الصفحة
+  // إدخال معرّف الطالب ورمز الصفحة. مدرسة العرض التجريبي مستثناة: معرّفها منشور للزوار ولا شيء يُخمَّن فيها
+  studentKey: make("studentKey", 10, 20, { shared: true, skip: (req) => isDemoSchool(req.params?.school).catch(() => false) }),
+  demo: make("demo", 10, 40, { shared: true }),          // الدخول للعرض التجريبي من الصفحة الرئيسية
   payment: make("payment", 10, 20, { shared: true }),    // الدفع
 };

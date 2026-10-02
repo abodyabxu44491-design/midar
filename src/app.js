@@ -18,6 +18,7 @@ import { ownerNetwork } from "./core/auth/guards.js";
 import { healthCheck, transaction } from "./core/db/pool.js";
 import { handle } from "./core/http/errors.js";
 import { isSchoolCode } from "./core/reserved.js";
+import { baseUrl } from "./core/links.js";
 import ownerApi from "./modules/owner/index.js";
 import adminApi from "./modules/school-admin/index.js";
 import teacherApi from "./modules/teacher/index.js";
@@ -103,7 +104,20 @@ export function createApp() {
   app.use(env.OWNER_PATH, ownerNetwork, express.static(file("owner"), { index: "index.html", redirect: true }));
   app.get("/reset", send("reset", "index.html"));     // صفحة تغيير كلمة المرور بالرابط
   app.get("/reset/", send("reset", "index.html"));
-  app.get("/", send("home", "index.html"));
+  // الصفحات العامة القابلة للفهرسة: الرئيسية والخصوصية والشروط. روابط المشاركة (og) تحتاج النطاق كاملًا
+  const withOrigin = (...p) => (req, res) => res.set("Cache-Control", "no-cache").type("html")
+    .send(renderPage(file(...p), { isProd: env.isProd }).replaceAll("__ORIGIN__", baseUrl(req)));
+  app.get("/", withOrigin("home", "index.html"));
+  app.get("/privacy", withOrigin("legal", "privacy.html"));
+  app.get("/terms", withOrigin("legal", "terms.html"));
+  // محركات البحث: الصفحات التسويقية فقط، وكل ما عداها (صفحات المدارس واللوحات) ممنوع
+  app.get("/robots.txt", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("text/plain").send([
+    "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
+    "Allow: /home-page/", "Allow: /legal-page/", "Allow: /api/site", "Disallow: /", "", `Sitemap: ${baseUrl(req)}/sitemap.xml`, ""].join("\n")));
+  app.get("/sitemap.xml", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("application/xml").send(
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
+      [["/", "1.0"], ["/privacy", "0.3"], ["/terms", "0.3"]].map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><priority>${p}</priority></url>`).join("\n")
+    }\n</urlset>\n`));
   app.get("/verify/:code", send("verify", "index.html"));   // التحقق من الشهادات برمز QR
 
   const school = (handler) => (req, res, next) =>

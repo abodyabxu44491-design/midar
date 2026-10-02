@@ -1,7 +1,7 @@
 // الصفحة الرئيسية: فاضية (الشعار فقط) أو تسويقية، حسب إعداد لوحة المالك.
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, showInstallBar } from "../shared/js/ui.js";
+import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, showInstallBar, toast } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 
@@ -13,8 +13,13 @@ const fmt = (n) => Number(n).toLocaleString("ar", { maximumFractionDigits: 2 });
 async function start() {
   let site = { landing_mode: "blank" };
   try { site = await api("/api/site"); } catch { /* الوضع الافتراضي */ }
-  if (site.landing_mode === "marketing") marketing(site);
-  else mount(app, h("main", { class: "blank-home" }, brandLogo("hero-logo", false, "stacked")), footer());
+  if (site.landing_mode === "marketing") {
+    marketing(site);
+    const want = new URLSearchParams(location.search).get("trial");
+    if (want !== null && site.trial_enabled) { history.replaceState(null, "", "/"); trialDialog(site); }
+  }
+  else mount(app, h("main", { class: "blank-home" }, brandLogo("hero-logo", false, "stacked")),
+    h("nav", { class: "blank-legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام")), footer());
   startAnalytics(site.landing_mode === "marketing" ? "landing" : "home");
 }
 
@@ -33,6 +38,7 @@ function marketing(site) {
     h("a", { class: "brand", href: "/" }, brandLogo("", false, "row")),
     h("nav", { class: "links" },
       h("a", { href: "#features", onclick: (e) => { e.preventDefault(); go("features"); } }, "المميزات"),
+      site.demo ? h("a", { href: "#demo", onclick: (e) => { e.preventDefault(); go("demo"); } }, "جرّب الآن") : null,
       h("a", { href: "#plans", onclick: (e) => { e.preventDefault(); go("plans"); } }, "الباقات"),
       trialOn ? h("a", { href: "#trial", onclick: (e) => { e.preventDefault(); go("trial"); } }, "التجربة المجانية") : null,
       h("a", { href: "#contact", onclick: (e) => { e.preventDefault(); go("contact"); } }, "تواصل معنا")),
@@ -47,7 +53,8 @@ function marketing(site) {
       h("p", { class: "lead" }, site.site_subheadline || "الطلاب والحضور والدرجات والرسوم وأولياء الأمور، في منصة عربية واحدة سهلة تعمل من الجوال والكمبيوتر."),
       h("div", { class: "cta" },
         trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, icons.gift({ size: 18 }), "اطلب تجربة مجانية") : null,
-        plans.length ? h("button", { class: "st-btn light", onclick: () => go("plans") }, "عرض الباقات") : null),
+        site.demo ? h("button", { class: "st-btn light", onclick: () => go("demo") }, icons.eye({ size: 18 }), "جرّب الآن بدون تسجيل")
+          : plans.length ? h("button", { class: "st-btn light", onclick: () => go("plans") }, "عرض الباقات") : null),
       trialOn ? h("div", { class: "st-trial-note" }, icons.gift({ size: 16 }), `تجربة مجانية لمدة ${days} يومًا — بدون رسوم خلال فترة التجربة`) : null),
     h("div", { class: "points" }, core.slice(0, 6).map((f) => h("div", {}, icons.check({ size: 18 }),
       h("span", {}, h("b", {}, f.name), f.description ? ` — ${f.description}` : ""))))));
@@ -59,6 +66,16 @@ function marketing(site) {
     cats.map((c) => [h("div", { class: "st-cat" }, c),
       h("div", { class: "st-feats" }, core.filter((f) => f.category === c).map((f) =>
         h("div", { class: "st-feat" }, h("h3", {}, icons.check({ size: 18 }), f.name), f.description ? h("p", {}, f.description) : null)))]));
+
+  // العرض التجريبي: يدخل الزائر مدرسة كاملة البيانات بضغطة، للتصفح فقط
+  const demoSec = site.demo ? h("section", { class: "st-sec soft", id: "demo" }, h("div", { class: "in" },
+    h("h2", {}, "جرّب مدار الآن — بدون تسجيل"),
+    h("p", { class: "sub-h" }, "ادخل مدرسة تجريبية فيها بيانات سنة دراسية كاملة، واختر الدور الذي تريد أن تراه. التصفح فقط، والتعديل غير متاح."),
+    h("div", { class: "st-demo" }, DEMO_ROLES.map(([role, icon, title, text]) =>
+      h("button", { type: "button", class: "st-demo-card", onclick: (e) => startDemo(role, e.currentTarget) },
+        h("span", { class: "ic" }, icons[icon]({ size: 26 })), h("b", {}, title), h("small", {}, text),
+        h("span", { class: "go" }, "ادخل كـ", title, " ‹")))),
+    h("p", { class: "st-demo-note" }, "أعجبتك؟ ", trialOn ? h("button", { class: "try", onclick: () => trialDialog(site) }, "اطلب تجربتك المجانية لمدرستك") : "تواصل معنا لتبدأ بمدرستك", "."))) : null;
 
   // الباقات
   const grid = h("div", { class: "st-plans" });
@@ -95,8 +112,29 @@ function marketing(site) {
         site.brand_email ? h("a", { href: `mailto:${site.brand_email}` }, h("b", {}, "البريد"), h("span", { class: "ltr" }, site.brand_email)) : null),
       h("div", { class: "st-form" }, leadForm(site, { kind: "contact" })))));
 
-  mount(app, h("div", { class: "st" }, nav, hero, features, plansSec, trialSec, contact,
-    h("footer", { class: "st-foot" }, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`)));
+  mount(app, h("div", { class: "st" }, nav, hero, demoSec, features, plansSec, trialSec, contact,
+    h("footer", { class: "st-foot" }, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`,
+      h("nav", { class: "legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام")))));
+}
+
+// أدوار العرض التجريبي
+const DEMO_ROLES = [
+  ["admin", "building", "مدير المدرسة", "لوحة المدرسة كاملة: الطلاب والحضور والدرجات والمالية والتقارير"],
+  ["teacher", "clipboard", "المعلم", "تطبيق المعلم: فصوله وحصصه، الحضور، رصد الدرجات والواجبات"],
+  ["accountant", "wallet", "المحاسب", "الرسوم والأقساط والإيصالات والتحويلات والرواتب"],
+  ["parent", "user", "ولي الأمر", "ملف الطالب: الدرجات والحضور والواجبات والرسوم والإشعارات"],
+];
+async function startDemo(role, el) {
+  el.disabled = true;
+  el.classList.add("busy");
+  try {
+    const r = await api("/api/public/demo/start", { role });
+    location.href = r.url;
+  } catch (e) {
+    toast(e.message, true);
+    el.disabled = false;
+    el.classList.remove("busy");
+  }
 }
 
 function priceBlock(p, cycle) {
@@ -192,6 +230,8 @@ function leadForm(site, { kind, plan = null, cycle = "yearly", onDone }) {
     tryPlan ? h("label", { class: "chk" }, tryPlan, "أريد تجربة الباقة المختارة") : null,
     addonsBox,
     field(kind === "contact" ? "رسالتك" : "ملاحظات", f.note),
+    kind !== "contact" ? h("p", { class: "st-consent" }, "بإرسال الطلب توافق على ", h("a", { href: "/terms", target: "_blank" }, "شروط الاستخدام"),
+      " و", h("a", { href: "/privacy", target: "_blank" }, "سياسة الخصوصية"), ".") : null,
     msg, send);
 }
 
