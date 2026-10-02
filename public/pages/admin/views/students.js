@@ -5,6 +5,7 @@ import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dia
   showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
+import { cardWithActions } from "../../shared/js/parent-card.js";
 import { A, loadClasses, directoryLink, optional, rememberField } from "./common.js";
 import { openStudentImport } from "./student-import.js";
 import { alertDialog } from "../../shared/js/student-alerts.js";
@@ -370,14 +371,10 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   return d;
 }
 
-function card2(me, s) {
-  dialog("بطاقة ولي الأمر", h("div", {},
-    h("div", { class: "print-only" }, docLogo("print-logo")),
-    h("p", {}, `الطالب: ${s.name}`), h("p", {}, `المدرسة: ${me.school.name}`),
-    line(h("span", {}, "رابط الصفحة"), keyText(directoryLink(me))),
-    line(h("span", {}, "معرّف الطالب"), keyText(s.access_key)),
-    notice("افتح الرابط، ثم أدخل معرّف ابنك في «ملف الطالب». لا تشارك المعرّف.", "warn")),
-  [btn("طباعة", () => window.print())]);
+async function card2(me, s) {
+  const d = await api(`${A}/sheets/cards?student_id=${s.id}`);
+  if (!d.students.length) return toast("البطاقة للطلاب على رأس القيد فقط", true);
+  dialog("بطاقة ولي الأمر", h("div", { class: "pc-single" }, cardWithActions(d, d.students[0])));
 }
 
 function exportStudents(rows, info) {

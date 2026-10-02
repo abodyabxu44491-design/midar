@@ -4,6 +4,7 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, select, input, btn, empty, sub, notice, docLogo, sectionMenu } from "../../shared/js/ui.js";
 import { ATTENDANCE, fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses } from "./common.js";
+import { cardWithActions } from "../../shared/js/parent-card.js";
 
 const monthNow = () => new Date().toISOString().slice(0, 7);
 
@@ -11,14 +12,14 @@ export default function sheets(ctx) {
   return sectionMenu({
     title: "أوراق للطباعة",
     items: [
-      { key: "cards", name: "بطاقات معرّفات الطلاب", note: "بطاقة لكل طالب تُقص وتُسلَّم لولي الأمر" },
+      { key: "cards", name: "بطاقات ولي الأمر", note: "بطاقة لكل طالب: تُطبع أو تُرسل وحدها بالواتساب" },
       { key: "attendance", name: "سجل الحضور الشهري", note: "جدول الشهر كاملًا لكل صف" },
     ],
     render: (key) => (key === "cards" ? cardsView(ctx) : attendanceView(ctx)),
   });
 }
 
-/* ---------- بطاقات المعرّفات ---------- */
+/* ---------- بطاقات ولي الأمر ---------- */
 async function cardsView() {
   const classes = await loadClasses();
   const pick = select([["", "كل الفصول"], ...classes.map((c) => [c.id, c.name])]);
@@ -28,21 +29,16 @@ async function cardsView() {
     mount(out, empty("جارٍ التجهيز…"));
     const d = await api(`${A}/sheets/cards${pick.value ? `?class_id=${pick.value}` : ""}`);
     if (!d.students.length) return mount(out, empty("لا يوجد طلاب في هذا الفصل."));
-    const link = `${location.origin}/${location.pathname.split("/")[1]}`;
     mount(out,
-      h("div", { class: "toolbar" }, btn("طباعة البطاقات", () => window.print()), sub(`${d.students.length} بطاقة`)),
-      h("div", { class: "cards-sheet" }, d.students.map((s) => h("article", { class: "id-card" },
-        h("header", {}, h("b", {}, d.school), docLogo("card-logo")),
-        h("div", { class: "id-name" }, s.name),
-        h("div", { class: "id-class" }, s.class_name || "بدون فصل"),
-        h("div", { class: "id-row" }, h("span", {}, "رابط الصفحة"), h("b", { class: "ltr" }, link)),
-        h("div", { class: "id-row big" }, h("span", {}, "معرّف الطالب"), h("b", { class: "ltr" }, s.access_key)),
-        h("p", { class: "id-note" }, "افتح الرابط، ثم أدخل معرّف ابنك في «ملف الطالب». لا تشارك المعرّف مع أحد.")))));
+      h("div", { class: "toolbar no-print" }, btn("طباعة كل البطاقات", () => window.print()), sub(`${d.students.length} بطاقة — أرسل كل بطاقة لولي أمرها من الأزرار تحتها`)),
+      h("div", { class: "pc-sheet" }, d.students.map((s) => cardWithActions(d, s))));
   };
   pick.addEventListener("change", load);
   await load();
 
-  return [panel("اختر الفصل", null, field("الفصل", pick)), out];
+  return [panel("بطاقات ولي الأمر", null,
+    sub("بطاقة لكل طالب فيها اسمه وصفه وولي أمره ومعرّفه ورمز QR يفتح ملفه مباشرة. اطبعها كلها، أو أرسل كل بطاقة وحدها بالواتساب أو كصورة."),
+    field("الفصل", pick)), out];
 }
 
 /* ---------- سجل الحضور الشهري ---------- */

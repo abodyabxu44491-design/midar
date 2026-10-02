@@ -947,6 +947,15 @@ test("أوراق الطباعة: بطاقات المعرّفات وسجل الح
   const byClass = await A.admin.get(`/api/admin/sheets/cards?class_id=${s.classId}`);
   assert.ok(byClass.data.students.length <= cards.data.students.length);
   assert.ok(byClass.data.students.every((x) => x.class_name));
+  // كل بطاقة ترسل وحدها: رابط يفتح ملف الطالب مباشرة برمز QR، وبيانات ولي الأمر للإرسال
+  const one = cards.data.students[0];
+  assert.ok(one.link.endsWith(`?k=${encodeURIComponent(one.access_key)}`), one.link);
+  assert.match(one.qr, /^data:image\/svg\+xml;base64,/);
+  assert.ok("guardian_name" in one && "guardian_phone" in one && "student_no" in one);
+  assert.ok(cards.data.country_code);
+  const single = await A.admin.get(`/api/admin/sheets/cards?student_id=${one.id}`);
+  assert.deepEqual(single.data.students.map((x) => x.id), [one.id]);
+  assert.equal((await B.admin.get(`/api/admin/sheets/cards?student_id=${one.id}`)).data.students.length, 0, "مدرسة أخرى لا ترى بطاقة طالبنا");
 
   const month = new Date().toISOString().slice(0, 7);
   const sheet = await A.admin.get(`/api/admin/sheets/attendance-month?class_id=${s.classId}&month=${month}`);
