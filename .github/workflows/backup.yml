@@ -1,0 +1,68 @@
+# نسخة احتياطية يومية مشفّرة من قاعدة بيانات الإنتاج (مجانًا على GitHub Actions)
+#
+# المستودع عام، فالنسخة تُشفَّر قبل حفظها (AES-256 بكلمة سر لا يعرفها غيرك)، ولا تُرفع أبدًا بدون تشفير.
+# تُحفظ كملف مرفق بالتشغيل لمدة 30 يومًا (Actions ← «نسخة احتياطية» ← آخر تشغيل ← Artifacts).
+#
+# الإعداد مرة واحدة: Settings ← Secrets and variables ← Actions ← New repository secret
+#   BACKUP_DATABASE_URL : رابط قاعدة البيانات (رابط المالك من Neon)
+#   BACKUP_PASSPHRASE   : كلمة سر طويلة للتشفير — احفظها عندك، فبدونها لا يمكن فتح النسخة
+#
+# الاسترجاع:
+#   gpg --decrypt midar-XXXX.dump.gpg > midar.dump
+#   pg_restore --no-owner --dbname "رابط قاعدة بيانات جديدة" midar.dump
+name: نسخة احتياطية
+
+on:
+  schedule:
+    - cron: "17 0 * * *"   # يوميًا 3:17 فجرًا بتوقيت السعودية واليمن
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DB_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: التحقق من الإعداد
+        id: cfg
+        run: |
+          if [ -z "$DB_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::warning::أضف BACKUP_DATABASE_URL و BACKUP_PASSPHRASE في أسرار المستودع لتفعيل النسخ الاحتياطي."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      # أحدث pg_dump يقرأ قواعد البيانات الأقدم منه، فنثبت الإصدار 17
+      - name: تثبيت أدوات PostgreSQL
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - name: النسخ والتشفير
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          NAME="midar-$(date -u +%F-%H%M)"
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/17/bin/pg_dump --format=custom --no-owner --no-privileges --dbname "$DB_URL" --file "$NAME.dump"
+          # فحص سلامة الملف قبل التشفير
+          /usr/lib/postgresql/17/bin/pg_restore --list "$NAME.dump" > /dev/null
+          printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output "$NAME.dump.gpg" "$NAME.dump"
+          shred -u "$NAME.dump"
+          ls -lh "$NAME.dump.gpg"
+      - uses: actions/upload-artifact@v4
+        if: steps.cfg.outputs.ready == 'true'
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.dump.gpg
+          retention-days: 30
+          if-no-files-found: error

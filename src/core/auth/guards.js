@@ -5,6 +5,7 @@ import { readSession, sessionRow, sessionHashOf } from "./sessions.js";
 import { AppError, unauthorized, forbidden, notFound } from "../http/errors.js";
 import { getModules, effectiveModules } from "../../modules/shared/modules.service.js";
 import { accessOf, entitlements, LOCK_MESSAGE } from "../../modules/shared/subscription.service.js";
+import { staffWriteAllowed, demoReadonly } from "../../modules/shared/demo.service.js";
 
 export function ownerIpAllowed(req) {
   if (!env.ownerIps.length) return true;
@@ -29,10 +30,12 @@ export async function requireOwner(req, res, next) {
  */
 export const requireFinanceUser = async (req, res, next) => {
   for (const role of ["admin", "accountant"]) {
-    const done = await new Promise((resolve) => {
-      requireStaff(role)(req, res, (err) => resolve(!err));
+    const err = await new Promise((resolve) => {
+      requireStaff(role)(req, res, (e) => resolve(e || null));
     });
-    if (done) return next();
+    if (!err) return next();
+    // الجلسة صحيحة لكن الطلب مرفوض (مدرسة العرض للقراءة فقط): نُظهر السبب بدل «سجّل الدخول»
+    if (err.code === "demo_readonly") return next(err);
   }
   next(unauthorized());
 };
@@ -70,7 +73,7 @@ export const requireStaff = (role) => async (req, res, next) => {
       if (!s) return null;
       // سياق المدرسة (RLS) ثم كل ما يحتاجه الحارس في رحلة واحدة
       const [, res] = await client.query(`SELECT set_config('app.tenant_id', ${client.escapeLiteral(s.tenant_id)}, true);
-        SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency, emergency_locked_at
+        SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency, emergency_locked_at, is_demo
                   FROM tenants WHERE id = app_tenant()) t) AS tenant,
                (SELECT row_to_json(u) FROM (SELECT id, full_name, role, teacher_id, is_active, must_change_password,
                   can_approve_finance, can_manage_payroll, can_manage_accounts FROM users
@@ -100,8 +103,14 @@ export const requireStaff = (role) => async (req, res, next) => {
     if (ctx.access.locked && !subscriptionGateOpen(req, role)) {
       throw new AppError(role === "admin" ? 402 : 403, LOCK_MESSAGE[ctx.access.status] || LOCK_MESSAGE.ended, "subscription_inactive");
     }
+    // مدرسة العرض التجريبي: تصفح فقط، وأي تعديل يُرفض هنا مهما كانت الواجهة
+    if (ctx.tenant.is_demo) {
+      res.set("X-Demo", "1");
+      ctx.user.must_change_password = false;   // لا شاشة «غيّر كلمة المرور» للزائر
+      if (!staffWriteAllowed(req, role)) throw demoReadonly();
+    }
     // كلمة مرور مؤقتة: لا يعمل شيء قبل تغييرها (عدا قراءة /me وتغيير كلمة المرور نفسه)
-    if (ctx.user.must_change_password && forcePasswordChange() && !passwordGateOpen(req)) {
+    if (ctx.user.must_change_password && forcePasswordChange() && !passwordGateOpen(req) && !ctx.tenant.is_demo) {
       throw new AppError(403, "يجب تغيير كلمة المرور المؤقتة أولًا قبل المتابعة", "password_change_required");
     }
     const label = { admin: "إدارة", teacher: "معلم", accountant: "محاسب" }[role];

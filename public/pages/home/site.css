@@ -114,3 +114,28 @@ dialog.st-dlg { width: min(560px, 96vw); }
 
 /* زر الإرسال داخل شريط أزرار النافذة: بعرض مناسب بجانب «إغلاق» */
 dialog.st-dlg .d-in > .row.spaced:last-child .st-btn.wide { width: auto; flex: 1; }
+
+/* روابط الخصوصية والشروط */
+.st-foot .legal { display: flex; justify-content: center; gap: 18px; margin-top: 8px; }
+.st-foot .legal a { color: #DCE3EF; text-decoration: none; }
+.st-foot .legal a:hover { text-decoration: underline; }
+.st-consent { font-size: 13px; color: #5A6478; margin: 2px 0 10px; line-height: 1.8; }
+.st-consent a { color: var(--acc); }
+.blank-legal { display: flex; justify-content: center; gap: 18px; font-size: 14px; margin: 8px 0; }
+.blank-legal a { color: #5A6478; text-decoration: none; }
+
+/* العرض التجريبي */
+.st-demo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.st-demo-card { font: inherit; text-align: start; background: #fff; border: 1px solid #DDE3EC; border-radius: 16px; padding: 20px 18px;
+  display: flex; flex-direction: column; gap: 6px; cursor: pointer; color: var(--ink); transition: border-color .15s, box-shadow .15s, transform .15s; }
+.st-demo-card:hover { border-color: var(--acc); box-shadow: 0 12px 28px rgba(11,122,117,.12); transform: translateY(-2px); }
+.st-demo-card .ic { width: 48px; height: 48px; border-radius: 14px; background: #E6F4F3; color: var(--acc); display: grid; place-items: center; margin-bottom: 4px; }
+.st-demo-card b { font-size: 18px; }
+.st-demo-card small { color: #5A6478; line-height: 1.8; font-size: 14px; flex: 1; }
+.st-demo-card .go { color: var(--acc); font-weight: 700; font-size: 14px; margin-top: 6px; }
+.st-demo-card.busy { opacity: .6; cursor: progress; }
+.st-demo-note { text-align: center; color: #5A6478; margin: 22px 0 0; }
+.st-demo-note .try { font: inherit; font-weight: 700; color: var(--acc); background: none; border: 0; cursor: pointer; padding: 0; text-decoration: underline; }
+@media (max-width: 900px) { .st-demo { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .st-demo { grid-template-columns: 1fr; } .st-demo-card { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .st-demo-card small { flex-basis: 100%; } }

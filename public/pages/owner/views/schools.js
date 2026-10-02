@@ -19,7 +19,7 @@ export default async function schools({ refresh }) {
     const term = q.value.trim().toLowerCase();
     const rows = list.filter((x) => !term || x.name.toLowerCase().includes(term) || x.id.includes(term));
     mount(box, rows.length ? rows.map((x) => h("button", { type: "button", class: "school-row", onclick: () => schoolPage(x.id, root, () => refresh()) },
-      h("div", {}, h("b", {}, x.name), " ", badge(...STATUS[x.status]), sub(`${x.id} — ${x.students} طالب — ${x.plan}${x.subscription_end ? ` — حتى ${fmtDate(x.subscription_end)}` : ""}`)),
+      h("div", {}, h("b", {}, x.name), " ", badge(...STATUS[x.status]), x.is_demo ? [" ", badge("العرض التجريبي", "blue")] : null, sub(`${x.id} — ${x.students} طالب — ${x.plan}${x.subscription_end ? ` — حتى ${fmtDate(x.subscription_end)}` : ""}`)),
       h("span", { class: "go", "aria-hidden": "true" }, "‹"))) : empty("لا توجد مدرسة مطابقة."));
   };
   q.addEventListener("input", draw);
@@ -91,6 +91,15 @@ async function schoolPage(id, root, back) {
         h("small", {}, "كلمات المرور محفوظة بتشفير لا يمكن عكسه، فلا يمكن لأحد عرضها — ولا حتى المالك. يمكنك إصدار كلمة مرور جديدة.")),
         h("div", { class: "lr-acts" }, btn("إصدار كلمة مرور جديدة", issuePassword, "secondary sm"))),
       pwBox),
+
+    panel("العرض التجريبي", s.is_demo ? badge("مفعّل", "blue") : null,
+      h("p", { class: "sub", style: "margin:0 0 10px;line-height:1.9" },
+        "مدرسة العرض يدخلها زائر الصفحة الرئيسية بضغطة «جرّب الآن» كمدير أو معلم أو محاسب أو ولي أمر، بدون تسجيل. ",
+        "تكون للتصفح فقط: أي تعديل فيها يُرفض، حتى من حساباتها الأصلية. مدرسة واحدة فقط تكون للعرض."),
+      s.is_demo
+        ? btn("إيقاف العرض التجريبي", patch({ is_demo: false }, "أُوقف العرض التجريبي"), "ghost sm")
+        : btn("اجعلها مدرسة العرض التجريبي", patch({ is_demo: true }, "صارت مدرسة العرض التجريبي",
+          `جعل ${s.name} مدرسة العرض التجريبي؟ يدخلها أي زائر للتصفح فقط، ولن يُسمح بأي تعديل فيها حتى توقف العرض. استخدمها لمدرسة عرض، لا لمدرسة حقيقية.`), "soft sm")),
 
     panel("الإجراءات", null, h("div", { class: "row", style: "justify-content:flex-start;flex-wrap:wrap" },
       s.status === "active"

@@ -1342,3 +1342,17 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
   body.pc-print-one .pc-sheet { display: block; }
   body.pc-print-one .pc.pc-printing { max-width: 120mm; margin: 0 auto; }
 }
+
+/* شريط مدرسة العرض التجريبي (أسفل الشاشة، لا يغطي المحتوى) */
+.demo-bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 900; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #16244A; color: #fff; font-size: 14px; font-weight: 600;
+  box-shadow: 0 -6px 20px rgba(0,0,0,.18); }
+.demo-bar .btn { background: #E8A33D; color: #16244A; border-color: transparent; }
+.demo-bar .btn.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
+html.demo-mode body { padding-bottom: 64px; }
+@media (max-width: 600px) { .demo-bar { font-size: 13px; gap: 8px; } html.demo-mode body { padding-bottom: 96px; } }
+@media print { .demo-bar { display: none !important; } html.demo-mode body { padding-bottom: 0; } }
+html.demo-mode .att-bar { bottom: 58px; }
+html.demo-mode .toast { bottom: 78px; z-index: 950; }
+html.demo-mode .install-bar { bottom: calc(72px + env(safe-area-inset-bottom)); }
+@media (max-width: 600px) { html.demo-mode .toast { bottom: 108px; } html.demo-mode .install-bar { bottom: calc(104px + env(safe-area-inset-bottom)); } }
