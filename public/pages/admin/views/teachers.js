@@ -8,6 +8,7 @@ import { timetableGrid } from "../../shared/js/timetable.js";
 import { A, loadClasses, loadSubjects, staffLink, rememberField } from "./common.js";
 import { openTeacherImport } from "./teacher-import.js";
 import { gradePicker } from "./grade-picker.js";
+import { icons } from "../../shared/js/icons.js";
 
 const GENDER = { male: "ذكر", female: "أنثى" };
 const EMPLOYMENT = { full_time: "دوام كامل", part_time: "دوام جزئي", contract: "عقد", volunteer: "تطوع" };
