@@ -1115,6 +1115,31 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .inbox-item .tx { display: grid; gap: 2px; min-width: 0; }
 .inbox-item .tx small { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
 .inbox-item .tx small.muted { font-size: 11.5px; }
+/* بوابة الحضور */
+.gscan { display: grid; gap: 12px; }
+.gscan-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.gscan-head h2 { margin: 0; }
+.gscan-count { text-align: center; padding: 8px 14px; border-radius: 12px; background: var(--teal-soft); color: var(--teal); flex: none; }
+.gscan-count b { display: block; font-size: 26px; line-height: 1.1; }
+.gscan-cam { position: relative; width: 100%; max-width: 420px; aspect-ratio: 1; margin: 0 auto; border-radius: 18px; overflow: hidden; background: #0b1416;
+  box-shadow: inset 0 0 0 3px var(--teal); }
+.gscan-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gscan-line { position: absolute; inset-inline: 12%; height: 3px; top: 15%; background: var(--amber); box-shadow: 0 0 12px var(--amber);
+  border-radius: 2px; animation: gscan-scan 2.2s ease-in-out infinite alternate; }
+@keyframes gscan-scan { to { top: 85%; } }
+@media (prefers-reduced-motion: reduce) { .gscan-line { animation: none; top: 50%; } }
+.gscan-card { display: flex; gap: 14px; align-items: center; padding: 16px; border-radius: 14px; border: 2px solid; font-size: 15px; }
+.gscan-card b { font-size: 18px; display: block; }
+.gscan-card .gc-name { font-size: 22px; font-weight: 700; }
+.gscan-card .gc-ic { flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+.gscan-card.ok { border-color: var(--teal); background: var(--teal-soft); } .gscan-card.ok .gc-ic { background: var(--teal); }
+.gscan-card.late { border-color: var(--amber); background: var(--amber-soft); } .gscan-card.late .gc-ic { background: var(--amber); }
+.gscan-card.again { border-color: var(--navy); background: var(--navy-soft); } .gscan-card.again .gc-ic { background: var(--navy); }
+.gscan-card.err { border-color: var(--red); background: var(--red-soft); } .gscan-card.err .gc-ic { background: var(--red); }
+.gscan-recent { display: grid; gap: 4px; }
+.gscan-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--bg); border-inline-start: 4px solid var(--teal); }
+.gscan-row.s-late { border-inline-start-color: var(--amber); }
+.gscan-row small { color: var(--muted); }
 /* قائمة اختيار متعددة (الفئة المستهدفة للإعلان) */
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 260px; overflow-y: auto;
   padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }

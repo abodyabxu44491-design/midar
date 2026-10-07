@@ -1,7 +1,8 @@
 // منطق الحضور (مشترك بين الإدارة والمعلم)
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
-import { notify } from "./notify.service.js";
+import { notify, getQuiet } from "./notify.service.js";
+import { featureSettings } from "./feature-settings.service.js";
 
 export const STATUSES = ["present", "absent", "late", "excused"];
 const LABEL = { present: "حاضر", absent: "غائب", late: "متأخر", excused: "غياب بعذر" };
@@ -226,4 +227,72 @@ export async function submitParentExcuse(q, studentId, { date, text }) {
       RETURNING day`, [studentId, date, text]);
   if (!row) throw badRequest("لا يمكن إرسال عذر لهذا اليوم (غير مسجل غياب، أو مضى عليه أكثر من 30 يومًا، أو قُبل عذره)");
   return { ok: true };
+}
+
+/* ---------- بوابة الحضور: مسح بطاقة الطالب ---------- */
+export const gateSchema = z.object({ code: z.string().trim().min(4).max(400) });
+
+// رمز البطاقة رابط ملف الطالب (…/<المدرسة>?k=المعرّف) أو المعرّف نفسه مكتوبًا
+export function keyFromCode(code, schoolId) {
+  let key = code;
+  if (/^https?:\/\//i.test(code)) {
+    let u;
+    try { u = new URL(code); } catch { throw badRequest("رمز غير مقروء"); }
+    const school = decodeURIComponent(u.pathname.split("/")[1] || "").toLowerCase();
+    if (school && school !== String(schoolId).toLowerCase()) throw badRequest("هذه البطاقة لمدرسة أخرى");
+    key = u.searchParams.get("k") || "";
+  }
+  key = key.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-Z0-9]{8}$/.test(key)) throw badRequest("الرمز ليس بطاقة طالب");
+  return `${key.slice(0, 4)}-${key.slice(4)}`;
+}
+
+/**
+ * تسجيل وصول طالب من البوابة: حاضر قبل وقت التأخر، ومتأخر بعده، وإبلاغ ولي الأمر فورًا.
+ * المسح مرة ثانية في نفس اليوم لا يكرر شيئًا. ومن سُجّل غائبًا ثم وصل يتحول إلى متأخر.
+ */
+export async function gateCheckIn(q, code, { actor, schoolId }) {
+  const key = keyFromCode(code, schoolId);
+  const [s] = await q(`SELECT s.id, s.full_name, c.name AS class_name FROM students s LEFT JOIN classes c ON c.id = s.class_id
+    WHERE s.access_key = $1 AND s.status = 'active' AND s.archived_at IS NULL`, [key]);
+  if (!s) throw notFound("لم يُعثر على طالب بهذه البطاقة");
+  const { timezone } = await getQuiet(q);
+  const now = new Date();
+  const date = now.toLocaleDateString("en-CA", { timeZone: timezone });
+  const hm = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
+  const day = await dayStatus(q, date);
+  if (day.holiday) throw badRequest(`اليوم إجازة (${day.holiday.name})`);
+  if (!day.study_day) throw badRequest("اليوم ليس من أيام الدراسة");
+  const { late_after } = await featureSettings(q, "gate");
+  const status = hm > late_after ? "late" : "present";
+  const time12 = new Intl.DateTimeFormat("ar", { timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true }).format(now);
+  const student = { id: s.id, name: s.full_name, class_name: s.class_name };
+  const [prev] = await q("SELECT status, created_at FROM attendance WHERE student_id = $1 AND day = $2", [s.id, date]);
+  if (prev && (prev.status === "present" || prev.status === "late")) {
+    return { student, status: prev.status, already: true, date, time: time12 };
+  }
+  await q(
+    `INSERT INTO attendance (tenant_id, student_id, day, status, note, recorded_by)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5)
+     ON CONFLICT (student_id, day) DO UPDATE SET status = EXCLUDED.status, note = EXCLUDED.note, recorded_by = EXCLUDED.recorded_by, excuse = NULL`,
+    [s.id, date, status, prev ? `وصل عند البوابة بعد تسجيله ${LABEL[prev.status]}` : "بوابة الحضور", actor]);
+  if (status === "present") {
+    await notify(q, { event: "arrival", students: [s.id], title: `وصل ${s.full_name} المدرسة`,
+      body: `سُجّل حضوره عند البوابة الساعة ${time12}.`, link: "attendance", dedupKey: `${s.id}:${date}:arrival`, dedupMinutes: 24 * 60 });
+  } else {
+    await notify(q, { event: "late", students: [s.id], title: `تأخر: ${s.full_name}`,
+      body: `وصل المدرسة متأخرًا الساعة ${time12}.`, link: "attendance", dedupKey: `${s.id}:${date}:late`, dedupMinutes: 24 * 60 });
+  }
+  return { student, status, already: false, date, time: time12 };
+}
+
+/** آخر من سُجّلوا عبر البوابة اليوم */
+export async function gateToday(q) {
+  const { timezone } = await getQuiet(q);
+  const date = new Date().toLocaleDateString("en-CA", { timeZone: timezone });
+  const rows = await q(`SELECT s.full_name AS name, c.name AS class_name, a.status, a.created_at FROM attendance a
+    JOIN students s ON s.id = a.student_id LEFT JOIN classes c ON c.id = s.class_id
+    WHERE a.day = $1 AND a.note LIKE '%بوابة%' ORDER BY a.created_at DESC LIMIT 30`, [date]);
+  const [{ n }] = await q("SELECT count(*)::int AS n FROM attendance WHERE day = $1 AND note LIKE '%بوابة%'", [date]);
+  return { date, count: n, recent: rows };
 }

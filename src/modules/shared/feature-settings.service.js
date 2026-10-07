@@ -38,6 +38,11 @@ export const SECTIONS = {
     defaults: { notify_parent: true, show_parent_profile: true },
     schema: z.object({ notify_parent: z.boolean(), show_parent_profile: z.boolean() }),
   },
+  // بوابة الحضور: مسح بطاقة الطالب عند الدخول يسجل حضوره ويبلغ ولي أمره
+  gate: {
+    defaults: { late_after: "07:30", teacher_can_scan: true },
+    schema: z.object({ late_after: time, teacher_can_scan: z.boolean() }),
+  },
   transport: {
     defaults: { notify_parent: true },
     schema: z.object({ notify_parent: z.boolean() }),

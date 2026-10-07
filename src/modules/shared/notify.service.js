@@ -24,6 +24,7 @@ import { accessContext } from "./subscription.service.js";
 export const EVENTS = {
   absence:      { name: "غياب الطالب", audience: "parent", push: true, sms: false, category: "attendance", topic: "absence", priority: 1 },
   late:         { name: "تأخر الطالب", audience: "parent", push: true, sms: false, category: "attendance", topic: "late", priority: 2 },
+  arrival:      { name: "وصول الطالب للمدرسة (بوابة الحضور)", audience: "parent", push: true, sms: false, category: "attendance", topic: "present", priority: 3 },
   present:      { name: "حضور الطالب", audience: "parent", push: false, sms: false, category: "attendance", topic: "present", priority: 3, optIn: true },
   grades:       { name: "درجة جديدة أو نتيجة اختبار", audience: "parent", push: true, sms: false, category: "grades", topic: "grades", priority: 2 },
   online_exam:  { name: "اختبار إلكتروني متاح", audience: "parent", push: true, sms: false, category: "exams", topic: "exams", priority: 2 },
