@@ -1,6 +1,6 @@
 // منطق الحضور (مشترك بين الإدارة والمعلم)
 import { z, t } from "../../core/http/validate.js";
-import { badRequest, notFound } from "../../core/http/errors.js";
+import { badRequest, notFound, forbidden } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
 
 // مستأذن / رحلة / نشاط خارجي: لا تُحسب غيابًا (تُستثنى من نسبة الحضور مثل «بعذر»)
@@ -34,7 +34,7 @@ export async function dayStatus(q, date) {
 // withContact: جوال ولي الأمر لأزرار التنبيه (للإدارة فقط، لا يُرسل لبوابة المعلم)
 export async function listForClass(q, classId, day, { withContact = false } = {}) {
   return q(
-    `SELECT s.id, s.full_name AS name, a.status, a.excuse, a.parent_excuse, a.parent_excuse_state${withContact ? ", s.guardian_phone, s.guardian_name, s.access_key" : ""}
+    `SELECT s.id, s.full_name AS name, a.status, a.excuse, a.parent_excuse, a.parent_excuse_state, a.source, a.first_in_at, a.minutes_late, a.last_out_at${withContact ? ", s.guardian_phone, s.guardian_name, s.access_key" : ""}
        FROM students s LEFT JOIN attendance a ON a.student_id = s.id AND a.day = $2
       WHERE s.class_id = $1 AND s.archived_at IS NULL
       ORDER BY s.full_name`,
@@ -46,7 +46,7 @@ export async function listForClass(q, classId, day, { withContact = false } = {}
  * يسجل الحضور داخل معاملة واحدة. تعديل حالة مسجلة سابقًا يتطلب سببًا.
  * @param allowedClass دالة تتحقق أن الفصل مسموح للمستخدم
  */
-export async function mark(q, { date, reason, entries }, { actor, allowedClass, source = "manual", ip = null, device = null, forceReason = false }) {
+export async function mark(q, { date, reason, entries }, { actor, allowedClass, source = "manual", ip = null, device = null, forceReason = false, lockGate = false }) {
   if (date > new Date(Date.now() + 86400000).toISOString().slice(0, 10)) throw badRequest("لا يمكن تسجيل حضور لتاريخ مستقبلي");
   const day = await dayStatus(q, date);
   if (day.holiday) throw badRequest(`هذا اليوم إجازة (${day.holiday.name}) ولا يُسجَّل فيه حضور`);
@@ -59,6 +59,12 @@ export async function mark(q, { date, reason, entries }, { actor, allowedClass, 
     .map((r) => [Number(r.student_id), r.status]));
   const changes = entries.filter((e) => existing.has(e.student_id) && existing.get(e.student_id) !== e.status);
   if ((changes.length || forceReason) && !reason) throw badRequest("اكتب سبب تعديل الحضور المسجل سابقًا");
+  // المعلم لا يعدّل ما سجلته البوابة أو اعتمدته الإدارة إن لم تسمح المدرسة بذلك
+  if (lockGate && changes.length) {
+    const locked = await q("SELECT 1 FROM attendance WHERE day = $1 AND student_id = ANY($2::bigint[]) AND source IN ('gate', 'review') LIMIT 1",
+      [date, changes.map((e) => e.student_id)]);
+    if (locked.length) throw forbidden("تعديل ما سجلته البوابة أو اعتمدته الإدارة متاح للإدارة فقط في مدرستك");
+  }
   // سجل التعديلات المقروء: من، متى، القديم والجديد، السبب، الجهاز
   const prevSource = changes.length ? new Map((await q("SELECT student_id, source FROM attendance WHERE day = $1 AND student_id = ANY($2::bigint[])",
     [date, changes.map((e) => e.student_id)])).map((r) => [Number(r.student_id), r.source])) : new Map();

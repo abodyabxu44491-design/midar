@@ -72,3 +72,8 @@ body.gate-app { background: #0F1A36; color: #fff; min-height: 100dvh; }
 
 /* صفحة رمز البطاقة (من يمسحه بجوال عادي) */
 .gate-card-page { max-width: 460px; margin: 0 auto; padding: 48px 20px; text-align: center; }
+.gt-dir { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(255,255,255,.06); padding: 4px; border-radius: 14px; }
+.gt-dir[hidden] { display: none; }
+.gt-dir-b { border: 0; border-radius: 10px; padding: 10px; font: inherit; font-weight: 700; font-size: 16px; background: transparent; color: rgba(255,255,255,.75); cursor: pointer; }
+.gt-dir-b.on { background: #fff; color: #0F1A36; }
+.btn.gt-nfc { justify-self: center; color: #fff; border-color: rgba(255,255,255,.4); }

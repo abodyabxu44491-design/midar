@@ -15,7 +15,11 @@ export const attendanceSource = {
     if (!s || !(await s.hasData())) throw noData();
     const students = (await s.db.all("students", "class_id", Number(classId))).sort((a, b) => a.name.localeCompare(b.name, "ar"));
     const marks = new Map((await s.db.all("attendance", "day", date)).map((a) => [Number(a.student_id), a]));
-    return students.map((st) => ({ id: st.id, name: st.name, status: marks.get(Number(st.id))?.status || null, pending: Boolean(marks.get(Number(st.id))?.pending) }));
+    return students.map((st) => {
+      const m = marks.get(Number(st.id));
+      return { id: st.id, name: st.name, status: m?.status || null, pending: Boolean(m?.pending),
+        source: m?.source || null, first_in_at: m?.first_in_at || null, minutes_late: m?.minutes_late ?? null };
+    });
   },
   async save(date, reason, entries) {
     const s = getSync();
