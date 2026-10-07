@@ -69,4 +69,5 @@ export const limits = {
   studentKey: make("studentKey", 10, 20, { shared: true, skip: (req) => isDemoSchool(req.params?.school).catch(() => false) }),
   demo: make("demo", 10, 40, { shared: true }),          // الدخول للعرض التجريبي من الصفحة الرئيسية
   payment: make("payment", 10, 20, { shared: true }),    // الدفع
+  gatePair: make("gatePair", 15, 20, { shared: true }),  // فتح رابط جهاز البوابة (رمز لمرة واحدة)
 };

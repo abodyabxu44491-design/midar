@@ -47,6 +47,7 @@ function render(d, inbox) {
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
     who, api: (path, body) => api(`${P}${path}`, { ...who, ...body }),
     printCertificate: (id) => api(`${P}/student/certificates/print`, { ...who, id }),
+    attendanceCard: () => api(`${P}/student/attendance-card`, who),
   } });
 
   mount(app,

@@ -183,6 +183,7 @@ export default async function students({ me, refresh }) {
       };
       const actions = {
         printCertificate: (id) => api(`${A}/certificates/print`, { ids: [id] }),
+        attendanceCard: async () => { const r = await api(`${A}/attendance/gate/cards?student_id=${s.id}`); return { school: r.school, ...r.cards[0] }; },
         addAlert: () => alertDialog(s.name, async (b) => {
           await api(`${A}/students/${s.id}/alerts`, b);
           data.alerts = await api(`${A}/students/${s.id}/alerts`);

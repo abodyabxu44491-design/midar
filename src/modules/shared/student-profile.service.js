@@ -24,7 +24,8 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
   const settings = admin ? { ...parentSettings, ...ALL_ON } : parentSettings;
   const [cls] = s.class_id ? await q("SELECT name FROM classes WHERE id = $1", [s.class_id]) : [];
   const attendance = settings.profile_show_attendance
-    ? await q(`SELECT day::text AS day, status, excuse, parent_excuse, parent_excuse_state,
+    ? await q(`SELECT day::text AS day, status, excuse, parent_excuse, parent_excuse_state, first_in_at, minutes_late,
+                      (SELECT g.name FROM gates g WHERE g.id = attendance.gate_id) AS gate_name,
                       (status IN ('absent', 'late') AND day >= CURRENT_DATE - 30 AND parent_excuse_state IS DISTINCT FROM 'accepted') AS can_excuse
                  FROM attendance WHERE student_id = $1 ORDER BY day DESC LIMIT 180`, [s.id]) : [];
   // تنبيه الغياب التلقائي: غياب بلا عذر خلال 30 يومًا بلغ الحد الذي حددته المدرسة
@@ -77,6 +78,7 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     school: tenant.name, school_id: tenant.id, school_logo: await logoId(q), currency: tenant.currency, admin, student,
     custom: await customValues(q, s.id, admin),
     settings: { ...settings, allow_parent_excuses: settings.allow_parent_excuses && settings.profile_show_attendance },
+    has_gate: (await q("SELECT EXISTS (SELECT 1 FROM gates WHERE is_active) AS x"))[0].x,
     academic: term, attendance, absence_warning: absenceWarning, alerts, grades, teachers, announcements: news, fees,
     // النسبة العامة للفصل الحالي بنفس حساب كشف الدرجات والشهادة (موزونة بتوزيع الدرجات إن وُجد)
     grades_percent: settings.profile_show_grades && grades.length ? (await buildReportCard(q, s.id))?.summary.percent ?? null : null,

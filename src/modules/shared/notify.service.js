@@ -52,6 +52,7 @@ export const EVENTS = {
   lesson_plan:  { name: "مراجعة تحضير الدروس", audience: "staff", push: true, sms: false, category: "tasks", topic: "tasks", priority: 3 },
   grades_review: { name: "اعتماد الدرجات أو إعادتها", audience: "staff", push: true, sms: false, category: "grades", topic: "tasks", priority: 2 },
   request:      { name: "طلبات جديدة للإدارة (تسجيل، إجازة)", audience: "staff", push: true, sms: false, category: "requests", topic: "requests", priority: 2 },
+  gate:         { name: "بوابة الحضور (مراجعة الغياب، أجهزة البوابة)", audience: "staff", push: true, sms: false, category: "tasks", topic: "tasks", priority: 2 },
   system:       { name: "تنبيهات النظام (اكتمال استيراد أو خطأ)", audience: "staff", push: true, sms: false, category: "system", topic: "system", priority: 3 },
 };
 

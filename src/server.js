@@ -5,6 +5,7 @@ import { getPool, closePool, healthCheck } from "./core/db/pool.js";
 import { runMaintenance } from "./core/auth/sessions.js";
 import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
 import { runReminders } from "./modules/shared/reminders.service.js";
+import { runGateTick } from "./modules/shared/gate.service.js";
 import { ensureDemoSchool } from "./modules/owner/demo-provision.js";
 import { startDeliveryWorker, kickDeliveries, deliveriesIdle } from "./modules/shared/notify.service.js";
 
@@ -37,6 +38,9 @@ const timer = setInterval(() => {
   runReminders().catch((e) => console.error("[تذكيرات]", e.message));   // الأقساط والمكتبة والمواعيد
 }, 60 * 60 * 1000);
 timer.unref();
+// البوابة الذكية: إغلاق نافذة الحضور وتنبيه المراجعة، وإشعارات الغياب المعتمد في وقتها، ورموز الطلاب الجدد
+const gateTimer = setInterval(() => runGateTick().catch((e) => console.error("[البوابة]", e.message)), 5 * 60 * 1000);
+gateTimer.unref();
 
 let closing = false;
 async function shutdown(signal) {
