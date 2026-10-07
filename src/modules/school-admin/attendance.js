@@ -27,6 +27,13 @@ r.post("/", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => attendance.mark(q, b, { actor: req.actor, allowedClass: async (id) => id !== null })));
 }));
 
+// بوابة الحضور: مسح بطاقة الطالب عند وصوله
+r.post("/gate", handle(async (req, res) => {
+  const { code } = parse(attendance.gateSchema, req.body);
+  res.json(await inTenant(req, (q) => attendance.gateCheckIn(q, code, { actor: req.actor, schoolId: req.tenantId })));
+}));
+r.get("/gate", handle(async (req, res) => res.json(await inTenant(req, attendance.gateToday))));
+
 // متابعة يوم: الفصول المسجّلة وغير المسجّلة، والغائبون والمتأخرون، ومن بلغ غيابه الحد
 r.get("/overview", handle(async (req, res) => {
   const { date } = parse(attendance.dayQuery, req.query);
