@@ -38,10 +38,14 @@ export const SECTIONS = {
     defaults: { notify_parent: true, show_parent_profile: true },
     schema: z.object({ notify_parent: z.boolean(), show_parent_profile: z.boolean() }),
   },
-  // بوابة الحضور: مسح بطاقة الطالب عند الدخول يسجل حضوره ويبلغ ولي أمره
+  // بوابة الحضور الذكية (docs/SMART_GATE.md): نافذة الحضور، ووقت إشعار الغياب بعد اعتماده، والإشعارات
   gate: {
-    defaults: { late_after: "07:30", teacher_can_scan: true },
-    schema: z.object({ late_after: time, teacher_can_scan: z.boolean() }),
+    defaults: { open_at: "06:30", late_after: "07:15", close_at: "08:00", absence_notify_at: "09:00", auto_finalize: false,
+      notify_present: true, notify_late: true, notify_absent: true, legacy_cards: false, suspicious_seconds: 120 },
+    schema: z.object({ open_at: time, late_after: time, close_at: time, absence_notify_at: time, auto_finalize: z.boolean(),
+      notify_present: z.boolean(), notify_late: z.boolean(), notify_absent: z.boolean(), legacy_cards: z.boolean(),
+      suspicious_seconds: z.coerce.number().int().min(10).max(3600) }),
+    check: (v) => (v.open_at <= v.late_after && v.late_after < v.close_at ? null : "الأوقات: بداية الحضور ≤ وقت التأخر < الإغلاق"),
   },
   transport: {
     defaults: { notify_parent: true },
@@ -65,7 +69,10 @@ export async function updateFeatureSettings(q, section, patch) {
   if (!def) throw badRequest("قسم إعدادات غير معروف");
   const clean = parse(def.schema.partial(), patch);
   const all = await getFeatureSettings(q);
-  all[section] = { ...all[section], ...clean };
+  const next = { ...all[section], ...clean };
+  const err = def.check?.(next);
+  if (err) throw badRequest(err);
+  all[section] = next;
   await q(`INSERT INTO school_feature_settings (tenant_id, settings) VALUES (app_tenant(), $1)
            ON CONFLICT (tenant_id) DO UPDATE SET settings = EXCLUDED.settings`, [JSON.stringify(all)]);
   cache.set(q, all);

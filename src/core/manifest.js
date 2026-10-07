@@ -16,7 +16,7 @@ const COMMON = {
 
 export const STAFF_ROLES = { admin: "الإدارة", teacher: "المعلم", accountant: "المحاسب" };
 // نوع التطبيق من الطلب: as=admin|teacher|accountant|staff|parent
-export const appKind = (v) => (v in STAFF_ROLES || v === "staff" || v === "parent" ? v : "parent");
+export const appKind = (v) => (v in STAFF_ROLES || v === "staff" || v === "parent" || v === "gate" ? v : "parent");
 
 async function schoolName(id) {
   try {
@@ -32,6 +32,11 @@ export function manifestFor(kind, { school, name, ownerPath } = {}) {
       description: "إدارة المدارس والاشتراكات والباقات على منصة مدار." };
   }
   const label = name || "مدار";
+  if (kind === "gate") {
+    const start = `/${school}/gate`;
+    return { ...COMMON, id: start, start_url: start, scope: start, orientation: "portrait",
+      name: `بوابة الحضور — ${label}`, short_name: "بوابة مدار", description: `جهاز بوابة الحضور في ${label}.` };
+  }
   if (kind in STAFF_ROLES || kind === "staff") {
     const start = kind === "staff" ? `/${school}/idara` : `/${school}/idara?role=${kind}`;
     return { ...COMMON, id: start, start_url: start, scope: `/${school}/idara`,

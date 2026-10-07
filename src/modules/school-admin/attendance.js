@@ -5,8 +5,10 @@ import { handle, notFound } from "../../core/http/errors.js";
 import { parse } from "../../core/http/validate.js";
 import * as attendance from "../shared/attendance.service.js";
 import { getSettings } from "../shared/public-settings.service.js";
+import gate from "./gate.js";
 
 const r = Router();
+r.use("/gate", gate);     // البوابة الذكية: البوابات والأجهزة والبطاقات والمراجعة واعتماد الغياب
 
 r.get("/", handle(async (req, res) => {
   const b = parse(attendance.listQuery, req.query);
@@ -24,15 +26,9 @@ r.get("/day-status", handle(async (req, res) => {
 
 r.post("/", handle(async (req, res) => {
   const b = parse(attendance.markSchema, req.body);
-  res.json(await inTenant(req, (q) => attendance.mark(q, b, { actor: req.actor, allowedClass: async (id) => id !== null })));
+  res.json(await inTenant(req, (q) => attendance.mark(q, b, { actor: req.actor, allowedClass: async (id) => id !== null,
+    ip: req.ip, device: String(req.get("user-agent") || "").slice(0, 120) })));
 }));
-
-// بوابة الحضور: مسح بطاقة الطالب عند وصوله
-r.post("/gate", handle(async (req, res) => {
-  const { code } = parse(attendance.gateSchema, req.body);
-  res.json(await inTenant(req, (q) => attendance.gateCheckIn(q, code, { actor: req.actor, schoolId: req.tenantId })));
-}));
-r.get("/gate", handle(async (req, res) => res.json(await inTenant(req, attendance.gateToday))));
 
 // متابعة يوم: الفصول المسجّلة وغير المسجّلة، والغائبون والمتأخرون، ومن بلغ غيابه الحد
 r.get("/overview", handle(async (req, res) => {

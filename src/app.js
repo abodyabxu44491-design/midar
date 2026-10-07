@@ -24,6 +24,7 @@ import adminApi from "./modules/school-admin/index.js";
 import teacherApi from "./modules/teacher/index.js";
 import accountantApi from "./modules/accountant/index.js";
 import publicApi from "./modules/public/index.js";
+import gateApi from "./modules/gate/index.js";
 import { staffLoginRouter } from "./modules/shared/staff-auth.js";
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
@@ -79,6 +80,7 @@ export function createApp() {
   api.use("/teacher", teacherApi);
   api.use("/accountant", accountantApi);
   api.use("/public", publicApi);
+  api.use("/gate", gateApi);                 // أجهزة البوابة الذكية (مصادقة الجهاز لا المستخدم)
   api.use("/staff", staffLoginRouter());     // باب موحّد: يوجّه الحساب إلى لوحته
   api.use((req, res, next) => next(notFound("المسار غير موجود")));
   app.use("/api", api);
@@ -118,18 +120,21 @@ export function createApp() {
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
       [["/", "1.0"], ["/privacy", "0.3"], ["/terms", "0.3"]].map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><priority>${p}</priority></url>`).join("\n")
     }\n</urlset>\n`));
-  app.get("/verify/:code", send("verify", "index.html"));   // التحقق من الشهادات برمز QR
+  app.get("/verify/:code", send("verify", "index.html"));
+  // رمز بطاقة الحضور إن مُسح بكاميرا جوال عادية: صفحة تشرح أنه للبوابة فقط، بلا أي بيانات
+  app.get("/q/:school/:token", send("gate", "card.html"));   // التحقق من الشهادات برمز QR
 
   const school = (handler) => (req, res, next) =>
     (isSchoolCode(req.params.school) ? handler(req, res) : next());
   // صفحات المدرسة: كل صفحة تشير لتطبيقها. المنسوبون حسب الدور في الرابط (?role=)، والزائر وولي الأمر لصفحة المدرسة
   const appPage = (as, ...p) => (req, res) => res.set("Cache-Control", "no-cache").type("html").send(withManifest(
     renderPage(file(...p), { isProd: env.isProd }), `/${req.params.school.toLowerCase()}/app.webmanifest?as=${as(req)}`));
-  const staffAs = (req) => { const r = appKind(String(req.query.role || "")); return r === "parent" ? "staff" : r; };
+  const staffAs = (req) => { const r = appKind(String(req.query.role || "")); return r === "parent" || r === "gate" ? "staff" : r; };
   app.get("/:school/app.webmanifest", school(schoolManifest()));
   app.get("/:school", school(appPage(() => "parent", "school", "index.html")));
   app.get("/:school/student", school(appPage(() => "parent", "school", "student.html")));
   app.get("/:school/idara", school(appPage(staffAs, "staff", "index.html")));
+  app.get("/:school/gate", school(appPage(() => "gate", "gate", "index.html")));   // تطبيق الحارس (جوال البوابة)
 
   app.use((req, res) => res.status(404).sendFile(path.join(pages, "404.html")));
   app.use(errorHandler);

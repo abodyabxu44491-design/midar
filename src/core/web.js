@@ -24,6 +24,7 @@ export const MOUNTS = {
   reset: path.join(PAGES, "reset"),
   verify: path.join(PAGES, "verify"),
   "legal-page": path.join(PAGES, "legal"),
+  "gate-page": path.join(PAGES, "gate"),
 };
 const MOUNT_RE = new RegExp(`(src|href)="/(${Object.keys(MOUNTS).map((m) => m.replace("-", "\\-")).join("|")})/`, "g");
 

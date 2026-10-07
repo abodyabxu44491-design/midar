@@ -44,3 +44,9 @@ export const notificationDeliveries = onSchedule({ schedule: "every 1 minutes", 
   const { processDeliveries } = await import("./modules/shared/notify.service.js");
   await processDeliveries();
 });
+
+// البوابة الذكية: إغلاق نافذة الحضور، وإشعارات الغياب المعتمد في وقتها، ورموز الطلاب الجدد
+export const gateTick = onSchedule({ schedule: "every 5 minutes", region: REGION, secrets, timeZone: "Asia/Riyadh" }, async () => {
+  const { runGateTick } = await import("./modules/shared/gate.service.js");
+  await runGateTick();
+});

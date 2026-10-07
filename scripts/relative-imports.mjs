@@ -6,7 +6,7 @@ import path from "node:path";
 
 const MOUNTS = { shared: "public/shared", admin: "public/pages/admin", teacher: "public/pages/teacher", accountant: "public/pages/accountant",
   "school-page": "public/pages/school", "staff-page": "public/pages/staff", "home-page": "public/pages/home", reset: "public/pages/reset", verify: "public/pages/verify",
-  "legal-page": "public/pages/legal" };
+  "legal-page": "public/pages/legal", "gate-page": "public/pages/gate" };
 const urlOf = (file) => {
   for (const [m, dir] of Object.entries(MOUNTS)) if (file.startsWith(dir + "/")) return `/${m}/${file.slice(dir.length + 1)}`;
   return null;
