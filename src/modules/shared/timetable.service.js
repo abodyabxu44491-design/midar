@@ -1,6 +1,7 @@
 // الجدول الدراسي: حصص الصفوف، مع منع تعارض المعلمين من قاعدة البيانات نفسها
 import { z, t } from "../../core/http/validate.js";
 import { conflict, badRequest } from "../../core/http/errors.js";
+import { notify } from "./notify.service.js";
 
 export const DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 export const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -29,9 +30,21 @@ export const forToday = (q, teacherId) => q(
 export const forAllClasses = (q) => q(`${SELECT} ORDER BY c.id, s.day, s.period`);
 
 // حفظ حصة واحدة (أو حذفها عند عدم إرسال المادة)
+// تغيّر جدول شعبة: إشعار واحد لأولياء أمورها ولمعلميها المتأثرين (تعديلات متتالية خلال نصف ساعة تُدمج في إشعار واحد)
+export async function notifyChange(q, classId, teacherIds) {
+  const [c] = await q("SELECT name FROM classes WHERE id = $1", [classId]);
+  if (!c) return;
+  const students = await q("SELECT id FROM students WHERE class_id = $1 AND archived_at IS NULL", [classId]);
+  const users = await q("SELECT id FROM users WHERE teacher_id = ANY($1) AND is_active", [teacherIds.filter(Boolean)]);
+  await notify(q, { event: "timetable", students: students.map((s) => s.id), users: users.map((u) => u.id),
+    title: `تغيّر الجدول الدراسي: ${c.name}`, body: "اطّلع على الجدول المحدّث.", link: "timetable", dedupKey: `tt-${classId}`, dedupMinutes: 30 });
+}
+
 export async function setSlot(q, b) {
+  const [prev] = await q("SELECT subject_id, teacher_id FROM timetable_slots WHERE class_id = $1 AND day = $2 AND period = $3", [b.class_id, b.day, b.period]);
   if (!b.subject_id) {
     await q("DELETE FROM timetable_slots WHERE class_id = $1 AND day = $2 AND period = $3", [b.class_id, b.day, b.period]);
+    if (prev) await notifyChange(q, b.class_id, [prev.teacher_id]);
     return { deleted: true };
   }
   if (b.teacher_id) {
@@ -53,10 +66,14 @@ export async function setSlot(q, b) {
      DO UPDATE SET subject_id = EXCLUDED.subject_id, teacher_id = EXCLUDED.teacher_id, room = EXCLUDED.room
      RETURNING id`,
     [b.class_id, b.day, b.period, b.subject_id, b.teacher_id, b.room]);
+  if (!prev || Number(prev.subject_id) !== Number(b.subject_id) || Number(prev.teacher_id || 0) !== Number(b.teacher_id || 0)) {
+    await notifyChange(q, b.class_id, [prev?.teacher_id, b.teacher_id]);
+  }
   return row;
 }
 
 export async function clearClass(q, classId) {
-  const rows = await q("DELETE FROM timetable_slots WHERE class_id = $1 RETURNING id", [classId]);
+  const rows = await q("DELETE FROM timetable_slots WHERE class_id = $1 RETURNING id, teacher_id", [classId]);
+  if (rows.length) await notifyChange(q, classId, [...new Set(rows.map((r) => r.teacher_id))]);
   return rows.length;
 }

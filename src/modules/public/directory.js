@@ -69,7 +69,7 @@ r.post("/page", limits.api, handle(async (req, res) => {
     }
 
     if (settings.show_announcements) {
-      payload.announcements = await q("SELECT title, body, created_at FROM announcements WHERE class_id IS NULL ORDER BY id DESC LIMIT 5");
+      payload.announcements = await q("SELECT title, body, created_at FROM announcements WHERE class_id IS NULL AND target IS NULL ORDER BY id DESC LIMIT 5");
     }
     payload.admissions = settings.show_admissions;
     return payload;

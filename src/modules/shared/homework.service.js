@@ -47,7 +47,7 @@ export async function create(q, b, { teacherId = null, actor }) {
     [b.class_id, b.subject_id, teacherId, b.title, b.details, b.due_date, actor]);
   const students = await q("SELECT id FROM students WHERE class_id = $1 AND archived_at IS NULL", [b.class_id]);
   await notify(q, { event: "homework", students: students.map((s) => s.id), title: `واجب جديد: ${b.title}`,
-    body: b.due_date ? `التسليم ${b.due_date}` : null, link: "homework" });
+    body: b.due_date ? `التسليم ${b.due_date}` : null, link: "homework", dedupKey: `hw-${row.id}` });
   return row;
 }
 
@@ -67,6 +67,18 @@ export async function markSubmissions(q, assignment, entries, actor) {
        ON CONFLICT (assignment_id, student_id)
        DO UPDATE SET submitted = EXCLUDED.submitted, note = EXCLUDED.note, marked_by = EXCLUDED.marked_by`,
       [assignment.id, e.student_id, e.submitted, e.note, actor]);
+  }
+  // بعد موعد التسليم: ولي أمر من لم يسلّم يُبلَّغ مرة واحدة لكل واجب
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
+  const missing = entries.filter((e) => !e.submitted).map((e) => e.student_id);
+  if (missing.length && assignment.due_date && String(assignment.due_date) <= today) {
+    const [info] = await q("SELECT s.name AS subject FROM assignments a LEFT JOIN subjects s ON s.id = a.subject_id WHERE a.id = $1", [assignment.id]);
+    const names = await q("SELECT id, full_name FROM students WHERE id = ANY($1) AND class_id = $2", [missing, assignment.class_id]);
+    for (const st of names) {
+      await notify(q, { event: "homework_missing", students: [st.id], title: `لم يُسلَّم الواجب: ${st.full_name}`,
+        body: `${assignment.title}${info?.subject ? ` (${info.subject})` : ""} — كان موعد التسليم ${assignment.due_date}`,
+        link: "homework", dedupKey: `missing-${assignment.id}`, dedupMinutes: 60 * 24 * 60 });
+    }
   }
   return entries.length;
 }

@@ -106,7 +106,8 @@ r.delete("/alerts/:alertId", handle(async (req, res) => {
 r.get("/announcements", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => q(
     `SELECT a.title, a.body, a.created_at, c.name AS class_name FROM announcements a LEFT JOIN classes c ON c.id = a.class_id
-      WHERE a.class_id IS NULL OR a.class_id IN (SELECT class_id FROM teacher_assignments WHERE teacher_id = $1)
+      WHERE (a.target IS NULL AND (a.class_id IS NULL OR a.class_id IN (SELECT class_id FROM teacher_assignments WHERE teacher_id = $1)))
+         OR a.target->>'type' IN ('teachers', 'staff')
       ORDER BY a.id DESC LIMIT 50`, [req.user.teacher_id])));
 }));
 

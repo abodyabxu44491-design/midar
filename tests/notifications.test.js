@@ -9,6 +9,7 @@ let srv, A, B;
 const pushes = [], smses = [];
 let smsFails = false;
 const today = new Date().toISOString().slice(0, 10);
+const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 const waitFor = async (fn, ms = 3000) => { const end = Date.now() + ms; while (Date.now() < end) { if (fn()) return true; await new Promise((r) => setTimeout(r, 40)); } return false; };
 const sub = (n) => ({ endpoint: `https://push.example.com/send/${n}`, keys: { p256dh: "B".repeat(87), auth: "a".repeat(22) } });
 
@@ -80,8 +81,9 @@ test("الرسائل النصية: بلا رصيد لا تُرسل، والما�
   assert.equal((await A.admin.post("/api/owner/sms/credits", { tenant_id: A.id, delta: 500, reason: "x" })).status, 401, "المدرسة لا تضيف لنفسها");
 
   smses.length = 0;
-  assert.equal((await A.admin.post("/api/admin/attendance", { date: today, reason: "تصحيح", entries: [{ student_id: s1.id, status: "present" }] })).status, 200);
-  await A.admin.post("/api/admin/attendance", { date: today, reason: "تصحيح", entries: [{ student_id: s1.id, status: "absent" }] });
+  // غياب جديد في يوم آخر (نفس الغياب لنفس اليوم لا يتكرر: منع التكرار)
+  assert.equal((await A.admin.post("/api/admin/attendance", { date: yesterday, entries: [{ student_id: s1.id, status: "present" }] })).status, 200);
+  await A.admin.post("/api/admin/attendance", { date: yesterday, reason: "تصحيح", entries: [{ student_id: s1.id, status: "absent" }] });
   assert.ok(await waitFor(() => smses.length === 1), "أُرسلت رسالة");
   assert.match(smses[0].to, /^967/);
   sms = (await A.admin.get("/api/admin/communication/sms")).data;
@@ -90,8 +92,8 @@ test("الرسائل النصية: بلا رصيد لا تُرسل، والما�
   // فشل المزوّد: الحالة «فشل» ويعود الرصيد
   smsFails = true;
   const before = sms.balance;
-  await A.admin.post("/api/admin/attendance", { date: today, reason: "تصحيح", entries: [{ student_id: s1.id, status: "present" }] });
-  await A.admin.post("/api/admin/attendance", { date: today, reason: "تصحيح", entries: [{ student_id: s1.id, status: "absent" }] });
+  const [, s2] = A.students;
+  await A.admin.post("/api/admin/attendance", { date: yesterday, entries: [{ student_id: s2.id, status: "absent" }] });
   await new Promise((r) => setTimeout(r, 700));
   sms = (await A.admin.get("/api/admin/communication/sms")).data;
   assert.equal(sms.messages[0].status, "failed");

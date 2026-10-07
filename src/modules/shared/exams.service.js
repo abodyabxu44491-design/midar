@@ -1,7 +1,7 @@
 // منطق الاختبارات والدرجات
 import { z, t } from "../../core/http/validate.js";
 import { notFound } from "../../core/http/errors.js";
-import { notify } from "./notify.service.js";
+import { notify, adminUserIds } from "./notify.service.js";
 import { resolveForExam } from "./grade-components.service.js";
 
 export const createSchema = z.object({
@@ -67,6 +67,19 @@ export async function saveScores(q, exam, scores, actor) {
 
 export async function setStatus(q, exam, status) {
   await q("UPDATE exams SET status = $2 WHERE id = $1", [exam.id, status]);
+  if (status === exam.status) return;
+  const [info] = await q(`SELECT e.title, s.name AS subject, c.name AS class_name FROM exams e JOIN subjects s ON s.id = e.subject_id
+    JOIN classes c ON c.id = e.class_id WHERE e.id = $1`, [exam.id]);
+  // معلمو المادة في هذه الشعبة (أصحاب الدرجات)
+  const teachers = async () => (await q(`SELECT u.id FROM users u JOIN teacher_assignments ta ON ta.teacher_id = u.teacher_id
+    WHERE ta.class_id = $1 AND ta.subject_id = $2 AND u.is_active`, [exam.class_id, exam.subject_id])).map((u) => u.id);
+  const what = `${info.title} — ${info.subject} — ${info.class_name}`;
+  if (status === "pending") {
+    await notify(q, { event: "grades_review", users: await adminUserIds(q), title: "درجات بانتظار الاعتماد", body: what,
+      link: "exams", dedupKey: `review-${exam.id}`, dedupMinutes: 60 });
+  } else if (status === "draft" && exam.status === "pending") {
+    await notify(q, { event: "grades_review", users: await teachers(), title: "أُعيدت الدرجات للمراجعة", body: what, link: "exams", dedupKey: `returned-${exam.id}`, dedupMinutes: 60 });
+  }
   if (status === "published" && exam.status !== "published") {
     const rows = await q(
       `SELECT sc.student_id, sc.score, e.max_score, e.title, sub.name AS subject
@@ -74,7 +87,8 @@ export async function setStatus(q, exam, status) {
         WHERE sc.exam_id = $1 AND sc.score IS NOT NULL`, [exam.id]);
     for (const r of rows) {
       await notify(q, { event: "grades", students: [r.student_id], title: `درجة جديدة: ${r.subject}`,
-        body: `${r.title}: ${r.score} من ${r.max_score}`, link: "grades" });
+        body: `${r.title}: ${r.score} من ${r.max_score}`, link: "grades", dedupKey: `exam-${exam.id}`, dedupMinutes: 24 * 60 });
     }
+    await notify(q, { event: "grades_review", users: await teachers(), title: "اعتُمدت الدرجات ونُشرت لأولياء الأمور", body: what, link: "exams", dedupKey: `published-${exam.id}`, dedupMinutes: 60 });
   }
 }

@@ -9,12 +9,16 @@ import { pushToggle } from "../../shared/js/inbox.js";
 import { A } from "./common.js";
 
 const AUD = { parent: "أولياء الأمور", staff: "المنسوبون", both: "الجميع" };
+const PRIO = { 1: ["عاجل", "red"], 2: ["مهم", "amber"], 3: ["عادي", "gray"] };
+const DLV = { sent: ["وصل للمزوّد", ""], failed: ["فشل", "red"], pending: ["في الطابور", "amber"], processing: ["يُرسل الآن", "amber"],
+  retrying: ["إعادة محاولة", "amber"], skipped: ["لم يُرسل للجوال", "gray"] };
 const SMS_STATUS = { queued: ["قيد الإرسال", "amber"], sent: ["أُرسلت", ""], failed: ["فشلت (أُعيد الرصيد)", "red"], no_credit: ["لم تُرسل: لا رصيد", "gray"], disabled: ["المزوّد غير مهيأ", "gray"] };
 
 export default async function communication({ me }) {
   const mods = me.modules || {};
   const parts = [];
   if (mods.notifications || mods.sms) parts.push(["notify", "الإشعارات"]);
+  if (mods.notifications) parts.push(["log", "سجل الإشعارات"]);
   if (mods.messaging) parts.push(["wa", "واتساب"]);
   if (mods.sms) parts.push(["sms", "الرسائل النصية"]);
   if (mods.surveys) parts.push(["surveys", "الاستبيانات"]);
@@ -22,6 +26,7 @@ export default async function communication({ me }) {
   if (!parts.length) return notice("أقسام التواصل موقوفة. شغّلها من «الإعدادات ← أقسام المنصة».", "warn");
   return partsView(parts, async (part, nav) => {
     if (part === "notify") return notifyRules(me);
+    if (part === "log") return notifyLog();
     if (part === "sms") return smsView(nav);
     if (part === "wa") return (await import("./whatsapp-queue.js")).default({ nav });
     if (part === "surveys") return (await import("./surveys.js")).default({ me, nav });
@@ -48,20 +53,78 @@ async function notifyRules(me) {
       showPush ? pushToggle({ key: d.push_ready ? (await api(`${A}/notifications`)).push.key : null,
         save: (s) => api(`${A}/notifications/push`, s), remove: (e) => api(`${A}/notifications/push/remove`, { endpoint: e }), label: "إشعارات الإدارة على هذا الجهاز" }) : null,
       showPush ? h("div", { class: "spaced" }, btn("إرسال إشعار تجريبي لي", async () => { await api(`${A}/communication/notify/test`, {}); toast("أُرسل. إن لم يصل، تأكد أن الإشعارات مفعّلة على هذا الجهاز."); }, "ghost sm")) : null),
+    showPush ? quietPanel(d.quiet) : null,
     panel("متى يُرسل الإشعار", null,
       sub(["اختر لكل حدث كيف يصل:", showPush ? "إشعار فوري (مجاني)" : null, showWa ? "واتساب (مجاني: يُضاف لقائمة الإرسال وترسله من جوالك)" : null,
         showSms ? "رسالة نصية (مجانية عبر جوال المدرسة، أو من رصيد المنصة)" : null].filter(Boolean).join(" ")),
       h("div", { style: "overflow-x:auto" }, h("table", { class: "rules-table" },
-        h("thead", {}, h("tr", {}, h("th", {}, "الحدث"), h("th", {}, "يصل إلى"), showPush ? h("th", { class: "c" }, "إشعار فوري") : null, showWa ? h("th", { class: "c" }, "واتساب") : null, showSms ? h("th", { class: "c" }, "رسالة نصية") : null)),
+        h("thead", {}, h("tr", {}, h("th", {}, "الحدث"), h("th", {}, "يصل إلى"), h("th", {}, "الأولوية"), showPush ? h("th", { class: "c" }, "إشعار فوري") : null,
+          showPush ? h("th", { class: "c", title: "لا يستطيع ولي الأمر إيقافه من إعداداته" }, "إلزامي") : null, showWa ? h("th", { class: "c" }, "واتساب") : null, showSms ? h("th", { class: "c" }, "رسالة نصية") : null)),
         h("tbody", {}, d.events.map((e) => h("tr", {},
-          h("td", {}, e.name), h("td", {}, h("small", { class: "muted" }, AUD[e.audience])),
+          h("td", {}, e.name, e.opt_in ? h("small", { class: "sub" }, "يُرسل فقط إذا فعّلته") : null), h("td", {}, h("small", { class: "muted" }, AUD[e.audience])),
+          h("td", {}, badge(...PRIO[e.priority])),
           showPush ? h("td", { class: "c" }, switchBtn(d.rules[e.key].push, `${e.name}: إشعار فوري`, (v) => save(e.key, "push", v))) : null,
+          showPush ? h("td", { class: "c" }, e.audience === "staff" ? h("small", { class: "muted" }, "—")
+            : switchBtn(d.rules[e.key].mandatory, `${e.name}: إلزامي`, (v) => save(e.key, "mandatory", v))) : null,
           showWa ? h("td", { class: "c" }, e.audience === "staff" ? h("small", { class: "muted" }, "—")
             : switchBtn(d.rules[e.key].wa, `${e.name}: واتساب`, (v) => save(e.key, "wa", v))) : null,
           showSms ? h("td", { class: "c" }, e.audience === "staff" ? h("small", { class: "muted" }, "—")
             : switchBtn(d.rules[e.key].sms, `${e.name}: رسالة نصية`, (v) => save(e.key, "sms", v))) : null))))),
       msg),
   ];
+}
+
+// ساعات الهدوء: غير العاجل يُؤجَّل لنهايتها، والعاجل (كالغياب) يصل فورًا
+function quietPanel(quiet) {
+  const on = Boolean(quiet.quiet_start);
+  const start = input({ type: "time", value: quiet.quiet_start || "21:30" });
+  const end = input({ type: "time", value: quiet.quiet_end || "06:30" });
+  const fields = h("div", { class: "row", hidden: !on }, field("من", start), field("إلى", end),
+    btn("حفظ", async () => { await api(`${A}/communication/notify/quiet`, { quiet_start: start.value, quiet_end: end.value }, "PUT"); toast("تم الحفظ"); }, "sm"));
+  return panel("ساعات الهدوء", null,
+    sub("خلالها لا تصل الإشعارات العادية والمهمة للجوال، وتُرسل تلقائيًا عند انتهائها. الإشعارات العاجلة (كالغياب) تصل دائمًا. وتبقى كلها في مركز الإشعارات فورًا."),
+    h("div", { class: "push-toggle" }, h("b", {}, "تفعيل ساعات الهدوء"),
+      switchBtn(on, "ساعات الهدوء", async (v) => {
+        fields.hidden = !v;
+        await api(`${A}/communication/notify/quiet`, v ? { quiet_start: start.value, quiet_end: end.value } : { quiet_start: null, quiet_end: null }, "PUT");
+        toast("تم الحفظ");
+      })),
+    fields);
+}
+
+// سجل الإشعارات: لكل إشعار مستلمه وأجهزته وحالة كل تسليم وسبب الفشل
+async function notifyLog() {
+  const box = h("div");
+  const kind = select([["", "كل الأنواع"]]);
+  const status = select([["", "كل الحالات"], ["sent", "وصل للمزوّد"], ["failed", "فشل"], ["pending", "في الطابور"], ["retrying", "إعادة محاولة"],
+    ["skipped", "لم يُرسل للجوال"], ["none", "بلا جهاز مسجّل"]]);
+  const draw = async () => {
+    const qs = new URLSearchParams(Object.entries({ kind: kind.value, status: status.value }).filter(([, v]) => v));
+    const d = await api(`${A}/communication/notify/log${qs.toString() ? `?${qs}` : ""}`);
+    if (kind.options.length === 1) {
+      const ev = (await api(`${A}/communication/notify`)).events;
+      ev.forEach((e) => kind.append(h("option", { value: e.key }, e.name)));
+    }
+    mount(box,
+      panel("آخر 24 ساعة", null,
+        stats([["إشعارات", d.totals.notifications], ["قُرئ منها", d.totals.read], ["وصل للأجهزة", d.stats.sent], ["فشل", d.stats.failed],
+          ["في الطابور", d.stats.waiting], ["متوسط زمن الوصول", d.stats.avg_seconds != null ? `${d.stats.avg_seconds} ث` : "—"]]),
+        sub("«وصل للمزوّد» يعني أن خدمة الإشعارات في جوجل أو آبل أو موزيلا استلمته لتوصله للجهاز. الجهاز المغلق يستلمه عند اتصاله بالإنترنت.")),
+      panel("السجل", null,
+        h("div", { class: "row" }, field("النوع", kind), field("الحالة", status)),
+        d.items.length ? d.items.map((n) => line(
+          h("div", {},
+            h("b", {}, n.title), " ", badge(...PRIO[n.priority]), n.read_at ? badge("قُرئ") : null, n.repeats > 1 ? badge(`دُمج ${n.repeats} مرات`, "gray") : null,
+            n.body ? sub(n.body) : null,
+            sub(`${n.audience === "parent" ? "ولي أمر" : "منسوب"}: ${n.recipient || "—"} — ${fmtDateTime(n.created_at)}${n.created_by ? ` — بواسطة ${n.created_by}` : ""}`),
+            n.deliveries.length ? h("div", { class: "row", style: "gap:6px;flex-wrap:wrap" }, n.deliveries.map((x) => badge(
+              `${x.device || "جهاز"}: ${DLV[x.status]?.[0] || x.status}${x.attempts > 1 ? ` (${x.attempts} محاولات)` : ""}${x.error ? ` — ${x.error}` : ""}`,
+              DLV[x.status]?.[1] || "gray"))) : sub("لا يوجد جهاز مسجّل لهذا المستلم: بقي في مركز الإشعارات داخل المنصة.")))) : empty("لا توجد إشعارات بهذه التصفية.")));
+  };
+  kind.addEventListener("change", draw);
+  status.addEventListener("change", draw);
+  await draw();
+  return box;
 }
 
 async function smsView(nav) {

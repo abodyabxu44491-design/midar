@@ -99,11 +99,17 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { title: e.data?.text() || "مدار" }; }
-  e.waitUntil(self.registration.showNotification(d.title || "مدار", {
-    body: d.body || "", tag: d.tag || undefined, renotify: Boolean(d.tag), lang: "ar", dir: "rtl",
-    icon: "/brand/icon-192.png", badge: "/brand/favicon-32.png", data: { url: d.url || "/" },
-    requireInteraction: Boolean(d.urgent),
-  }));
+  const urgent = d.priority === 1 || Boolean(d.urgent);
+  // الصوت والاهتزاز وظهوره على شاشة القفل تحددها إعدادات الجهاز (لا نتجاوز الصامت أو «عدم الإزعاج»)
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(d.title || "مدار", {
+      body: d.body || "", tag: d.tag || undefined, renotify: Boolean(d.tag), lang: "ar", dir: "rtl",
+      icon: "/brand/icon-192.png", badge: "/brand/favicon-32.png", data: { url: d.url || "/", nid: d.nid || null },
+      requireInteraction: urgent, vibrate: urgent ? [200, 100, 200, 100, 200] : [150], timestamp: Date.now(),
+    }),
+    // رقم غير المقروء على أيقونة التطبيق (في الأجهزة التي تدعمه)
+    d.badge > 0 && self.navigator.setAppBadge ? self.navigator.setAppBadge(d.badge).catch(() => {}) : null,
+  ]));
 });
 
 // الضغط على الإشعار: يفتح الصفحة المعنية (أو يركّز نافذة مفتوحة منها)

@@ -48,7 +48,13 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
        FROM teacher_assignments a JOIN teachers t ON t.id = a.teacher_id JOIN subjects sub ON sub.id = a.subject_id
       WHERE a.class_id = $1 GROUP BY t.id ORDER BY min(sub.name)`, [s.class_id, admin || parentSettings.show_teacher_photos]) : [];
   const news = await q(
-    "SELECT title, body, created_at FROM announcements WHERE class_id IS NULL OR class_id = $1 ORDER BY id DESC LIMIT 20", [s.class_id]);
+    `SELECT title, body, created_at FROM announcements a
+      WHERE (a.target IS NULL AND (a.class_id IS NULL OR a.class_id = $1))
+         OR (a.target->>'type' = 'class' AND a.target->'ids' @> to_jsonb($1::bigint))
+         OR (a.target->>'type' = 'grade' AND a.target->'ids' @> to_jsonb((SELECT grade_id FROM classes WHERE id = $1)))
+         OR (a.target->>'type' = 'stage' AND a.target->'ids' @> to_jsonb((SELECT g.stage_id FROM classes c JOIN grades g ON g.id = c.grade_id WHERE c.id = $1)))
+         OR (a.target->>'type' = 'students' AND a.target->'ids' @> to_jsonb($2::bigint))
+      ORDER BY id DESC LIMIT 20`, [s.class_id, s.id]);
 
   let fees = null;
   if (s.fees_enabled) {

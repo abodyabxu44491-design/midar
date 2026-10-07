@@ -60,7 +60,12 @@ export async function startTeacher(offlineMe = null) {
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);
-  attachBell(bar, "/api/teacher", (n) => { const tab = { substitute: "me", lesson_plan: "lessons", leave: "me", meeting: "meetings", survey: "surveys" }[n.kind]; if (tab) t.show(tab); });
+  attachBell(bar, "/api/teacher", (n) => {
+    const tab = { substitute: "me", lesson_plan: "lessons", leave: "me", meeting: "meetings", survey: "surveys", grades_review: "exams", timetable: "timetable",
+      announcement: "announcements", message: "announcements" }[n.kind];
+    if (!tab || !list.some((x) => x[0] === tab || x.key === tab)) return false;
+    t.show(tab); return true;
+  });
   mount(app, bar, h("main", {}, t.el), footer());
   t.start("home");
 }

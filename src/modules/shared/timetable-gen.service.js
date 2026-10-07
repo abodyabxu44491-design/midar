@@ -2,6 +2,7 @@
 // ويُعيد مسودة تحتاج موافقة المدير قبل الاعتماد. لا يكتب شيئًا قبل الموافقة.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
+import { notifyChange } from "./timetable.service.js";
 
 export const settingsSchema = z.object({
   days: z.array(z.coerce.number().int().min(0).max(6)).min(1).max(7),
@@ -170,6 +171,11 @@ export async function apply(q, b) {
        DO UPDATE SET subject_id = EXCLUDED.subject_id, teacher_id = EXCLUDED.teacher_id, room = EXCLUDED.room`,
       [s.class_id, s.day, s.period, s.subject_id, s.teacher_id ?? null, s.room ?? null]);
     saved++;
+  }
+  // إشعار واحد لكل شعبة تغيّر جدولها
+  for (const c of classIds) {
+    const tids = [...new Set(b.slots.filter((s) => Number(s.class_id) === c).map((s) => s.teacher_id).filter(Boolean))];
+    await notifyChange(q, c, tids);
   }
   return { saved, classes: classIds.length };
 }

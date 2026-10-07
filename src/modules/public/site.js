@@ -40,7 +40,7 @@ r.post("/home", limits.api, handle(async (req, res) => {
       school: { name: tenant.name, about: settings.about || null, logo: Boolean(logo), logo_v: logo },
       contact: settings.show_contact && profile ? profile : null,
       announcements: settings.show_announcements
-        ? await q("SELECT title, body, created_at FROM announcements WHERE class_id IS NULL ORDER BY id DESC LIMIT 6") : [],
+        ? await q("SELECT title, body, created_at FROM announcements WHERE class_id IS NULL AND target IS NULL ORDER BY id DESC LIMIT 6") : [],
       features: {
         directory: settings.show_classes, names: settings.show_student_names, search: settings.show_search,
         admissions: settings.show_admissions, find_by_key: true,

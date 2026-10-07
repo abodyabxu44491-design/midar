@@ -109,12 +109,15 @@ function marketing(site) {
     h("div", { class: "st-contact" },
       h("div", { class: "ways" },
         wa ? h("a", { href: wa, target: "_blank", rel: "noopener" }, h("b", {}, "واتساب"), h("span", { class: "ltr" }, phone)) : null,
-        site.brand_email ? h("a", { href: `mailto:${site.brand_email}` }, h("b", {}, "البريد"), h("span", { class: "ltr" }, site.brand_email)) : null),
+        site.brand_email ? h("a", { href: `mailto:${site.brand_email}` }, h("b", {}, "البريد"), h("span", { class: "ltr" }, site.brand_email)) : null,
+        site.brand_instagram ? h("a", { href: `https://instagram.com/${encodeURIComponent(site.brand_instagram)}`, target: "_blank", rel: "noopener" },
+          h("b", {}, "إنستغرام"), h("span", { class: "ltr" }, `@${site.brand_instagram}`)) : null),
       h("div", { class: "st-form" }, leadForm(site, { kind: "contact" })))));
 
   mount(app, h("div", { class: "st" }, nav, hero, demoSec, features, plansSec, trialSec, contact,
     h("footer", { class: "st-foot" }, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`,
-      h("nav", { class: "legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام")))));
+      h("nav", { class: "legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام"),
+        site.brand_instagram ? h("a", { href: `https://instagram.com/${encodeURIComponent(site.brand_instagram)}`, target: "_blank", rel: "noopener", class: "ltr" }, `@${site.brand_instagram}`) : null))));
 }
 
 // أدوار العرض التجريبي

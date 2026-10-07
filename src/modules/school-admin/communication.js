@@ -5,7 +5,7 @@ import { handle, badRequest, notFound } from "../../core/http/errors.js";
 import { credentialsEnabled } from "../../core/auth/secret-box.js";
 import { logEvent } from "../../core/audit.js";
 import { parse, t, z } from "../../core/http/validate.js";
-import { EVENTS, getRules, updateRules, rulesSchema, smsBalance, smsSegments, sendManualSms, pushPublicKey, notify, loadGateway,
+import { EVENTS, CATEGORIES, getRules, updateRules, rulesSchema, getQuiet, setQuiet, quietSchema, deliveryStats, MAX_ATTEMPTS, smsBalance, smsSegments, sendManualSms, pushPublicKey, notify, loadGateway,
   loadSchoolGateway, sealSchoolHeaders, ANDROID_PRESET, sendRaw, queueWhatsApp } from "../shared/notify.service.js";
 import { getFeatureSettings, updateFeatureSettings, SECTIONS } from "../shared/feature-settings.service.js";
 
@@ -14,8 +14,10 @@ const r = Router();
 /* ---------- قواعد الإشعارات ---------- */
 r.get("/notify", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({
-    events: Object.entries(EVENTS).map(([key, e]) => ({ key, name: e.name, audience: e.audience })),
+    events: Object.entries(EVENTS).map(([key, e]) => ({ key, name: e.name, audience: e.audience, category: e.category,
+      category_name: CATEGORIES[e.category], priority: e.priority, opt_in: Boolean(e.optIn) })),
     rules: await getRules(q),
+    quiet: await getQuiet(q),
     push_ready: Boolean(pushPublicKey()),
     sms_ready: Boolean(await loadSchoolGateway(q)) || Boolean(await loadGateway()),
     modules: { notifications: Boolean(req.modules?.notifications), sms: Boolean(req.modules?.sms), whatsapp: Boolean(req.modules?.messaging) },
@@ -27,9 +29,45 @@ r.put("/notify", handle(async (req, res) => {
   const b = parse(rulesSchema, req.body);
   res.json(await inTenant(req, (q) => updateRules(q, b)));
 }));
+// ساعات الهدوء: الإشعارات غير العاجلة خلالها تُؤجَّل لنهايتها، والعاجلة (كالغياب) تصل فورًا
+r.put("/notify/quiet", handle(async (req, res) => {
+  const b = parse(quietSchema, req.body);
+  res.json(await inTenant(req, (q) => setQuiet(q, b)));
+}));
+
+// سجل الإشعارات للتشخيص: ماذا أُرسل، ولمن، وهل وصل لمزوّد الإشعارات، وسبب الفشل
+r.get("/notify/log", handle(async (req, res) => {
+  const kind = req.query.kind && EVENTS[req.query.kind] ? req.query.kind : null;
+  const status = ["sent", "failed", "pending", "retrying", "skipped", "none"].includes(req.query.status) ? req.query.status : null;
+  res.json(await inTenant(req, async (q) => ({
+    stats: (await q(
+      `SELECT count(*) FILTER (WHERE status = 'sent')::int AS sent, count(*) FILTER (WHERE status = 'failed')::int AS failed,
+              count(*) FILTER (WHERE status IN ('pending', 'processing', 'retrying'))::int AS waiting,
+              count(*) FILTER (WHERE status = 'skipped')::int AS skipped,
+              round(avg(EXTRACT(epoch FROM sent_at - created_at)) FILTER (WHERE status = 'sent'))::int AS avg_seconds
+         FROM notification_deliveries WHERE tenant_id = app_tenant() AND created_at > now() - interval '24 hours'`))[0],
+    totals: (await q(`SELECT count(*)::int AS notifications, count(*) FILTER (WHERE read_at IS NOT NULL)::int AS read
+                        FROM notifications WHERE created_at > now() - interval '24 hours'`))[0],
+    worker: { ...deliveryStats, max_attempts: MAX_ATTEMPTS },
+    items: await q(
+      `SELECT n.id, n.kind, n.category, n.priority, n.title, n.body, n.created_at, n.updated_at, n.read_at, n.repeats, n.created_by,
+              COALESCE(s.full_name, u.full_name) AS recipient, CASE WHEN n.student_id IS NOT NULL THEN 'parent' ELSE 'staff' END AS audience,
+              COALESCE(json_agg(json_build_object('device', d.device, 'status', d.status, 'attempts', d.attempts, 'error', d.error,
+                'sent_at', d.sent_at, 'next_attempt_at', d.next_attempt_at, 'provider_status', d.provider_status) ORDER BY d.id)
+                FILTER (WHERE d.id IS NOT NULL), '[]') AS deliveries
+         FROM notifications n
+         LEFT JOIN students s ON s.id = n.student_id LEFT JOIN users u ON u.id = n.user_id
+         LEFT JOIN notification_deliveries d ON d.notification_id = n.id
+        WHERE ($1::text IS NULL OR n.kind = $1)
+        GROUP BY n.id, s.full_name, u.full_name
+       HAVING $2::text IS NULL OR ($2 = 'none' AND count(d.id) = 0) OR bool_or(d.status = $2) OR ($2 = 'pending' AND bool_or(d.status = 'processing'))
+        ORDER BY n.id DESC LIMIT 150`, [kind, status]),
+  })));
+}));
+
 // إشعار تجريبي لأجهزة المدير نفسه
 r.post("/notify/test", handle(async (req, res) => {
-  res.json(await inTenant(req, (q) => notify(q, { event: "leave", users: [req.user.id], title: "إشعار تجريبي من مدار", body: "وصلك هذا الإشعار، فالإشعارات تعمل على هذا الجهاز." })));
+  res.json(await inTenant(req, (q) => notify(q, { event: "system", users: [req.user.id], dedupKey: `test-${Date.now()}`, title: "إشعار تجريبي من مدار", body: "وصلك هذا الإشعار، فالإشعارات تعمل على هذا الجهاز." })));
 }));
 
 /* ---------- الرسائل النصية ---------- */

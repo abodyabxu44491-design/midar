@@ -15,7 +15,7 @@ export const staffWriteAllowed = (req, role) =>
 const PUBLIC_WRITES = [
   /^\/admissions$/, /^\/transfer-claims$/, /^\/password-request$/, /^\/student\/excuse$/,
   /^\/student\/surveys\/\d+$/, /^\/student\/meetings\/book$/, /^\/student\/meetings\/\d+\/cancel$/,
-  /^\/student\/push$/, /^\/student\/online-exams\/\d+\/(start|save|submit|image)$/,
+  /^\/student\/push$/, /^\/student\/inbox\/archive$/, /^\/student\/notify-prefs\/save$/, /^\/student\/online-exams\/\d+\/(start|save|submit|image)$/,
 ];
 
 // هل المدرسة مدرسة العرض؟ (كاش قصير: صفحات ولي الأمر تسأل في كل طلب)

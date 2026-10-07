@@ -7,6 +7,7 @@ import { conflict, notFound, publicError } from "./http/errors.js";
 const SECRET_TTL = 30 * 60_000;
 const secrets = new Map();          // jobId ← { data, until }
 const active = new Set();           // العمليات الجارية في هذه النسخة (ينتظرها الإيقاف الآمن)
+const DONE_LABELS = { import_students: "استيراد الطلاب", import_teachers: "استيراد المعلمين" };
 const scopeOf = (tenantId) => (tenantId ? { tenantId } : { platform: true });
 
 /** صاحب العملية: المالك، أو مستخدم المدرسة الذي بدأها */
@@ -59,6 +60,15 @@ export async function startJob({ tenantId = null, kind, total = 0, step = null, 
     await transaction({ ...scopeOf(tenantId), actor }, (q) =>
       q(`UPDATE jobs SET status = $2, summary = $3, error = $4, finished_at = now(), done = CASE WHEN $2 = 'done' THEN GREATEST(total, done) ELSE done END
           WHERE id = $1`, [job.id, status, summary, error])).catch((e) => console.error("job finish", e));
+    // إشعار صاحب العملية باكتمالها أو فشلها (يصله حتى لو أغلق الصفحة)
+    const label = DONE_LABELS[kind];
+    if (label && tenantId && ownerKey.startsWith("user:")) {
+      const { notify } = await import("../modules/shared/notify.service.js");
+      await transaction({ tenantId, actor: "النظام" }, (q) => notify(q, { event: "system", users: [Number(ownerKey.slice(5))],
+        title: status === "done" ? `اكتمل ${label}` : `تعذر ${label}`, priority: status === "done" ? 3 : 2,
+        body: status === "done" ? "النتيجة جاهزة في صفحة الاستيراد." : String(error || "").slice(0, 300), dedupKey: `job-${job.id}` }))
+        .catch((e) => console.error("job notify", e.message));
+    }
   })();
   active.add(task);
   task.finally(() => active.delete(task));

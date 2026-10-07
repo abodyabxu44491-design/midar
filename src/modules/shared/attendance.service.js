@@ -72,15 +72,18 @@ export async function mark(q, { date, reason, entries }, { actor, allowedClass }
       [e.student_id, date, e.status, existing.has(e.student_id) && changes.includes(e) ? `تعديل من ${LABEL[existing.get(e.student_id)]}: ${reason}` : null, actor, excuse],
     );
   }
-  // إشعار ولي الأمر بالغياب أو التأخر الجديد (لأيام قريبة فقط، لا عند إدخال سجلات قديمة)
-  const fresh = entries.filter((e) => (e.status === "absent" || e.status === "late") && existing.get(e.student_id) !== e.status);
+  // إشعار ولي الأمر بالغياب أو التأخر الجديد (والحضور إن فعّلته المدرسة) — لأيام قريبة فقط، لا عند إدخال سجلات قديمة.
+  // مفتاح لكل طالب ويوم وحالة: تبديل الحالة ذهابًا وإيابًا لا يكرر التنبيه
+  const fresh = entries.filter((e) => ["absent", "late", "present"].includes(e.status) && existing.get(e.student_id) !== e.status);
   if (fresh.length && date >= new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)) {
     const names = new Map(students.map((s) => [Number(s.id), s.full_name]));
+    const TEXT = { absent: ["غياب", "سُجّل غياب"], late: ["تأخر", "سُجّل تأخر"], present: ["حضور", "سُجّل حضور"] };
     for (const e of fresh) {
       const name = names.get(Number(e.student_id));
-      await notify(q, { event: e.status === "absent" ? "absence" : "late", students: [e.student_id], urgent: e.status === "absent",
-        title: e.status === "absent" ? `غياب: ${name}` : `تأخر: ${name}`,
-        body: `${e.status === "absent" ? "سُجّل غياب" : "سُجّل تأخر"} ${name} يوم ${date}${e.excuse ? ` — ${e.excuse}` : ""}.`,
+      const [label, verb] = TEXT[e.status];
+      await notify(q, { event: e.status === "absent" ? "absence" : e.status, students: [e.student_id], urgent: e.status === "absent",
+        title: `${label}: ${name}`, dedupKey: `${e.student_id}:${date}:${e.status}`, dedupMinutes: 24 * 60,
+        body: `${verb} ${name} يوم ${date}${e.excuse ? ` — ${e.excuse}` : ""}.`,
         link: "attendance" });
     }
   }

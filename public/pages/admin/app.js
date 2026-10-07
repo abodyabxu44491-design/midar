@@ -98,7 +98,12 @@ export async function startAdmin() {
 
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
     onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } });
-  attachBell(bar, "/api/admin", (n) => { const tab = { leave: "staff", meeting: "communication", survey: "communication" }[n.kind]; if (tab) ctx.goTo(tab); });
+  attachBell(bar, "/api/admin", (n) => {
+    const tab = { leave: "staff", request: n.link === "staff" ? "staff" : "admissions", meeting: "communication", survey: "communication", grades_review: "exams",
+      timetable: "timetable", announcement: "announcements", system: "students" }[n.kind] || n.link;
+    if (!tab || !allTabs.some(([k]) => k === tab || (tab === "finance" && k === "ledger"))) return false;
+    ctx.goTo(tab); return true;
+  });
   mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
   t.start("dashboard");
 }
