@@ -31,7 +31,16 @@ r.post("/:school/scan", handle(async (req, res) => {
   res.json(await inSchool(req, ACTOR, async (q, tenant) => {
     const d = await gate.authDevice(q, ...creds(req));
     if (d.status !== "active") throw forbidden(d.status === "pending" ? "الجهاز بانتظار موافقة الإدارة" : "الجهاز موقوف من الإدارة");
-    return gate.processScan(q, d, ev, { school: tenant.id, actor: recordedBy(d) });
+    return gate.processScan(q, d, ev, { school: tenant.id, actor: recordedBy(d), ip: req.ip });
+  }));
+}));
+
+// قائمة الجهاز: بصمات الرموز والاسم والشعبة فقط (ليعرف الطالب ويقرر وهو بلا اتصال)
+r.post("/:school/roster", handle(async (req, res) => {
+  res.json(await inSchool(req, ACTOR, async (q) => {
+    const d = await gate.authDevice(q, ...creds(req));
+    if (d.status !== "active") throw forbidden("الجهاز غير مفعّل");
+    return gate.roster(q);
   }));
 }));
 
@@ -44,7 +53,7 @@ r.post("/:school/events", handle(async (req, res) => {
       results.push(await inSchool(req, ACTOR, async (q, tenant) => {
         const d = await gate.authDevice(q, ...creds(req));
         if (d.status !== "active") throw forbidden("الجهاز غير مفعّل");
-        return gate.processScan(q, d, ev, { school: tenant.id, actor: recordedBy(d) });
+        return gate.processScan(q, d, ev, { school: tenant.id, actor: recordedBy(d), ip: req.ip });
       }));
     } catch (e) {
       if (e.status === 401 || e.status === 403) throw e;

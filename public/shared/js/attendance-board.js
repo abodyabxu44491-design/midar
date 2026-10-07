@@ -69,6 +69,7 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
       h("div", { class: "att-name" }, h("b", {}, r.name),
         r.pending ? h("small", { class: "pending-dot", title: "محفوظ على الجهاز، بانتظار المزامنة" }, "بانتظار المزامنة")
           : r.status && !dirty ? h("small", {}, `مسجّل: ${ATTENDANCE[r.status][0]}`) : dirty ? h("small", {}, "لم يُحفظ بعد") : null,
+        r.first_in_at && !dirty ? h("small", { class: "att-gate" }, `البوابة ${new Date(r.first_in_at).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" })}${r.minutes_late ? ` — تأخر ${r.minutes_late} د` : ""}`) : null,
         reasonVal && !openReason.has(r.id) ? h("small", { class: "att-reason" }, `السبب: ${reasonVal}`) : null,
         r.parent_excuse_state === "pending" ? h("small", { class: "att-reason pending" }, `عذر من ولي الأمر بانتظار المراجعة: ${r.parent_excuse}`) : null,
         wa && !dirty && ["absent", "late"].includes(r.status) ? wa(r) : null,

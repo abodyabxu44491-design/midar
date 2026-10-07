@@ -41,10 +41,16 @@ export const SECTIONS = {
   // بوابة الحضور الذكية (docs/SMART_GATE.md): نافذة الحضور، ووقت إشعار الغياب بعد اعتماده، والإشعارات
   gate: {
     defaults: { open_at: "06:30", late_after: "07:15", close_at: "08:00", absence_notify_at: "09:00", auto_finalize: false,
-      notify_present: true, notify_late: true, notify_absent: true, legacy_cards: false, suspicious_seconds: 120 },
+      notify_present: true, notify_late: true, notify_absent: true, notify_departure: false, legacy_cards: false, suspicious_seconds: 120,
+      location_mode: "off", allowed_networks: "", device_offline_alert_min: 10, teacher_can_edit: true, teacher_can_excuse: true },
     schema: z.object({ open_at: time, late_after: time, close_at: time, absence_notify_at: time, auto_finalize: z.boolean(),
-      notify_present: z.boolean(), notify_late: z.boolean(), notify_absent: z.boolean(), legacy_cards: z.boolean(),
-      suspicious_seconds: z.coerce.number().int().min(10).max(3600) }),
+      notify_present: z.boolean(), notify_late: z.boolean(), notify_absent: z.boolean(), notify_departure: z.boolean(), legacy_cards: z.boolean(),
+      suspicious_seconds: z.coerce.number().int().min(10).max(3600),
+      // حماية من التسجيل خارج المدرسة: off بلا قيد، flag يُعلّم المسح مشبوهًا، block يرفضه
+      location_mode: z.enum(["off", "flag", "block"]),
+      allowed_networks: z.string().trim().max(500).regex(/^[0-9a-fA-F.:/,\s]*$/, "اكتب عناوين الشبكة مفصولة بفاصلة، مثل 82.114.160.0/24"),
+      device_offline_alert_min: z.coerce.number().int().min(3).max(120),
+      teacher_can_edit: z.boolean(), teacher_can_excuse: z.boolean() }),
     check: (v) => (v.open_at <= v.late_after && v.late_after < v.close_at ? null : "الأوقات: بداية الحضور ≤ وقت التأخر < الإغلاق"),
   },
   transport: {

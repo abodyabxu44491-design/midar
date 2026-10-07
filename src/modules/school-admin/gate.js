@@ -18,7 +18,11 @@ const device = (req) => String(req.get("user-agent") || "").slice(0, 120);
 
 /* ---------- الإعدادات ---------- */
 r.get("/settings", handle(async (req, res) => res.json(await inTenant(req, async (q) => (await getFeatureSettings(q)).gate))));
-r.put("/settings", handle(async (req, res) => res.json(await inTenant(req, (q) => updateFeatureSettings(q, "gate", req.body || {})))));
+r.put("/settings", handle(async (req, res) => res.json(await inTenant(req, async (q) => {
+  // عناوين الشبكة: كل عنوان أو نطاق يجب أن يكون صالحًا
+  if (typeof req.body?.allowed_networks === "string") gate.networkList(req.body.allowed_networks);
+  return updateFeatureSettings(q, "gate", req.body || {});
+}))));
 
 /* ---------- اليوم ---------- */
 r.get("/summary", handle(async (req, res) => {
@@ -44,6 +48,28 @@ r.post("/finalize", handle(async (req, res) => {
 r.put("/day-mode", handle(async (req, res) => {
   const b = parse(gate.dayModeBody, req.body);
   res.json(await inTenant(req, (q) => gate.setDayMode(q, b)));
+}));
+
+// قوائم التصفية: المراحل والصفوف والشعب والبوابات
+r.get("/filters", handle(async (req, res) => res.json(await inTenant(req, async (q) => ({
+  stages: await q("SELECT id, name FROM stages ORDER BY sort_order, id"),
+  grades: await q("SELECT id, stage_id, name FROM grades ORDER BY sort_order, id"),
+  classes: await q("SELECT id, grade_id, name FROM classes ORDER BY sort_order, id"),
+  gates: await q("SELECT id, name FROM gates ORDER BY id"),
+})))));
+r.get("/records", handle(async (req, res) => {
+  const b = parse(gate.recordsQuery, req.query);
+  res.json(await inTenant(req, (q) => gate.records(q, b)));
+}));
+// أوقات خاصة لكل مرحلة
+r.get("/stage-hours", handle(async (req, res) => res.json(await inTenant(req, gate.listStageHours))));
+r.put("/stage-hours", handle(async (req, res) => {
+  const b = parse(gate.stageHoursBody, req.body);
+  res.json(await inTenant(req, (q) => gate.setStageHours(q, b)));
+}));
+r.delete("/stage-hours/:id", handle(async (req, res) => {
+  const { id } = parse(idP, req.params);
+  res.json(await inTenant(req, (q) => gate.clearStageHours(q, id)));
 }));
 
 /* ---------- المسح المشبوه وسجل التعديلات ---------- */

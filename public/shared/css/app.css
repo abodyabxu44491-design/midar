@@ -1452,3 +1452,8 @@ html.demo-mode .install-bar { bottom: calc(72px + env(safe-area-inset-bottom)); 
 .gate-times { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .ac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; margin-top: 10px; }
 .ac-item { display: grid; gap: 6px; justify-items: start; overflow-x: auto; }
+.att-name .att-gate { color: var(--teal); font-weight: 600; }
+.att-monthly { margin: 8px 0; } .att-monthly td, .att-monthly th { text-align: center; white-space: nowrap; }
+.gate-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; align-items: end; margin-bottom: 8px; }
+.gate-records td, .gate-records th { white-space: nowrap; }
+.gate-stage { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; margin-bottom: 8px; background: #fff; }

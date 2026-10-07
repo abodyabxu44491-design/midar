@@ -12,10 +12,12 @@ import { attendanceCard, printCards } from "../../shared/js/attendance-card.js";
 import { A, loadClasses } from "./common.js";
 
 const G = () => `${A}/attendance/gate`;
-const PARTS = [["day", "اليوم والمراجعة"], ["devices", "أجهزة الحراس"], ["cards", "بطاقات الحضور"], ["settings", "أوقات الحضور"], ["review", "المشبوه والتعديلات"]];
-const RESULT = { present: ["حاضر", ""], late: ["متأخر", "amber"], duplicate: ["مسح مكرر", "gray"], kept: ["مسجّل مسبقًا", "gray"], rejected: ["مرفوض", "red"] };
+const PARTS = [["day", "اليوم والمراجعة"], ["records", "السجلات"], ["devices", "البوابات والأجهزة"], ["cards", "بطاقات الحضور"], ["settings", "الأوقات والإعدادات"], ["review", "المشبوه والتعديلات"]];
+const RESULT = { present: ["حاضر", ""], late: ["متأخر", "amber"], duplicate: ["مسح مكرر", "gray"], kept: ["مسجّل مسبقًا", "gray"], rejected: ["مرفوض", "red"], departed: ["انصراف", "gray"] };
+const DIRECTION = { in: "دخول", out: "انصراف", both: "دخول وانصراف" };
 const DEVICE = { pairing: ["بانتظار فتح الرابط", "gray"], pending: ["بانتظار موافقتك", "amber"], active: ["مفعّل", ""], disabled: ["موقوف", "red"], revoked: ["ملغى", "gray"] };
-const SUSPICIOUS = { two_gates: "نفس البطاقة من بوابتين خلال ثوانٍ", revoked_card: "بطاقة ملغاة", no_clock_ref: "وقت جهاز بلا مرجع" };
+const SUSPICIOUS = { two_gates: "نفس البطاقة من بوابتين خلال ثوانٍ", revoked_card: "بطاقة ملغاة", no_clock_ref: "وقت جهاز بلا مرجع",
+  outside_network: "الجهاز خارج شبكة المدرسة", outside_geofence: "الجهاز بعيد عن موقع البوابة" };
 const SOURCE = { gate: "البوابة", manual: "يدوي", teacher: "المعلم", review: "اعتماد المراجعة", sync: "مزامنة", import: "استيراد", excuse: "عذر" };
 const EXCEPTIONS = [["trip", "رحلة"], ["activity", "نشاط خارجي"], ["excused", "غياب بعذر"], ["permitted", "مستأذن"], ["present", "حاضر (يدوي)"], ["late", "متأخر (يدوي)"]];
 let part = "day", date = null, userDate = false, feedTimer = null;
@@ -58,7 +60,7 @@ export async function gateView({ me }) {
         if (!last) mount(feedBox);
         last = rows[0].id;
         feedBox.prepend(...rows.map((r) => h("div", { class: `gf-row r-${r.result}` },
-          h("div", { class: "gf-main" }, h("b", {}, r.name || "بطاقة غير معروفة"), h("small", {}, [r.class_name, r.gate_name].filter(Boolean).join(" · "))),
+          h("div", { class: "gf-main" }, h("b", {}, r.name || "بطاقة غير معروفة"), h("small", {}, [r.class_name, r.gate_name, r.kind === "nfc" ? "NFC" : null].filter(Boolean).join(" · "))),
           h("div", { class: "gf-side" },
             badge(r.result === "late" && r.minutes_late ? `متأخر ${r.minutes_late} د` : RESULT[r.result][0], RESULT[r.result][1]),
             r.suspicious ? badge("مشبوه", "red") : null, r.offline ? badge("بدون اتصال", "gray") : null,
@@ -76,7 +78,8 @@ export async function gateView({ me }) {
       h("div", { class: "gate-stats" },
         stat(c.students, "طالب مقيد"), stat(c.present, "حاضر", "ok"), stat(c.late, "متأخر", "late"),
         stat(c.unrecorded, "لم يسجل حضور", c.unrecorded ? "warn" : ""), stat(c.absent, "غائب", "bad"),
-        stat(c.excused + c.permitted, "بعذر / مستأذن"), stat(c.out_of_school, "رحلة / نشاط"), stat(c.suspicious, "مسح مشبوه", c.suspicious ? "bad" : "")),
+        stat(c.excused + c.permitted, "بعذر / مستأذن"), stat(c.out_of_school, "رحلة / نشاط"), stat(c.suspicious, "مسح مشبوه", c.suspicious ? "bad" : ""),
+        c.departed ? stat(c.departed, "انصرف") : null),
       s.gates.length > 1 ? h("div", { class: "row" }, s.gates.map((g) => badge(`${g.name}: ${g.n}`, "gray"))) : null,
       ["closed", "finalized"].includes(s.phase) ? await reviewPanel(s) : null,
       panel("المباشر — آخر المسحات", null, feedBox),
@@ -168,7 +171,8 @@ export async function gateView({ me }) {
       h("div", { class: "gd-main" },
         h("div", { class: "row" }, h("b", {}, d.name), badge(DEVICE[d.status][0], DEVICE[d.status][1]),
           d.status === "active" ? badge(d.online ? "متصل" : "غير متصل", d.online ? "" : "gray") : null,
-          d.pair_expired ? badge("انتهت صلاحية الرابط", "red") : null),
+          d.pair_expired ? badge("انتهت صلاحية الرابط", "red") : null,
+          d.outside ? badge(`بعيد عن البوابة ${d.distance_m} م`, "red") : null),
         h("small", { class: "sub" }, [d.gate_name, d.last_seen_at ? `آخر ظهور ${fmtDateTime(d.last_seen_at)}` : "لم يتصل بعد", fp(d),
           d.pending_events ? `${d.pending_events} مسح بانتظار الإرسال` : null,
           d.clock_skew_ms && Math.abs(d.clock_skew_ms) > 120000 ? `ساعة الجهاز مختلفة ${Math.round(d.clock_skew_ms / 60000)} دقيقة` : null].filter(Boolean).join(" · ")),
@@ -179,20 +183,36 @@ export async function gateView({ me }) {
         d.status === "disabled" ? act(d, "enable", ["تفعيل", "فُعّل الجهاز"]) : null,
         newLink(d),
         act(d, "revoke", ["إلغاء", "أُلغي الجهاز"], `إلغاء «${d.name}» نهائيًا؟ يتوقف فورًا.`)));
-    const gateRow = (g) => h("div", { class: "line" }, h("div", {}, h("b", {}, g.name), sub(`${g.devices} جهاز${g.is_active ? "" : " · موقوفة"}`)),
-      btn("تعديل", () => {
-        const name = input({ value: g.name, maxLength: 60 });
-        const d = dialog("تعديل البوابة", field("الاسم", name), [btn("حفظ", async () => {
-          try { await api(`${G()}/gates/${g.id}`, { name: name.value.trim() }, "PATCH"); d.close(); show("devices"); } catch (e) { toast(e.message, true); }
-        })]);
-      }, "ghost sm"));
-    const addGate = btn("+ بوابة", () => {
-      const name = input({ placeholder: "مثال: البوابة الشرقية", maxLength: 60 });
-      const d = dialog("بوابة جديدة", field("الاسم", name), [btn("إضافة", async () => {
-        try { await api(`${G()}/gates`, { name: name.value.trim() }); d.close(); show("devices"); } catch (e) { toast(e.message, true); }
+    const gateDialog = (g) => {
+      const name = input({ value: g?.name || "", placeholder: "مثال: البوابة الشرقية", maxLength: 60 });
+      const dir = select(Object.entries(DIRECTION), {});
+      dir.value = g?.direction || "in";
+      const lat = input({ type: "number", step: "0.000001", value: g?.geo_lat ?? "", placeholder: "خط العرض", dir: "ltr" });
+      const lng = input({ type: "number", step: "0.000001", value: g?.geo_lng ?? "", placeholder: "خط الطول", dir: "ltr" });
+      const rad = input({ type: "number", min: 50, max: 5000, value: g?.geo_radius_m ?? 200, dir: "ltr" });
+      const here = btn("استخدم موقعي الحالي", () => {
+        if (!navigator.geolocation) return toast("الموقع غير متاح في هذا المتصفح", true);
+        navigator.geolocation.getCurrentPosition((p) => { lat.value = p.coords.latitude.toFixed(6); lng.value = p.coords.longitude.toFixed(6); toast("حُدد الموقع"); },
+          () => toast("لم يُسمح بالموقع", true), { enableHighAccuracy: true, timeout: 15000 });
+      }, "ghost sm");
+      const d = dialog(g ? "تعديل البوابة" : "بوابة جديدة", h("div", {},
+        field("الاسم", name), field("نوع البوابة", dir, "بوابة «دخول وانصراف» تُظهر للحارس زر التبديل بينهما."),
+        h("b", {}, "موقع البوابة (اختياري)"),
+        sub("إن حددته وفعّلت «التحقق من الموقع» في الإعدادات، يُنبَّه على المسح من جهاز بعيد عن البوابة."),
+        h("div", { class: "row" }, lat, lng, field("نصف القطر بالمتر", rad)), here),
+      [btn("حفظ", async () => {
+        const geo = lat.value && lng.value ? { lat: Number(lat.value), lng: Number(lng.value), radius_m: Number(rad.value) || 200 } : null;
+        try {
+          await api(g ? `${G()}/gates/${g.id}` : `${G()}/gates`, { name: name.value.trim(), direction: dir.value, geo }, g ? "PATCH" : "POST");
+          d.close(); show("devices");
+        } catch (e) { toast(e.message, true); }
       })]);
       name.focus();
-    }, "ghost sm");
+    };
+    const gateRow = (g) => h("div", { class: "line" }, h("div", {}, h("b", {}, g.name),
+      sub([`${g.devices} جهاز`, DIRECTION[g.direction], g.geo_lat !== null ? `الموقع محدد (${g.geo_radius_m} م)` : null, g.is_active ? null : "موقوفة"].filter(Boolean).join(" · "))),
+    btn("تعديل", () => gateDialog(g), "ghost sm"));
+    const addGate = btn("+ بوابة", () => gateDialog(null), "ghost sm");
     const live = devices.filter((d) => d.status !== "revoked");
     return [
       panel("أجهزة الحراس", btn("+ إضافة جهاز للحارس", addDevice, "sm"),
@@ -218,6 +238,13 @@ export async function gateView({ me }) {
           h("div", { class: "ac-grid" }, d.cards.map((c) => h("div", { class: "ac-item" }, attendanceCard(d.school, c),
             h("div", { class: "row" },
               btn("طباعة", () => printCards(d.school, [c]), "ghost sm"),
+              "NDEFReader" in window ? btn("كتابة على شريحة NFC", async () => {
+                try {
+                  toast("قرّب الشريحة من الجوال…");
+                  await new window.NDEFReader().write({ records: [{ recordType: "url", data: c.qr }] });
+                  toast(`كُتبت شريحة ${c.name}`);
+                } catch (e) { toast(`تعذّرت الكتابة: ${e.message}`, true); }
+              }, "ghost sm") : null,
               btn("إصدار بطاقة جديدة", async () => {
                 const why = window.prompt(`سبب إصدار بطاقة جديدة لـ ${c.name} (البطاقة الحالية ستتوقف فورًا):`, "فُقدت البطاقة");
                 if (why === null) return;
@@ -242,7 +269,14 @@ export async function gateView({ me }) {
     const f = { open_at: t("open_at"), late_after: t("late_after"), close_at: t("close_at"), absence_notify_at: t("absence_notify_at") };
     const toggles = [["notify_present", "إشعار ولي الأمر عند الوصول"], ["notify_late", "إشعار التأخر (مع عدد الدقائق)"],
       ["notify_absent", "إشعار الغياب بعد الاعتماد"], ["auto_finalize", "اعتماد الغياب تلقائيًا في وقت الإشعار إن لم يراجعه أحد"],
+      ["notify_departure", "إشعار ولي الأمر عند الانصراف (بوابات الانصراف)"],
+      ["teacher_can_edit", "المعلم يعدّل ما سجلته البوابة في فصوله"], ["teacher_can_excuse", "المعلم يضيف عذرًا أو ملاحظة على الغياب والتأخر"],
       ["legacy_cards", "قبول بطاقات ولي الأمر القديمة مؤقتًا (فترة انتقالية)"]];
+    const locMode = select([["off", "بلا تحقق"], ["flag", "تعليم المسح المخالف للمراجعة"], ["block", "رفض المسح المخالف"]]);
+    locMode.value = s.location_mode;
+    const nets = input({ value: s.allowed_networks || "", placeholder: "مثال: 82.114.160.0/24, 37.236.12.5", dir: "ltr" });
+    const offMin = input({ type: "number", min: 3, max: 120, value: s.device_offline_alert_min, dir: "ltr" });
+    const stageHours = await api(`${G()}/stage-hours`);
     const vals = { ...s };
     const sw = toggles.map(([k, label]) => h("div", { class: "line" }, h("b", {}, label),
       switchBtn(Boolean(vals[k]), label, async () => { vals[k] = !vals[k]; return true; })));
@@ -258,13 +292,33 @@ export async function gateView({ me }) {
           field("يُغلق تسجيل الحضور", f.close_at), field("وقت إشعار الغياب (بعد الاعتماد)", f.absence_notify_at)),
         sub("قبل البداية وبعد الإغلاق لا يُقبل أي مسح. بعد الإغلاق يظهر «لم يسجل حضور» للمراجعة، ولا يصل إشعار غياب قبل اعتمادك."),
         ...sw,
+        h("h3", { class: "sec-title" }, "الحماية من التسجيل خارج المدرسة"),
+        h("div", { class: "row" }, field("التحقق من الشبكة والموقع", locMode), field("تنبيه انقطاع جهاز البوابة بعد (دقيقة)", offMin)),
+        field("شبكات المدرسة المسموحة (اختياري)", nets, "عنوان الإنترنت لشبكة المدرسة. المسح المباشر من شبكة أخرى يُعلَّم أو يُرفض. موقع كل بوابة يُحدَّد من «البوابات والأجهزة»."),
         btn("حفظ", async () => {
           try {
             await api(`${G()}/settings`, { ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])),
-              ...Object.fromEntries(toggles.map(([k]) => [k, Boolean(vals[k])])) }, "PUT");
+              ...Object.fromEntries(toggles.map(([k]) => [k, Boolean(vals[k])])),
+              location_mode: locMode.value, allowed_networks: nets.value.trim(), device_offline_alert_min: Number(offMin.value) || 10 }, "PUT");
             toast("حُفظت الإعدادات");
           } catch (e) { toast(e.message, true); }
         })),
+      panel("أوقات خاصة لكل مرحلة", null,
+        sub("إن كان لمرحلة دوام مختلف (مثلًا رياض الأطفال تبدأ متأخرة)، حدد أوقاتها هنا. المراحل بلا أوقات خاصة تتبع الأوقات العامة."),
+        stageHours.length ? stageHours.map((st) => {
+          const o = input({ type: "time", value: st.open_at || s.open_at }), l = input({ type: "time", value: st.late_after || s.late_after }),
+            c = input({ type: "time", value: st.close_at || s.close_at });
+          return h("div", { class: "gate-stage" }, h("b", {}, st.name), badge(st.open_at ? "أوقات خاصة" : "الأوقات العامة", st.open_at ? "" : "gray"),
+            h("div", { class: "row" }, field("البداية", o), field("التأخر بعد", l), field("الإغلاق", c)),
+            h("div", { class: "row" },
+              btn("حفظ", async () => {
+                try { await api(`${G()}/stage-hours`, { stage_id: st.stage_id, open_at: o.value, late_after: l.value, close_at: c.value }, "PUT"); toast("حُفظ"); show("settings"); }
+                catch (e) { toast(e.message, true); }
+              }, "sm"),
+              st.open_at ? btn("العودة للأوقات العامة", async () => {
+                try { await api(`${G()}/stage-hours/${st.stage_id}`, undefined, "DELETE"); show("settings"); } catch (e) { toast(e.message, true); }
+              }, "ghost sm") : null));
+        }) : empty("لا توجد مراحل.")),
       panel("يوم استثنائي", null,
         sub("أيام الإجازات من التقويم لا يُسجَّل فيها حضور تلقائيًا. هنا تضبط يومًا بأوقات مختلفة أو بلا حضور."),
         h("div", { class: "row" }, field("اليوم", dayDate), field("النوع", mode)), times, note,
@@ -276,6 +330,59 @@ export async function gateView({ me }) {
           } catch (e) { toast(e.message, true); }
         }, "sm")),
     ];
+  }
+
+  /* ---------- السجلات (تصفية) ---------- */
+  async function recordsView() {
+    const F = await api(`${G()}/filters`);
+    const dateIn = input({ type: "date", value: date, max: today() });
+    const opt = (list, all) => [["", all], ...list.map((x) => [String(x.id), x.name])];
+    const stage = select(opt(F.stages, "كل المراحل")), grade = select(opt(F.grades, "كل الصفوف")), cls = select(opt(F.classes, "كل الشعب"));
+    const gateSel = select(opt(F.gates, "كل البوابات"));
+    const status = select([["", "كل الحالات"], ["unrecorded", "لم يسجل حضور"], ...Object.entries(ATTENDANCE).map(([k, v]) => [k, v[0]])]);
+    const source = select([["", "كل المصادر"], ...Object.entries(SOURCE)]);
+    const from = input({ type: "time" }), to = input({ type: "time" });
+    const qName = input({ placeholder: "اسم الطالب", maxLength: 60 });
+    const offline = h("input", { type: "checkbox" });
+    const out = h("div");
+    // الصفوف والشعب حسب المرحلة والصف المختارين
+    const narrow = () => {
+      for (const o of grade.options) o.hidden = Boolean(o.value && stage.value && String(F.grades.find((g) => String(g.id) === o.value)?.stage_id) !== stage.value);
+      for (const o of cls.options) {
+        const g = F.grades.find((x) => String(x.id) === String(F.classes.find((c) => String(c.id) === o.value)?.grade_id));
+        o.hidden = Boolean(o.value && ((grade.value && String(g?.id) !== grade.value) || (stage.value && String(g?.stage_id) !== stage.value)));
+      }
+    };
+    const load = async () => {
+      narrow();
+      date = dateIn.value || today(); userDate = true;
+      const p = new URLSearchParams({ date });
+      for (const [k, el] of [["stage_id", stage], ["grade_id", grade], ["class_id", cls], ["gate_id", gateSel], ["status", status], ["source", source], ["from", from], ["to", to], ["q", qName]]) {
+        if (el.value.trim()) p.set(k, el.value.trim());
+      }
+      if (offline.checked) p.set("offline", "1");
+      mount(out, empty("جارٍ التحميل…"));
+      try {
+        const rows = await api(`${G()}/records?${p}`);
+        mount(out, h("p", { class: "sub" }, `${rows.length} طالب`), rows.length ? h("div", { class: "table-wrap" }, h("table", { class: "grid gate-records" },
+          h("thead", {}, h("tr", {}, ["الطالب", "الشعبة", "الحالة", "الوصول", "البوابة", "الانصراف", "المصدر"].map((t) => h("th", {}, t)))),
+          h("tbody", {}, rows.map((r) => h("tr", {},
+            h("td", {}, h("b", {}, r.name)), h("td", {}, r.class_name || "—"),
+            h("td", {}, r.status ? badge(`${ATTENDANCE[r.status]?.[0] || r.status}${r.minutes_late ? ` ${r.minutes_late} د` : ""}`, r.status === "absent" ? "red" : r.status === "late" ? "amber" : r.status === "present" ? "" : "gray") : badge("لم يسجل", "amber")),
+            h("td", {}, r.in_time || "—", r.offline ? h("small", { class: "sub" }, " (بدون اتصال)") : null),
+            h("td", {}, r.gate_name || "—"), h("td", {}, r.out_time ? `${r.out_time}${r.out_gate_name ? ` · ${r.out_gate_name}` : ""}` : "—"),
+            h("td", {}, SOURCE[r.source] || "—")))))) : empty("لا توجد سجلات بهذه التصفية."));
+      } catch (e) { mount(out, notice(e.message, "err")); }
+    };
+    for (const el of [dateIn, stage, grade, cls, gateSel, status, source, from, to, offline]) el.addEventListener("change", load);
+    let t;
+    qName.addEventListener("input", () => { clearTimeout(t); t = setTimeout(load, 350); });
+    load();
+    return panel("السجلات", null,
+      h("div", { class: "gate-filters" }, field("اليوم", dateIn), field("المرحلة", stage), field("الصف", grade), field("الشعبة", cls),
+        field("البوابة", gateSel), field("الحالة", status), field("المصدر", source), field("وصل من", from), field("إلى", to), field("بحث", qName),
+        h("label", { class: "check" }, offline, h("span", {}, "المسجّل بدون اتصال فقط"))),
+      out);
   }
 
   /* ---------- المشبوه والتعديلات ---------- */
@@ -303,7 +410,7 @@ export async function gateView({ me }) {
     ];
   }
 
-  const VIEWS = { day: dayView, devices: devicesView, cards: cardsView, settings: settingsView, review: reviewView };
+  const VIEWS = { day: dayView, records: recordsView, devices: devicesView, cards: cardsView, settings: settingsView, review: reviewView };
   await show();
   return [chips, box];
 }

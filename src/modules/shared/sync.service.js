@@ -10,6 +10,7 @@ import { z, t } from "../../core/http/validate.js";
 import { AppError, badRequest, forbidden, notFound } from "../../core/http/errors.js";
 import * as attendance from "./attendance.service.js";
 import * as exams from "./exams.service.js";
+import { featureSettings } from "./feature-settings.service.js";
 
 const ATTENDANCE_DAYS = 30;           // الحضور المحفوظ على الجهاز: آخر 30 يومًا فقط
 export const CHANGES_RETENTION_DAYS = 30;
@@ -29,7 +30,7 @@ export async function bootstrap(q, teacherId) {
   const students = await q(
     `SELECT id, full_name AS name, class_id FROM students WHERE class_id = ANY($1::bigint[]) AND status = 'active' ORDER BY full_name`, [classes]);
   const att = await q(
-    `SELECT a.student_id, a.day, a.status, a.version FROM attendance a JOIN students s ON s.id = a.student_id
+    `SELECT a.student_id, a.day, a.status, a.version, a.source, a.first_in_at, a.minutes_late FROM attendance a JOIN students s ON s.id = a.student_id
       WHERE s.class_id = ANY($1::bigint[]) AND a.day > CURRENT_DATE - $2::int`, [classes, ATTENDANCE_DAYS]);
   const ex = await q(
     `SELECT e.id, e.title, e.class_id, e.subject_id, e.max_score, e.status, e.exam_date FROM exams e
@@ -39,7 +40,8 @@ export async function bootstrap(q, teacherId) {
     `SELECT exam_id, student_id, score, version FROM scores WHERE exam_id = ANY($1::bigint[])`, [ex.map((e) => e.id)]) : [];
   return { cursor: Number(cursor), load, students, attendance: att.map(fmtAtt), exams: ex, scores: sc, attendance_days: ATTENDANCE_DAYS };
 }
-const fmtAtt = (r) => ({ student_id: Number(r.student_id), day: iso(r.day), status: r.status, version: r.version });
+const fmtAtt = (r) => ({ student_id: Number(r.student_id), day: iso(r.day), status: r.status, version: r.version,
+  source: r.source, first_in_at: r.first_in_at, minutes_late: r.minutes_late });
 const iso = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
 
 /* ======================= التغييرات منذ آخر نقطة ======================= */
@@ -64,7 +66,7 @@ export async function changes(q, teacherId, { since, limit }) {
   if (att.length) {
     const pairs = att.map((r) => r.entity_key.split("|"));
     const found = await q(
-      `SELECT a.student_id, a.day, a.status, a.version FROM attendance a
+      `SELECT a.student_id, a.day, a.status, a.version, a.source, a.first_in_at, a.minutes_late FROM attendance a
         JOIN unnest($1::bigint[], $2::date[]) AS k(sid, d) ON a.student_id = k.sid AND a.day = k.d`,
       [pairs.map((p) => p[0]), pairs.map((p) => p[1])]);
     const have = new Set(found.map((r) => `${r.student_id}|${iso(r.day)}`));
@@ -187,7 +189,8 @@ async function applyAttendance(q, ctx, op, { force = false } = {}) {
   // نفس دالة شاشة الحضور: صلاحية الفصل، ومنع التاريخ المستقبلي، وسبب التعديل
   await attendance.mark(q, { date: p.day, reason: cur ? (p.reason || "تعديل تمت مزامنته من جهاز المعلم") : null,
     entries: [{ student_id: p.student_id, status: p.status, excuse: p.excuse ?? undefined }] }, {
-    actor: ctx.actor, allowedClass: (classId) => classId !== null && teaches(q, ctx.teacherId, classId) });
+    actor: ctx.actor, allowedClass: (classId) => classId !== null && teaches(q, ctx.teacherId, classId), source: "teacher",
+    lockGate: !(await featureSettings(q, "gate")).teacher_can_edit });
   const [now] = await q("SELECT version FROM attendance WHERE student_id = $1 AND day = $2", [p.student_id, p.day]);
   return { status: "applied", classId: st.class_id, result: { version: now.version } };
 }

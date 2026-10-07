@@ -126,6 +126,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
         h("div", { class: "s-present" }, h("b", {}, count("present")), "حاضر"), h("div", { class: "s-absent" }, h("b", {}, count("absent")), "غائب"),
         h("div", { class: "s-late" }, h("b", {}, count("late")), "متأخر"), h("div", { class: "s-excused" }, h("b", {}, count("excused")), "بعذر"),
         h("div", { class: "s-rate" }, h("b", {}, rate === null ? "—" : `${rate}%`), "نسبة الحضور")),
+      monthly(),
       h("div", { class: "xb-chips" }, FILTERS.map(([k, label]) => h("button", { type: "button", class: `xb-chip${k === attFilter ? " on" : ""}`,
         onclick: () => { attFilter = k; open("attendance", true); } }, label))),
       canExcuse && d.attendance.some((a) => a.can_excuse && !a.parent_excuse_state) ? sub("تستطيع إرسال عذر عن أي غياب أو تأخر خلال آخر 30 يومًا، وتراجعه الإدارة.") : null,
@@ -141,6 +142,27 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
           canExcuse && a.can_excuse && a.parent_excuse_state !== "pending"
             ? btn(a.parent_excuse_state === "rejected" ? "إعادة إرسال عذر" : "إرسال عذر", () => excuseDialog(a), "ghost sm") : null))))
         : empty(recorded ? "لا توجد أيام بهذا التصنيف." : "لا توجد سجلات حضور بعد."));
+  }
+  // إحصاءات كل شهر: أيام الحضور، الغياب، التأخر، النسبة، ومتوسط التأخر بالدقائق
+  function monthly() {
+    const by = new Map();
+    for (const a of d.attendance) {
+      const m = a.day.slice(0, 7);
+      if (!by.has(m)) by.set(m, { present: 0, late: 0, absent: 0, excused: 0, other: 0, lateMin: [] });
+      const x = by.get(m);
+      if (a.status in x && a.status !== "other") x[a.status]++; else x.other++;
+      if (a.status === "late" && a.minutes_late) x.lateMin.push(a.minutes_late);
+    }
+    if (by.size < 1) return null;
+    const name = (m) => new Date(`${m}-01T12:00:00`).toLocaleDateString("ar", { month: "long", year: "numeric" });
+    return h("div", { class: "table-wrap att-monthly" }, h("table", { class: "grid" },
+      h("thead", {}, h("tr", {}, ["الشهر", "حضور", "غياب", "تأخر", "متوسط التأخر", "نسبة الحضور"].map((t) => h("th", {}, t)))),
+      h("tbody", {}, [...by].sort((a, b) => b[0].localeCompare(a[0])).map(([m, x]) => {
+        const base = x.present + x.late + x.absent;
+        return h("tr", {}, h("td", {}, name(m)), h("td", {}, x.present + x.late), h("td", {}, x.absent), h("td", {}, x.late),
+          h("td", {}, x.lateMin.length ? `${Math.round(x.lateMin.reduce((n, v) => n + v, 0) / x.lateMin.length)} د` : "—"),
+          h("td", {}, base ? `${Math.round(((x.present + x.late) / base) * 100)}%` : "—"));
+      }))));
   }
   async function cardDialog() {
     try {

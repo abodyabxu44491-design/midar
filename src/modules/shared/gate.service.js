@@ -8,6 +8,7 @@
 //   4) سجل حضور واحد لكل طالب في اليوم. حاضر حتى وقت التأخر، متأخر بعده (بعدد الدقائق)، ولا تسجيل خارج النافذة.
 //   5) بعد الإغلاق: «لم يسجل حضور» قائمة محسوبة (لا غياب بعد) ← مراجعة واستثناءات ← اعتماد الغياب ← إشعار ولي الأمر.
 import crypto from "node:crypto";
+import net from "node:net";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, conflict, notFound, unauthorized } from "../../core/http/errors.js";
 import { sealSecret, openSecret } from "../../core/auth/secret-box.js";
@@ -130,19 +131,54 @@ function legacyKey(k) {
 }
 
 /* ======================= الإعدادات ونافذة اليوم ======================= */
-export async function windowFor(q, day) {
+/**
+ * نافذة الحضور ليوم: اليوم الاستثنائي (أوقات خاصة) يتقدم على أوقات المرحلة، وأوقات المرحلة تتقدم على العامة.
+ * stageId = null: نافذة المدرسة كلها (أبكر بداية وآخر إغلاق بين المراحل) — للمتابعة والإغلاق.
+ */
+export async function windowFor(q, day, stageId = null) {
   const s = await featureSettings(q, "gate");
   const [d] = await q(
     `SELECT mode, state, to_char(open_at, 'HH24:MI') AS open_at, to_char(late_after, 'HH24:MI') AS late_after,
             to_char(close_at, 'HH24:MI') AS close_at, finalized_by, finalized_at, absent_count, absence_notified_at, note
        FROM attendance_days WHERE day = $1`, [day]);
   const custom = d?.mode === "custom_hours";
+  let w = custom ? { open_at: d.open_at, late_after: d.late_after, close_at: d.close_at }
+    : { open_at: s.open_at, late_after: s.late_after, close_at: s.close_at };
+  if (!custom) {
+    const stages = await q(`SELECT stage_id, to_char(open_at, 'HH24:MI') AS open_at, to_char(late_after, 'HH24:MI') AS late_after,
+                                   to_char(close_at, 'HH24:MI') AS close_at FROM attendance_stage_hours`);
+    const own = stageId ? stages.find((x) => Number(x.stage_id) === Number(stageId)) : null;
+    if (own) w = { open_at: own.open_at, late_after: own.late_after, close_at: own.close_at };
+    else if (!stageId && stages.length) {
+      w = { ...w, open_at: [w.open_at, ...stages.map((x) => x.open_at)].sort()[0],
+        close_at: [w.close_at, ...stages.map((x) => x.close_at)].sort().at(-1) };
+    }
+  }
   return {
-    open_at: custom ? d.open_at : s.open_at, late_after: custom ? d.late_after : s.late_after, close_at: custom ? d.close_at : s.close_at,
-    mode: d?.mode || "normal", state: d?.state || "open", note: d?.note || null,
+    ...w, mode: d?.mode || "normal", state: d?.state || "open", note: d?.note || null,
     finalized_by: d?.finalized_by || null, finalized_at: d?.finalized_at || null, absent_count: d?.absent_count ?? null,
     absence_notified_at: d?.absence_notified_at || null, settings: s,
   };
+}
+export const stageHoursBody = z.object({ stage_id: t.id,
+  open_at: z.string().regex(/^\d\d:\d\d$/), late_after: z.string().regex(/^\d\d:\d\d$/), close_at: z.string().regex(/^\d\d:\d\d$/) });
+export async function listStageHours(q) {
+  return q(`SELECT st.id AS stage_id, st.name, to_char(h.open_at, 'HH24:MI') AS open_at, to_char(h.late_after, 'HH24:MI') AS late_after,
+                   to_char(h.close_at, 'HH24:MI') AS close_at
+              FROM stages st LEFT JOIN attendance_stage_hours h ON h.stage_id = st.id ORDER BY st.sort_order, st.id`);
+}
+export async function setStageHours(q, b) {
+  if (!(b.open_at <= b.late_after && b.late_after < b.close_at)) throw badRequest("الأوقات: البداية ≤ وقت التأخر < الإغلاق");
+  const [st] = await q("SELECT id FROM stages WHERE id = $1", [b.stage_id]);
+  if (!st) throw notFound("المرحلة غير موجودة");
+  await q(`INSERT INTO attendance_stage_hours (tenant_id, stage_id, open_at, late_after, close_at) VALUES (app_tenant(), $1, $2, $3, $4)
+           ON CONFLICT (tenant_id, stage_id) DO UPDATE SET open_at = EXCLUDED.open_at, late_after = EXCLUDED.late_after, close_at = EXCLUDED.close_at`,
+  [b.stage_id, b.open_at, b.late_after, b.close_at]);
+  return { ok: true };
+}
+export async function clearStageHours(q, stageId) {
+  await q("DELETE FROM attendance_stage_hours WHERE stage_id = $1", [stageId]);
+  return { ok: true };
 }
 /** مرحلة اليوم الآن: قبل البداية، مفتوح، مغلق (بانتظار المراجعة)، معتمد */
 const phaseOf = (win, hm, isToday, isPast) => {
@@ -158,21 +194,32 @@ const sha = (v) => crypto.createHash("sha256").update(String(v)).digest();
 const sameHash = (a, b) => Boolean(a && b && a.length === b.length && crypto.timingSafeEqual(a, b));
 export const PAIR_HOURS = 24;
 
-export const gateBody = z.object({ name: z.string().trim().min(2).max(60), location: t.optText(120), is_active: z.boolean().optional() });
+export const gateBody = z.object({ name: z.string().trim().min(2).max(60), location: t.optText(120), is_active: z.boolean().optional(),
+  direction: z.enum(["in", "out", "both"]).optional(),
+  geo: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), radius_m: z.number().int().min(50).max(5000) }).nullable().optional() });
 export const deviceBody = z.object({ name: z.string().trim().min(2).max(60), gate_id: t.id });
 
 export async function listGates(q) {
-  return q(`SELECT g.id, g.name, g.location, g.is_active,
+  return q(`SELECT g.id, g.name, g.location, g.is_active, g.direction, g.geo_lat, g.geo_lng, g.geo_radius_m,
                    (SELECT count(*)::int FROM gate_devices d WHERE d.gate_id = g.id AND d.status IN ('active', 'pending', 'pairing')) AS devices
               FROM gates g ORDER BY g.id`);
 }
 export async function saveGate(q, id, b) {
+  const geo = b.geo === undefined ? undefined : b.geo;
   if (id) {
-    const [g] = await q("UPDATE gates SET name = $2, location = $3, is_active = COALESCE($4, is_active) WHERE id = $1 RETURNING id", [id, b.name, b.location ?? null, b.is_active ?? null]);
+    const [g] = await q(
+      `UPDATE gates SET name = $2, location = $3, is_active = COALESCE($4, is_active), direction = COALESCE($5, direction),
+              geo_lat = CASE WHEN $6 THEN $7 ELSE geo_lat END, geo_lng = CASE WHEN $6 THEN $8 ELSE geo_lng END,
+              geo_radius_m = CASE WHEN $6 THEN $9 ELSE geo_radius_m END
+        WHERE id = $1 RETURNING id`,
+      [id, b.name, b.location ?? null, b.is_active ?? null, b.direction ?? null, geo !== undefined, geo?.lat ?? null, geo?.lng ?? null, geo?.radius_m ?? null]);
     if (!g) throw notFound("البوابة غير موجودة");
     return g;
   }
-  const [g] = await q("INSERT INTO gates (tenant_id, name, location) VALUES (app_tenant(), $1, $2) ON CONFLICT (tenant_id, name) DO NOTHING RETURNING id", [b.name, b.location ?? null]);
+  const [g] = await q(
+    `INSERT INTO gates (tenant_id, name, location, direction, geo_lat, geo_lng, geo_radius_m) VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)
+     ON CONFLICT (tenant_id, name) DO NOTHING RETURNING id`,
+    [b.name, b.location ?? null, b.direction || "in", geo?.lat ?? null, geo?.lng ?? null, geo?.radius_m ?? null]);
   if (!g) throw conflict("توجد بوابة بهذا الاسم");
   return g;
 }
@@ -196,7 +243,8 @@ export async function listDevices(q) {
   const rows = await q(
     `SELECT d.id, d.public_id, d.name, d.status, d.gate_id, g.name AS gate_name, d.fingerprint, d.app_version,
             d.last_seen_at, d.last_sync_at, d.clock_skew_ms, d.pending_events, d.pair_expires_at, d.created_by, d.approved_by, d.approved_at,
-            d.created_at, host(d.last_ip) AS last_ip
+            d.created_at, host(d.last_ip) AS last_ip, d.geo_lat, d.geo_lng, d.geo_accuracy_m, d.geo_at,
+            g.geo_lat AS gate_lat, g.geo_lng AS gate_lng, g.geo_radius_m
        FROM gate_devices d JOIN gates g ON g.id = d.gate_id
       WHERE d.status <> 'revoked' OR d.updated_at > now() - interval '30 days'
       ORDER BY d.status = 'revoked', d.id`);
@@ -204,6 +252,9 @@ export async function listDevices(q) {
   for (const d of rows) {
     d.online = Boolean(d.last_seen_at && now - new Date(d.last_seen_at).getTime() < ONLINE_MS);
     d.pair_expired = d.status === "pairing" && (!d.pair_expires_at || new Date(d.pair_expires_at) < new Date());
+    d.distance_m = d.gate_lat !== null && d.geo_lat !== null ? Math.round(distanceM(d.gate_lat, d.gate_lng, d.geo_lat, d.geo_lng)) : null;
+    d.outside = d.distance_m !== null && d.distance_m > d.geo_radius_m + Math.min(d.geo_accuracy_m || 0, 500);
+    for (const k of ["geo_lat", "geo_lng", "gate_lat", "gate_lng"]) delete d[k];
     delete d.pair_expires_at;
   }
   return rows;
@@ -284,7 +335,8 @@ export async function pair(q, b, { ip }) {
 export async function authDevice(q, publicId, secret) {
   if (!publicId || !secret) throw unauthorized("جهاز غير معروف");
   const [d] = await q(
-    `SELECT d.id, d.public_id, d.name, d.status, d.gate_id, d.secret_hash, g.name AS gate_name, g.is_active AS gate_active
+    `SELECT d.id, d.public_id, d.name, d.status, d.gate_id, d.secret_hash, g.name AS gate_name, g.is_active AS gate_active,
+            g.direction, g.geo_lat AS gate_lat, g.geo_lng AS gate_lng, g.geo_radius_m, d.geo_lat, d.geo_lng, d.geo_accuracy_m, d.geo_at
        FROM gate_devices d JOIN gates g ON g.id = d.gate_id WHERE d.public_id = $1`, [publicId]);
   if (!d || !sameHash(d.secret_hash, sha(secret))) throw unauthorized("جهاز غير معروف أو أُلغي. اطلب رابطًا جديدًا من الإدارة.");
   delete d.secret_hash;
@@ -294,6 +346,7 @@ export async function authDevice(q, publicId, secret) {
 export const heartbeatBody = z.object({
   client_ts: z.coerce.number().int().positive().optional(), app_version: z.string().max(40).optional(),
   pending: z.coerce.number().int().min(0).max(100000).optional(),
+  geo: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracy: z.number().min(0).max(100000) }).optional(),
 });
 /** نبض الجهاز: الحالة، ووقت الخادم (لتصحيح ساعة الجهاز)، ونافذة اليوم، وعداد البوابة */
 export async function heartbeat(q, device, b, { ip }) {
@@ -303,20 +356,94 @@ export async function heartbeat(q, device, b, { ip }) {
                   clock_skew_ms = COALESCE($4, clock_skew_ms), pending_events = COALESCE($5, pending_events),
                   last_sync_at = CASE WHEN $5 = 0 THEN now() ELSE last_sync_at END WHERE id = $1`,
   [device.id, ip || null, b.app_version || null, skew === null ? null : Math.max(-2e9, Math.min(2e9, skew)), b.pending ?? null]);
+  if (b.geo) {
+    await q("UPDATE gate_devices SET geo_lat = $2, geo_lng = $3, geo_accuracy_m = $4, geo_at = now() WHERE id = $1",
+      [device.id, b.geo.lat, b.geo.lng, Math.round(b.geo.accuracy)]);
+    Object.assign(device, { geo_lat: b.geo.lat, geo_lng: b.geo.lng, geo_accuracy_m: Math.round(b.geo.accuracy), geo_at: now });
+  }
   const { timezone } = await getQuiet(q);
   const { day, hm } = local(now, timezone);
   const [school] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
-  const out = { status: device.status, device: device.name, gate: device.gate_name, school: school?.name || "", server_time: now.getTime(), day };
+  const out = { status: device.status, device: device.name, gate: device.gate_name, school: school?.name || "", server_time: now.getTime(), day, timezone };
   if (device.status !== "active") return out;
   const win = await windowFor(q, day);
   const ds = await dayStatus(q, day);
   const [{ n }] = await q("SELECT count(*)::int AS n FROM attendance WHERE day = $1 AND first_in_at IS NOT NULL AND gate_id = $2", [day, device.gate_id]);
   const [{ all }] = await q("SELECT count(*)::int AS all FROM attendance WHERE day = $1 AND first_in_at IS NOT NULL", [day]);
+  const s = win.settings;
+  const place = await placeCheck(q, device, s, { ip, offline: false });
   return { ...out, window: { open_at: win.open_at, late_after: win.late_after, close_at: win.close_at },
-    phase: noSchool(ds, win) ? "no_school" : phaseOf(win, hm, true, false), no_school_reason: noSchool(ds, win), count_gate: n, count_all: all };
+    phase: noSchool(ds, win) ? "no_school" : phaseOf(win, hm, true, false), no_school_reason: noSchool(ds, win), count_gate: n, count_all: all,
+    direction: device.direction, roster_version: await rosterVersion(q),
+    want_location: s.location_mode !== "off" && device.gate_lat !== null && device.gate_lat !== undefined,
+    place_warning: place ? REASONS[place] : null };
 }
 const noSchool = (ds, win) => (win.mode === "no_attendance" ? (win.note || "لا يُسجل حضور اليوم")
   : ds.holiday ? `إجازة: ${ds.holiday.name}` : !ds.study_day ? "ليس يوم دراسة" : null);
+
+/* ======================= قائمة الجهاز (للعمل بلا اتصال) ======================= */
+// الجهاز يحفظ بصمات الرموز فقط (لا يمكن صنع بطاقة منها) مع الاسم والشعبة، فيعرف الطالب ويقرر وهو بلا اتصال.
+// لا جوالات ولا صور ولا بيانات أولياء أمور.
+export async function rosterVersion(q) {
+  const [r] = await q(
+    `SELECT md5(concat_ws('|', (SELECT max(id) FROM attendance_credentials), (SELECT count(*) FROM attendance_credentials WHERE status = 'active'),
+            (SELECT max(updated_at) FROM students), (SELECT max(updated_at) FROM classes))) AS v`);
+  return r.v.slice(0, 16);
+}
+export async function roster(q) {
+  const rows = await q(
+    `SELECT encode(c.token_hash, 'hex') AS h, s.id AS sid, s.full_name AS name, cl.name AS cls, gr.stage_id AS stage
+       FROM attendance_credentials c JOIN students s ON s.id = c.student_id AND s.status = 'active' AND s.archived_at IS NULL
+       LEFT JOIN classes cl ON cl.id = s.class_id LEFT JOIN grades gr ON gr.id = cl.grade_id
+      WHERE c.status = 'active'`);
+  const stages = await q(`SELECT stage_id, to_char(open_at, 'HH24:MI') AS open_at, to_char(late_after, 'HH24:MI') AS late_after,
+                                 to_char(close_at, 'HH24:MI') AS close_at FROM attendance_stage_hours`);
+  return { version: await rosterVersion(q), students: rows, stage_hours: stages };
+}
+
+/* ---------- الحماية من التسجيل خارج المدرسة: الشبكة والموقع ---------- */
+const distanceM = (a1, o1, a2, o2) => {
+  const R = 6371000, rad = (x) => (Number(x) * Math.PI) / 180;
+  const d = Math.sin(rad(a2 - a1) / 2) ** 2 + Math.cos(rad(a1)) * Math.cos(rad(a2)) * Math.sin(rad(o2 - o1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(d));
+};
+export const parseNetworks = (txt) => String(txt || "").split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+/** قائمة شبكات المدرسة: عنوان مفرد أو نطاق (82.114.160.0/24). يرمي خطأ عند عنوان غير صالح */
+export function networkList(txt) {
+  const list = new net.BlockList();
+  for (const n of parseNetworks(txt)) {
+    const [addr, bits] = n.split("/");
+    const type = net.isIPv4(addr) ? "ipv4" : net.isIPv6(addr) ? "ipv6" : null;
+    if (!type) throw badRequest(`عنوان شبكة غير صحيح: ${n}`);
+    if (bits === undefined) list.addAddress(addr, type);
+    else {
+      const p = Number(bits);
+      if (!Number.isInteger(p) || p < 0 || p > (type === "ipv4" ? 32 : 128)) throw badRequest(`عنوان شبكة غير صحيح: ${n}`);
+      list.addSubnet(addr, p, type);
+    }
+  }
+  return list;
+}
+const ipInside = (list, ip) => {
+  const a = String(ip || "").replace(/^::ffff:/, "");
+  return net.isIPv4(a) ? list.check(a, "ipv4") : net.isIPv6(a) ? list.check(a, "ipv6") : true;
+};
+/** يعيد سبب المخالفة أو null: خارج شبكة المدرسة (للمسح المباشر) أو بعيد عن موقع البوابة */
+async function placeCheck(q, device, s, { ip, offline }) {
+  if (s.location_mode === "off") return null;
+  const nets = parseNetworks(s.allowed_networks);
+  if (nets.length && !offline && ip) {
+    let list;
+    try { list = networkList(s.allowed_networks); } catch { list = null; }
+    if (list && !ipInside(list, ip)) return "outside_network";
+  }
+  if (device.gate_lat !== null && device.gate_lat !== undefined && device.geo_lat !== null && device.geo_lat !== undefined
+      && device.geo_at && Date.now() - new Date(device.geo_at).getTime() < 3 * 3600_000) {
+    const d = distanceM(device.gate_lat, device.gate_lng, device.geo_lat, device.geo_lng);
+    if (d > device.geo_radius_m + Math.min(device.geo_accuracy_m || 0, 500)) return "outside_geofence";
+  }
+  return null;
+}
 
 /* ======================= معالجة المسح ======================= */
 export const REASONS = {
@@ -334,6 +461,9 @@ export const REASONS = {
   too_old: "المسح قديم جدًا ولم يُقبل",
   device_inactive: "الجهاز غير مفعّل",
   gate_inactive: "البوابة موقوفة",
+  outside_network: "الجهاز خارج شبكة المدرسة",
+  outside_geofence: "الجهاز بعيد عن موقع البوابة",
+  no_arrival: "لم يُسجَّل حضوره اليوم — لا يمكن تسجيل انصرافه",
 };
 const MAX_OFFLINE_HOURS = 12;
 export const scanBody = z.object({
@@ -342,6 +472,8 @@ export const scanBody = z.object({
   client_ts: z.coerce.number().int().positive().optional(),
   offline: z.boolean().default(false),
   skew_ms: z.coerce.number().int().min(-2e9).max(2e9).optional(),
+  direction: z.enum(["in", "out"]).default("in"),
+  source: z.enum(["qr", "nfc"]).default("qr"),
 });
 export const batchBody = z.object({ events: z.array(scanBody).min(1).max(200) });
 
@@ -355,6 +487,7 @@ async function eventResult(q, ev, tz) {
     student: s ? { id: s.id, name: s.name, class_name: s.class_name } : null,
     status: s?.status || null, minutes_late: s?.minutes_late ?? null,
     time: time12(new Date(ev.effective_ts), tz), offline: ev.offline, suspicious: ev.suspicious || null, day: ev.day,
+    direction: ev.direction || "in",
   };
 }
 
@@ -362,7 +495,7 @@ async function eventResult(q, ev, tz) {
  * مسح بطاقة من جهاز بوابة. يتحقق في الخادم من كل شيء (لا يعتمد على قرار الجهاز)،
  * ويحفظ الحدث دائمًا (حتى المرفوض)، ويكتب سجل الحضور مرة واحدة فقط في اليوم.
  */
-export async function processScan(q, device, ev, { school, actor }) {
+export async function processScan(q, device, ev, { school, actor, ip = null }) {
   const { timezone } = await getQuiet(q);
   const [done] = await q("SELECT * FROM attendance_events WHERE event_id = $1", [ev.event_id]);
   if (done) return { ...(await eventResult(q, done, timezone)), replay: true };
@@ -378,10 +511,17 @@ export async function processScan(q, device, ev, { school, actor }) {
   }
   const { day, hm } = local(effective, timezone);
   const settings = await featureSettings(q, "gate");
-  let student = null, credentialId = null, kind = "qr";
+  let student = null, credentialId = null, kind = ev.source === "nfc" ? "nfc" : "qr";
+  // الاتجاه حسب البوابة: بوابة دخول فقط أو انصراف فقط تفرض اتجاهها، و«الاثنين» تأخذ اختيار الحارس
+  const direction = device.direction === "out" ? "out" : device.direction === "both" ? (ev.direction || "in") : "in";
 
   if (!reason && device.status !== "active") reason = "device_inactive";
   if (!reason && !device.gate_active) reason = "gate_inactive";
+  if (!reason) {
+    const place = await placeCheck(q, device, settings, { ip, offline: ev.offline });
+    if (place && settings.location_mode === "block") reason = place;
+    else if (place) suspicious = place;
+  }
   if (!reason) {
     const p = parseCode(ev.code, school);
     if (p.error) reason = p.error;
@@ -404,8 +544,8 @@ export async function processScan(q, device, ev, { school, actor }) {
   }
   let st = null;
   if (student) {
-    [st] = await q(`SELECT s.id, s.full_name, s.status, s.archived_at, c.name AS class_name FROM students s
-                      LEFT JOIN classes c ON c.id = s.class_id WHERE s.id = $1`, [student]);
+    [st] = await q(`SELECT s.id, s.full_name, s.status, s.archived_at, c.name AS class_name, gr.stage_id FROM students s
+                      LEFT JOIN classes c ON c.id = s.class_id LEFT JOIN grades gr ON gr.id = c.grade_id WHERE s.id = $1`, [student]);
     if (!reason && (!st || st.status !== "active" || st.archived_at)) reason = "student_inactive";
   }
   let win = null;
@@ -415,9 +555,12 @@ export async function processScan(q, device, ev, { school, actor }) {
   }
   if (!reason) {
     const ds = await dayStatus(q, day);
-    win = await windowFor(q, day);
+    win = await windowFor(q, day, st?.stage_id ?? null);
     if (win.mode === "no_attendance" || ds.holiday || !ds.study_day) reason = "no_school_day";
-    else {
+    else if (direction === "out") {
+      // الانصراف: بعد بداية الدوام في نفس اليوم فقط (لا يرتبط بنافذة تسجيل الحضور)
+      if (hm < win.open_at) reason = "before_window";
+    } else {
       const today = local(now, timezone).day;
       const phase = phaseOf(win, hm, day === today, day < today);
       // حدث وصل بعد انقطاع: يُقبل إن كان وقته داخل النافذة ولم يُعتمد اليوم بعد
@@ -428,7 +571,18 @@ export async function processScan(q, device, ev, { school, actor }) {
   }
 
   let result = "rejected", attendanceId = null, notifyKind = null, minutesLate = null, newStatus = null;
-  if (!reason) {
+  if (!reason && direction === "out") {
+    const [prev] = await q("SELECT id, status, last_out_at FROM attendance WHERE student_id = $1 AND day = $2 FOR UPDATE", [student, day]);
+    if (!prev || prev.status === "absent") reason = "no_arrival";
+    else {
+      attendanceId = prev.id;
+      if (prev.last_out_at && Math.abs(effective - new Date(prev.last_out_at)) < 120_000) result = "duplicate";
+      else {
+        await q("UPDATE attendance SET last_out_at = $2, out_gate_id = $3 WHERE id = $1", [prev.id, effective, device.gate_id]);
+        result = "departed"; notifyKind = "departed";
+      }
+    }
+  } else if (!reason) {
     const late = hm > win.late_after;
     minutesLate = late ? toMin(hm) - toMin(win.late_after) : null;
     newStatus = late ? "late" : "present";
@@ -470,11 +624,11 @@ export async function processScan(q, device, ev, { school, actor }) {
 
   const [row] = await q(
     `INSERT INTO attendance_events (tenant_id, event_id, day, device_id, gate_id, credential_id, student_id, kind, client_ts, effective_ts,
-                                    offline, result, reason, suspicious, review_state, attendance_id)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                                    offline, result, reason, suspicious, review_state, attendance_id, direction)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      ON CONFLICT (tenant_id, event_id) DO NOTHING RETURNING *`,
     [ev.event_id, day, device.id, device.gate_id, credentialId, st ? student : null, kind, ev.client_ts ? new Date(ev.client_ts) : null,
-      effective, Boolean(ev.offline), result, reason, suspicious, suspicious ? "open" : null, attendanceId]);
+      effective, Boolean(ev.offline), result, reason, suspicious, suspicious ? "open" : null, attendanceId, direction]);
   if (!row) {
     const [same] = await q("SELECT * FROM attendance_events WHERE event_id = $1", [ev.event_id]);
     return { ...(await eventResult(q, same, timezone)), replay: true };
@@ -485,6 +639,9 @@ export async function processScan(q, device, ev, { school, actor }) {
     if (notifyKind === "present" && settings.notify_present) {
       await notify(q, { event: "arrival", students: [student], title: `وصل ${st.full_name} المدرسة`,
         body: `سُجّل حضوره عند ${device.gate_name} الساعة ${at}.`, link: "attendance", dedupKey: `${student}:${day}:arrival`, dedupMinutes: 24 * 60 });
+    } else if (notifyKind === "departed" && settings.notify_departure) {
+      await notify(q, { event: "departure", students: [student], title: `انصرف ${st.full_name} من المدرسة`,
+        body: `سُجّل انصرافه عند ${device.gate_name} الساعة ${at}.`, link: "attendance", dedupKey: `${student}:${day}:departure`, dedupMinutes: 12 * 60 });
     } else if (notifyKind === "late" && settings.notify_late) {
       await notify(q, { event: "late", students: [student], title: `تأخر: ${st.full_name}`,
         body: `وصل المدرسة الساعة ${at} متأخرًا ${minutesLate} دقيقة.`, link: "attendance", dedupKey: `${student}:${day}:late`, dedupMinutes: 24 * 60 });
@@ -509,7 +666,8 @@ export async function daySummary(q, day) {
             count(a.id) FILTER (WHERE a.status = 'permitted')::int AS permitted,
             count(a.id) FILTER (WHERE a.status IN ('trip', 'activity'))::int AS out_of_school,
             count(a.id) FILTER (WHERE a.source = 'gate')::int AS by_gate,
-            count(a.id) FILTER (WHERE a.source IN ('manual', 'teacher'))::int AS by_hand
+            count(a.id) FILTER (WHERE a.source IN ('manual', 'teacher'))::int AS by_hand,
+            count(a.id) FILTER (WHERE a.last_out_at IS NOT NULL)::int AS departed
        FROM students s LEFT JOIN attendance a ON a.student_id = s.id AND a.day = $1
       WHERE s.status = 'active' AND s.archived_at IS NULL`, [day]);
   const gates = await q(
@@ -533,7 +691,7 @@ export const feedQuery = z.object({ date: t.date, after: z.coerce.number().int()
 export async function feed(q, { date, after, gate_id }) {
   const { timezone } = await getQuiet(q);
   const rows = await q(
-    `SELECT e.id, e.result, e.reason, e.suspicious, e.offline, e.effective_ts, e.kind, s.full_name AS name, c.name AS class_name,
+    `SELECT e.id, e.result, e.reason, e.suspicious, e.offline, e.effective_ts, e.kind, e.direction, s.full_name AS name, c.name AS class_name,
             g.name AS gate_name, d.name AS device_name, a.minutes_late
        FROM attendance_events e LEFT JOIN students s ON s.id = e.student_id LEFT JOIN classes c ON c.id = s.class_id
        LEFT JOIN gates g ON g.id = e.gate_id LEFT JOIN gate_devices d ON d.id = e.device_id
@@ -665,8 +823,22 @@ export async function gateTickTenant(q) {
       dedupKey: `review:${day}`, dedupMinutes: 24 * 60 });
     out.closed = true;
   }
-  const s = sum.window && (await featureSettings(q, "gate"));
-  if (s?.auto_finalize && ["closed"].includes(sum.phase) && hm >= s.absence_notify_at) {
+  const s = await featureSettings(q, "gate");
+  // جهاز بوابة مفعّل انقطع أثناء نافذة الحضور: تنبيه الإدارة مرة واحدة لليوم لكل جهاز
+  if (sum.phase === "open") {
+    const lost = await q(
+      `UPDATE gate_devices SET offline_alerted_on = $1
+        WHERE status = 'active' AND last_seen_at IS NOT NULL AND last_seen_at < now() - make_interval(mins => $2)
+          AND last_seen_at > now() - interval '18 hours' AND offline_alerted_on IS DISTINCT FROM $1::date
+        RETURNING name`, [day, s.device_offline_alert_min]);
+    if (lost.length) {
+      await notify(q, { event: "gate", users: await adminUserIds(q), title: `جهاز بوابة غير متصل: ${lost.map((d) => d.name).join("، ")}`,
+        body: "لم يتصل الجهاز منذ دقائق أثناء وقت الحضور. المسحات تُحفظ عليه وتُرسل عند عودة الاتصال، لكن تأكد من الشبكة والبطارية.",
+        link: "attendance", dedupKey: `device-offline:${day}:${lost.map((d) => d.name).join(",")}`, dedupMinutes: 12 * 60 });
+      out.offline_devices = lost.length;
+    }
+  }
+  if (s.auto_finalize && sum.phase === "closed" && hm >= s.absence_notify_at) {
     out.finalized = await finalizeDay(q, day, { actor: "النظام" });
   }
   if (sum.state === "finalized" && !sum.absence_notified_at && hm >= sum.absence_notify_at) out.notified = await notifyAbsences(q, day);
@@ -680,4 +852,44 @@ export async function runGateTick() {
   for (const t of tenants) {
     try { await transaction({ tenantId: t.id, actor: "النظام" }, gateTickTenant); } catch (e) { console.error(`[البوابة ${t.id}]`, e.message); }
   }
+}
+
+/* ======================= السجلات (تصفية) ======================= */
+export const recordsQuery = z.object({
+  date: t.date, stage_id: t.id.optional(), grade_id: t.id.optional(), class_id: t.id.optional(), gate_id: t.id.optional(),
+  status: z.enum(["present", "late", "absent", "excused", "permitted", "trip", "activity", "unrecorded"]).optional(),
+  source: z.enum(["gate", "manual", "teacher", "review", "sync", "import", "excuse"]).optional(),
+  from: z.string().regex(/^\d\d:\d\d$/).optional(), to: z.string().regex(/^\d\d:\d\d$/).optional(),
+  q: z.string().trim().max(60).optional(), offline: z.enum(["1"]).optional(),
+});
+/** سجلات يوم بكل التصفيات: المرحلة، الصف، الشعبة، البوابة، الحالة، المصدر، وقت الوصول، اسم الطالب */
+export async function records(q, f) {
+  const { timezone } = await getQuiet(q);
+  const rows = await q(
+    `SELECT s.id, s.full_name AS name, c.name AS class_name, gr.name AS grade_name, st.name AS stage_name,
+            a.status, a.source, a.first_in_at, a.last_out_at, a.minutes_late, a.offline, a.excuse, a.recorded_by,
+            g.name AS gate_name, og.name AS out_gate_name,
+            to_char(a.first_in_at AT TIME ZONE $2, 'HH24:MI') AS in_hm
+       FROM students s LEFT JOIN classes c ON c.id = s.class_id LEFT JOIN grades gr ON gr.id = c.grade_id LEFT JOIN stages st ON st.id = gr.stage_id
+       LEFT JOIN attendance a ON a.student_id = s.id AND a.day = $1
+       LEFT JOIN gates g ON g.id = a.gate_id LEFT JOIN gates og ON og.id = a.out_gate_id
+      WHERE s.status = 'active' AND s.archived_at IS NULL
+        AND ($3::bigint IS NULL OR st.id = $3) AND ($4::bigint IS NULL OR gr.id = $4) AND ($5::bigint IS NULL OR c.id = $5)
+        AND ($6::bigint IS NULL OR a.gate_id = $6)
+        AND ($7::text IS NULL OR ($7 = 'unrecorded' AND a.id IS NULL) OR a.status = $7)
+        AND ($8::text IS NULL OR a.source = $8)
+        AND ($9::text IS NULL OR to_char(a.first_in_at AT TIME ZONE $2, 'HH24:MI') >= $9)
+        AND ($10::text IS NULL OR to_char(a.first_in_at AT TIME ZONE $2, 'HH24:MI') <= $10)
+        AND ($11::text IS NULL OR s.full_name ILIKE '%' || $11 || '%')
+        AND ($12::boolean IS NULL OR a.offline = $12)
+      ORDER BY a.first_in_at NULLS LAST, st.sort_order NULLS LAST, gr.sort_order NULLS LAST, c.id, s.full_name
+      LIMIT 2000`,
+    [f.date, timezone, f.stage_id ?? null, f.grade_id ?? null, f.class_id ?? null, f.gate_id ?? null, f.status ?? null, f.source ?? null,
+      f.from ?? null, f.to ?? null, f.q || null, f.offline ? true : null]);
+  for (const r of rows) {
+    r.in_time = r.first_in_at ? time12(new Date(r.first_in_at), timezone) : null;
+    r.out_time = r.last_out_at ? time12(new Date(r.last_out_at), timezone) : null;
+    delete r.in_hm;
+  }
+  return rows;
 }
