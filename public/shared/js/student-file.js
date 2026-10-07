@@ -3,6 +3,7 @@
 import { h, mount } from "./dom.js";
 import { empty, badge, line, sub, teacherCards, btn, dialog, field, textarea, toast } from "./ui.js";
 import { money, fmtDate, fmtDay, ATTENDANCE } from "./format.js";
+import { attendanceCard, printCards } from "./attendance-card.js";
 import { alertCard } from "./student-alerts.js";
 import { icons } from "./icons.js";
 import { timetableGrid } from "./timetable.js";
@@ -119,6 +120,8 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     const STATE = { pending: ["عذرك قيد المراجعة", "amber"], accepted: ["قُبل العذر", ""], rejected: ["لم يُقبل العذر", "red"] };
     return section("الحضور والغياب",
       banners()[0],
+      d.has_gate && actions.attendanceCard ? h("div", { class: "row spaced", style: "justify-content:flex-start" },
+        btn("بطاقة الحضور (QR)", () => cardDialog(), "soft sm"), sub("تُمسح عند بوابة المدرسة فيُسجَّل الحضور ويصلك إشعار.")) : null,
       h("div", { class: "kpis inline att-inline" },
         h("div", { class: "s-present" }, h("b", {}, count("present")), "حاضر"), h("div", { class: "s-absent" }, h("b", {}, count("absent")), "غائب"),
         h("div", { class: "s-late" }, h("b", {}, count("late")), "متأخر"), h("div", { class: "s-excused" }, h("b", {}, count("excused")), "بعذر"),
@@ -129,6 +132,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
       rows.length ? h("div", { class: "att-days" }, rows.map((a) => h("div", { class: `att-day-row s-${a.status}` },
         h("div", { class: "att-day-main" },
           h("b", {}, fmtDay(a.day)),
+          a.first_in_at ? h("small", {}, `حضر من ${a.gate_name || "البوابة"} ${new Date(a.first_in_at).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" })}${a.minutes_late ? ` — متأخر ${a.minutes_late} دقيقة` : ""}`) : null,
           a.excuse ? h("small", {}, `السبب: ${a.excuse}`) : null,
           a.parent_excuse && a.parent_excuse_state !== "accepted" ? h("small", {}, `عذر ولي الأمر: ${a.parent_excuse}`) : null),
         h("div", { class: "att-day-side" },
@@ -137,6 +141,14 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
           canExcuse && a.can_excuse && a.parent_excuse_state !== "pending"
             ? btn(a.parent_excuse_state === "rejected" ? "إعادة إرسال عذر" : "إرسال عذر", () => excuseDialog(a), "ghost sm") : null))))
         : empty(recorded ? "لا توجد أيام بهذا التصنيف." : "لا توجد سجلات حضور بعد."));
+  }
+  async function cardDialog() {
+    try {
+      const c = await actions.attendanceCard();
+      dialog("بطاقة الحضور", h("div", { class: "ac-preview" }, attendanceCard(c.school, c),
+        sub("اطبعها وغلّفها، أو اعرضها من الجوال عند البوابة. إذا فُقدت اطلب من المدرسة إيقافها وإصدار بطاقة جديدة.")),
+      [btn("طباعة البطاقة", () => printCards(c.school, [c]))]);
+    } catch (e) { toast(e.message, true); }
   }
   function excuseDialog(a) {
     const text = textarea({ rows: 3, maxLength: 300, placeholder: "مثال: كان مريضًا ومعه تقرير طبي" });

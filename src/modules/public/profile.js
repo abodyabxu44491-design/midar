@@ -8,7 +8,10 @@ import { getSettings } from "../shared/public-settings.service.js";
 import { submitParentExcuse, parentExcuseSchema } from "../shared/attendance.service.js";
 import { acknowledge } from "../shared/student-alerts.service.js";
 import { parse, t, z } from "../../core/http/validate.js";
-import { badRequest } from "../../core/http/errors.js";
+import { badRequest, notFound } from "../../core/http/errors.js";
+import { cardTokens, cardUrl } from "../shared/gate.service.js";
+import { qrDataUrl } from "../shared/certificates.service.js";
+import { baseUrl } from "../../core/links.js";
 
 const r = Router({ mergeParams: true });
 
@@ -37,6 +40,19 @@ r.post("/student/alerts/ack", limits.studentKey, handle(async (req, res) => {
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
     const s = await verifyStudent(req, tenant, q, req.body);
     return acknowledge(q, s.id, alert_id);
+  }));
+}));
+
+// بطاقة الحضور: ولي الأمر يطبعها من ملف الطالب (نفس البطاقة التي تطبعها الإدارة)، إن كانت المدرسة تستخدم البوابة
+r.post("/student/attendance-card", limits.studentKey, handle(async (req, res) => {
+  res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
+    const s = await verifyStudent(req, tenant, q, req.body);
+    const [{ n }] = await q("SELECT count(*)::int AS n FROM gates WHERE is_active");
+    if (!n) throw notFound("المدرسة لا تستخدم بوابة الحضور");
+    const tk = (await cardTokens(q, [s.id], { actor: "ولي أمر" })).get(Number(s.id));
+    const [c] = await q("SELECT name FROM classes WHERE id = $1", [s.class_id]);
+    const qr = cardUrl(baseUrl(req), tenant.id, tk.token);
+    return { school: tenant.name, name: s.full_name, class_name: c?.name || null, version: tk.version, qr, qr_img: qrDataUrl(qr) };
   }));
 }));
 

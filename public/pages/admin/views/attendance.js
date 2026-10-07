@@ -9,9 +9,9 @@ import { alertDialog } from "../../shared/js/student-alerts.js";
 import { ATTENDANCE, today, fmtDay, fmtDateTime, csv } from "../../shared/js/format.js";
 import { A, loadClasses, optional } from "./common.js";
 import { icons } from "../../shared/js/icons.js";
-import { gateScanner, gateSettings } from "../../shared/js/gate-scanner.js";
+import { gateView } from "./gate.js";
 
-const PARTS = [["today", "متابعة اليوم"], ["record", "تسجيل الحضور"], ["gate", "بوابة الحضور"], ["excuses", "الأعذار"], ["reports", "التقارير"], ["settings", "الإعدادات"]];
+const PARTS = [["today", "متابعة اليوم"], ["record", "تسجيل الحضور"], ["gate", "البوابة الذكية"], ["excuses", "الأعذار"], ["reports", "التقارير"], ["settings", "الإعدادات"]];
 const shift = (d, days) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + days); return x.toISOString().slice(0, 10); };
 const plural = (n, one, few, many) => (n === 1 ? one : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
 let state = { part: "today", date: null, classId: null };
@@ -234,7 +234,7 @@ export default async function attendance({ me }) {
       sub("قوالب رسائل واتساب للغياب والتأخر من «الإعدادات ← الرسائل»."));
   }
 
-  const VIEWS = { today: todayView, record: recordView, gate: async () => [gateScanner(A), await gateSettings(A)],
+  const VIEWS = { today: todayView, record: recordView, gate: () => gateView({ me }),
     excuses: excusesView, reports: reportsView, settings: settingsView };
   await show();
   return [chips, box];

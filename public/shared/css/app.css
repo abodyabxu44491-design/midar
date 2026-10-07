@@ -1115,31 +1115,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .inbox-item .tx { display: grid; gap: 2px; min-width: 0; }
 .inbox-item .tx small { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
 .inbox-item .tx small.muted { font-size: 11.5px; }
-/* بوابة الحضور */
-.gscan { display: grid; gap: 12px; }
-.gscan-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.gscan-head h2 { margin: 0; }
-.gscan-count { text-align: center; padding: 8px 14px; border-radius: 12px; background: var(--teal-soft); color: var(--teal); flex: none; }
-.gscan-count b { display: block; font-size: 26px; line-height: 1.1; }
-.gscan-cam { position: relative; width: 100%; max-width: 420px; aspect-ratio: 1; margin: 0 auto; border-radius: 18px; overflow: hidden; background: #0b1416;
-  box-shadow: inset 0 0 0 3px var(--teal); }
-.gscan-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
-.gscan-line { position: absolute; inset-inline: 12%; height: 3px; top: 15%; background: var(--amber); box-shadow: 0 0 12px var(--amber);
-  border-radius: 2px; animation: gscan-scan 2.2s ease-in-out infinite alternate; }
-@keyframes gscan-scan { to { top: 85%; } }
-@media (prefers-reduced-motion: reduce) { .gscan-line { animation: none; top: 50%; } }
-.gscan-card { display: flex; gap: 14px; align-items: center; padding: 16px; border-radius: 14px; border: 2px solid; font-size: 15px; }
-.gscan-card b { font-size: 18px; display: block; }
-.gscan-card .gc-name { font-size: 22px; font-weight: 700; }
-.gscan-card .gc-ic { flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
-.gscan-card.ok { border-color: var(--teal); background: var(--teal-soft); } .gscan-card.ok .gc-ic { background: var(--teal); }
-.gscan-card.late { border-color: var(--amber); background: var(--amber-soft); } .gscan-card.late .gc-ic { background: var(--amber); }
-.gscan-card.again { border-color: var(--navy); background: var(--navy-soft); } .gscan-card.again .gc-ic { background: var(--navy); }
-.gscan-card.err { border-color: var(--red); background: var(--red-soft); } .gscan-card.err .gc-ic { background: var(--red); }
-.gscan-recent { display: grid; gap: 4px; }
-.gscan-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--bg); border-inline-start: 4px solid var(--teal); }
-.gscan-row.s-late { border-inline-start-color: var(--amber); }
-.gscan-row small { color: var(--muted); }
 /* قائمة اختيار متعددة (الفئة المستهدفة للإعلان) */
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 260px; overflow-y: auto;
   padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
@@ -1418,3 +1393,62 @@ html.demo-mode .att-bar { bottom: 58px; }
 html.demo-mode .toast { bottom: 78px; z-index: 950; }
 html.demo-mode .install-bar { bottom: calc(72px + env(safe-area-inset-bottom)); }
 @media (max-width: 600px) { html.demo-mode .toast { bottom: 108px; } html.demo-mode .install-bar { bottom: calc(104px + env(safe-area-inset-bottom)); } }
+/* بطاقة الحضور (QR للبوابة) */
+.ac { width: 86mm; height: 54mm; box-sizing: border-box; border: 1px solid var(--line); border-radius: 3mm; background: #fff; color: var(--ink);
+  display: flex; align-items: center; gap: 3mm; padding: 3.5mm 4mm; overflow: hidden; position: relative; border-top: 3mm solid var(--navy); }
+.ac-info { flex: 1; min-width: 0; display: grid; gap: 1mm; align-content: center; }
+.ac-school { font-size: 9pt; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-kind { font-size: 8pt; font-weight: 700; color: var(--teal); }
+.ac-name { font-size: 12.5pt; line-height: 1.3; }
+.ac-class { font-size: 10pt; color: var(--navy); font-weight: 600; }
+.ac-foot { font-size: 6.5pt; color: var(--muted); margin-top: 1mm; }
+.ac-qr { width: 38mm; height: 38mm; flex: none; image-rendering: pixelated; }
+.ac-preview { display: grid; justify-items: center; gap: 10px; overflow-x: auto; }
+.ac-sheet { display: none; }
+@media print {
+  body.ac-printing > :not(.ac-sheet) { display: none !important; }
+  body.ac-printing .ac-sheet { display: grid; grid-template-columns: repeat(2, 86mm); gap: 5mm 6mm; justify-content: center; padding: 6mm 0; }
+  body.ac-printing .ac { break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+/* صفحة رمز البطاقة (من يمسحه بجوال عادي) */
+.gate-card-page { max-width: 460px; margin: 0 auto; padding: 48px 20px; text-align: center; }
+.gate-card-page img { margin: 0 auto 12px; display: block; }
+/* حالات الحضور الجديدة */
+.stu-today.s-permitted, .gb-st.s-permitted { background: var(--navy-soft); color: var(--navy); }
+.stu-today.s-trip, .stu-today.s-activity { background: var(--teal-soft); color: var(--teal); }
+/* البوابة الذكية — شاشة الإدارة */
+.gate-admin { display: grid; gap: 14px; }
+.gate-phase { border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 14px; }
+.gate-phase.open { background: var(--teal-soft); color: var(--teal); }
+.gate-phase.wait { background: var(--amber-soft); color: var(--amber-ink); }
+.gate-phase.closed { background: var(--red-soft); color: var(--red); }
+.gate-phase.done { background: var(--navy-soft); color: var(--navy); }
+.gate-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.gate-stats .gs { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; }
+.gate-stats .gs b { font-size: 24px; line-height: 1.2; color: var(--navy); }
+.gate-stats .gs small { color: var(--muted); font-size: 12.5px; }
+.gate-stats .gs.ok b { color: var(--teal); } .gate-stats .gs.late b { color: var(--amber-ink); }
+.gate-stats .gs.warn { border-color: var(--amber); background: var(--amber-soft); } .gate-stats .gs.bad b { color: var(--red); }
+.gate-rate { text-align: center; } .gate-rate b { display: block; font-size: 26px; color: var(--teal); } .gate-rate small { color: var(--muted); }
+.gate-feed { display: grid; gap: 6px; max-height: 480px; overflow-y: auto; }
+.gf-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--bg);
+  border-inline-start: 4px solid var(--line); }
+.gf-row.r-present { border-color: var(--teal); } .gf-row.r-late { border-color: var(--amber); } .gf-row.r-rejected { border-color: var(--red); }
+.gf-main { display: grid; min-width: 0; } .gf-main small { color: var(--muted); font-size: 12.5px; }
+.gf-side { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; } .gf-side small { color: var(--muted); font-size: 12px; }
+.gate-groups { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.gate-group { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: #fff; display: grid; gap: 2px; align-content: start; }
+.gg-head { display: flex; align-items: center; gap: 8px; } .gg-head small { color: var(--muted); flex: 1; }
+.gate-un { display: flex; align-items: center; gap: 8px; padding: 3px 0; flex-wrap: wrap; }
+.gate-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; } .gate-actions > input { flex: 1; min-width: 220px; }
+.gate-devs { display: grid; gap: 8px; }
+.gate-dev { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: #fff; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
+.gate-dev.s-pending { border-color: var(--amber); background: var(--amber-soft); }
+.gd-main { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.gd-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.gate-link { display: grid; gap: 10px; justify-items: center; text-align: center; }
+.gate-link-qr { width: 220px; height: 220px; image-rendering: pixelated; }
+.gate-link-url { font-size: 12px; overflow-wrap: anywhere; background: var(--bg); padding: 6px 8px; border-radius: 8px; max-width: 100%; }
+.gate-times { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.ac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; margin-top: 10px; }
+.ac-item { display: grid; gap: 6px; justify-items: start; overflow-x: auto; }

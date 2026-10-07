@@ -6,6 +6,7 @@ import { handle, badRequest } from "../../core/http/errors.js";
 import { parse, z, t } from "../../core/http/validate.js";
 import { baseUrl } from "../../core/links.js";
 import * as gate from "../shared/gate.service.js";
+import { qrDataUrl } from "../shared/certificates.service.js";
 import { getFeatureSettings, updateFeatureSettings } from "../shared/feature-settings.service.js";
 
 const r = Router();
@@ -89,7 +90,8 @@ r.post("/devices", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const gateId = b.gate_id ?? await gate.defaultGate(q);
     const d = await gate.createDevice(q, { name: b.name, gate_id: gateId }, { actor: req.actor });
-    return { id: d.id, link: pairLink(req, d), hours: gate.PAIR_HOURS };
+    const link = pairLink(req, d);
+    return { id: d.id, link, qr: qrDataUrl(link), hours: gate.PAIR_HOURS };
   }));
 }));
 r.patch("/devices/:id", handle(async (req, res) => {
@@ -99,7 +101,10 @@ r.patch("/devices/:id", handle(async (req, res) => {
 }));
 r.post("/devices/:id/link", handle(async (req, res) => {
   const { id } = parse(idP, req.params);
-  res.json(await inTenant(req, async (q) => ({ link: pairLink(req, await gate.rePair(q, id)), hours: gate.PAIR_HOURS })));
+  res.json(await inTenant(req, async (q) => {
+    const link = pairLink(req, await gate.rePair(q, id));
+    return { link, qr: qrDataUrl(link), hours: gate.PAIR_HOURS };
+  }));
 }));
 r.post("/devices/:id/:action(approve|disable|enable|revoke)", handle(async (req, res) => {
   const { id } = parse(idP, req.params);
@@ -119,7 +124,8 @@ r.get("/cards", handle(async (req, res) => {
     const [school] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
     return { school: school?.name || "", cards: students.map((s) => {
       const tk = tokens.get(Number(s.id));
-      return { ...s, version: tk.version, qr: gate.cardUrl(baseUrl(req), req.tenantId, tk.token) };
+      const qr = gate.cardUrl(baseUrl(req), req.tenantId, tk.token);
+      return { ...s, version: tk.version, qr, qr_img: qrDataUrl(qr) };
     }) };
   }));
 }));

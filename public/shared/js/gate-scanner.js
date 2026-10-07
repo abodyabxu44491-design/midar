@@ -45,7 +45,7 @@ async function makeReader() {
 
 /**
  * يشغّل الكاميرا الخلفية على عنصر الفيديو ويستدعي onCode لكل رمز جديد
- * (نفس البطاقة أمام الكاميرا: مرة كل 5 ثوانٍ فقط). يعيد دالة الإيقاف.
+ * (نفس البطاقة أمام الكاميرا: مرة كل 20 ثانية فقط). يعيد دالة الإيقاف.
  */
 export async function startCamera(video, onCode) {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("الكاميرا غير متاحة في هذا المتصفح");
@@ -65,7 +65,7 @@ export async function startCamera(video, onCode) {
       try {
         const code = busy ? null : await read(video);
         const now = Date.now();
-        if (code && (code !== last || now - lastAt > 5000)) {
+        if (code && (code !== last || now - lastAt > 20000)) {
           last = code; lastAt = now; busy = true;
           try { await onCode(code); } finally { busy = false; }
         }

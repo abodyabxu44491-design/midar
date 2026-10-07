@@ -24,6 +24,7 @@ export const today = () => new Date().toLocaleDateString("en-CA");
 
 export const ATTENDANCE = {
   present: ["حاضر", "#0B7A75"], absent: ["غائب", "#B8412F"], late: ["متأخر", "#A86A00"], excused: ["غياب بعذر", "#6B5B95"],
+  permitted: ["مستأذن", "#16244A"], trip: ["رحلة", "#0B7A75"], activity: ["نشاط خارجي", "#0B7A75"],
 };
 export const EXAM = { draft: ["مسودة", "gray"], pending: ["بانتظار الاعتماد", "amber"], published: ["منشورة", ""] };
 export const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };
