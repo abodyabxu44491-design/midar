@@ -9,9 +9,10 @@ async function contact() {
     s.brand_email ? h("a", { href: `mailto:${s.brand_email}`, class: "ltr" }, s.brand_email) : null,
     phone ? h("a", { href: `https://wa.me/${String(phone).replace(/\D/g, "")}`, target: "_blank", rel: "noopener", class: "ltr" }, phone) : null,
   ].filter(Boolean);
+  const insta = s.brand_instagram ? h("a", { href: `https://instagram.com/${encodeURIComponent(s.brand_instagram)}`, target: "_blank", rel: "noopener", class: "ltr" }, `@${s.brand_instagram}`) : null;
   if (!parts.length) return;
   for (const el of document.querySelectorAll("[data-contact]")) {
-    mount(el, parts.flatMap((p, i) => (i ? [" أو واتساب ", p] : ["البريد ", p])), ".");
+    mount(el, parts.flatMap((p, i) => (i ? [" أو واتساب ", p] : ["البريد ", p])), insta ? [" أو إنستغرام ", insta] : null, ".");
   }
 }
 contact();

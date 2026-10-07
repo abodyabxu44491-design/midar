@@ -6,6 +6,7 @@ import { runMaintenance } from "./core/auth/sessions.js";
 import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
 import { runReminders } from "./modules/shared/reminders.service.js";
 import { ensureDemoSchool } from "./modules/owner/demo-provision.js";
+import { startDeliveryWorker, kickDeliveries, deliveriesIdle } from "./modules/shared/notify.service.js";
 
 try {
   await healthCheck();
@@ -25,6 +26,9 @@ const server = createApp().listen(env.PORT, () => {
 });
 // مدرسة العرض التجريبي تُجهَّز مرة واحدة في الخلفية (لا تؤخر بدء الخادم)
 if (process.env.DEMO_AUTO !== "false") ensureDemoSchool().catch((e) => console.error("[العرض التجريبي]", e.message));
+// طابور الإشعارات: يلتقط ما تأجل (ساعات الهدوء) وما ينتظر إعادة المحاولة، ويكمل ما انقطع بإعادة التشغيل
+const stopDeliveries = startDeliveryWorker();
+kickDeliveries();
 server.headersTimeout = 20_000;
 server.requestTimeout = 30_000;
 
@@ -41,6 +45,8 @@ async function shutdown(signal) {
   console.log(`\n${signal}: إيقاف آمن...`);
   server.close(async () => {
     await drainJobs();          // لا تُقطع عملية خلفية في منتصفها (الاستيراد في معاملة واحدة، فلا يبقى نصفه)
+    stopDeliveries();
+    await deliveriesIdle();     // دفعة الإشعارات الجارية تكتمل (والباقي محفوظ في الطابور)
     await closePool().catch(() => {});
     process.exit(0);
   });

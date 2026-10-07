@@ -15,6 +15,7 @@ export default async function settings() {
   const subhead = textarea({ rows: 2, value: s.site_subheadline || "" });
   const phone = input({ class: "ltr", value: s.brand_phone || "" });
   const email = input({ class: "ltr", type: "email", value: s.brand_email || "" });
+  const insta = input({ class: "ltr", value: s.brand_instagram || "", placeholder: "midar.school" });
   const support = input({ class: "ltr", inputMode: "tel", value: s.support_whatsapp || "" });
   const supportNote = input({ value: s.support_note || "", placeholder: "سطر يظهر للمدارس في صفحة اشتراكها" });
 
@@ -36,7 +37,7 @@ export default async function settings() {
     mount(msg);
     try {
       await api("/api/owner/settings", {
-        landing_mode: mode.value, site_headline: headline.value, site_subheadline: subhead.value, brand_phone: phone.value, brand_email: email.value,
+        landing_mode: mode.value, site_headline: headline.value, site_subheadline: subhead.value, brand_phone: phone.value, brand_email: email.value, brand_instagram: insta.value,
         support_whatsapp: support.value, support_note: supportNote.value,
         trial_enabled: tOn.checked, trial_days: Number(days.value), trial_all_plans: tAll.checked, trial_without_plan: tNo.checked,
         trials_per_school: Number(perSchool.value), trial_reminder_days: reminders.value.split(/[،,\s]+/).filter(Boolean).map(Number),
@@ -53,6 +54,7 @@ export default async function settings() {
       sub("الباقات والأسعار والمميزات تُقرأ من تبويب «الباقات» تلقائيًا.")),
     panel("التواصل", null,
       h("div", { class: "row" }, field("جوال التواصل (واتساب) في الصفحة", phone), field("البريد الإلكتروني", email)),
+      field("حساب إنستغرام", insta, "اسم الحساب فقط، مثل midar.school"),
       h("div", { class: "row" }, field("واتساب الدعم (يظهر للمدارس)", support), field("سطر التواصل", supportNote))),
     panel("إعدادات التجربة المجانية", null,
       tOnL, h("div", { class: "row" }, field("مدة التجربة (يوم)", days), field("عدد التجارب المسموحة لكل مدرسة", perSchool, "الافتراضي مرة واحدة، ويمكنك منح تجربة إضافية يدويًا"),

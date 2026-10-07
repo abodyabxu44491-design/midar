@@ -63,3 +63,13 @@ export async function disablePush(remove) {
 /** للمنسوبين: تفعيل عبر واجهة اللوحة */
 export const enableStaffPush = (base, key) => enablePush(key, (s) => api(`${base}/notifications/push`, s));
 export const disableStaffPush = (base) => disablePush((endpoint) => api(`${base}/notifications/push/remove`, { endpoint }));
+
+/** تجديد تسجيل الجهاز بصمت إن كانت الإشعارات مفعّلة (رمز الجهاز قد يتغيّر من المتصفح) */
+export async function refreshPush(save) {
+  if (!pushSupported() || Notification.permission !== "granted") return false;
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  const sub = reg && await reg.pushManager.getSubscription();
+  if (!sub) return false;
+  await save(sub.toJSON());
+  return true;
+}

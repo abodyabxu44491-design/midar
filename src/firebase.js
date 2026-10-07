@@ -38,3 +38,9 @@ export const purgeSessions = onSchedule({ schedule: "every 60 minutes", region: 
   const { runMaintenance } = await import("./core/auth/sessions.js");
   await runMaintenance();
 });
+
+// طابور الإشعارات على Firebase (لا يوجد عامل دائم): كل دقيقة يرسل المؤجل وإعادة المحاولة
+export const notificationDeliveries = onSchedule({ schedule: "every 1 minutes", region: REGION, secrets, timeZone: "Asia/Riyadh" }, async () => {
+  const { processDeliveries } = await import("./modules/shared/notify.service.js");
+  await processDeliveries();
+});

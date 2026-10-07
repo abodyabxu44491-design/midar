@@ -2,7 +2,7 @@
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { featureSettings } from "./feature-settings.service.js";
-import { notify } from "./notify.service.js";
+import { notify, adminUserIds } from "./notify.service.js";
 
 export const STATUSES = { present: "حاضر", late: "متأخر", absent: "غائب", leave: "إجازة", excused: "بعذر" };
 export const LEAVE_KINDS = { sick: "مرضية", annual: "سنوية", emergency: "اضطرارية", unpaid: "بدون راتب", official: "مهمة رسمية", other: "أخرى" };
@@ -140,6 +140,11 @@ export async function requestLeave(q, b, { staffId, actor, approveNow = false })
     `INSERT INTO leave_requests (tenant_id, staff_id, kind, from_day, to_day, reason, requested_by)
      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6) RETURNING id`, [staffId, b.kind, b.from_day, b.to_day, b.reason ?? null, actor]);
   if (approveNow) await decideLeave(q, row.id, { approve: true, note: null }, actor);
+  else {
+    const [st] = await q("SELECT full_name FROM staff WHERE id = $1", [staffId]);
+    await notify(q, { event: "request", users: await adminUserIds(q), title: "طلب إجازة جديد",
+      body: `${st?.full_name || ""} — من ${b.from_day} إلى ${b.to_day}`, link: "staff" });
+  }
   return row;
 }
 

@@ -13,7 +13,22 @@ const once = async (q, key) => (await q("INSERT INTO reminder_log (tenant_id, ke
 
 export async function remindersFor(q) {
   const mods = await activeModules(q);
-  const sent = { due: 0, overdue: 0, library: 0, meetings: 0 };
+  const sent = { due: 0, overdue: 0, library: 0, meetings: 0, homework: 0 };
+  // واجب يُسلَّم غدًا ولم يُسجَّل تسليمه بعد
+  if (mods.homework !== false) {
+    const tomorrow = localDay(1);
+    const due = await q(`SELECT a.id, a.title, s.id AS student_id, sub.name AS subject FROM assignments a
+      JOIN students s ON s.class_id = a.class_id AND s.archived_at IS NULL
+      LEFT JOIN subjects sub ON sub.id = a.subject_id
+      LEFT JOIN assignment_submissions x ON x.assignment_id = a.id AND x.student_id = s.id
+      WHERE a.due_date = $1 AND COALESCE(x.submitted, false) = false`, [tomorrow]);
+    for (const d of due) {
+      if (!(await once(q, `hwdue:${d.id}:${d.student_id}`))) continue;
+      await notify(q, { event: "homework_due", students: [d.student_id], title: `تذكير: واجب يُسلَّم غدًا`,
+        body: `${d.title}${d.subject ? ` (${d.subject})` : ""} — موعد التسليم ${tomorrow}`, link: "homework" });
+      sent.homework++;
+    }
+  }
   if (mods.fees && mods.installments) {
     const { reminder_days } = await featureSettings(q, "fees");
     if (reminder_days > 0) {
@@ -32,7 +47,7 @@ export async function remindersFor(q) {
       WHERE i.status = 'open' AND i.due_date = $1 AND i.amount - invoice_net_paid(i.id) > 0`, [yesterday]);
     for (const i of late) {
       if (!(await once(q, `overdue:${i.id}`))) continue;
-      await notify(q, { event: "invoice", students: [i.student_id], title: "فات موعد سداد قسط", body: `${i.title} — المتبقي ${i.remaining}`, link: "fees", urgent: true });
+      await notify(q, { event: "overdue", students: [i.student_id], title: "مبلغ متأخر: فات موعد سداد قسط", body: `${i.title} — المتبقي ${i.remaining}`, link: "fees" });
       sent.overdue++;
     }
   }
@@ -68,7 +83,7 @@ export async function runReminders() {
   for (const t of tenants) {
     try {
       const r = await transaction({ tenantId: t.id, actor: "النظام" }, remindersFor);
-      total += r.due + r.overdue + r.library + r.meetings;
+      total += r.due + r.overdue + r.library + r.meetings + r.homework;
     } catch (e) { console.error(`[تذكيرات ${t.id}]`, e.message); }
   }
   return total;

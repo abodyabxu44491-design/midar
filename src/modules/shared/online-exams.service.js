@@ -219,7 +219,14 @@ export async function setMarks(q, who, id, attemptId, manual, actor) {
   const g = gradeAttempt(x.content, a.answers, a.id, { ...prevManual, ...manual });
   await q(`UPDATE online_attempts SET marks = $2, auto_score = $3, score = $4, needs_grading = $5, graded_at = now(), graded_by = $6 WHERE id = $1`,
     [a.id, JSON.stringify(g.marks), g.auto_score, g.score, g.needs_grading, actor]);
+  if (!g.needs_grading && x.show_result !== "none") await resultNotice(q, x, a.student_id, g.score);
   return g;
+}
+
+// نتيجة الاختبار الإلكتروني لولي الأمر (مرة واحدة، وتُحدَّث إن عُدّل التصحيح)
+async function resultNotice(q, x, studentId, score) {
+  await notify(q, { event: "exam_result", students: [studentId], title: `نتيجة اختبار: ${x.title}`,
+    body: `الدرجة ${score} من ${x.max_score}`, link: "online-exams", dedupKey: `oe-${x.id}`, dedupMinutes: 60 * 24 * 30 });
 }
 
 /** رصد الدرجات في اختبار «رصد الدرجات» المرتبط (ما دام مسودة) */
@@ -329,6 +336,7 @@ export async function save(q, s, id, answers, { submit = false } = {}) {
   await q(`UPDATE online_attempts SET submitted_at = now(), marks = $2, auto_score = $3, score = $4, needs_grading = $5 WHERE id = $1`,
     [a.id, JSON.stringify(g.marks), g.auto_score, g.score, g.needs_grading]);
   const showScore = x.show_result !== "none" && !g.needs_grading;
+  if (showScore) await resultNotice(q, x, s.id, g.score);
   return { submitted: true, late, score: showScore ? g.score : null, max_score: x.max_score, pending: g.needs_grading };
 }
 

@@ -11,6 +11,8 @@ const schema = z.object({
   brand_phone: z.string().trim().regex(/^[0-9+ ]{0,20}$/).optional().or(z.literal("")).transform((v) => v || null),
   brand_email: z.string().trim().email("البريد غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
   support_whatsapp: z.string().trim().regex(/^[0-9+]{0,20}$/, "رقم غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
+  brand_instagram: z.string().trim().transform((v) => v.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/.*$/, ""))
+    .pipe(z.string().regex(/^[A-Za-z0-9._]{0,30}$/, "اسم حساب إنستغرام غير صحيح")).optional().transform((v) => v || null),
   support_note: z.string().trim().max(300).optional().or(z.literal("")).transform((v) => v || null),
   // التجربة المجانية والاشتراكات
   trial_enabled: z.boolean().optional(),
@@ -27,7 +29,7 @@ const schema = z.object({
   site_headline: z.string().trim().max(120).optional().or(z.literal("")).transform((v) => v || null),
   site_subheadline: z.string().trim().max(300).optional().or(z.literal("")).transform((v) => v || null),
 });
-const COLS = ["landing_mode", "brand_phone", "brand_email", "support_whatsapp", "support_note", "trial_enabled", "trial_days",
+const COLS = ["landing_mode", "brand_phone", "brand_email", "brand_instagram", "support_whatsapp", "support_note", "trial_enabled", "trial_days",
   "trial_all_plans", "trial_without_plan", "trials_per_school", "trial_reminder_days", "trial_grace_days", "trial_owner_extend",
   "show_plans_after_expiry", "default_grace_days", "feature_request_mode", "site_headline", "site_subheadline"];
 

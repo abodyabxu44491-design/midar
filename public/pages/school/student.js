@@ -6,8 +6,8 @@ import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, ME
 import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
-import { inboxList, pushToggle } from "../shared/js/inbox.js";
-import { currentChild, closeChild, rememberChild, forgetChild, isRemembered } from "../shared/js/children.js";
+import { notificationCenter, notificationPrefs, pushInvite, pushToggle } from "../shared/js/inbox.js";
+import { currentChild, closeChild, rememberChild, forgetChild, isRemembered, rememberedChildren } from "../shared/js/children.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -41,7 +41,7 @@ function render(d, inbox) {
   const remember = () => rememberChild(school, { id: creds.id, key: creds.key, name: s.name, class_name: s.class_name });
   if (isRemembered(school, creds.id)) remember();   // تحديث الاسم والفصل المحفوظين
   const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
-    view: ({ reopen }) => inboxSection(inbox, who, remember, reopen) }] : [];
+    view: ({ reopen }) => inboxSection(inbox, who, remember, reopen, (k) => file.open(k)) }] : [];
   const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, actions: {
     excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
@@ -53,34 +53,54 @@ function render(d, inbox) {
     topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب", onLogout: () => { closeChild(school); back(); } }),
     h("main", { class: "profile-page" },
       h("div", { class: "toolbar" }, btn("الرجوع لقائمة الطلاب", back, "ghost sm"), btn("طباعة", () => window.print(), "ghost sm")),
+      inbox?.push.key ? pushInvite({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
+        text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null,
       file.el),
     footer());
 
   showInstallBar();
   // فتح القسم المطلوب من الإشعار (#attendance مثلًا) أو صندوق الإشعارات
   const want = location.hash.slice(1);
-  if (new URLSearchParams(location.search).get("n") && inbox) file.open("inbox");
-  else if (want) { try { file.open({ absence: "attendance", late: "attendance" }[want] || want); } catch { /* قسم غير متاح */ } }
+  // من إشعار الجوال: يُعلَّم مقروءًا ويُفتح القسم المرتبط مباشرة (أو مركز الإشعارات إن لم يكن له قسم)
+  const nid = Number(new URLSearchParams(location.search).get("n")) || null;
+  if (nid && inbox) api(`${P}/student/inbox/read`, { ...who, ids: [nid] }).catch(() => {});
+  const target = { absence: "attendance", late: "attendance", present: "attendance" }[want] || want;
+  let opened = false;
+  if (target) { try { file.open(target); opened = true; } catch { /* قسم غير متاح */ } }
+  if (!opened && nid && inbox) file.open("inbox");
 }
 
-// صندوق الإشعارات وتفعيل الإشعارات الفورية على هذا الجهاز
-function inboxSection(inbox, who, remember, reopen) {
-  if (inbox.unread) {
-    api(`${P}/student/inbox/read`, { ...who, all: true }).catch(() => {});
-    inbox.unread = 0;
+// تسجيل هذا الجهاز لإشعارات هذا الابن ولكل الأبناء المحفوظين على الجهاز (ولي أمر لديه أكثر من طالب):
+// كل ابن مسجّل بمعرّفه، فيصل إشعار كل طالب لولي أمره فقط
+async function savePushAll(sub, who, remember) {
+  remember();
+  await api(`${P}/student/push`, { ...who, subscription: sub });
+  for (const c of rememberedChildren(school).filter((c) => c.id !== who.student_id)) {
+    await api(`${P}/student/push`, { student_id: c.id, key: c.key, subscription: sub }).catch(() => {});
   }
+}
+
+// مركز الإشعارات وإعداداته وتفعيلها على هذا الجهاز
+function inboxSection(inbox, who, remember, reopen, openSection) {
   const saved = isRemembered(school, who.student_id);
+  const center = notificationCenter({ audience: "parent", initial: inbox,
+    load: (filter) => api(`${P}/student/inbox`, { ...who, filter }),
+    read: (b) => api(`${P}/student/inbox/read`, { ...who, ...b }),
+    archive: (ids) => api(`${P}/student/inbox/archive`, { ...who, ids }),
+    onUnread: (n) => { inbox.unread = n; if (navigator.setAppBadge) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge?.())?.catch?.(() => {}); },
+    onOpen: (n) => { const k = { absence: "attendance", late: "attendance", present: "attendance" }[n.link] || n.link; if (k) { try { openSection(k); } catch { /* قسم غير متاح */ } } } });
   return [
-    section("الإشعارات على هذا الجهاز",
-      inbox.push.key ? pushToggle({ key: inbox.push.key,
-        save: async (s) => { remember(); await api(`${P}/student/push`, { ...who, subscription: s }); },
+    section("الإشعارات", center.el),
+    section("إعدادات الإشعارات",
+      inbox.push.key ? pushToggle({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
         remove: (endpoint) => api(`${P}/student/push/remove`, { ...who, endpoint }),
-        label: "إشعار فوري بالغياب والدرجات والرسوم" }) : sub("الإشعارات الفورية غير مفعّلة في هذه المدرسة. تصلك الإشعارات هنا."),
+        label: "الإشعارات على هذا الجهاز" }) : sub("الإشعارات على الجوال غير مفعّلة في هذه المدرسة. تصلك الإشعارات هنا."),
+      inbox.push.key ? notificationPrefs({ load: () => api(`${P}/student/notify-prefs`, who),
+        save: (muted) => api(`${P}/student/notify-prefs/save`, { ...who, muted }) }) : null,
       line(h("div", {}, h("b", {}, "حفظ ملف الطالب على هذا الجهاز"),
         sub(saved ? "محفوظ: يفتح مباشرة من التطبيق ومن الإشعارات." : "يفتح الملف مباشرة دون إدخال المعرّف كل مرة. لا تفعّله على جهاز مشترك.")),
         saved ? btn("إزالة من الجهاز", () => { forgetChild(school, who.student_id); toast("أُزيل من هذا الجهاز"); reopen(); }, "ghost sm")
           : btn("حفظ", () => { remember(); toast("حُفظ على هذا الجهاز"); reopen(); }, "sm"))),
-    section("الإشعارات", inboxList(inbox.items, { onOpen: (n) => n.link && document.querySelector(`.profile-nav [data-k="${n.link}"]`)?.click() })),
   ];
 }
 
