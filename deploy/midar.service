@@ -1,8 +1,8 @@
-# تشغيل مدار كخدمة دائمة على سيرفر Ubuntu
-# sudo cp deploy/midar.service /etc/systemd/system/ && sudo systemctl enable --now midar
+# خدمة مدار الدائمة (يثبّتها deploy/install.sh): تبدأ مع السيرفر وتعود وحدها إن توقفت
 [Unit]
 Description=MIDAR school platform
 After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
 Type=simple
@@ -13,6 +13,11 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 # المتغيرات تُقرأ من /opt/midar/.env
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+TimeoutStopSec=40
 
 [Install]
 WantedBy=multi-user.target

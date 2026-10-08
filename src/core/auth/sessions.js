@@ -17,13 +17,15 @@ export const SESSION = {
   admin:      { cookie: "midar_a", path: "/api/admin",      idleMin: 120, maxHours: 12 },
   teacher:    { cookie: "midar_t", path: "/api/teacher",    idleMin: 180, maxHours: 12 },
   accountant: { cookie: "midar_f", path: "/api/accountant", idleMin: 120, maxHours: 12 },
+  // ولي الأمر: على جواله غالبًا، فيبقى مسجلًا 30 يومًا من آخر استخدام. مساره الواجهة العامة للمدرسة
+  parent:     { cookie: "midar_p", path: "/api/public",     idleMin: 30 * 24 * 60, maxHours: 30 * 24 },
 };
 
 // Firebase Hosting لا يمرر إلا كوكي واحد اسمه __session، فنخزن فيه رموز الأدوار مفصولة:
 //   o.<رمز>|a.<رمز>|t.<رمز>
 // الفصل بين الأدوار يبقى مضمونًا لأن كل رمز مربوط بنوعه في قاعدة البيانات.
 const SINGLE = "__session";
-const TAG = { owner: "o", admin: "a", teacher: "t", accountant: "f" };
+const TAG = { owner: "o", admin: "a", teacher: "t", accountant: "f", parent: "p" };
 const single = () => env.SESSION_COOKIE_MODE === "single";
 
 function readSingle(req) {
@@ -45,15 +47,15 @@ function tokenOf(req, kind) {
   return single() ? readSingle(req)[TAG[kind]] : req.cookies?.[prefix() + SESSION[kind].cookie];
 }
 
-export async function createSession(res, kind, { userId = null, tenantId = null, ip, userAgent, remember = false }, q) {
+export async function createSession(res, kind, { userId = null, parentId = null, tenantId = null, ip, userAgent, remember = false }, q) {
   const cfg = SESSION[kind];
   const token = newToken();
   const maxHours = remember ? REMEMBER_HOURS : cfg.maxHours;
   const idleMinutes = remember ? REMEMBER_IDLE_MIN : null; // null = مهلة الخمول الافتراضية لهذا الدور
   await q(
-    `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at, idle_minutes)
-     VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7), $8)`,
-    [sha256(token), kind, userId, tenantId, ip || null, String(userAgent || "").slice(0, 200), maxHours, idleMinutes],
+    `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at, idle_minutes, parent_id)
+     VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7), $8, $9)`,
+    [sha256(token), kind, userId, tenantId, ip || null, String(userAgent || "").slice(0, 200), maxHours, idleMinutes, parentId],
   );
   if (single()) {
     const req = res.req;
@@ -85,7 +87,7 @@ export async function readSession(req, kind) {
 export async function sessionRow(q, hash, kind) {
   const [s] = await q(
     `WITH s AS (
-       SELECT user_id, tenant_id, last_seen_at FROM sessions
+       SELECT user_id, parent_id, tenant_id, last_seen_at FROM sessions
         WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
           AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
      ), touch AS (
@@ -94,7 +96,7 @@ export async function sessionRow(q, hash, kind) {
               expires_at = CASE WHEN idle_minutes IS NOT NULL THEN GREATEST(expires_at, now() + make_interval(mins => idle_minutes)) ELSE expires_at END
         WHERE token_hash = $1 AND EXISTS (SELECT 1 FROM s) AND last_seen_at < now() - interval '60 seconds'
      )
-     SELECT user_id, tenant_id FROM s`,
+     SELECT user_id, parent_id, tenant_id FROM s`,
     [hash, kind, SESSION[kind].idleMin]);
   return s || null;
 }

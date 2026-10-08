@@ -255,11 +255,14 @@ export async function notify(q, n) {
   if (mods.notifications) {
     // إشعار سابق لنفس الحدث ونفس المستلم خلال المدة: يُحدَّث ويعود غير مقروء، ولا يُنشأ تنبيه جديد
     const upd = await q(
-      `UPDATE notifications SET title = $4, body = $5, link = $6, priority = LEAST(priority, $7::smallint), repeats = repeats + 1,
+      `UPDATE notifications SET title = CASE WHEN student_id IS NULL OR $9::boolean THEN $4::text ELSE COALESCE((
+                SELECT CASE WHEN position(split_part(full_name, ' ', 1) IN $4::text) > 0 THEN $4::text
+                            ELSE left($4::text || ' — ' || split_part(full_name, ' ', 1), 140) END FROM students WHERE id = notifications.student_id), $4::text) END,
+              body = $5, link = $6, priority = LEAST(priority, $7::smallint), repeats = repeats + 1,
               updated_at = now(), read_at = NULL, archived_at = NULL
         WHERE dedup_key = $3 AND created_at > now() - make_interval(mins => $8)
           AND (student_id = ANY($1::bigint[]) OR user_id = ANY($2::bigint[]))
-       RETURNING student_id, user_id`, [students, users, dedupKey, title, body, n.link || null, priority, windowMin]);
+       RETURNING student_id, user_id`, [students, users, dedupKey, title, body, n.link || null, priority, windowMin, Boolean(e.collapse)]);
     merged = upd.length;
     const doneS = new Set(upd.filter((r) => r.student_id).map((r) => Number(r.student_id)));
     const doneU = new Set(upd.filter((r) => r.user_id).map((r) => Number(r.user_id)));
@@ -268,12 +271,16 @@ export async function notify(q, n) {
     if (freshS.length || freshU.length) {
       ids = (await q(
         `INSERT INTO notifications (tenant_id, student_id, user_id, kind, title, body, link, priority, category, dedup_key, created_by)
-         SELECT app_tenant(), s, NULL::bigint, $3::text, $4::text, $5::text, $6::text, $7::smallint, $8::text, $9::text, NULLIF(current_setting('app.actor', true), '')
-           FROM unnest($1::bigint[]) s WHERE EXISTS (SELECT 1 FROM students WHERE id = s)
+         -- اسم الطالب في عنوان كل إشعار خاص به (ولي أمر لأكثر من ابن يعرف المقصود فورًا)، والإعلان العام كما هو
+         SELECT app_tenant(), st.id, NULL::bigint, $3::text,
+                CASE WHEN $10::boolean OR position(split_part(st.full_name, ' ', 1) IN $4::text) > 0 THEN $4::text
+                     ELSE left($4::text || ' — ' || split_part(st.full_name, ' ', 1), 140) END,
+                $5::text, $6::text, $7::smallint, $8::text, $9::text, NULLIF(current_setting('app.actor', true), '')
+           FROM unnest($1::bigint[]) s JOIN students st ON st.id = s
          UNION ALL
          SELECT app_tenant(), NULL::bigint, u, $3::text, $4::text, $5::text, $6::text, $7::smallint, $8::text, $9::text, NULLIF(current_setting('app.actor', true), '')
            FROM unnest($2::bigint[]) u WHERE EXISTS (SELECT 1 FROM users WHERE id = u AND is_active)
-         RETURNING id`, [freshS, freshU, n.event, title, body, n.link || null, priority, e.category, dedupKey])).map((r) => r.id);
+         RETURNING id`, [freshS, freshU, n.event, title, body, n.link || null, priority, e.category, dedupKey, Boolean(e.collapse)])).map((r) => r.id);
     }
   }
 

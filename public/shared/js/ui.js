@@ -7,7 +7,8 @@ import { icons } from "./icons.js";
 export const DEV = "مدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
 
 // ===================== تثبيت التطبيق =====================
-// مكان واحد ثابت في كل الصفحات: شريط سفلي بهوية المنصة.
+// شريط ثابت أعلى كل الصفحات (الطلاب وأولياء الأمور، الإدارة، المعلم، المحاسب) يبقى ظاهرًا حتى يُثبَّت التطبيق،
+// ويختفي تلقائيًا عند التثبيت أو عند فتح الصفحة من التطبيق المثبّت.
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; showInstallBar(); });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
@@ -21,15 +22,16 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
   });
 }
 
-const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
-const DISMISS_KEY = "midar_install_dismissed";
-const INSTALLED_KEY = "midar_installed";
-const dismissed = () => Number(localStorage.getItem(DISMISS_KEY) || 0) > Date.now();
-const dismiss = () => {
-  localStorage.setItem(DISMISS_KEY, String(Date.now() + 30 * 24 * 3600 * 1000));
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: window-controls-overlay)").matches
+  || matchMedia("(display-mode: minimal-ui)").matches || navigator.standalone === true;
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const INSTALLED_KEY = `midar_installed:${location.pathname.split("/").slice(0, 3).join("/")}`;
+const installed = () => { try { return localStorage.getItem(INSTALLED_KEY) === "1"; } catch { return false; } };
+const markInstalled = () => { try { localStorage.setItem(INSTALLED_KEY, "1"); } catch { /* */ } hideInstallBar(); };
+function hideInstallBar() {
   document.querySelector(".install-bar")?.remove();
-};
+  document.documentElement.style.removeProperty("--install-h");
+}
 
 function iosSteps() {
   dialog("تثبيت مدار على جهازك", h("div", { class: "install-steps" },
@@ -40,35 +42,36 @@ function iosSteps() {
       h("li", {}, "اضغط «إضافة»، وستظهر أيقونة مدار على شاشتك"))));
 }
 
-// الشريط الموحّد: يظهر مرة واحدة، ويمكن إخفاؤه لمدة شهر
+/** شريط التثبيت أعلى الصفحة (مرة واحدة). لا يظهر في التطبيق المثبّت ولا في متصفح لا يدعم التثبيت */
 export function showInstallBar() {
-  if (isStandalone() || localStorage.getItem(INSTALLED_KEY) || dismissed() || document.querySelector(".install-bar")) return;
-  if (!installEvent && !isIOS()) return;                 // متصفح لا يدعم التثبيت
+  if (isStandalone() || document.querySelector(".install-bar")) return;
+  if (!installEvent && !isIOS()) return;                 // متصفح لا يدعم التثبيت (أو التطبيق مثبّت أصلًا)
+  if (installed() && !installEvent) return;
+  const label = () => (document.documentElement.dataset.app ? `ثبّت تطبيق ${document.documentElement.dataset.app}` : "ثبّت مدار كتطبيق");
   const action = btn(installEvent ? "تثبيت" : "طريقة التثبيت", async () => {
     if (!installEvent) return iosSteps();
     const e = installEvent;
     installEvent = null;
     e.prompt();
     const { outcome } = await e.userChoice;
-    if (outcome === "accepted") {
-      localStorage.setItem(INSTALLED_KEY, "1");
-      document.querySelector(".install-bar")?.remove();
-    }
-  }, "sm");
-  const close = h("button", { class: "install-close", type: "button", "aria-label": "إخفاء", onclick: dismiss }, icons.close({ size: 16 }));
+    if (outcome === "accepted") markInstalled();
+  }, "sm install-btn");
   const bar = h("div", { class: "install-bar", role: "complementary", "aria-label": "تثبيت التطبيق" },
-    h("img", { src: "/brand/mark.svg", alt: "", class: "install-mark", width: 34, height: 26 }),
-    h("div", { class: "install-text" }, h("b", {}, document.documentElement.dataset.app ? `ثبّت تطبيق ${document.documentElement.dataset.app}` : "ثبّت مدار كتطبيق"),
-      h("span", {}, isIOS() ? "على شاشة جهازك، بخطوتين" : "على جوالك أو جهازك، بضغطة")),
-    action, close);
-  document.body.append(bar);
+    h("div", { class: "install-in" },
+      h("img", { src: "/brand/mark.svg", alt: "", class: "install-mark", width: 28, height: 22 }),
+      h("div", { class: "install-text" }, h("b", {}, label()), h("span", {}, isIOS() ? "على شاشة جهازك، بخطوتين" : "يفتح مباشرة ويصلك الإشعار حتى والمتصفح مغلق")),
+      action));
+  document.body.prepend(bar);
+  // ارتفاع الشريط: لتنزل الأشرطة اللاصقة الأخرى (أقسام اللوحة) تحته
+  const measure = () => document.documentElement.style.setProperty("--install-h", `${bar.offsetHeight}px`);
+  measure();
+  window.addEventListener("resize", measure, { passive: true });
 }
 
-// بعد التثبيت لا يظهر الشريط مرة أخرى على هذا الجهاز
-window.addEventListener("appinstalled", () => {
-  localStorage.setItem(INSTALLED_KEY, "1");
-  document.querySelector(".install-bar")?.remove();
-});
+// بعد التثبيت يختفي الشريط على هذا الجهاز
+window.addEventListener("appinstalled", markInstalled);
+// فتح الصفحة من التطبيق المثبّت: لا شريط
+matchMedia("(display-mode: standalone)").addEventListener?.("change", (e) => { if (e.matches) hideInstallBar(); });
 
 /* ---------- الهوية ---------- */
 /**
@@ -284,7 +287,7 @@ export function confirmAction(message) {
 /* ---------- التبويبات ---------- */
 // أيقونة كل قسم حسب مفتاحه (نفس المفتاح في كل البوابات: الإدارة، المعلم، المحاسب، المالك)
 const TAB_ICONS = {
-  dashboard: "home", home: "home", overview: "chart", students: "users", teachers: "user", academic: "calendar",
+  dashboard: "home", home: "home", overview: "chart", students: "users", parents: "userPlus", teachers: "user", academic: "calendar",
   attendance: "check", distribution: "shuffle", timetable: "grid", exams: "clipboard", papers: "file", reports: "award",
   sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",

@@ -5,6 +5,7 @@ import { safeEqual } from "../../core/auth/codes.js";
 import { securityEvent, recentFailures, logEvent } from "../../core/audit.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { accessContext } from "../shared/subscription.service.js";
+import { sessionParent, linkedStudent } from "../shared/parents.service.js";
 
 const schoolParam = z.string().toLowerCase().regex(/^[a-z0-9-]{3,30}$/);
 // 10 محاولات خاطئة من العنوان الواحد لكل طالب خلال 30 دقيقة، وسقف 100 لكل طالب من كل العناوين.
@@ -35,6 +36,14 @@ export const studentAuthSchema = z.object({ student_id: t.id, key: t.studentKey 
  * ملاحظة: التسجيل يتم في معاملة مستقلة حتى لا يُلغى مع رسالة الخطأ.
  */
 export async function verifyStudent(req, tenant, q, body) {
+  // حساب ولي الأمر: بلا معرّف، والخادم يتحقق أن الطالب مرتبط فعلًا بولي الأمر المسجّل (وإلا 403 بلا بيانات)
+  if (body && !body.key) {
+    const { student_id } = parse(z.object({ student_id: t.id }), body);
+    const parent = req.parent ?? await sessionParent(req, q, tenant.id);
+    if (!parent) throw unauthorized("سجّل الدخول بحساب ولي الأمر، أو افتح الملف بمعرّف الطالب");
+    req.parent = parent;
+    return linkedStudent(q, parent.id, student_id);
+  }
   const b = parse(studentAuthSchema, body);
   const subject = `${tenant.id}:${b.student_id}`;
   const ipSubject = `${subject}:${req.ip || "unknown"}`;
