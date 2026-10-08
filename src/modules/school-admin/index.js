@@ -7,6 +7,7 @@ import dashboard from "./dashboard.js";
 import structure from "./structure.js";
 import teachers from "./teachers.js";
 import students from "./students.js";
+import parentsAdmin from "./parents.js";
 import attendance from "./attendance.js";
 import exams from "./exams.js";
 import gradeComponents from "./grade-components.js";
@@ -52,6 +53,7 @@ r.use(dashboard);
 r.use("/structure", structure);
 r.use("/teachers", teachers);
 r.use("/students", students);
+r.use("/parents", parentsAdmin);          // حسابات أولياء الأمور الموحدة
 r.use("/attendance", requireModule("attendance"), attendance);
 r.use("/exams", requireModule("exams"), exams);
 r.use("/grade-components", requireModule("exams"), gradeComponents);

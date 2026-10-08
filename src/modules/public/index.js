@@ -16,6 +16,7 @@ import engagement from "./engagement.js";
 import { verifyRouter, schoolRouter as certificatesRouter } from "./certificates.js";
 import { pushPublicKey } from "../shared/notify.service.js";
 import demo from "./demo.js";
+import parent from "./parent.js";
 import { publicDemoGuard } from "../shared/demo.service.js";
 
 const r = Router();
@@ -26,6 +27,7 @@ r.use("/", verifyRouter);        // /verify/:code التحقق من الشهاد
 // مدرسة العرض التجريبي: للقراءة فقط (قبل كل مسارات المدرسة، ومنها طلب استعادة كلمة المرور)
 r.use("/:school", publicDemoGuard);
 r.use("/", password);            // قبل مسارات المدرسة حتى لا تُفهم كرمز مدرسة
+r.use("/:school", parent);         // حساب ولي الأمر الموحّد
 r.use("/:school", directory);
 r.use("/:school", site);            // الموقع المصغّر: الرئيسية، المراحل والصفوف، الشعب، البحث بالمعرّف
 r.use("/:school", profile);

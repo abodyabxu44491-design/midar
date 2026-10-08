@@ -66,7 +66,11 @@ export const limits = {
     keyGenerator: (req) => `${req.ip}|${String(req.body?.school || "").toLowerCase()}|${String(req.body?.username || "").toLowerCase()}`.slice(0, 200) }),
   staffLoginNet: make("staffLoginNet", 15, 300, { shared: true, skipSuccessfulRequests: true }),   // سقف واسع للشبكة الواحدة
   // إدخال معرّف الطالب ورمز الصفحة. مدرسة العرض التجريبي مستثناة: معرّفها منشور للزوار ولا شيء يُخمَّن فيها
-  studentKey: make("studentKey", 10, 20, { shared: true, skip: (req) => isDemoSchool(req.params?.school).catch(() => false) }),
+  // طلبات حساب ولي الأمر (بلا معرّف) لا تُحسب هنا: لا تخمين فيها، والجلسة يتحقق منها الخادم ثم الارتباط بالطالب
+  studentKey: make("studentKey", 10, 20, { shared: true,
+    skip: (req) => (req.body && typeof req.body === "object" && !req.body.key && req.body.student_id ? true : isDemoSchool(req.params?.school).catch(() => false)) }),
+  parentLogin: make("parentLogin", 15, 20, { shared: true, skipSuccessfulRequests: true,
+    keyGenerator: (req) => `${req.ip}|${String(req.params?.school || "").toLowerCase()}|${String(req.body?.phone || "").slice(0, 25)}`.slice(0, 200) }),
   demo: make("demo", 10, 40, { shared: true }),          // الدخول للعرض التجريبي من الصفحة الرئيسية
   payment: make("payment", 10, 20, { shared: true }),    // الدفع
   gatePair: make("gatePair", 15, 20, { shared: true }),  // فتح رابط جهاز البوابة (رمز لمرة واحدة)

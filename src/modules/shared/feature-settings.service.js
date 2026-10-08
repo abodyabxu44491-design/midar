@@ -53,6 +53,12 @@ export const SECTIONS = {
       teacher_can_edit: z.boolean(), teacher_can_excuse: z.boolean() }),
     check: (v) => (v.open_at <= v.late_after && v.late_after < v.close_at ? null : "الأوقات: بداية الحضور ≤ وقت التأخر < الإغلاق"),
   },
+  // حساب ولي الأمر الموحّد: التفعيل الذاتي (جوال المدرسة + معرّف ابن)، وطريقة ربط ابن جديد
+  parents: {
+    defaults: { self_activation: true, link_by_key: true, auto_link_siblings: true, allow_requests: true, show_inactive: true },
+    schema: z.object({ self_activation: z.boolean(), link_by_key: z.boolean(), auto_link_siblings: z.boolean(),
+      allow_requests: z.boolean(), show_inactive: z.boolean() }),
+  },
   transport: {
     defaults: { notify_parent: true },
     schema: z.object({ notify_parent: z.boolean() }),

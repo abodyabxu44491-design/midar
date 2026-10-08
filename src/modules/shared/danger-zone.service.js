@@ -171,6 +171,7 @@ const TABLE_LABEL = {
   notification_prefs: "اختيارات الإشعارات", notification_deliveries: "سجل تسليم الإشعارات",
   attendance_credentials: "بطاقات الحضور", gates: "البوابات", gate_devices: "أجهزة البوابة", attendance_events: "سجل مسح البوابة",
   attendance_days: "حالة أيام الحضور", attendance_audit: "سجل تعديلات الحضور", attendance_stage_hours: "أوقات الحضور للمراحل",
+  parents: "حسابات أولياء الأمور", parent_students: "ربط أولياء الأمور بالأبناء", parent_link_requests: "طلبات ربط الأبناء",
   school_feature_settings: "إعدادات الأقسام", behavior_categories: "تصنيفات السلوك", behavior_records: "سجلات السلوك",
   certificates: "الشهادات الصادرة", online_exams: "الاختبارات الإلكترونية", online_attempts: "محاولات الاختبارات الإلكترونية",
   staff_attendance: "دوام الموظفين", leave_requests: "طلبات الإجازة", substitutions: "حصص الانتظار", lesson_plans: "خطط الدروس",
