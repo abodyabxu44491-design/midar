@@ -1457,3 +1457,24 @@ html.demo-mode .install-bar { bottom: calc(72px + env(safe-area-inset-bottom)); 
 .gate-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; align-items: end; margin-bottom: 8px; }
 .gate-records td, .gate-records th { white-space: nowrap; }
 .gate-stage { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; margin-bottom: 8px; background: #fff; }
+
+/* محدد الأبناء في ملف الطالب */
+.kid-switch { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 6px; scrollbar-width: none; }
+.kid-switch::-webkit-scrollbar { display: none; }
+.kid-switch a, .kid-switch span { flex: none; padding: 7px 14px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: var(--ink);
+  text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.kid-switch .on { background: var(--navy); color: #fff; border-color: var(--navy); }
+button.link { background: none; border: 0; padding: 0; color: var(--teal); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.pa-list { display: grid; gap: 6px; margin-top: 8px; }
+.pa-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; text-align: start; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: inherit; color: inherit; cursor: pointer; }
+.pa-row:hover { border-color: var(--teal); }
+.pa-main { display: grid; min-width: 0; flex: 1; }
+.pa-kids { display: flex; gap: 4px; flex-wrap: wrap; }
+.pa-kid { font-size: 12.5px; padding: 2px 9px; border-radius: 99px; background: var(--teal-soft); color: var(--teal); font-weight: 600; }
+.pa-kid.old { background: var(--bg); color: var(--muted); text-decoration: line-through; }
+.pa-creds { display: grid; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.pa-cred { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+.pa-cred > div { display: grid; }
+.pa-results { display: grid; gap: 4px; margin: 6px 0; }
+.pa-pick { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; cursor: pointer; text-align: start; }
+.pa-pick:hover { border-color: var(--teal); }

@@ -11,6 +11,7 @@ import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { detectPhone } from "../shared/js/phone.js";
 import { rememberedChildren, openChild } from "../shared/js/children.js";
+import { parentCard, familyPage } from "./family.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -39,6 +40,7 @@ async function route() {
   const [, page, a, b] = (location.hash || "#/").split("/");
   try {
     if (!home) home = await api(`${P}/home`, {});
+    if (page === "family") return await familyPage(shell);
     if (page === "students") return await studentsPage();
     if (page === "grade") return await gradePage(Number(a), b ? Number(b) : null);
     return homePage();
@@ -65,8 +67,9 @@ function homePage() {
       home.school.logo ? h("img", { class: "ss-hero-logo", src: `${P}/logo?v=${home.school.logo_v}`, alt: `شعار ${home.school.name}` }) : brandLogo("ss-hero-logo", false, "row"),
       h("h1", {}, home.school.name),
       home.school.about ? h("p", { class: "ss-about" }, home.school.about) : null),
-    h("section", { class: "ss-card ss-keycard" }, h("h2", {}, icons.key({ size: 20 }), "ملف الطالب"),
-      sub("أدخل معرّف الطالب من البطاقة التي سلّمتها المدرسة لفتح ملفه مباشرة."), findByKey()),
+    parentCard(),
+    h("section", { class: "ss-card ss-keycard" }, h("h2", {}, icons.key({ size: 20 }), "ملف طالب بالمعرّف"),
+      sub("أو أدخل معرّف الطالب من البطاقة التي سلّمتها المدرسة لفتح ملفه مباشرة."), findByKey()),
     tiles.length ? h("section", { class: `ss-tiles n${tiles.length}` }, tiles) : null,
     home.announcements.length ? h("section", { class: "ss-card", id: "news" }, h("h2", {}, icons.megaphone({ size: 20 }), "الأخبار والإعلانات"),
       home.announcements.map((a) => h("article", { class: "ss-news" }, h("b", {}, a.title), h("p", {}, a.body), h("small", {}, fmtDate(a.created_at))))) : null,

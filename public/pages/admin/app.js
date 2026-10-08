@@ -9,6 +9,7 @@ import { topbar, footer, tabs, lazy, passwordChangeScreen, schoolLogoUrl } from 
 import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
 const students = lazy(() => import("./views/students.js"), new URL("./views/students.js", import.meta.url).pathname);
+const parents = lazy(() => import("./views/parents.js"), new URL("./views/parents.js", import.meta.url).pathname);
 const teachers = lazy(() => import("./views/teachers.js"), new URL("./views/teachers.js", import.meta.url).pathname);
 const setupWizard = lazy(() => import("./views/setup.js"), new URL("./views/setup.js", import.meta.url).pathname);
 const distribution = lazy(() => import("./views/distribution.js"), new URL("./views/distribution.js", import.meta.url).pathname);
@@ -71,7 +72,7 @@ export async function startAdmin() {
   // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
     ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
-    ["students", "الطلاب"], ["teachers", "المعلمون"], ["staff", "شؤون الموظفين"],
+    ["students", "الطلاب"], ["parents", "أولياء الأمور"], ["teachers", "المعلمون"], ["staff", "شؤون الموظفين"],
     ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
     ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"],
     ["academic", "السنة الدراسية"], ["calendar", "التقويم"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
@@ -85,7 +86,7 @@ export async function startAdmin() {
 
   const ctx = { me };
   const t = tabs(allTabs,
-    { dashboard, setup: setupWizard, students, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
+    { dashboard, setup: setupWizard, students, parents, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
       communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant }, ctx);
   ctx.goTo = (key) => {
     // روابط «الرسوم» القديمة (من الرئيسية والتنبيهات) تفتح قسم الرسوم داخل المالية

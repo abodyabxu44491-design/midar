@@ -11,6 +11,7 @@ import { openStudentImport } from "./student-import.js";
 import { alertDialog } from "../../shared/js/student-alerts.js";
 import { studentFile } from "../../shared/js/student-file.js";
 import { gradePicker } from "./grade-picker.js";
+import { studentParents } from "./parents.js";
 
 const PAGE = 60;
 let importedSince = null;   // «عرض الطلاب المستوردين»: يبقى بعد إعادة رسم التبويب
@@ -160,6 +161,8 @@ export default async function students({ me, refresh }) {
       const toolbar = h("div", { class: "file-actions" },
         btn("تعديل", () => { d.close(); studentForm({ student: s, classes, structure, sectionsOn, onSaved: afterChange }); }, "sm"),
         btn("بطاقة ولي الأمر", () => card2(me, s), "ghost sm"),
+        btn("حسابات أولياء الأمور", async () => dialog(`أولياء أمور ${s.name}`, h("div", {}, await studentParents(s.id),
+          sub("الربط وفك الارتباط من قسم «أولياء الأمور»."))), "ghost sm"),
         templates && waButton({ phone: s.guardian_phone, template: templates.general, countryCode: templates.country_code,
           vars: messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) }), label: "واتساب" }),
         h("span", { class: "fees-switch" }, h("span", { class: "sub" }, "الرسوم"),

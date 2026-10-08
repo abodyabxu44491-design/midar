@@ -12,7 +12,7 @@ import { readSession } from "../../core/auth/sessions.js";
 import { securityEvent, recentFailures, logEvent } from "../../core/audit.js";
 import { normalizePhone } from "./students.service.js";
 import { featureSettings } from "./feature-settings.service.js";
-import { notify, adminUserIds } from "./notify.service.js";
+import { notify, adminUserIds, activeModules, pushPublicKey } from "./notify.service.js";
 
 export const RELATIONS = { father: "الأب", mother: "الأم", guardian: "ولي الأمر", other: "آخر" };
 const tenantOf = async (q) => (await q("SELECT app_tenant() AS t"))[0].t;
@@ -230,7 +230,8 @@ export async function dashboard(q, parent) {
   const settings = await featureSettings(q, "parents");
   return { parent: { id: parent.id, name: parent.full_name, phone: parent.phone, email: parent.email, must_change_password: parent.must_change_password },
     school: school?.name || "", children: kids, notifications: recent.slice(0, 30), pending_requests: pending,
-    can: { link_by_key: settings.link_by_key, requests: settings.allow_requests } };
+    can: { link_by_key: settings.link_by_key, requests: settings.allow_requests },
+    push_key: (await activeModules(q)).notifications ? pushPublicKey() : null };
 }
 
 export async function changePassword(q, parent, b) {

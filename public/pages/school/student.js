@@ -7,21 +7,27 @@ import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
 import { notificationCenter, notificationPrefs, pushInvite, pushToggle } from "../shared/js/inbox.js";
-import { currentChild, closeChild, rememberChild, forgetChild, isRemembered, rememberedChildren } from "../shared/js/children.js";
+import { currentChild, closeChild, rememberChild, forgetChild, isRemembered, rememberedChildren, openChild, parentSignedIn, setParentSignedIn } from "../shared/js/children.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
 const back = () => { location.href = `/${encodeURIComponent(school)}`; };
-const creds = currentChild(school);
+let creds = currentChild(school);
+// بحساب ولي الأمر: لا معرّف، والخادم يتحقق من ارتباط الطالب بالحساب
+const viaParent = () => !creds?.key && parentSignedIn(school);
+const whoOf = () => (creds.key ? { student_id: creds.id, key: creds.key } : { student_id: creds.id });
+const family = () => { location.href = `/${encodeURIComponent(school)}#/family`; };
 
 async function load() {
   if (!creds) return back();
   try {
-    const who = { student_id: creds.id, key: creds.key };
+    const who = whoOf();
     const [d, inbox] = await Promise.all([api(`${P}/student`, who), api(`${P}/student/inbox`, who).catch(() => null)]);
     render(d, inbox);
   } catch (e) {
+    if (viaParent() && e.status === 401) { setParentSignedIn(school, false); closeChild(school); return back(); }
+    if (viaParent() && e.status === 403) { closeChild(school); return family(); }
     if (e.status === 401 || e.status === 404) { closeChild(school); forgetChild(school, creds.id); return back(); }
     mount(app, topbar({}), h("main", {}, notice(e.message, "err"), btn("إعادة المحاولة", load)), footer());
   }
@@ -37,7 +43,7 @@ function render(d, inbox) {
   document.title = `مدار — ${s.name}`;
 
   // ملف الطالب: مصدره المشترك public/shared/js/student-file.js (نفسه الذي تراه الإدارة، لكن هنا مع زر الدفع)
-  const who = { student_id: creds.id, key: creds.key };
+  const who = whoOf();
   const remember = () => rememberChild(school, { id: creds.id, key: creds.key, name: s.name, class_name: s.class_name });
   if (isRemembered(school, creds.id)) remember();   // تحديث الاسم والفصل المحفوظين
   const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
@@ -51,9 +57,13 @@ function render(d, inbox) {
   } });
 
   mount(app,
-    topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب", onLogout: () => { closeChild(school); back(); } }),
+    topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب",
+      onLogout: viaParent() ? async () => { await api(`${P}/parent/logout`, {}).catch(() => {}); setParentSignedIn(school, false); closeChild(school); back(); }
+        : () => { closeChild(school); back(); } }),
     h("main", { class: "profile-page" },
-      h("div", { class: "toolbar" }, btn("الرجوع لقائمة الطلاب", back, "ghost sm"), btn("طباعة", () => window.print(), "ghost sm")),
+      viaParent() ? kidSwitcher(s) : null,
+      h("div", { class: "toolbar" }, viaParent() ? btn("أبنائي", family, "ghost sm") : btn("الرجوع لقائمة الطلاب", back, "ghost sm"),
+        btn("طباعة", () => window.print(), "ghost sm")),
       inbox?.push.key ? pushInvite({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
         text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null,
       file.el),
@@ -71,9 +81,37 @@ function render(d, inbox) {
   if (!opened && nid && inbox) file.open("inbox");
 }
 
+// محدد الأبناء (حساب ولي الأمر): ضغطة على اسم الابن تعرض ملفه في نفس الصفحة بلا خروج ولا دخول
+function kidSwitcher(s) {
+  let kids = [];
+  try { kids = JSON.parse(sessionStorage.getItem(`midar_family_${school}`) || "[]"); } catch { /* */ }
+  const box = h("nav", { class: "kid-switch", "aria-label": "أبنائي" });
+  const draw = () => mount(box, kids.length > 1 ? kids.map((k) => (k.id === creds.id
+    ? h("span", { class: "on", "aria-current": "page" }, k.name.split(" ")[0])
+    : h("a", { href: `?s=${k.id}`, onclick: (e) => { e.preventDefault(); switchTo(k.id); } }, k.name.split(" ")[0]))) : []);
+  if (!kids.length) {
+    api(`${P}/parent/me`, {}).then((d) => {
+      kids = d.children.filter((k) => k.active).map((k) => ({ id: k.id, name: k.name, class_name: k.class_name }));
+      sessionStorage.setItem(`midar_family_${school}`, JSON.stringify(kids));
+      draw();
+    }).catch(() => {});
+  }
+  draw();
+  void s;
+  return box;
+}
+function switchTo(id) {
+  creds = { id, key: null };
+  openChild(school, creds);
+  history.replaceState(null, "", `${location.pathname}?s=${id}`);
+  window.scrollTo({ top: 0 });
+  load();
+}
+
 // تسجيل هذا الجهاز لإشعارات هذا الابن ولكل الأبناء المحفوظين على الجهاز (ولي أمر لديه أكثر من طالب):
-// كل ابن مسجّل بمعرّفه، فيصل إشعار كل طالب لولي أمره فقط
+// كل ابن مسجّل بمعرّفه، فيصل إشعار كل طالب لولي أمره فقط. وبحساب ولي الأمر: كل أبنائه المرتبطين دفعة واحدة
 async function savePushAll(sub, who, remember) {
+  if (!who.key) { await api(`${P}/parent/push`, { subscription: sub }); return; }
   remember();
   await api(`${P}/student/push`, { ...who, subscription: sub });
   for (const c of rememberedChildren(school).filter((c) => c.id !== who.student_id)) {
@@ -98,7 +136,7 @@ function inboxSection(inbox, who, remember, reopen, openSection) {
         label: "الإشعارات على هذا الجهاز" }) : sub("الإشعارات على الجوال غير مفعّلة في هذه المدرسة. تصلك الإشعارات هنا."),
       inbox.push.key ? notificationPrefs({ load: () => api(`${P}/student/notify-prefs`, who),
         save: (muted) => api(`${P}/student/notify-prefs/save`, { ...who, muted }) }) : null,
-      line(h("div", {}, h("b", {}, "حفظ ملف الطالب على هذا الجهاز"),
+      !who.key ? null : line(h("div", {}, h("b", {}, "حفظ ملف الطالب على هذا الجهاز"),
         sub(saved ? "محفوظ: يفتح مباشرة من التطبيق ومن الإشعارات." : "يفتح الملف مباشرة دون إدخال المعرّف كل مرة. لا تفعّله على جهاز مشترك.")),
         saved ? btn("إزالة من الجهاز", () => { forgetChild(school, who.student_id); toast("أُزيل من هذا الجهاز"); reopen(); }, "ghost sm")
           : btn("حفظ", () => { remember(); toast("حُفظ على هذا الجهاز"); reopen(); }, "sm"))),
@@ -183,7 +221,7 @@ function payDialog(f, inv, available) {
       btn("إرسال الإشعار للمدرسة", async () => {
         mount(msg);
         try {
-          await api(`${P}/transfer-claims`, { student_id: creds.id, key: creds.key, invoice_id: inv.id, account_id: account.value,
+          await api(`${P}/transfer-claims`, { ...whoOf(), invoice_id: inv.id, account_id: account.value,
             amount: amount.value, transfer_date: date.value, sender_name: sender.value, bank_reference: ref.value || null, idempotency_key: key });
           d.close();
           toast("تم إرسال الإشعار. سيظهر السداد بعد تأكيد المدرسة.");

@@ -284,7 +284,7 @@ export function confirmAction(message) {
 /* ---------- التبويبات ---------- */
 // أيقونة كل قسم حسب مفتاحه (نفس المفتاح في كل البوابات: الإدارة، المعلم، المحاسب، المالك)
 const TAB_ICONS = {
-  dashboard: "home", home: "home", overview: "chart", students: "users", teachers: "user", academic: "calendar",
+  dashboard: "home", home: "home", overview: "chart", students: "users", parents: "userPlus", teachers: "user", academic: "calendar",
   attendance: "check", distribution: "shuffle", timetable: "grid", exams: "clipboard", papers: "file", reports: "award",
   sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",

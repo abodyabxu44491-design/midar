@@ -114,3 +114,38 @@
 .ss-kid { display: grid; gap: 2px; text-align: start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--teal); background: var(--teal-soft);
   color: var(--navy); font: inherit; cursor: pointer; }
 .ss-kid small { color: var(--muted); }
+/* حساب ولي الأمر */
+button.link { background: none; border: 0; padding: 0; color: var(--teal); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.ss-parent { border-color: var(--teal); }
+.ss-login { display: grid; gap: 8px; margin-top: 10px; }
+.ss-login-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 14px; }
+.fk-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.fk-head h1 { margin: 0; font-size: 22px; color: var(--navy); }
+.fk-head small { color: var(--muted); }
+.fk-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.fk-list { display: grid; gap: 10px; margin-bottom: 14px; }
+.fk-title { margin: 0; font-size: 17px; color: var(--navy); }
+.fk-card { display: flex; align-items: center; gap: 12px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 16px;
+  color: inherit; text-decoration: none; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: border-color .15s; }
+.fk-card:hover, .fk-card:focus-visible { border-color: var(--teal); }
+.fk-photo { width: 58px; height: 58px; flex: none; border-radius: 50%; background: var(--teal-soft); color: var(--teal); font-weight: 700; font-size: 18px;
+  display: grid; place-items: center; overflow: hidden; }
+.fk-photo img { width: 100%; height: 100%; object-fit: cover; }
+.fk-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.fk-name { font-size: 17px; }
+.fk-main > small { color: var(--muted); }
+.fk-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.fk-row small { color: var(--muted); font-size: 12.5px; }
+.fk-last { color: var(--ink); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fk-go { color: var(--muted); flex: none; }
+.fk-today { display: grid; gap: 6px; }
+.fk-today-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.fk-today-row:last-child { border-bottom: 0; }
+.fk-news { display: grid; gap: 6px; }
+.fk-note { display: flex; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--bg); color: inherit; text-decoration: none; align-items: flex-start; }
+.fk-note.unread { background: var(--teal-soft); }
+.fk-note > div { display: grid; gap: 2px; min-width: 0; }
+.fk-note small { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.fk-who { flex: none; min-width: 52px; text-align: center; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--navy); color: #fff; }
+.fk-old summary { cursor: pointer; font-weight: 700; color: var(--navy); }
+.fk-old-row { display: grid; padding: 6px 0; } .fk-old-row small { color: var(--muted); }
