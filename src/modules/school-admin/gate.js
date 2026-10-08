@@ -120,6 +120,24 @@ r.post("/devices", handle(async (req, res) => {
     return { id: d.id, link, qr: qrDataUrl(link), hours: gate.PAIR_HOURS };
   }));
 }));
+// رمز ربط: يُظهره المدير، وأي جوال يكتبه في صفحة البوابة يصير جهاز بوابة
+const joinLink = (req, code) => `${baseUrl(req)}/${req.tenantId}/gate#j=${code}`;
+const withJoinLink = (req, c) => ({ ...c, link: c.code ? joinLink(req, c.code) : null, qr: c.code ? qrDataUrl(joinLink(req, c.code)) : null,
+  page: `${baseUrl(req)}/${req.tenantId}/gate` });
+r.get("/join-codes", handle(async (req, res) => {
+  res.json((await inTenant(req, gate.listJoinCodes)).map((c) => withJoinLink(req, c)));
+}));
+r.post("/join-codes", handle(async (req, res) => {
+  const b = parse(gate.joinCodeBody, req.body);
+  res.json(await inTenant(req, async (q) => {
+    const c = await gate.createJoinCode(q, { ...b, gate_id: b.gate_id ?? await gate.defaultGate(q) }, { actor: req.actor });
+    return withJoinLink(req, { ...c, used_count: 0, devices: [] });
+  }));
+}));
+r.post("/join-codes/:id/revoke", handle(async (req, res) => {
+  const { id } = parse(idP, req.params);
+  res.json(await inTenant(req, (q) => gate.revokeJoinCode(q, id)));
+}));
 r.patch("/devices/:id", handle(async (req, res) => {
   const { id } = parse(idP, req.params);
   const b = parse(gate.deviceBody, req.body);
