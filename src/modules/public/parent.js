@@ -1,6 +1,7 @@
 // حساب ولي الأمر: دخول واحد ← كل الأبناء ← ملف أي ابن (بلا معرّف لكل ابن)
-//   /parent/login       الدخول بالجوال وكلمة المرور
-//   /parent/activate    تفعيل الحساب بنفسه أو استعادة كلمة المرور: جوال مسجل لدى المدرسة + معرّف أحد الأبناء
+//   /parent/register    إنشاء الحساب بنفسه: الاسم + البريد أو الجوال + كلمة المرور + معرّفات الأبناء
+//   /parent/login       الدخول بالبريد أو الجوال وكلمة المرور (الجلسة تبقى 30 يومًا وتتجدد مع الاستخدام)
+//   /parent/activate    استعادة كلمة المرور: البريد أو الجوال + معرّف أحد الأبناء
 //   /parent/me          لوحة الأسرة: الأبناء وحالة اليوم وآخر التنبيهات (باسم كل ابن)
 //   /parent/children/*  إضافة ابن بمعرّفه، أو طلب ربط برقمه
 //   /parent/push        تسجيل الجهاز للإشعار الفوري لكل الأبناء دفعة واحدة
@@ -44,6 +45,20 @@ r.post("/parent/login", limits.parentLogin, handle(async (req, res) => {
   res.json({ ok: true, must_change_password: out.parent.must_change_password });
 }));
 
+const signIn = (req, res, tenant, parentId, q) => createSession(res, "parent",
+  { parentId, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: true }, q);
+
+r.post("/parent/register", limits.login, handle(async (req, res) => {
+  const b = parse(parents.registerSchema, req.body);
+  const out = await inSchool(req, ACTOR, async (q, tenant) => {
+    const o = await parents.register(q, b, { ip: req.ip });
+    if (o.parent_id) await signIn(req, res, tenant, o.parent_id, q);
+    return o;
+  });
+  if (out.error) throw new AppError(out.status || 400, out.error, out.exists ? "exists" : "denied", out.invalid ? { invalid: out.invalid } : undefined);
+  res.json({ ok: true, linked: out.linked, requested: out.requested, already: out.already, siblings: out.siblings });
+}));
+
 r.post("/parent/activate", limits.login, handle(async (req, res) => {
   const b = parse(parents.activateSchema, req.body);
   const out = await inSchool(req, ACTOR, async (q, tenant) => {
@@ -67,9 +82,12 @@ r.post("/parent/password", asParent(async (q, p, tenant, req) => {
   return parents.changePassword(q, p, b);
 }));
 
+// إضافة ابن (key) أو عدة أبناء دفعة واحدة (keys)
 r.post("/parent/children/add", asParent(async (q, p, tenant, req) => {
-  const b = parse(parents.linkKeySchema, req.body);
-  return parents.addChildByKey(q, p, b);
+  if (!Array.isArray(req.body?.keys)) return parents.addChildByKey(q, p, parse(parents.linkKeySchema, req.body));
+  const o = await parents.addChildren(q, p, parse(parents.linkKeysSchema, req.body), { ip: req.ip });
+  if (o.error) throw new AppError(o.status || 400, o.error, "denied", o.invalid ? { invalid: o.invalid } : undefined);
+  return o;
 }));
 r.post("/parent/children/request", asParent(async (q, p, tenant, req) => {
   const b = parse(parents.requestSchema, req.body);

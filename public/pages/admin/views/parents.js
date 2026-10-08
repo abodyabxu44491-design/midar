@@ -18,7 +18,7 @@ export default async function parents({ me }) {
   let search = "";
   const parentLink = `${location.origin}/${me.school.id}`;
   const message = (c) => [`السلام عليكم ${c.name || ""}،`, `حساب ولي الأمر في ${me.school.name} لمتابعة كل أبنائكم من مكان واحد:`,
-    parentLink, `رقم الجوال: ${c.phone}`, `كلمة المرور المؤقتة: ${c.password}`, "غيّروا كلمة المرور بعد أول دخول."].join("\n");
+    parentLink, `اسم الدخول: ${c.phone}`, `كلمة المرور المؤقتة: ${c.password}`, "غيّروا كلمة المرور بعد أول دخول."].join("\n");
   const credsDialog = (title, list) => dialog(title, h("div", {},
     notice("سلّم كل ولي أمر بياناته. كلمة المرور المؤقتة تظهر أيضًا في ملفه حتى يغيّرها.", "warn"),
     h("div", { class: "pa-creds" }, list.map((c) => h("div", { class: "pa-cred" },
@@ -49,14 +49,14 @@ export default async function parents({ me }) {
       h("div", { class: "row" }, badge(`${total} حساب`, "gray"), badge(`${active} فعّلوا حساباتهم`, "")),
       q,
       list.length ? h("div", { class: "pa-list" }, list.map((p) => h("button", { type: "button", class: "pa-row", onclick: () => openParent(p.id) },
-        h("div", { class: "pa-main" }, h("b", {}, p.name), h("small", { class: "sub" }, h("bdi", { dir: "ltr" }, p.phone),
+        h("div", { class: "pa-main" }, h("b", {}, p.name), h("small", { class: "sub" }, h("bdi", { dir: "ltr" }, p.phone || p.email), p.source === "self" ? " · سجّل بنفسه" : "",
           p.last_login_at ? ` · آخر دخول ${fmtDateTime(p.last_login_at)}` : p.has_password ? "" : " · لم يُفعَّل")),
         h("div", { class: "pa-kids" }, p.children.map((k) => h("span", { class: `pa-kid${k.active ? "" : " old"}` }, k.name.split(" ")[0]))),
         p.status === "disabled" ? badge("موقوف", "red") : p.must_change_password ? badge("كلمة مؤقتة", "amber") : null)))
         : empty(search ? "لا نتائج." : "لا توجد حسابات بعد. اضغط «إنشاء الحسابات من أرقام الجوال».")),
       reqs.length ? panel(`طلبات ربط الأبناء (${reqs.length})`, null, reqs.map((r) => line(
         h("div", {}, h("b", {}, `${r.parent_name} ← ${r.student_name}`),
-          sub(`${r.class_name || ""} · جوال الحساب ${r.phone}${r.guardian_phone ? ` · جوال ولي الأمر المسجل ${r.guardian_phone}` : ""}${r.note ? ` · ${r.note}` : ""}`),
+          sub(`${r.class_name || ""} · الحساب ${r.phone || r.email || ""}${r.guardian_phone ? ` · جوال ولي الأمر المسجل ${r.guardian_phone}` : ""}${r.note ? ` · ${r.note}` : ""}`),
           r.guardian_phone && r.guardian_phone !== r.phone ? h("small", { class: "danger-text" }, "الجوال لا يطابق المسجل للطالب — تحقق قبل الموافقة") : null),
         h("div", { class: "row" },
           btn("موافقة", async () => { await api(`${R()}/requests/${r.id}`, { approve: true }); toast("رُبط الطالب"); draw(); }, "sm"),
@@ -82,11 +82,11 @@ export default async function parents({ me }) {
     const phone = input({ value: p?.phone || "", type: "tel", dir: "ltr" });
     const email = input({ value: p?.email || "", type: "email", dir: "ltr" });
     const d = dialog(p ? "تعديل بيانات ولي الأمر" : "حساب ولي أمر جديد", h("div", {},
-      field("الاسم", name), field("رقم الجوال (اسم الدخول)", phone), field("البريد (اختياري)", email),
+      field("الاسم", name), field("رقم الجوال", phone), field("البريد الإلكتروني", email, "يكفي أحدهما للدخول"),
       p ? null : sub("بعد الإنشاء افتح الحساب وأضف الأبناء.")),
     [btn("حفظ", async () => {
       try {
-        const body = { name: name.value.trim(), phone: phone.value.trim(), email: email.value.trim() || null };
+        const body = { name: name.value.trim(), phone: phone.value.trim() || null, email: email.value.trim() || null };
         if (p) { await api(`${R()}/${p.id}`, body, "PATCH"); d.close(); toast("حُفظ"); onDone?.(); return; }
         const r = await api(R(), body);
         d.close();
@@ -130,7 +130,7 @@ export default async function parents({ me }) {
       }, 300);
     });
     mount(body,
-      line(h("span", { class: "sub" }, "الجوال (اسم الدخول)"), h("bdi", { dir: "ltr" }, p.phone)),
+      p.phone ? line(h("span", { class: "sub" }, "الجوال"), h("bdi", { dir: "ltr" }, p.phone)) : null,
       p.email ? line(h("span", { class: "sub" }, "البريد"), h("bdi", { dir: "ltr" }, p.email)) : null,
       line(h("span", { class: "sub" }, "الحالة"), p.status === "disabled" ? badge("موقوف", "red") : badge("فعال")),
       line(h("span", { class: "sub" }, "آخر دخول"), h("span", {}, p.last_login_at ? fmtDateTime(p.last_login_at) : "لم يدخل بعد")),
@@ -161,6 +161,6 @@ export default async function parents({ me }) {
 /** أولياء أمور الطالب (في ملف الطالب عند الإدارة) */
 export async function studentParents(studentId) {
   const list = await api(`${A}/parents/of-student/${studentId}`).catch(() => []);
-  return list.length ? list.map((p) => line(h("span", {}, `${p.name} (${REL[p.relation]})`), h("bdi", { dir: "ltr" }, p.phone)))
+  return list.length ? list.map((p) => line(h("span", {}, `${p.name} (${REL[p.relation]})`), h("bdi", { dir: "ltr" }, p.phone || p.email)))
     : sub("لا يوجد حساب ولي أمر مرتبط بهذا الطالب.");
 }

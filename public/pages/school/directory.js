@@ -1,5 +1,7 @@
 // موقع المدرسة المصغّر: صفحة الطلاب وأولياء الأمور
 //   #/                 الرئيسية: الشعار، الاسم، النبذة، البحث بالمعرّف، التسجيل، الإعلانات، التواصل
+//   #/account[/new]    دخول ولي الأمر / إنشاء حسابه بنفسه (زر الحساب أعلى كل صفحة)
+//   #/family           «أبنائي» (ولي الأمر المسجّل يُفتح له مباشرة عند فتح الموقع أو التطبيق)
 //   #/students         الطلاب: المراحل ← الصفوف
 //   #/grade/<id>[/<شعبة>]  صفحة الصف: شعبه كتبويبات، وطلاب الشعبة كبطاقات (30 في كل مرة)
 // كل عنصر يظهر فقط إذا فعّلته إدارة المدرسة، وبطاقة الطالب لا تحمل إلا ما سمحت بنشره.
@@ -10,8 +12,8 @@ import { fmtDate } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { detectPhone } from "../shared/js/phone.js";
-import { rememberedChildren, openChild } from "../shared/js/children.js";
-import { parentCard, familyPage } from "./family.js";
+import { rememberedChildren, openChild, parentSignedIn } from "../shared/js/children.js";
+import { accountButton, accountPage, familyPage } from "./family.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -24,7 +26,8 @@ function shell(content, { crumbs = [] } = {}) {
   const logo = home?.school.logo ? h("img", { class: "ss-logo", src: `${P}/logo?v=${home.school.logo_v}&size=thumb`, alt: "", width: 44, height: 44 }) : null;
   mount(app,
     h("header", { class: "ss-top" }, h("div", { class: "in" },
-      h("a", { class: "ss-brand", href: "#/" }, logo, h("div", {}, h("b", {}, home?.school.name || ""), h("small", {}, "الطلاب وأولياء الأمور"))))),
+      h("a", { class: "ss-brand", href: "#/" }, logo, h("div", {}, h("b", {}, home?.school.name || ""), h("small", {}, "الطلاب وأولياء الأمور"))),
+      home?.features.parents === false ? null : accountButton())),
     crumbs.length ? h("nav", { class: "ss-crumbs", "aria-label": "المسار" }, h("div", { class: "in" },
       [["الرئيسية", "#/"], ...crumbs].map(([label, href], i, a) => [
         i ? h("span", { class: "sep", "aria-hidden": "true" }, "‹") : null,
@@ -37,10 +40,13 @@ const emptyState = (icon, title, text) => h("div", { class: "ss-empty" }, icon, 
 
 /* ======================= الموجّه ======================= */
 async function route() {
+  // فتح الموقع (أو التطبيق المثبّت) بلا مسار: ولي الأمر المسجّل يدخل مباشرة إلى حسابه
+  if (!location.hash && parentSignedIn(school) && !new URLSearchParams(location.search).get("k")) { location.replace("#/family"); return; }
   const [, page, a, b] = (location.hash || "#/").split("/");
   try {
     if (!home) home = await api(`${P}/home`, {});
     if (page === "family") return await familyPage(shell);
+    if (page === "account") return accountPage(shell, a === "new" ? "new" : "login");
     if (page === "students") return await studentsPage();
     if (page === "grade") return await gradePage(Number(a), b ? Number(b) : null);
     return homePage();
@@ -67,9 +73,8 @@ function homePage() {
       home.school.logo ? h("img", { class: "ss-hero-logo", src: `${P}/logo?v=${home.school.logo_v}`, alt: `شعار ${home.school.name}` }) : brandLogo("ss-hero-logo", false, "row"),
       h("h1", {}, home.school.name),
       home.school.about ? h("p", { class: "ss-about" }, home.school.about) : null),
-    parentCard(),
     h("section", { class: "ss-card ss-keycard" }, h("h2", {}, icons.key({ size: 20 }), "ملف طالب بالمعرّف"),
-      sub("أو أدخل معرّف الطالب من البطاقة التي سلّمتها المدرسة لفتح ملفه مباشرة."), findByKey()),
+      sub("أدخل معرّف الطالب من البطاقة التي سلّمتها المدرسة لفتح ملفه مباشرة."), findByKey()),
     tiles.length ? h("section", { class: `ss-tiles n${tiles.length}` }, tiles) : null,
     home.announcements.length ? h("section", { class: "ss-card", id: "news" }, h("h2", {}, icons.megaphone({ size: 20 }), "الأخبار والإعلانات"),
       home.announcements.map((a) => h("article", { class: "ss-news" }, h("b", {}, a.title), h("p", {}, a.body), h("small", {}, fmtDate(a.created_at))))) : null,

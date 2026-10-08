@@ -230,3 +230,93 @@ test("الدخول والصلاحيات: كلمة مرور خاطئة، قفل �
   assert.equal((await c.get("/api/admin/parents")).status, 401);
   assert.equal((await A.teacher.get("/api/admin/parents")).status, 401);
 });
+
+test("إنشاء ولي الأمر حسابه بنفسه بالبريد: معرّفات أبنائه ← حساب جاهز بكل أبنائه، والجلسة محفوظة", async () => {
+  const s1 = await addStudent(A, "يوسف سعيد عمر", "770008001");
+  const s2 = await addStudent(A, "هند سعيد عمر", "770008001");
+  const c = client(srv.base);
+  // معرّف خاطئ ضمن القائمة: يُرفض الطلب كله مع موضعه، ولا يُنشأ حساب
+  const bad = await c.post(`${P(A)}/parent/register`, { name: "سعيد عمر", identifier: "Saeed@Example.com", password: "Saeed-Pass-1",
+    keys: [s1.access_key, "ZZZZ-9999"] });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(bad.data.invalid, [1]);
+  assert.equal((await A.admin.get("/api/admin/parents?search=saeed@example.com")).data.length, 0);
+  // معرّفان صحيحان (أحدهما رابط بطاقة) ← حساب بالبريد مرتبط بالاثنين، والدخول تلقائي
+  const r = await c.post(`${P(A)}/parent/register`, { name: "سعيد عمر", identifier: "Saeed@Example.com", password: "Saeed-Pass-1",
+    keys: [s1.access_key, `https://x.app/${A.id}?k=${s2.access_key}`] });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.linked.length, 2);
+  const me = (await c.post(`${P(A)}/parent/me`)).data;
+  assert.deepEqual(me.children.map((k) => k.id).sort(), [s1.id, s2.id].sort());
+  assert.equal(me.parent.email, "saeed@example.com");
+  assert.equal(me.parent.must_change_password, false);
+  assert.equal((await c.post(`${P(A)}/student`, { student_id: s1.id })).status, 200);
+  // نفس البريد مرة ثانية (بحروف مختلفة): لا حساب مكرر
+  const dup = await client(srv.base).post(`${P(A)}/parent/register`, { name: "آخر", identifier: "SAEED@example.com", password: "Other-Pass-1", keys: [s1.access_key] });
+  assert.equal(dup.status, 409);
+  // الدخول بالبريد من جهاز آخر
+  const c2 = client(srv.base);
+  const li = await c2.post(`${P(A)}/parent/login`, { identifier: "saeed@EXAMPLE.com", password: "Saeed-Pass-1" });
+  assert.equal(li.status, 200, JSON.stringify(li.data));
+  assert.equal((await c2.post(`${P(A)}/parent/me`)).data.children.length, 2);
+  // الإدارة ترى الحساب (مصدره ولي الأمر) وتبحث عنه بالبريد
+  const [row] = (await A.admin.get("/api/admin/parents?search=saeed@")).data;
+  assert.equal(row.source, "self");
+  assert.equal(row.phone, null);
+  // لا معرّفات أصلًا: مرفوض
+  assert.equal((await client(srv.base).post(`${P(A)}/parent/register`, { name: "س", identifier: "x@y.com", password: "Xx-Pass-12", keys: [] })).status, 400);
+});
+
+test("إنشاء الحساب بالجوال: الإخوة بنفس الجوال يُربطون فقط إن أثبت المعرّف أنه جواله", async () => {
+  const a1 = await addStudent(A, "ريم فيصل حسن", "770007001");
+  const a2 = await addStudent(A, "ليلى فيصل حسن", "770007001");
+  const other = await addStudent(A, "عمر صالح هادي", "770007002");
+  // شخص يسجّل بجوال غيره ومعرّف ابنه هو: لا يحصل على أبناء صاحب الجوال
+  const x = client(srv.base);
+  const rx = await x.post(`${P(A)}/parent/register`, { name: "صالح", identifier: "770007001", password: "Salh-Pass-1", keys: [other.access_key] });
+  assert.equal(rx.status, 200, JSON.stringify(rx.data));
+  assert.equal(rx.data.siblings.length, 0);
+  assert.deepEqual((await x.post(`${P(A)}/parent/me`)).data.children.map((k) => k.id), [other.id]);
+  assert.equal((await x.post(`${P(A)}/student`, { student_id: a1.id })).status, 403);
+  // صاحب الجوال الحقيقي (بمعرّف أحد أبنائه) — والجوال بالأرقام العربية والصيغة الدولية مقبول
+  const c = client(srv.base);
+  const exists = await c.post(`${P(A)}/parent/register`, { name: "فيصل حسن", identifier: "+967 770007001", password: "Faisal-Pass-1", keys: [a1.access_key] });
+  // الرقم مستخدم في حساب نشط (سجّله صالح ودخل به) ← لا يُستلم، يُطلب الدخول أو الاستعادة
+  assert.equal(exists.status, 409);
+  // الاستعادة بمعرّف ابن مسجّل بنفس الجوال تعيد الحساب لصاحبه وتُخرج الأجهزة الأخرى
+  const rs = await c.post(`${P(A)}/parent/activate`, { identifier: "770007001", key: a1.access_key, password: "Faisal-Pass-2" });
+  assert.equal(rs.status, 200, JSON.stringify(rs.data));
+  assert.equal((await x.post(`${P(A)}/parent/me`)).status, 401);
+  const ids = (await c.post(`${P(A)}/parent/me`)).data.children.map((k) => k.id);
+  assert.ok(ids.includes(a1.id) && ids.includes(a2.id));
+});
+
+test("حساب أنشأته الإدارة ولم يُستخدم: يستلمه ولي الأمر بالتسجيل بمعرّف ابنه، بلا حساب مكرر", async () => {
+  const s = await addStudent(A, "سلمان راشد يحيى", "770006001");
+  await A.admin.post("/api/admin/parents/auto-create");
+  const c = client(srv.base);
+  const r = await c.post(`${P(A)}/parent/register`, { name: "راشد يحيى", identifier: "770006001", password: "Rashed-Pass-1", keys: [s.access_key] });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const list = (await A.admin.get("/api/admin/parents?search=770006001")).data;
+  assert.equal(list.length, 1);
+  assert.equal(list[0].must_change_password, false);
+  assert.equal(list[0].children.length, 1);
+});
+
+test("إضافة عدة أبناء دفعة واحدة من الحساب، والمعرّف الخاطئ يُعلَّم بموضعه", async () => {
+  const s1 = await addStudent(A, "جود ماجد أحمد", "770005001");
+  const s2 = await addStudent(A, "تالا ماجد أحمد", "770005002");
+  const s3 = await addStudent(A, "زيد ماجد أحمد", "770005003");
+  const c = client(srv.base);
+  assert.equal((await c.post(`${P(A)}/parent/register`, { name: "ماجد أحمد", identifier: "majed@example.com", password: "Majed-Pass-1", keys: [s1.access_key] })).status, 200);
+  const bad = await c.post(`${P(A)}/parent/children/add`, { keys: [s2.access_key, "nonsense"] });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(bad.data.invalid, [1]);
+  const r = await c.post(`${P(A)}/parent/children/add`, { keys: [s2.access_key, s3.access_key, s1.access_key] });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.linked.length, 2);
+  assert.equal(r.data.already.length, 1);
+  assert.equal((await c.post(`${P(A)}/parent/me`)).data.children.length, 3);
+  // معرّف طالب من مدرسة أخرى لا يربط شيئًا
+  assert.equal((await c.post(`${P(A)}/parent/children/add`, { keys: [B.students[0].access_key] })).status, 400);
+});

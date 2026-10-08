@@ -35,14 +35,35 @@ const studentKeyOf = z.string().trim().max(400).transform((v, ctx) => {
   return `${k.slice(0, 4)}-${k.slice(4)}`;
 });
 
-export const loginSchema = z.object({ phone, password: z.string().min(1, "اكتب كلمة المرور").max(200) });
-export const activateSchema = z.object({ phone, key: studentKeyOf, password: parentPassword, name: t.optText(120), relation: relation.optional() });
+// اسم الدخول: بريد إلكتروني أو رقم جوال (يُقبل الحقل القديم phone أيضًا)
+const emailOf = z.string().trim().toLowerCase().email("البريد الإلكتروني غير صحيح").max(120);
+const identifier = z.string().trim().min(3, "اكتب البريد الإلكتروني أو رقم الجوال").max(120).transform((v, ctx) => {
+  if (v.includes("@")) {
+    const e = emailOf.safeParse(v);
+    if (!e.success) { ctx.addIssue({ code: "custom", message: "البريد الإلكتروني غير صحيح" }); return z.NEVER; }
+    return { email: e.data };
+  }
+  const p = normalizePhone(v);
+  if (!p || !/^\+?[0-9]{6,20}$/.test(p)) { ctx.addIssue({ code: "custom", message: "اكتب بريدًا إلكترونيًا صحيحًا أو رقم جوال صحيحًا" }); return z.NEVER; }
+  return { phone: p };
+});
+const withIdentifier = (shape) => z.preprocess((v) => (v && typeof v === "object" && v.identifier == null && v.phone != null ? { ...v, identifier: v.phone } : v),
+  z.object({ identifier, ...shape }));
+export const loginSchema = withIdentifier({ password: z.string().min(1, "اكتب كلمة المرور").max(200) });
+export const activateSchema = withIdentifier({ key: studentKeyOf, password: parentPassword, name: t.optText(120), relation: relation.optional() });
+// إنشاء الحساب بنفسه: الاسم + البريد أو الجوال + كلمة المرور + معرّفات الأبناء (واحد على الأقل)
+export const registerSchema = withIdentifier({ name: z.string().trim().min(2, "اكتب اسمك").max(120), password: parentPassword,
+  keys: z.array(z.string().max(400)).min(1, "أضف معرّف ابن واحد على الأقل").max(20), relation: relation.optional() });
+export const linkKeysSchema = z.object({ keys: z.array(z.string().max(400)).min(1).max(20), relation: relation.optional() });
 export const linkKeySchema = z.object({ key: studentKeyOf, relation: relation.optional() });
 export const requestSchema = z.object({ student_no: z.string().trim().min(1).max(30), student_name: z.string().trim().min(2).max(120),
   relation: relation.optional(), note: t.optText(300) });
 export const passwordSchema = z.object({ current: z.string().min(1).max(200), next: parentPassword });
-export const parentBody = z.object({ name: z.string().trim().min(2).max(120), phone, email: z.string().trim().email("البريد غير صحيح").max(120).optional().nullable().or(z.literal("")),
-  student_ids: z.array(t.id).max(50).optional(), relation: relation.optional() });
+export const parentBody = z.object({ name: z.string().trim().min(2).max(120),
+  phone: phone.optional().nullable().or(z.literal("").transform(() => null)),
+  email: emailOf.optional().nullable().or(z.literal("").transform(() => null)),
+  student_ids: z.array(t.id).max(50).optional(), relation: relation.optional() })
+  .refine((b) => b.phone || b.email, { message: "اكتب رقم الجوال أو البريد الإلكتروني", path: ["phone"] });
 export const linkBody = z.object({ student_id: t.id, relation: relation.optional(), can_view_fees: z.boolean().optional() });
 
 /* ======================= الجلسة والتحقق ======================= */
@@ -69,17 +90,24 @@ export async function linkedStudent(q, parentId, studentId) {
 
 /* ======================= الدخول ======================= */
 const MAX_FAILS = 5, MAX_FAILS_ACCOUNT = 30, LOCK_MIN = 10;
+const idText = (id) => id.email || id.phone;
+/** الحساب بالبريد أو الجوال */
+const findParent = async (q, id, cols = "id") => (id.email
+  ? await q(`SELECT ${cols} FROM parents WHERE lower(email) = $1`, [id.email])
+  : await q(`SELECT ${cols} FROM parents WHERE phone = $1`, [id.phone]))[0] || null;
+
 export async function login(q, b, { ip }) {
   const tenant = await tenantOf(q);
-  const ipKey = `${tenant}:${b.phone}:${ip || "?"}`, acctKey = `${tenant}:${b.phone}`;
-  const [p] = await q("SELECT id, full_name, password_hash, status, must_change_password FROM parents WHERE phone = $1", [b.phone]);
+  const who = idText(b.identifier);
+  const ipKey = `${tenant}:${who}:${ip || "?"}`, acctKey = `${tenant}:${who}`;
+  const p = await findParent(q, b.identifier, "id, full_name, password_hash, status, must_change_password");
   const ok = await verifyPassword(b.password, p?.password_hash, { temporary: Boolean(p?.must_change_password) });
   if ((await recentFailures(q, "parent_login_failed_ip", ipKey, LOCK_MIN)) >= MAX_FAILS
       || (await recentFailures(q, "parent_login_failed", acctKey, LOCK_MIN)) >= MAX_FAILS_ACCOUNT) {
     return { error: `تم إيقاف الدخول مؤقتًا بسبب محاولات خاطئة. حاول بعد ${LOCK_MIN} دقائق.`, status: 429 };
   }
   if (!p || !p.password_hash || p.status !== "active" || !ok) {
-    return { fail: true, ipKey, acctKey, error: p?.status === "disabled" ? "الحساب موقوف. تواصل مع المدرسة." : "رقم الجوال أو كلمة المرور غير صحيحة" };
+    return { fail: true, ipKey, acctKey, error: p?.status === "disabled" ? "الحساب موقوف. تواصل مع المدرسة." : "البريد أو رقم الجوال أو كلمة المرور غير صحيحة" };
   }
   await q("DELETE FROM security_events WHERE kind = 'parent_login_failed_ip' AND subject = $1", [ipKey]);
   await q("UPDATE parents SET last_login_at = now() WHERE id = $1", [p.id]);
@@ -120,43 +148,144 @@ export async function unlink(q, parentId, studentId, { actor }) {
   await q("DELETE FROM push_subscriptions WHERE parent_id = $1 AND student_id = $2", [parentId, studentId]);
   return { ok: true };
 }
-const siblingsOf = (q, phoneNo) => q(
-  "SELECT id FROM students WHERE guardian_phone = $1 AND status = 'active' AND archived_at IS NULL", [phoneNo]);
+
+const KEY_FAILS = 10, KEY_LOCK_MIN = 30;
+const keyLock = async (q, ip) => {
+  const subject = `${await tenantOf(q)}:${ip || "?"}`;
+  return { subject, locked: (await recentFailures(q, "parent_activate_failed", subject, KEY_LOCK_MIN)) >= KEY_FAILS };
+};
+const keyFail = async (q, subject, ip) => securityEvent(q, { kind: "parent_activate_failed", subject, tenantId: await tenantOf(q), ip });
+const LOCKED = { error: `تم إيقاف المحاولة مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد ${KEY_LOCK_MIN} دقيقة.`, status: 429 };
+const isActive = (s) => s && s.status === "active" && !s.archived_at;
+const guardianOf = (s, id) => Boolean(id.phone) && safeEqual(normalizePhone(s.guardian_phone) || "", id.phone);
+const isLinked = async (q, parentId, studentId) => (await q(
+  "SELECT 1 FROM parent_students WHERE parent_id = $1 AND student_id = $2 AND removed_at IS NULL", [parentId, studentId])).length > 0;
+
+/** معرّفات مكتوبة أو روابط بطاقات ← طلاب (مع موضع كل معرّف غير صحيح) */
+async function studentsByKeys(q, raw) {
+  const found = [], invalid = [], seen = new Set();
+  for (const [i, v] of raw.entries()) {
+    const k = studentKeyOf.safeParse(String(v || ""));
+    if (!k.success) { if (String(v || "").trim()) invalid.push(i); continue; }
+    if (seen.has(k.data)) continue;
+    seen.add(k.data);
+    const [s] = await q("SELECT id, full_name, guardian_phone, guardian_name, status, archived_at FROM students WHERE access_key = $1", [k.data]);
+    if (isActive(s)) found.push(s); else invalid.push(i);
+  }
+  return { found, invalid };
+}
+const keysError = (invalid) => ({ error: invalid.length === 1 ? "أحد المعرّفات غير صحيح أو الطالب غير مقيد. تأكد منه." : "بعض المعرّفات غير صحيحة أو الطلاب غير مقيدين. تأكد منها.",
+  invalid, status: 400 });
+
+/** ربط مجموعة طلاب بالحساب: مباشرة إن سمحت المدرسة، وإلا طلبات تراجعها الإدارة */
+async function attach(q, parent, list, { settings, actor, relation: rel = null }) {
+  const linked = [], requested = [], already = [];
+  for (const s of list) {
+    if (settings.link_by_key) {
+      const r = await link(q, parent.id, s.id, { actor, source: "key", relation: rel });
+      (r.linked ? linked : already).push(s.full_name);
+    } else {
+      const r = await openRequest(q, parent, s, { relation: rel });
+      (r.already ? already : requested).push(s.full_name);
+    }
+  }
+  return { linked, requested, already };
+}
+/** الإخوة المسجلون بنفس الجوال: فقط إن أثبت ولي الأمر أن الجوال جواله (معرّف ابن مسجّل بنفس الجوال) */
+async function linkSiblings(q, parent, id, students, settings, actor) {
+  if (!settings.auto_link_siblings || !settings.link_by_key || !students.some((s) => guardianOf(s, id))) return [];
+  const out = [];
+  for (const x of await q("SELECT id, full_name FROM students WHERE guardian_phone = $1 AND status = 'active' AND archived_at IS NULL", [id.phone])) {
+    if ((await link(q, parent.id, x.id, { actor, source: "auto" })).linked) out.push(x.full_name);
+  }
+  return out;
+}
 
 /**
- * تفعيل حساب ولي الأمر بنفسه (أو استعادة كلمة المرور): جوال مسجل لدى المدرسة لهذا الطالب + معرّف الطالب.
- * إن وُجد حساب بنفس الجوال يُستخدم نفسه (لا حسابات مكررة) وتُعيَّن كلمة المرور الجديدة.
+ * إنشاء ولي الأمر حسابه بنفسه (بلا تدخل الإدارة): الاسم + البريد أو الجوال + كلمة المرور + معرّفات أبنائه.
+ *  - المعرّفات تُثبت أن هؤلاء أبناؤه؛ يلزم معرّف صحيح واحد على الأقل، وأي معرّف خاطئ يُرفض الطلب كله ليصححه.
+ *  - البريد/الجوال فريد في المدرسة. حساب أنشأته الإدارة ولم يُستخدم بعد يُستلم بإثبات الملكية (معرّف ابن مرتبط به أو مسجّل بنفس الجوال).
+ */
+export async function register(q, b, { ip }) {
+  const settings = await featureSettings(q, "parents");
+  if (!settings.self_activation) throw forbidden("إنشاء الحسابات يتم من المدرسة. تواصل معها لاستلام بيانات الدخول.");
+  const lock = await keyLock(q, ip);
+  if (lock.locked) return LOCKED;
+  const { found, invalid } = await studentsByKeys(q, b.keys);
+  if (invalid.length || !found.length) {
+    await keyFail(q, lock.subject, ip);
+    return keysError(invalid.length ? invalid : [0]);
+  }
+  const id = b.identifier, actor = "تسجيل ذاتي";
+  const existing = await findParent(q, id, "id, full_name, phone, email, last_login_at, must_change_password, source");
+  let parent;
+  if (existing) {
+    // حساب من الإدارة لم يُفعَّل بعد: يستلمه صاحبه بإثبات أن أحد الأبناء ابنه
+    const unused = existing.must_change_password && !existing.last_login_at;
+    let owns = false;
+    for (const s of found) if (guardianOf(s, id) || (await isLinked(q, existing.id, s.id))) owns = true;
+    if (!unused || !owns) {
+      return { error: `يوجد حساب بهذا ${id.email ? "البريد" : "الرقم"}. سجّل الدخول، أو استخدم «نسيت كلمة المرور».`, status: 409, exists: true };
+    }
+    await q(`UPDATE parents SET full_name = $2, password_hash = $3, must_change_password = false, initial_password_enc = NULL,
+                    password_changed_at = now() WHERE id = $1`, [existing.id, b.name, await hashPassword(b.password)]);
+    await q("DELETE FROM sessions WHERE parent_id = $1", [existing.id]);
+    parent = { id: existing.id, full_name: b.name, phone: existing.phone, email: existing.email };
+  } else {
+    const [p] = await q(`INSERT INTO parents (tenant_id, full_name, phone, email, password_hash, must_change_password, password_changed_at, created_by, source)
+                         VALUES (app_tenant(), $1, $2, $3, $4, false, now(), $5, 'self') RETURNING id, full_name, phone, email`,
+    [b.name, id.phone || null, id.email || null, await hashPassword(b.password), actor]);
+    parent = p;
+  }
+  const out = await attach(q, parent, found, { settings, actor, relation: b.relation || null });
+  const siblings = id.phone ? await linkSiblings(q, parent, id, found, settings, actor) : [];
+  await logEvent(q, { tenantId: await tenantOf(q), actor: b.name, action: existing ? "تفعيل حساب ولي أمر" : "إنشاء حساب ولي أمر" });
+  return { parent_id: parent.id, ...out, siblings };
+}
+
+/**
+ * استعادة كلمة المرور (أو التفعيل بالطريقة السابقة): البريد/الجوال + معرّف أحد الأبناء.
+ *  - الحساب موجود: يلزم أن يكون الطالب مرتبطًا به (أو الجوال جوال ولي أمره المسجل لدى المدرسة).
+ *  - لا حساب: يُنشأ فقط إن كان الجوال جوال ولي الأمر المسجل لدى المدرسة لهذا الطالب.
+ * كلمة المرور الجديدة تُخرج كل الأجهزة السابقة.
  */
 export async function activate(q, b, { ip }) {
   const settings = await featureSettings(q, "parents");
-  if (!settings.self_activation) throw forbidden("تفعيل الحساب يتم من المدرسة. تواصل معها لاستلام بيانات الدخول.");
-  const ipSubject = `${await tenantOf(q)}:${ip || "?"}`;
-  if ((await recentFailures(q, "parent_activate_failed", ipSubject, 30)) >= 10) {
-    return { error: "تم إيقاف المحاولة مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد 30 دقيقة.", status: 429 };
-  }
+  if (!settings.self_activation) throw forbidden("استعادة الحساب تتم من المدرسة. تواصل معها.");
+  const lock = await keyLock(q, ip);
+  if (lock.locked) return LOCKED;
+  const id = b.identifier;
   const [s] = await q("SELECT id, full_name, guardian_phone, guardian_name, status, archived_at FROM students WHERE access_key = $1", [b.key]);
-  if (!s || !safeEqual(normalizePhone(s.guardian_phone) || "", b.phone)) {
-    await securityEvent(q, { kind: "parent_activate_failed", subject: ipSubject, tenantId: await tenantOf(q), ip });
-    return { error: "المعرّف أو رقم الجوال لا يطابق بيانات المدرسة. تأكد منهما أو تواصل مع المدرسة." };
+  let p = await findParent(q, id);
+  const ok = s && (guardianOf(s, id) || (p && (await isLinked(q, p.id, s.id))));
+  if (!ok) {
+    await keyFail(q, lock.subject, ip);
+    return { error: "المعرّف لا يطابق بيانات هذا الحساب. تأكد من البريد أو الجوال ومن معرّف الابن." };
   }
-  if (s.status !== "active" || s.archived_at) return { error: "الطالب غير مقيد حاليًا في المدرسة" };
+  if (!isActive(s)) return { error: "الطالب غير مقيد حاليًا في المدرسة" };
   const hash = await hashPassword(b.password);
-  let [p] = await q("SELECT id FROM parents WHERE phone = $1", [b.phone]);
   if (p) {
     await q(`UPDATE parents SET password_hash = $2, must_change_password = false, initial_password_enc = NULL, password_changed_at = now(),
                     full_name = COALESCE(NULLIF($3, ''), full_name) WHERE id = $1`, [p.id, hash, b.name || ""]);
     await q("DELETE FROM sessions WHERE parent_id = $1", [p.id]);   // كلمة مرور جديدة: كل الأجهزة السابقة تخرج
   } else {
-    [p] = await q(`INSERT INTO parents (tenant_id, full_name, phone, password_hash, must_change_password, password_changed_at, created_by)
-                   VALUES (app_tenant(), $1, $2, $3, false, now(), 'تفعيل ذاتي') RETURNING id`,
-    [b.name || s.guardian_name || "ولي الأمر", b.phone, hash]);
+    [p] = await q(`INSERT INTO parents (tenant_id, full_name, phone, password_hash, must_change_password, password_changed_at, created_by, source)
+                   VALUES (app_tenant(), $1, $2, $3, false, now(), 'تفعيل ذاتي', 'self') RETURNING id`,
+    [b.name || s.guardian_name || "ولي الأمر", id.phone, hash]);
   }
   await link(q, p.id, s.id, { actor: "تفعيل ذاتي", source: "key", relation: b.relation || null });
-  let siblings = 0;
-  if (settings.auto_link_siblings) {
-    for (const x of await siblingsOf(q, b.phone)) if ((await link(q, p.id, x.id, { actor: "تفعيل ذاتي", source: "auto" })).linked) siblings++;
-  }
+  const siblings = id.phone ? (await linkSiblings(q, { id: p.id }, id, [s], settings, "تفعيل ذاتي")).length : 0;
   return { parent_id: p.id, siblings };
+}
+
+/** إضافة عدة أبناء دفعة واحدة من داخل الحساب (معرّفات أو روابط بطاقات) */
+export async function addChildren(q, parent, b, { ip }) {
+  const settings = await featureSettings(q, "parents");
+  const lock = await keyLock(q, ip);
+  if (lock.locked) return LOCKED;
+  const { found, invalid } = await studentsByKeys(q, b.keys);
+  if (invalid.length || !found.length) { await keyFail(q, lock.subject, ip); return keysError(invalid.length ? invalid : [0]); }
+  return attach(q, parent, found, { settings, actor: parent.full_name, relation: b.relation || null });
 }
 
 /** إضافة ابن من داخل الحساب بمعرّفه: ربط مباشر إن سمحت المدرسة، وإلا طلب يُراجع */
@@ -188,7 +317,7 @@ async function openRequest(q, parent, s, b) {
   [parent.id, s.id, b.relation || null, b.note || null]);
   if (rows.length) {
     await notify(q, { event: "request", users: await adminUserIds(q), title: "طلب ربط ابن بحساب ولي أمر",
-      body: `${parent.full_name} (${parent.phone}) يطلب ربط ${s.full_name} بحسابه.`, link: "parents", dedupKey: `link:${rows[0].id}` });
+      body: `${parent.full_name} (${parent.phone || parent.email}) يطلب ربط ${s.full_name} بحسابه.`, link: "parents", dedupKey: `link:${rows[0].id}` });
   }
   return { linked: false, requested: true };
 }
@@ -246,14 +375,14 @@ export async function changePassword(q, parent, b) {
 /* ======================= الإدارة ======================= */
 export async function listParents(q, { search = "" } = {}) {
   const rows = await q(
-    `SELECT p.id, p.full_name AS name, p.phone, p.email, p.status, p.must_change_password, p.last_login_at, p.created_at,
+    `SELECT p.id, p.full_name AS name, p.phone, p.email, p.source, p.status, p.must_change_password, p.last_login_at, p.created_at,
             p.password_hash IS NOT NULL AS has_password,
             COALESCE(json_agg(json_build_object('id', s.id, 'name', s.full_name, 'class_name', c.name, 'relation', ps.relation,
               'active', s.status = 'active' AND s.archived_at IS NULL) ORDER BY s.full_name) FILTER (WHERE s.id IS NOT NULL), '[]') AS children
        FROM parents p
        LEFT JOIN parent_students ps ON ps.parent_id = p.id AND ps.removed_at IS NULL
        LEFT JOIN students s ON s.id = ps.student_id LEFT JOIN classes c ON c.id = s.class_id
-      WHERE ($1 = '' OR p.full_name ILIKE '%' || $1 || '%' OR p.phone LIKE '%' || $1 || '%'
+      WHERE ($1 = '' OR p.full_name ILIKE '%' || $1 || '%' OR p.phone LIKE '%' || $1 || '%' OR p.email ILIKE '%' || $1 || '%'
              OR EXISTS (SELECT 1 FROM parent_students x JOIN students y ON y.id = x.student_id
                          WHERE x.parent_id = p.id AND x.removed_at IS NULL AND y.full_name ILIKE '%' || $1 || '%'))
       GROUP BY p.id ORDER BY p.full_name LIMIT 500`, [search]);
@@ -267,23 +396,30 @@ async function issueTemp(q, parentId) {
   return temp;
 }
 export async function createParent(q, b, { actor }) {
-  const [dup] = await q("SELECT id FROM parents WHERE phone = $1", [b.phone]);
-  if (dup) throw conflict("يوجد حساب ولي أمر بهذا الجوال. افتحه وأضف له الأبناء بدل إنشاء حساب مكرر.");
+  await assertUnique(q, b, 0);
   const [p] = await q(`INSERT INTO parents (tenant_id, full_name, phone, email, created_by) VALUES (app_tenant(), $1, $2, $3, $4) RETURNING id`,
     [b.name, b.phone, b.email || null, actor]);
   for (const sid of b.student_ids || []) await link(q, p.id, sid, { actor, relation: b.relation || null });
   const password = await issueTemp(q, p.id);
-  return { id: p.id, credentials: { phone: b.phone, password } };
+  return { id: p.id, credentials: { phone: b.phone || b.email, password } };
+}
+/** الجوال والبريد كلاهما فريد في المدرسة (لا حسابات مكررة) */
+async function assertUnique(q, b, id) {
+  if (b.phone && (await q("SELECT 1 FROM parents WHERE phone = $1 AND id <> $2", [b.phone, id])).length) {
+    throw conflict("يوجد حساب ولي أمر بهذا الجوال. افتحه وأضف له الأبناء بدل إنشاء حساب مكرر.");
+  }
+  if (b.email && (await q("SELECT 1 FROM parents WHERE lower(email) = $1 AND id <> $2", [b.email, id])).length) {
+    throw conflict("يوجد حساب ولي أمر بهذا البريد الإلكتروني.");
+  }
 }
 export async function updateParent(q, id, b) {
-  const [other] = await q("SELECT id FROM parents WHERE phone = $1 AND id <> $2", [b.phone, id]);
-  if (other) throw conflict("رقم الجوال مستخدم في حساب ولي أمر آخر");
-  const rows = await q("UPDATE parents SET full_name = $2, phone = $3, email = $4 WHERE id = $1 RETURNING id", [id, b.name, b.phone, b.email || null]);
+  await assertUnique(q, b, id);
+  const rows = await q("UPDATE parents SET full_name = $2, phone = $3, email = $4 WHERE id = $1 RETURNING id", [id, b.name, b.phone || null, b.email || null]);
   if (!rows.length) throw notFound("الحساب غير موجود");
   return { ok: true };
 }
 export async function getParent(q, id) {
-  const [p] = await q(`SELECT id, full_name AS name, phone, email, status, must_change_password, initial_password_enc, last_login_at, created_at, created_by
+  const [p] = await q(`SELECT id, full_name AS name, phone, email, status, must_change_password, initial_password_enc, last_login_at, created_at, created_by, source
                          FROM parents WHERE id = $1`, [id]);
   if (!p) throw notFound("الحساب غير موجود");
   p.initial_password = p.must_change_password && p.initial_password_enc ? openCredential(p.initial_password_enc, await tenantOf(q)) : null;
@@ -305,12 +441,12 @@ export async function setStatus(q, id, status) {
   return { ok: true };
 }
 export async function resetPassword(q, id) {
-  const [p] = await q("SELECT phone FROM parents WHERE id = $1", [id]);
+  const [p] = await q("SELECT phone, email FROM parents WHERE id = $1", [id]);
   if (!p) throw notFound("الحساب غير موجود");
-  return { phone: p.phone, password: await issueTemp(q, id) };
+  return { phone: p.phone || p.email, password: await issueTemp(q, id) };
 }
 export async function parentsOfStudent(q, studentId) {
-  return q(`SELECT p.id, p.full_name AS name, p.phone, p.status, ps.relation, ps.can_view_fees, p.last_login_at
+  return q(`SELECT p.id, p.full_name AS name, p.phone, p.email, p.status, ps.relation, ps.can_view_fees, p.last_login_at
               FROM parent_students ps JOIN parents p ON p.id = ps.parent_id
              WHERE ps.student_id = $1 AND ps.removed_at IS NULL ORDER BY p.full_name`, [studentId]);
 }
@@ -343,7 +479,7 @@ export async function autoCreate(q, { actor }) {
 }
 
 export async function listRequests(q) {
-  return q(`SELECT r.id, r.relation, r.note, r.status, r.created_at, p.id AS parent_id, p.full_name AS parent_name, p.phone,
+  return q(`SELECT r.id, r.relation, r.note, r.status, r.created_at, p.id AS parent_id, p.full_name AS parent_name, p.phone, p.email,
                    s.id AS student_id, s.full_name AS student_name, c.name AS class_name, s.guardian_phone
               FROM parent_link_requests r JOIN parents p ON p.id = r.parent_id JOIN students s ON s.id = r.student_id
               LEFT JOIN classes c ON c.id = s.class_id
