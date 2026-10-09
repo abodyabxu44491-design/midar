@@ -5,6 +5,7 @@ import { stats, panel, notice, line, sub, input, empty, badge, btn, keyText, lin
 import { money, fmtDate } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
+import { startHere } from "./onboarding.js";
 
 export default async function dashboard({ me, goTo }) {
   const [d, alerts, notifications, templates] = await Promise.all([
@@ -54,6 +55,8 @@ export default async function dashboard({ me, goTo }) {
           d.academic ? `${d.academic.year_name} — ${d.academic.term_name || "لم يُحدد الفصل"}` : null,
           todayText,
         ].filter(Boolean).join(" · ")))),
+
+    startHere({ me, d, goTo }),
 
     stats([
       ["طالب", d.students, `حد الباقة ${me.school.max_students}`], ["معلم", d.teachers], ["فصل", d.classes],

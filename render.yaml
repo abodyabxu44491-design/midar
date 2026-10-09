@@ -39,3 +39,7 @@ services:
         sync: false
       - key: PUBLIC_URL              # https://midar.onrender.com أو نطاقك
         sync: false
+      - key: ANDROID_PACKAGE         # تطبيق Google Play، مثل com.midarschool.app (docs/GOOGLE-PLAY.md)
+        sync: false
+      - key: ANDROID_SHA256          # بصمة شهادة توقيع التطبيق (SHA-256)
+        sync: false

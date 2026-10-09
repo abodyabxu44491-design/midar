@@ -3,8 +3,8 @@ import fs from "node:fs";
 import dotenv from "dotenv";
 import { z } from "zod";
 
-// التطوير المحلي: .env.local (لا يُرفع إلى Firebase ولا إلى Git)
-// السيرفر الخاص: .env — وعلى Firebase تأتي القيم من Secret Manager و .env.<project>
+// التطوير المحلي: .env.local (لا يُرفع إلى Git)
+// السيرفر الخاص: .env — وعلى Render: متغيرات البيئة في لوحة الخدمة
 dotenv.config({ path: fs.existsSync(".env.local") ? ".env.local" : ".env" });
 
 const bool = z.enum(["true", "false"]).transform((v) => v === "true");
@@ -13,9 +13,10 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("production"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   PUBLIC_URL: z.union([z.string().url(), z.literal("")]).optional().transform((v) => v || undefined),
+  // تطبيق Google Play (TWA): اسم الحزمة وبصمات شهادة التوقيع (SHA-256، أكثر من واحدة بفاصلة)
+  ANDROID_PACKAGE: z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/).optional().or(z.literal("")).transform((v) => v || undefined),
+  ANDROID_SHA256: z.string().optional().transform((v) => (v || "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(x))),
   DATABASE_URL: z.string().startsWith("postgres"),
-  // عند الاستضافة على Firebase: اسم اتصال Cloud SQL بصيغة project:region:instance
-  CLOUD_SQL_INSTANCE: z.string().regex(/^[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]+$/).optional().or(z.literal("")),
   MIGRATION_DATABASE_URL: z.string().startsWith("postgres").optional(),
   DATABASE_SSL: bool.default("false"),
   OWNER_PATH: z.string().regex(/^\/[A-Za-z0-9_-]{10,64}$/, "OWNER_PATH يجب أن يبدأ بـ / ويتكون من 10 أحرف على الأقل")

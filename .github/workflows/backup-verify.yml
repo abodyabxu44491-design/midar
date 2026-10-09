@@ -1,0 +1,79 @@
+# اختبار الاسترجاع الأسبوعي: النسخة الاحتياطية لا قيمة لها إن لم تُسترجع فعلًا.
+# يأخذ آخر نسخة ناجحة من «نسخة احتياطية»، يفك تشفيرها، يسترجعها في قاعدة بيانات مؤقتة فارغة،
+# ثم يتحقق أن الجداول والبيانات موجودة. إن فشل أي شيء يفشل الفحص ويصلك بريد من GitHub.
+# لا يلمس قاعدة بيانات الإنتاج أبدًا، والقاعدة المؤقتة تُحذف مع انتهاء التشغيل.
+name: اختبار استرجاع النسخة
+
+on:
+  schedule:
+    - cron: "40 1 * * 5"   # كل جمعة 4:40 فجرًا بتوقيت السعودية واليمن (بعد النسخ اليومي)
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      db:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: restore-test
+          POSTGRES_DB: restore
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      GH_TOKEN: ${{ github.token }}
+      TARGET: postgresql://postgres:restore-test@localhost:5432/restore
+    steps:
+      - name: آخر نسخة ناجحة
+        id: last
+        run: |
+          if [ -z "$PASSPHRASE" ]; then echo "::warning::أضف BACKUP_PASSPHRASE في أسرار المستودع لتفعيل اختبار الاسترجاع."; echo "run=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          RUN=$(gh run list -R "$GITHUB_REPOSITORY" --workflow backup.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$RUN" ]; then echo "::error::لا توجد نسخة احتياطية ناجحة بعد"; exit 1; fi
+          echo "run=$RUN" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        if: steps.last.outputs.run != ''
+        with:
+          run-id: ${{ steps.last.outputs.run }}
+          github-token: ${{ github.token }}
+          path: backup
+      - name: تثبيت أدوات PostgreSQL 17
+        if: steps.last.outputs.run != ''
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - name: فك التشفير والاسترجاع والتحقق
+        if: steps.last.outputs.run != ''
+        run: |
+          set -euo pipefail
+          umask 077
+          BIN=/usr/lib/postgresql/17/bin
+          FILE=$(find backup -name '*.dump.gpg' | head -1)
+          echo "النسخة: $FILE"
+          printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --decrypt --output restore.dump "$FILE"
+          # الصلاحيات والأدوار خاصة بالإنتاج، فلا نسترجعها؛ المهم الجداول والبيانات
+          $BIN/pg_restore --no-owner --no-privileges --exit-on-error --dbname "$TARGET" restore.dump
+          q() { $BIN/psql "$TARGET" -Atqc "$1"; }
+          TABLES=$(q "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+          MIGR=$(q "SELECT count(*) FROM schema_migrations")
+          TENANTS=$(q "SELECT count(*) FROM tenants")
+          STUDENTS=$(q "SELECT count(*) FROM students")
+          LAST=$(q "SELECT max(filename) FROM schema_migrations" 2>/dev/null || echo "?")
+          echo "| الجداول | التحديثات | المدارس | الطلاب | آخر تحديث |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| $TABLES | $MIGR | $TENANTS | $STUDENTS | $LAST |" >> "$GITHUB_STEP_SUMMARY"
+          echo "الجداول=$TABLES التحديثات=$MIGR المدارس=$TENANTS الطلاب=$STUDENTS"
+          [ "$TABLES" -gt 20 ] || { echo "::error::عدد الجداول المسترجعة قليل ($TABLES)"; exit 1; }
+          [ "$MIGR" -gt 0 ] || { echo "::error::جدول التحديثات فارغ"; exit 1; }
+          [ "$TENANTS" -gt 0 ] || { echo "::error::لا توجد مدارس في النسخة"; exit 1; }
+          shred -u restore.dump
+          echo "تم الاسترجاع والتحقق بنجاح"

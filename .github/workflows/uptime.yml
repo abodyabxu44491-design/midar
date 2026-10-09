@@ -1,0 +1,38 @@
+# مراقبة الموقع: إذا توقف الموقع أو قاعدة البيانات يفشل هذا الفحص، فيرسل GitHub بريدًا لصاحب المستودع تلقائيًا.
+# (للتنبيه الفوري على الجوال: أضف الموقع أيضًا في UptimeRobot المجاني — الخطوات في docs/MONITORING.md)
+#
+# مرة كل ساعة: الصفحة الرئيسية + الخادم + قاعدة البيانات. لا نفحص قاعدة البيانات أكثر من ذلك
+# حتى لا نُبقي Neon المجاني مستيقظًا طوال الوقت فتنفد ساعاته (الإيقاظ كل 10 دقائق في keepalive لا يلمسها).
+# الرابط من متغيّر المستودع SITE_URL إن وُجد، وإلا النطاق الرسمي.
+name: مراقبة الموقع
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SITE: ${{ vars.SITE_URL || 'https://midarschool.com' }}
+    steps:
+      - name: فحص الموقع وقاعدة البيانات
+        run: |
+          set -u
+          # ثلاث محاولات متباعدة: الخادم المجاني قد يحتاج قرابة دقيقة ليستيقظ، فلا نعدّه عطلًا من أول محاولة
+          check() {
+            for i in 1 2 3; do
+              if curl -fsS --max-time 90 -o /dev/null "$1"; then echo "سليم: $1"; return 0; fi
+              echo "محاولة $i فشلت: $1"; sleep 30
+            done
+            echo "::error::لا يستجيب: $1"; return 1
+          }
+          ok=0
+          check "$SITE/healthz" || ok=1
+          check "$SITE/healthz/db" || ok=1
+          # الصفحة الرئيسية تُرجع HTML فيه اسم المنصة (لا صفحة خطأ من الاستضافة)
+          if ! curl -fsS --max-time 60 "$SITE/" | grep -q "مدار"; then echo "::error::الصفحة الرئيسية لا تعرض المنصة"; ok=1; fi
+          exit $ok

@@ -117,6 +117,10 @@ test("الصفحات العامة: الخصوصية والشروط ومحركا�
   assert.match(robots, /Disallow: \//);
   assert.match(robots, /Sitemap: .*\/sitemap\.xml/);
   assert.match(await (await fetch(`${srv.base}/sitemap.xml`)).text(), /<loc>.*\/privacy<\/loc>/);
+  // ربط تطبيق Google Play: بدون إعداد يعيد قائمة فارغة صالحة
+  const links = await fetch(`${srv.base}/.well-known/assetlinks.json`);
+  assert.equal(links.status, 200);
+  assert.deepEqual(await links.json(), []);
   for (const code of ["privacy", "terms", "demo"]) {
     assert.equal((await A.owner.post("/api/owner/tenants", { id: code, name: "محجوز" })).status, 400);
   }

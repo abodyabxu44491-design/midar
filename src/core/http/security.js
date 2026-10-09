@@ -39,13 +39,9 @@ export function noIndex(req, res, next) {
   next();
 }
 
-// النطاقات المسموحة: النطاق الذي وصل إليه الطلب فعلًا (req.hostname يقرأ X-Forwarded-Host خلف وكيل موثوق
-// مثل Firebase Hosting)، ورابط المنصة، والنطاقات الإضافية، ونطاقا Firebase الافتراضيان للمشروع.
-const firebaseProject = (() => {
-  try { return process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || "{}").projectId || null; } catch { return null; }
-})();
-const extraOrigins = [env.PUBLIC_URL, ...String(process.env.ALLOWED_ORIGINS || "").split(","), ...(firebaseProject
-  ? [`https://${firebaseProject}.web.app`, `https://${firebaseProject}.firebaseapp.com`] : [])]
+// النطاقات المسموحة: النطاق الذي وصل إليه الطلب فعلًا (req.hostname يقرأ X-Forwarded-Host خلف وكيل موثوق)،
+// ورابط المنصة، والنطاقات الإضافية في ALLOWED_ORIGINS.
+const extraOrigins = [env.PUBLIC_URL, ...String(process.env.ALLOWED_ORIGINS || "").split(",")]
   .map((o) => o && o.trim().replace(/\/$/, "")).filter(Boolean);
 export function allowedOrigins(req) {
   const hosts = [req.get("host"), req.hostname, req.get("x-forwarded-host")?.split(",")[0]?.trim()].filter(Boolean);

@@ -14,6 +14,7 @@ import { timetableGrid } from "../shared/js/timetable.js";
 import { detectPhone } from "../shared/js/phone.js";
 import { rememberedChildren, openChild, parentSignedIn } from "../shared/js/children.js";
 import { accountButton, accountPage, familyPage } from "./family.js";
+import { rememberSchool } from "../shared/js/recent.js";
 
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
@@ -44,7 +45,7 @@ async function route() {
   if (!location.hash && parentSignedIn(school) && !new URLSearchParams(location.search).get("k")) { location.replace("#/family"); return; }
   const [, page, a, b] = (location.hash || "#/").split("/");
   try {
-    if (!home) home = await api(`${P}/home`, {});
+    if (!home) { home = await api(`${P}/home`, {}); rememberSchool({ id: school, name: home.school.name, role: "parent" }); }
     if (page === "family") return await familyPage(shell);
     if (page === "account") return accountPage(shell, a === "new" ? "new" : "login");
     if (page === "students") return await studentsPage();

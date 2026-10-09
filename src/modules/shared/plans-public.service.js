@@ -60,7 +60,7 @@ export async function publicPlans() {
 export async function siteData() {
   const [s] = await transaction({}, (q) => q(
     `SELECT landing_mode, brand_phone, brand_email, brand_instagram, support_whatsapp, trial_enabled, trial_days, trial_without_plan,
-            site_headline, site_subheadline FROM platform_settings WHERE id`));
+            instant_trial, site_headline, site_subheadline FROM platform_settings WHERE id`));
   // الصفحة الفاضية: لا باقات ولا مميزات، وبيانات التواصل فقط (تظهر في صفحتي الخصوصية والشروط)
   if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp };
   const features = await transaction({}, (q) => q(

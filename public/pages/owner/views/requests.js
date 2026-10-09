@@ -34,6 +34,7 @@ function row(r, refresh, root) {
     h("div", { class: ["rejected", "canceled", "expired", "active"].includes(r.status) ? "muted-row" : "" },
       badge(...KINDS[r.kind]), " ", h("b", {}, r.tenant_name || r.school_name), " ", badge(...RSTATUS[r.status]),
       r.source === "school" ? badge("من داخل المدرسة", "gray") : null,
+      r.instant ? badge("تسجيل فوري") : null,
       sub([r.contact_name, r.phone, r.email, r.city, r.students_count ? `${r.students_count} طالب` : null].filter(Boolean).join(" — ")),
       sub([r.plan_name ? `الباقة: ${r.plan_name}` : r.kind === "trial" ? "بدون تحديد باقة" : null,
         r.kind === "trial" && r.plan_name ? (r.try_plan ? "يريد تجربة الباقة المختارة" : "لا يشترط تجربة الباقة") : null,

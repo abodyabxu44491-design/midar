@@ -7,6 +7,7 @@ import { api } from "../shared/js/api.js";
 import { attachBell } from "../shared/js/inbox.js";
 import { topbar, footer, tabs, lazy, panel, notice, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import home from "./views/home.js";
+import { rememberSchool } from "../shared/js/recent.js";
 const attendance = lazy(() => import("./views/attendance.js"), new URL("./views/attendance.js", import.meta.url).pathname);
 const exams = lazy(() => import("./views/exams.js"), new URL("./views/exams.js", import.meta.url).pathname);
 const announcements = lazy(() => import("./views/announcements.js"), new URL("./views/announcements.js", import.meta.url).pathname);
@@ -21,6 +22,7 @@ const calendar = lazy(() => import("./views/calendar.js"), new URL("./views/cale
 const meetings = lazy(() => import("./views/meetings.js"), new URL("./views/meetings.js", import.meta.url).pathname);
 const surveys = lazy(() => import("./views/surveys.js"), new URL("./views/surveys.js", import.meta.url).pathname);
 const mine = lazy(() => import("./views/mine.js"), new URL("./views/mine.js", import.meta.url).pathname);
+const chat = lazy(() => import("./views/chat.js"), new URL("./views/chat.js", import.meta.url).pathname);
 
 const app = $("#app");
 
@@ -31,6 +33,7 @@ export async function startTeacher(offlineMe = null) {
     if (!offlineMe || (e.code !== "network" && e.code !== "timeout")) throw e;
     me = offlineMe;
   }
+  rememberSchool({ id: me.school.id, name: me.school.name, role: "teacher" });
   if (me.access?.locked) {
     return mount(app, topbar({ school: me.school.name, subtitle: me.name, onLogout: async () => { await api("/api/teacher/logout", {}); location.reload(); } }),
       h("main", {}, panel("اشتراك المدرسة غير فعّال حاليًا", null, notice("لا يمكن استخدام المنصة الآن لأن اشتراك المدرسة متوقف. كل البيانات محفوظة، وتعود للعمل فور تجديد الإدارة للاشتراك.", "warn"))), footer());
@@ -40,8 +43,8 @@ export async function startTeacher(offlineMe = null) {
   }
   const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
     homework: "homework", announcements: "announcements", papers: "exam_papers",
-    behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance" };
-  const list = [["home", "الرئيسية"], ["students", "طلابي"], ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "جدولي"],
+    behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat" };
+  const list = [["home", "الرئيسية"], ["students", "طلابي"], ["chat", "الرسائل"], ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "جدولي"],
     ["papers", "الاختبارات والامتحانات"], ["exams", "رصد الدرجات"], ["homework", "الواجبات"], ["lessons", "تحضير الدروس"],
     ["calendar", "التقويم"], ["meetings", "المواعيد"], ["surveys", "الاستبيانات"], ["announcements", "التعاميم"],
     ["me", "حضوري وإجازاتي"], ["account", "حسابي"]]
@@ -56,13 +59,13 @@ export async function startTeacher(offlineMe = null) {
     location.reload();
   };
   const ctx = { me };
-  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine }, ctx);
+  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine, chat }, ctx);
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);
   attachBell(bar, "/api/teacher", (n) => {
     const tab = { substitute: "me", lesson_plan: "lessons", leave: "me", meeting: "meetings", survey: "surveys", grades_review: "exams", timetable: "timetable",
-      announcement: "announcements", message: "announcements" }[n.kind];
+      announcement: "announcements", message: "announcements", chat: "chat" }[n.kind];
     if (!tab || !list.some((x) => x[0] === tab || x.key === tab)) return false;
     t.show(tab); return true;
   });

@@ -35,7 +35,11 @@ r.get("/dashboard", handle(async (req, res) => {
       (SELECT count(*) FROM attendance WHERE day = CURRENT_DATE AND status = 'absent')::int AS absent_today,
       (SELECT count(*) FROM attendance WHERE day = CURRENT_DATE)::int AS recorded_today,
       (SELECT count(*) FROM exams WHERE status = 'pending')::int AS pending_exams,
-      (SELECT count(*) FROM payment_claims WHERE status = 'pending')::int AS pending_claims`);
+      (SELECT count(*) FROM payment_claims WHERE status = 'pending')::int AS pending_claims,
+      -- قائمة «ابدأ هنا» للمدرسة الجديدة
+      (SELECT count(*) FROM teacher_assignments)::int AS assignments,
+      EXISTS (SELECT 1 FROM attendance) AS attendance_any,
+      (SELECT created_at > now() - interval '60 days' FROM tenants WHERE id = app_tenant()) AS new_school`);
     return { ...c, ...(await schoolTotals(q)), academic: await current(q),
       today: await dayStatus(q, new Date().toISOString().slice(0, 10)) };
   });

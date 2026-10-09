@@ -8,6 +8,7 @@ import { attachBell } from "../shared/js/inbox.js";
 import { topbar, footer, tabs, lazy, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import { setApiBase } from "./views/common.js";
 import dashboard from "./views/dashboard.js";
+import { rememberSchool } from "../shared/js/recent.js";
 const students = lazy(() => import("./views/students.js"), new URL("./views/students.js", import.meta.url).pathname);
 const parents = lazy(() => import("./views/parents.js"), new URL("./views/parents.js", import.meta.url).pathname);
 const teachers = lazy(() => import("./views/teachers.js"), new URL("./views/teachers.js", import.meta.url).pathname);
@@ -40,6 +41,7 @@ const app = $("#app");
 export async function startAdmin() {
   setApiBase("admin");
   const me = await api("/api/admin/me");
+  rememberSchool({ id: me.school.id, name: me.school.name, role: "admin" });
   if (me.must_change_password) {
     return passwordChangeScreen({ endpoint: "/api/admin/password", logoutEndpoint: "/api/admin/logout", school: me.school.name, name: me.name });
   }
