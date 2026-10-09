@@ -116,7 +116,8 @@
 .ss-kid small { color: var(--muted); }
 /* حساب ولي الأمر */
 button.link { background: none; border: 0; padding: 0; color: var(--teal); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
-/* زر الحساب في الرأس */
+/* زر الحساب وأيقونة التثبيت في الرأس */
+.ss-acts { display: flex; align-items: center; gap: 8px; flex: none; }
 .ss-acct { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 700;
   color: var(--navy); background: #fff; text-decoration: none; box-shadow: 0 2px 8px rgba(0,0,0,.15); transition: transform .08s, box-shadow .15s; }
 .ss-acct:hover { box-shadow: 0 4px 14px rgba(0,0,0,.22); }

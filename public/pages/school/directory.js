@@ -7,7 +7,7 @@
 // كل عنصر يظهر فقط إذا فعّلته إدارة المدرسة، وبطاقة الطالب لا تحمل إلا ما سمحت بنشره.
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandLogo, skeleton, showInstallBar, teacherCards } from "../shared/js/ui.js";
+import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandLogo, skeleton, installButton, teacherCards } from "../shared/js/ui.js";
 import { fmtDate } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
@@ -27,7 +27,7 @@ function shell(content, { crumbs = [] } = {}) {
   mount(app,
     h("header", { class: "ss-top" }, h("div", { class: "in" },
       h("a", { class: "ss-brand", href: "#/" }, logo, h("div", {}, h("b", {}, home?.school.name || ""), h("small", {}, "الطلاب وأولياء الأمور"))),
-      home?.features.parents === false ? null : accountButton())),
+      h("div", { class: "ss-acts" }, installButton("on-dark"), home?.features.parents === false ? null : accountButton()))),
     crumbs.length ? h("nav", { class: "ss-crumbs", "aria-label": "المسار" }, h("div", { class: "in" },
       [["الرئيسية", "#/"], ...crumbs].map(([label, href], i, a) => [
         i ? h("span", { class: "sep", "aria-hidden": "true" }, "‹") : null,
@@ -280,4 +280,3 @@ function askKey(student) {
 
 route();
 document.documentElement.dataset.app = "صفحة المدرسة";
-showInstallBar();
