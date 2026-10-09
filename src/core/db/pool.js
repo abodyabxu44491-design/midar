@@ -11,7 +11,7 @@ pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));     // bigin
 pg.types.setTypeParser(1082, (v) => v);                                  // date كنص YYYY-MM-DD
 
 const common = {
-  max: env.CLOUD_SQL_INSTANCE ? 5 : 20,   // على Firebase كل نسخة من الخادم لها اتصالات قليلة
+  max: 20,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
   statement_timeout: 15_000,
@@ -19,25 +19,9 @@ const common = {
 };
 
 let poolPromise = null;
-let connector = null;
 
 async function createPool() {
-  let pool;
-  if (env.CLOUD_SQL_INSTANCE) {
-    // الاتصال بـ Cloud SQL عبر الموصل الرسمي من Google (اتصال مشفر ومصادق بحساب الخدمة)
-    const { Connector } = await import("@google-cloud/cloud-sql-connector");
-    const url = new URL(env.DATABASE_URL);
-    connector = new Connector();
-    const opts = await connector.getOptions({ instanceConnectionName: env.CLOUD_SQL_INSTANCE, ipType: "PUBLIC" });
-    pool = new pg.Pool({
-      ...opts, ...common,
-      user: decodeURIComponent(url.username),
-      password: decodeURIComponent(url.password),
-      database: url.pathname.slice(1),
-    });
-  } else {
-    pool = new pg.Pool({ ...common, connectionString: env.DATABASE_URL, ssl: env.DATABASE_SSL ? { rejectUnauthorized: true } : false });
-  }
+  const pool = new pg.Pool({ ...common, connectionString: env.DATABASE_URL, ssl: env.DATABASE_SSL ? { rejectUnauthorized: true } : false });
   pool.on("error", (err) => console.error("[db] خطأ في اتصال خامل:", err.message));
   return pool;
 }
@@ -51,7 +35,6 @@ export async function closePool() {
   if (!poolPromise) return;
   const p = await poolPromise;
   await p.end();
-  connector?.close();
   poolPromise = null;
 }
 

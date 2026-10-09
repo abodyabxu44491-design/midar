@@ -15,7 +15,6 @@ const schema = z.object({
   PUBLIC_URL: z.union([z.string().url(), z.literal("")]).optional().transform((v) => v || undefined),
   DATABASE_URL: z.string().startsWith("postgres"),
   // عند الاستضافة على Firebase: اسم اتصال Cloud SQL بصيغة project:region:instance
-  CLOUD_SQL_INSTANCE: z.string().regex(/^[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]+$/).optional().or(z.literal("")),
   MIGRATION_DATABASE_URL: z.string().startsWith("postgres").optional(),
   DATABASE_SSL: bool.default("false"),
   OWNER_PATH: z.string().regex(/^\/[A-Za-z0-9_-]{10,64}$/, "OWNER_PATH يجب أن يبدأ بـ / ويتكون من 10 أحرف على الأقل")

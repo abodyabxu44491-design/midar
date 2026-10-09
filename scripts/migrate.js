@@ -5,7 +5,6 @@ dotenv.config({ path: fs.existsSync(".env.local") ? ".env.local" : ".env" });
 import path from "node:path";
 import { migrate } from "../src/core/db/migrator.js";
 
-// على Firebase/Cloud SQL: شغّل Cloud SQL Auth Proxy محليًا ثم وجّه الرابط إلى 127.0.0.1
 const url = process.env.MIGRATION_DATABASE_URL;
 if (!url) { console.error("✗ عيّن MIGRATION_DATABASE_URL في .env.local"); process.exit(1); }
 try {
