@@ -24,58 +24,62 @@ async function start() {
 }
 
 /* ======================= الصفحة الرسمية ======================= */
-// كل ما في الصفحة يأتي من لوحة المالك: العناوين، المميزات، الباقات، الأسعار، العروض، والتجربة المجانية
+// كل ما في الصفحة يأتي من لوحة المالك: العناوين، المميزات، الباقات، الأسعار، العروض، والتجربة المجانية.
+// الترتيب: رأس → واجهة → المميزات (بطاقة لكل فئة) → جرّب الآن → الباقات (كل باقة تعرض ما تضيفه فقط) → ابدأ وتواصل
+const CAT_ICONS = { "الأساس": "building", "أكاديمي": "book", "التواصل": "message", "المالية": "wallet", "الموظفون": "users", "الخدمات": "bus", "التشغيل": "sparkle", "وأيضًا": "plus" };
+
 function marketing(site) {
   const plans = site.plans || [];
   const trialOn = site.trial_enabled && (site.trial_without_plan || plans.some((p) => p.trial));
   const days = site.trial_days || 30;
   let cycle = plans.some((p) => p.monthly) ? "monthly" : "yearly";
   const go = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  const link = (id, text) => h("a", { href: `#${id}`, onclick: (e) => { e.preventDefault(); go(id); } }, text);
   const phone = site.support_whatsapp || site.brand_phone;
   const wa = phone ? `https://wa.me/${String(phone).replace(/\D/g, "")}` : null;
+  const insta = site.brand_instagram ? `https://instagram.com/${encodeURIComponent(site.brand_instagram)}` : null;
 
   const nav = h("header", { class: "st-nav" }, h("div", { class: "in" },
     h("a", { class: "brand", href: "/" }, brandLogo("", false, "row")),
-    h("nav", { class: "links" },
-      h("a", { href: "#features", onclick: (e) => { e.preventDefault(); go("features"); } }, "المميزات"),
-      site.demo ? h("a", { href: "#demo", onclick: (e) => { e.preventDefault(); go("demo"); } }, "جرّب الآن") : null,
-      h("a", { href: "#plans", onclick: (e) => { e.preventDefault(); go("plans"); } }, "الباقات"),
-      trialOn ? h("a", { href: "#trial", onclick: (e) => { e.preventDefault(); go("trial"); } }, "التجربة المجانية") : null,
-      h("a", { href: "#contact", onclick: (e) => { e.preventDefault(); go("contact"); } }, "تواصل معنا")),
-    // لا أزرار مكررة في الشريط العلوي: الروابط تكفي، والتجربة والتواصل لكل منهما قسمه. فقط أيقونة التثبيت
+    h("nav", { class: "links" }, link("features", "المميزات"), site.demo ? link("demo", "جرّب الآن") : null,
+      plans.length ? link("plans", "الباقات") : null, link("contact", "تواصل معنا")),
     installButton()));
 
-  const core = (site.features || []).filter((f) => f.kind !== "service");
+  // الواجهة: عنوان ووصف وزران فقط، وبجانبها لمحة من التطبيق (بطاقات إشعارات حقيقية الشكل)
   const hero = h("section", { class: "st-hero" }, h("div", { class: "in" },
-    h("div", {},
-      brandLogo("hero-logo", true, "stacked"),
+    h("div", { class: "txt" },
       h("h1", {}, site.site_headline || "إدارة مدرستك كاملة في مكان واحد"),
-      h("p", { class: "lead" }, site.site_subheadline || "الطلاب والحضور والدرجات والرسوم وأولياء الأمور، في منصة عربية واحدة سهلة تعمل من الجوال والكمبيوتر."),
+      h("p", { class: "lead" }, site.site_subheadline || "الطلاب والحضور والدرجات والرسوم وأولياء الأمور، في منصة عربية واحدة تعمل من الجوال والكمبيوتر."),
       h("div", { class: "cta" },
-        trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, icons.gift({ size: 18 }), "اطلب تجربة مجانية") : null,
-        site.demo ? h("button", { class: "st-btn light", onclick: () => go("demo") }, icons.eye({ size: 18 }), "جرّب الآن بدون تسجيل")
-          : plans.length ? h("button", { class: "st-btn light", onclick: () => go("plans") }, "عرض الباقات") : null),
-      trialOn ? h("div", { class: "st-trial-note" }, icons.gift({ size: 16 }), `تجربة مجانية لمدة ${days} يومًا — بدون رسوم خلال فترة التجربة`) : null),
-    h("div", { class: "points" }, core.slice(0, 6).map((f) => h("div", {}, icons.check({ size: 18 }),
-      h("span", {}, h("b", {}, f.name), f.description ? ` — ${f.description}` : ""))))));
+        trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, "ابدأ تجربتك المجانية") : null,
+        site.demo ? h("button", { class: "st-btn ghost", onclick: () => go("demo") }, icons.eye({ size: 18 }), "شاهد مدرسة تجريبية")
+          : plans.length ? h("button", { class: "st-btn ghost", onclick: () => go("plans") }, "الباقات والأسعار") : null),
+      trialOn ? h("p", { class: "note" }, `${days} يومًا مجانًا، بدون رسوم خلال التجربة`) : null),
+    h("div", { class: "peek", "aria-hidden": "true" },
+      peekCard("check", "ok", "أحمد وصل المدرسة", "سجّل حضوره عند البوابة 7:04 ص"),
+      peekCard("star", "gold", "درجة الرياضيات: 18 من 20", "الاختبار الشهري — الصف الرابع"),
+      peekCard("wallet", "navy", "تم سداد القسط الثاني", "إيصال رقم 1042 — 1,500 ريال"))));
 
-  // المميزات مجمّعة حسب الفئة (من كتالوج المميزات)
-  const cats = [...new Set(core.map((f) => f.category))];
-  const features = h("section", { class: "st-sec", id: "features" },
-    h("h2", {}, "ماذا تقدم مدار؟"), h("p", { class: "sub-h" }, "كل أقسام المدرسة في منصة واحدة، ويمكن تشغيل ما تحتاجه فقط."),
-    cats.map((c) => [h("div", { class: "st-cat" }, c),
-      h("div", { class: "st-feats" }, core.filter((f) => f.category === c).map((f) =>
-        h("div", { class: "st-feat" }, h("h3", {}, icons.check({ size: 18 }), f.name), f.description ? h("p", {}, f.description) : null)))]));
+  // المميزات: بطاقة واحدة لكل فئة بأسماء مميزاتها، بدل عشرات الخانات
+  const core = (site.features || []).filter((f) => f.kind !== "service");
+  // الفئات الصغيرة (أقل من 3 مميزات) تُجمع في بطاقة أخيرة «وأيضًا» حتى تبقى البطاقات متوازنة
+  const byCat = new Map();
+  for (const f of core) byCat.set(f.category, [...(byCat.get(f.category) || []), f]);
+  const small = [...byCat].filter(([, l]) => l.length < 3);
+  if (small.length > 1) { for (const [c] of small) byCat.delete(c); byCat.set("وأيضًا", small.flatMap(([, l]) => l)); }
+  const features = h("section", { class: "st-sec", id: "features" }, h("div", { class: "in" },
+    h("h2", {}, "كل أقسام المدرسة في منصة واحدة"), h("p", { class: "sub-h" }, "شغّل ما تحتاجه فقط، وأضف الباقي متى أردت."),
+    h("div", { class: "st-cats" }, [...byCat].map(([c, list]) => h("div", { class: "st-catcard" },
+        h("div", { class: "hd" }, h("span", { class: "ic" }, (icons[CAT_ICONS[c]] || icons.grid)({ size: 22 })), h("b", {}, c), h("small", {}, `${list.length}`)),
+        h("ul", {}, list.map((f) => h("li", { title: f.description || "" }, f.name))))))));
 
   // العرض التجريبي: يدخل الزائر مدرسة كاملة البيانات بضغطة، للتصفح فقط
   const demoSec = site.demo ? h("section", { class: "st-sec soft", id: "demo" }, h("div", { class: "in" },
-    h("h2", {}, "جرّب مدار الآن — بدون تسجيل"),
-    h("p", { class: "sub-h" }, "ادخل مدرسة تجريبية فيها بيانات سنة دراسية كاملة، واختر الدور الذي تريد أن تراه. التصفح فقط، والتعديل غير متاح."),
+    h("h2", {}, "شاهد مدار من الداخل"),
+    h("p", { class: "sub-h" }, "مدرسة تجريبية فيها بيانات سنة كاملة. اختر الدور وتصفّح بدون تسجيل."),
     h("div", { class: "st-demo" }, DEMO_ROLES.map(([role, icon, title, text]) =>
       h("button", { type: "button", class: "st-demo-card", onclick: (e) => startDemo(role, e.currentTarget) },
-        h("span", { class: "ic" }, icons[icon]({ size: 26 })), h("b", {}, title), h("small", {}, text),
-        h("span", { class: "go" }, "ادخل كـ", title, " ‹")))),
-    h("p", { class: "st-demo-note" }, "أعجبتك؟ ", trialOn ? h("button", { class: "try", onclick: () => trialDialog(site) }, "اطلب تجربتك المجانية لمدرستك") : "تواصل معنا لتبدأ بمدرستك", "."))) : null;
+        h("span", { class: "ic" }, icons[icon]({ size: 22 })), h("b", {}, title), h("small", {}, text)))))) : null;
 
   // الباقات
   const grid = h("div", { class: "st-plans" });
@@ -87,37 +91,38 @@ function marketing(site) {
   const drawToggle = () => mount(toggle, plans.some((p) => p.monthly) && plans.some((p) => p.yearly) ? h("div", { class: "box" },
     h("button", { class: cycle === "monthly" ? "on" : "", onclick: () => { cycle = "monthly"; drawToggle(); drawPlans(); } }, "شهري"),
     h("button", { class: cycle === "yearly" ? "on" : "", onclick: () => { cycle = "yearly"; drawToggle(); drawPlans(); } },
-      "سنوي", saving > 0 ? h("span", { class: "save" }, `وفّر حتى ${saving}%`) : null)) : null);
-  const drawPlans = () => mount(grid, plans.map((p) => planCard(p, cycle, site)));
+      "سنوي", saving > 0 ? h("span", { class: "save" }, `وفّر ${saving}%`) : null)) : null);
+  const drawPlans = () => mount(grid, plans.map((p, i) => planCard(p, cycle, site, plans[i - 1])));
   drawToggle(); drawPlans();
-  const plansSec = plans.length ? h("section", { class: "st-sec soft", id: "plans" }, h("div", { class: "in" },
-    h("h2", {}, "الباقات"), h("p", { class: "sub-h" }, "اختر الباقة المناسبة لمدرستك، ويمكنك الترقية في أي وقت دون فقدان أي بيانات."),
+  const plansSec = plans.length ? h("section", { class: "st-sec", id: "plans" }, h("div", { class: "in" },
+    h("h2", {}, "الباقات"), h("p", { class: "sub-h" }, "رقِّ باقتك في أي وقت بدون فقدان أي بيانات."),
     toggle, grid)) : null;
 
-  const trialSec = trialOn ? h("section", { class: "st-sec", id: "trial" }, h("div", { class: "st-trial" },
-    h("div", {},
-      h("h2", {}, `جرّب مدار مجانًا لمدة ${days} يومًا`),
-      h("p", {}, "بدون أي رسوم خلال فترة التجربة، ولا تحتاج شراء باقة قبل التجربة."),
-      h("ul", {},
-        h("li", {}, icons.check({ size: 18 }), "تحصل على كل مميزات الباقة التي تختارها للتجربة"),
-        h("li", {}, icons.check({ size: 18 }), "بياناتك تبقى محفوظة بعد التجربة، وتكمل عليها عند الاشتراك"),
-        h("li", {}, icons.check({ size: 18 }), "نفعّل التجربة بعد مراجعة طلبك ونرسل لك بيانات الدخول"))),
-    h("div", { class: "st-form" }, leadForm(site, { kind: "trial" })))) : null;
+  // الخاتمة: التجربة والتواصل في قسم واحد، والنماذج تفتح في نافذة
+  const ways = [
+    wa ? h("a", { class: "way", href: wa, target: "_blank", rel: "noopener" }, icons.message({ size: 20 }), h("span", {}, h("b", {}, "واتساب"), h("small", {}, "محادثة مباشرة"))) : null,
+    site.brand_phone ? h("a", { class: "way", href: `tel:${site.brand_phone}` }, icons.phone({ size: 20 }), h("span", {}, h("b", {}, "اتصال"), h("small", { class: "ltr" }, site.brand_phone))) : null,
+    insta ? h("a", { class: "way", href: insta, target: "_blank", rel: "noopener" }, icons.image({ size: 20 }), h("span", {}, h("b", {}, "إنستغرام"), h("small", { class: "ltr" }, `@${site.brand_instagram}`))) : null,
+    h("button", { type: "button", class: "way", onclick: () => contactDialog(site) }, icons.edit({ size: 20 }), h("span", {}, h("b", {}, "أرسل رسالة"), h("small", {}, "ونرد عليك قريبًا"))),
+  ].filter(Boolean);
+  const endSec = h("section", { class: "st-sec", id: "contact" }, h("div", { class: "st-end", id: "trial" },
+    h("div", { class: "txt" },
+      h("h2", {}, trialOn ? `جرّب مدار ${days} يومًا مجانًا` : "ابدأ مع مدار"),
+      h("p", {}, trialOn ? "نجهّز مدرستك ونرسل لك بيانات الدخول، وبياناتك تبقى محفوظة إذا اشتركت بعدها." : "تواصل معنا ونجهّز مدرستك خطوة بخطوة."),
+      trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, "اطلب التجربة المجانية") : null),
+    h("div", { class: "ways" }, ways)));
 
-  const contact = h("section", { class: "st-sec soft", id: "contact" }, h("div", { class: "in" },
-    h("h2", {}, "تواصل معنا"), h("p", { class: "sub-h" }, "أرسل استفسارك وسنعود إليك قريبًا."),
-    h("div", { class: "st-contact" },
-      h("div", { class: "ways" },
-        wa ? h("a", { href: wa, target: "_blank", rel: "noopener" }, h("b", {}, "واتساب"), h("span", { class: "ltr" }, phone)) : null,
-        site.brand_email ? h("a", { href: `mailto:${site.brand_email}` }, h("b", {}, "البريد"), h("span", { class: "ltr" }, site.brand_email)) : null,
-        site.brand_instagram ? h("a", { href: `https://instagram.com/${encodeURIComponent(site.brand_instagram)}`, target: "_blank", rel: "noopener" },
-          h("b", {}, "إنستغرام"), h("span", { class: "ltr" }, `@${site.brand_instagram}`)) : null),
-      h("div", { class: "st-form" }, leadForm(site, { kind: "contact" })))));
+  mount(app, h("div", { class: "st" }, nav, hero, features, demoSec, plansSec, endSec,
+    h("footer", { class: "st-foot" },
+      h("div", { class: "in" },
+        brandLogo("", false, "row"),
+        h("nav", { class: "legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام")),
+        h("small", {}, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`)))));
+}
 
-  mount(app, h("div", { class: "st" }, nav, hero, demoSec, features, plansSec, trialSec, contact,
-    h("footer", { class: "st-foot" }, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`,
-      h("nav", { class: "legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام"),
-        site.brand_instagram ? h("a", { href: `https://instagram.com/${encodeURIComponent(site.brand_instagram)}`, target: "_blank", rel: "noopener", class: "ltr" }, `@${site.brand_instagram}`) : null))));
+function peekCard(icon, tone, title, text) {
+  return h("div", { class: `st-peek ${tone}` }, h("span", { class: "ic" }, icons[icon]({ size: 20, stroke: 2.4 })),
+    h("span", {}, h("b", {}, title), h("small", {}, text)));
 }
 
 // أدوار العرض التجريبي
@@ -150,31 +155,33 @@ function priceBlock(p, cycle) {
     pr.promo ? [h("del", {}, fmt(pr.base)), h("span", { class: "off" }, `وفر الآن ${fmt(pr.percent)}%`)] : null);
 }
 
-// قائمة طويلة تُطوى بعد 9 مميزات مع زر لعرض الكل
+// قائمة تُطوى بعد 6 مميزات مع زر لعرض الكل
 function featureList(list) {
   const ul = h("ul");
-  const draw = (all) => mount(ul, (all ? list : list.slice(0, 9)).map((f) => h("li", {}, icons.check({ size: 16 }), f.name)),
-    !all && list.length > 9 ? h("li", {}, h("button", { class: "try", style: "padding:0", onclick: () => draw(true) }, `وعرض ${list.length - 9} ميزة أخرى`)) : null);
+  const draw = (all) => mount(ul, (all ? list : list.slice(0, 6)).map((f) => h("li", {}, icons.check({ size: 16 }), f.name)),
+    !all && list.length > 6 ? h("li", { class: "more" }, h("button", { type: "button", onclick: () => draw(true) }, `+ ${list.length - 6} ميزة أخرى`)) : null);
   draw(false);
   return ul;
 }
 
-function planCard(p, cycle, site) {
+// كل باقة تعرض ما تضيفه على الباقة التي قبلها فقط، فلا تتكرر نفس القائمة في كل بطاقة
+function planCard(p, cycle, site, prev) {
+  const had = new Set(prev?.features.map((f) => f.key) || []);
+  const extra = prev ? p.features.filter((f) => !had.has(f.key)) : p.features;
+  const lim = [p.max_students ? `حتى ${fmt(p.max_students)} طالب` : "طلاب بلا حد", p.max_teachers ? `${fmt(p.max_teachers)} معلم` : "معلمون بلا حد"].join(" · ");
   return h("div", { class: `st-plan${p.highlight ? " hi" : ""}` },
     p.badge ? h("span", { class: "badge" }, p.badge) : null,
-    // العرض: نصه اختياري، وتاريخ انتهائه يظهر إن حدده المالك
     (p.monthly?.promo || p.yearly?.promo) && (p.promo_label || p.promo_ends_at)
-      ? h("div", { class: "promo" }, [p.promo_label, p.promo_ends_at ? `العرض ساري حتى ${p.promo_ends_at}` : null].filter(Boolean).join(" — ")) : null,
-    h("h3", {}, p.name), h("div", { class: "tag" }, p.tagline || ""),
+      ? h("div", { class: "promo" }, [p.promo_label, p.promo_ends_at ? `حتى ${p.promo_ends_at}` : null].filter(Boolean).join(" — ")) : null,
+    h("h3", {}, p.name), p.tagline ? h("div", { class: "tag" }, p.tagline) : null,
     priceBlock(p, cycle),
-    p.setup_fee > 0 ? h("div", { class: "sub" }, `رسوم تجهيز لمرة واحدة: ${fmt(p.setup_fee)} ${CUR[p.currency] || ""}`) : null,
-    h("div", { class: "st-limits" },
-      h("span", {}, p.max_students ? `حتى ${fmt(p.max_students)} طالب` : "عدد طلاب مفتوح"),
-      h("span", {}, p.max_teachers ? `حتى ${fmt(p.max_teachers)} معلم` : "عدد معلمين مفتوح")),
-    featureList(p.features),
+    p.setup_fee > 0 ? h("div", { class: "fee" }, `+ رسوم تجهيز لمرة واحدة ${fmt(p.setup_fee)} ${CUR[p.currency] || ""}`) : null,
+    h("div", { class: "lim" }, lim),
+    h("div", { class: "inc" }, prev ? `كل مميزات ${prev.name}، وأيضًا:` : `${p.features.length} ميزة، منها:`),
+    extra.length ? featureList(extra) : h("p", { class: "same" }, "بسعة أكبر وأولوية في الدعم"),
     h("div", { class: "acts" },
       h("button", { class: `st-btn ${p.highlight ? "pri" : "out"} wide`, onclick: () => subscribeDialog(site, p, cycle) }, p.contact_only ? "اطلب عرض سعر" : "اشترك الآن"),
-      p.trial ? h("button", { class: "try", onclick: () => trialDialog(site, p) }, icons.gift({ size: 16 }), `جرّب مجانًا لمدة ${p.trial_days} يومًا`) : null));
+      p.trial ? h("button", { class: "try", onclick: () => trialDialog(site, p) }, `أو جرّبها مجانًا ${p.trial_days} يومًا`) : null));
 }
 
 /* ======================= النماذج ======================= */
@@ -250,8 +257,14 @@ function formDialog(title, top, form) {
 function trialDialog(site, plan = null) {
   let ref;
   const form = leadForm(site, { kind: "trial", plan, onDone: (ok) => { mount(ref.box, ok); ref.d.querySelector(".st-btn.wide")?.remove(); } });
-  ref = formDialog("اطلب تجربة مجانية", h("div", { class: "st-trial-note", style: "color:#9A5B00;background:#FFF4E0;margin:0 0 12px" }, icons.gift({ size: 16 }),
+  ref = formDialog("اطلب تجربة مجانية", h("div", { class: "st-dlg-note" }, icons.gift({ size: 16 }),
     `${site.trial_days || 30} يومًا مجانًا — بدون رسوم خلال فترة التجربة`), form);
+}
+
+function contactDialog(site) {
+  let ref;
+  const form = leadForm(site, { kind: "contact", onDone: (ok) => { mount(ref.box, ok); ref.d.querySelector(".st-btn.wide")?.remove(); } });
+  ref = formDialog("تواصل معنا", null, form);
 }
 
 function subscribeDialog(site, plan, cycle) {
