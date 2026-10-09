@@ -122,6 +122,30 @@ test("الصفحات العامة: الخصوصية والشروط ومحركا�
   }
 });
 
+test("الصفحات التعريفية لمحركات البحث: HTML كامل وقابلة للفهرسة وفي خريطة الموقع ومحجوزة", async () => {
+  const { SEO_PAGES } = await import("../src/core/seo-pages.js");
+  const robots = await (await fetch(`${srv.base}/robots.txt`)).text();
+  const sitemap = await (await fetch(`${srv.base}/sitemap.xml`)).text();
+  for (const p of SEO_PAGES) {
+    const res = await fetch(`${srv.base}/${p.slug}`);
+    assert.equal(res.status, 200, p.slug);
+    assert.equal(res.headers.get("x-robots-tag"), null, `${p.slug} قابلة للفهرسة`);
+    const html = await res.text();
+    assert.ok(html.includes(`<h1>${p.h1}</h1>`), "المحتوى في HTML الخادم نفسه");
+    assert.ok(html.includes(`<link rel="canonical" href="${srv.base}/${p.slug}">`));
+    for (const ld of html.matchAll(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/g)) JSON.parse(ld[1]);
+    assert.ok(robots.includes(`Allow: /${p.slug}$`));
+    assert.ok(sitemap.includes(`/${p.slug}</loc>`));
+    assert.equal((await A.owner.post("/api/owner/tenants", { id: p.slug, name: "محجوز" })).status, 400);
+  }
+  // الرئيسية: بيانات منظمة صالحة (المنظمة والأسئلة الشائعة) وروابط الصفحات التعريفية
+  const home = await (await fetch(`${srv.base}/`)).text();
+  const lds = [...home.matchAll(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  assert.ok(lds.some((o) => o["@type"] === "Organization"));
+  assert.ok(lds.some((o) => o["@type"] === "FAQPage" && o.mainEntity.length));
+  assert.deepEqual(JSON.parse(home.match(/<script type="application\/json" id="seo-links">(.*?)<\/script>/)[1]).map((x) => x[0]), SEO_PAGES.map((p) => p.slug));
+});
+
 test("التجهيز التلقائي مرة واحدة: يحترم مدرسة العرض التي اختارها المالك ولا يتكرر", async () => {
   const { ensureDemoSchool } = await import("../src/modules/owner/demo-provision.js");
   await transaction({ platform: true }, (q) => q("UPDATE platform_settings SET demo_provisioned_at = NULL WHERE id"));
