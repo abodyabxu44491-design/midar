@@ -1,0 +1,47 @@
+/* الشاشة الافتتاحية لشعار مدار (3 ثوانٍ):
+   0.0 الخلفية والتوهج ← 0.2 المدار الخلفي يُرسم ← 0.45 الشكل يصعد من خلف المدار ← 0.9 المدار الأمامي يلتف
+   ← 1.25 النقطة الذهبية تومض وتنتشر حلقة ضوء ← 1.4 «مدار» ثم MIDAR ← 2.5 الشعار يقترب بهدوء وتتلاشى الشاشة */
+html.splash-on, html.splash-on body { overflow: hidden; }
+#splash {
+  position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; cursor: default;
+  background: radial-gradient(120% 90% at 50% 42%, #1B2D5E 0%, #101C40 45%, #070E24 100%);
+  font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; color: #fff;
+}
+#splash.out { animation: sp-out .5s cubic-bezier(.4, 0, .2, 1) forwards; }
+#splash.out .sp-logo { animation: sp-zoom .5s cubic-bezier(.4, 0, .2, 1) forwards; }
+
+.sp-glow { position: absolute; width: 70vmin; height: 70vmin; border-radius: 50%;
+  background: radial-gradient(circle, rgba(46,196,182,.28), rgba(46,196,182,0) 65%);
+  animation: sp-glow 2.6s ease-in-out .1s both; }
+.sp-ring { position: absolute; width: 34vmin; height: 34vmin; border-radius: 50%; border: 2px solid rgba(240,165,58,.55);
+  opacity: 0; animation: sp-ring 1.3s cubic-bezier(.2, .7, .2, 1) 1.25s forwards; }
+
+.sp-logo { position: relative; display: grid; justify-items: center; gap: 2px; }
+.sp-mark { width: min(46vmin, 260px); height: auto; overflow: visible; }
+.sp-back { stroke: #9FCFCB; stroke-dasharray: 1; stroke-dashoffset: 1; animation: sp-draw .75s cubic-bezier(.65, 0, .35, 1) .2s forwards; }
+.sp-shape { fill: #fff; }
+.sp-reveal { transform: translateY(330px); animation: sp-rise .8s cubic-bezier(.16, 1, .3, 1) .45s forwards; }
+.sp-gap { stroke: #111D42; stroke-dasharray: 1; stroke-dashoffset: -1; animation: sp-draw .7s cubic-bezier(.65, 0, .35, 1) .9s forwards; }
+.sp-front { stroke: #2EC4B6; stroke-dasharray: 1; stroke-dashoffset: -1; filter: drop-shadow(0 0 6px rgba(46,196,182,.6));
+  animation: sp-draw .7s cubic-bezier(.65, 0, .35, 1) .9s forwards; }
+.sp-dot { transform-box: fill-box; transform-origin: center; transform: scale(0); animation: sp-pop .6s cubic-bezier(.34, 1.56, .64, 1) 1.25s forwards; }
+.sp-dot circle { fill: #F0A53A; stroke: #111D42; filter: drop-shadow(0 0 10px rgba(240,165,58,.8)); }
+
+.sp-word { font-size: min(13vmin, 66px); font-weight: 700; line-height: 1.1; margin-top: 4px;
+  opacity: 0; transform: translateY(14px); filter: blur(8px); animation: sp-text .7s cubic-bezier(.16, 1, .3, 1) 1.4s forwards; }
+.sp-latin { font: 700 min(3.4vmin, 15px)/1 system-ui, sans-serif; color: rgba(205,225,255,.7); direction: ltr;
+  letter-spacing: 1.2em; margin-inline-start: 1.2em; opacity: 0; animation: sp-track 1s cubic-bezier(.16, 1, .3, 1) 1.65s forwards; }
+
+@keyframes sp-out { to { opacity: 0; visibility: hidden; } }
+@keyframes sp-zoom { to { transform: scale(1.08); filter: blur(4px); } }
+@keyframes sp-glow { 0% { transform: scale(.4); opacity: 0; } 55% { opacity: 1; } 100% { transform: scale(1.1); opacity: .7; } }
+@keyframes sp-ring { 0% { transform: scale(.4); opacity: 0; } 12% { opacity: .9; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes sp-draw { to { stroke-dashoffset: 0; } }
+@keyframes sp-rise { to { transform: translateY(0); } }
+@keyframes sp-pop { to { transform: scale(1); } }
+@keyframes sp-text { to { opacity: 1; transform: none; filter: none; } }
+@keyframes sp-track { from { letter-spacing: 1.2em; margin-inline-start: 1.2em; opacity: 0; } to { letter-spacing: .5em; margin-inline-start: .5em; opacity: 1; } }
+
+/* تقليل الحركة: ظهور هادئ قصير بلا رسم ولا حلقات */
+#splash.reduced *, #splash.reduced { animation-duration: .01s !important; animation-delay: 0s !important; }
+#splash.reduced.out { animation: sp-out .3s ease forwards !important; }

@@ -1,6 +1,6 @@
 // البوابة الذكية — شاشة الإدارة:
 //   اليوم: الأرقام، المباشر، «لم يسجل حضور» والاستثناءات، واعتماد الغياب
-//   الأجهزة: رابط للحارس (واتساب أو QR) ← موافقة ← إيقاف أو إلغاء فوري
+//   الأجهزة: «ربط جوال» برمز من 6 أرقام (أو QR) لأي عدد من الجوالات، أو رابط خاص بجهاز واحد ← إيقاف أو إلغاء فوري
 //   البطاقات: طباعة بطاقات الحضور لشعبة كاملة، وإعادة إصدار أو تعطيل بطاقة
 //   الإعدادات: أوقات الحضور والإشعارات والأيام الاستثنائية
 //   المراجعة: المسح المشبوه وسجل التعديلات
@@ -73,7 +73,7 @@ export async function gateView({ me }) {
 
     return [
       h("div", { class: "row spaced" }, field("اليوم", dateIn), s.rate !== null ? h("div", { class: "gate-rate" }, h("b", {}, `${s.rate}%`), h("small", {}, "نسبة الحضور")) : null),
-      noDevice ? notice("لا يوجد جهاز بوابة مفعّل بعد. أضف جوال الحارس من «أجهزة الحراس» وأرسل له الرابط.", "") : null,
+      noDevice ? notice("لا يوجد جوال بوابة مفعّل بعد. من «البوابات والأجهزة» اضغط «ربط جوال» واكتب الرمز على جوال الحارس.", "") : null,
       h("div", { class: `gate-phase ${PH[0]}` }, PH[1]),
       h("div", { class: "gate-stats" },
         stat(c.students, "طالب مقيد"), stat(c.present, "حاضر", "ok"), stat(c.late, "متأخر", "late"),
@@ -134,7 +134,64 @@ export async function gateView({ me }) {
 
   /* ---------- أجهزة الحراس ---------- */
   async function devicesView() {
-    const [devices, gates] = await Promise.all([api(`${G()}/devices`), api(`${G()}/gates`)]);
+    const [devices, gates, codes] = await Promise.all([api(`${G()}/devices`), api(`${G()}/gates`), api(`${G()}/join-codes`)]);
+    const left = (iso) => {
+      const m = Math.max(0, Math.round((new Date(iso) - Date.now()) / 60000));
+      return m >= 60 ? `${Math.floor(m / 60)} ساعة${m % 60 ? ` و${m % 60} دقيقة` : ""}` : `${m} دقيقة`;
+    };
+    const spaced = (c) => `${c.slice(0, 3)} ${c.slice(3)}`;
+    // شاشة الرمز: أرقام كبيرة + QR + من انضم الآن (تتحدث كل 3 ثوانٍ)
+    const codeDialog = (c) => {
+      const joined = h("div", { class: "gj-joined" });
+      const counter = h("small", { class: "sub" });
+      const paint = (x) => {
+        counter.textContent = `${x.used_count} من ${x.max_devices} جوال · ينتهي بعد ${left(x.expires_at)} · ${x.auto_approve ? "يعمل الجوال فورًا" : "يحتاج موافقتك"}`;
+        mount(joined, x.devices.length ? x.devices.map((d) => h("div", { class: "gj-dev" }, h("b", {}, d.name), badge(DEVICE[d.status][0], DEVICE[d.status][1])))
+          : h("p", { class: "sub gj-wait" }, "بانتظار أول جوال…"));
+      };
+      paint(c);
+      const msg = `السلام عليكم، لربط جوالك ببوابة الحضور في ${me.school.name}:\n1) افتح هذا الرابط: ${c.link}\n2) اكتب اسمًا لجوالك واضغط «ربط الجوال».\n(أو افتح ${c.page} واكتب الرمز: ${c.code})`;
+      const d = dialog("ربط جوال بالبوابة", h("div", { class: "gj" },
+        h("p", { class: "gj-step" }, "على جوال الحارس: امسح هذا الرمز بالكاميرا، أو افتح الصفحة واكتب الأرقام."),
+        h("div", { class: "gj-code", dir: "ltr" }, spaced(c.code)),
+        h("img", { class: "gate-link-qr", src: c.qr, alt: "رمز QR للربط" }),
+        h("code", { class: "gate-link-url", dir: "ltr" }, c.page),
+        counter, joined),
+      [h("a", { class: "btn", href: `https://wa.me/?text=${encodeURIComponent(msg)}`, target: "_blank", rel: "noopener" }, "إرسال واتساب"),
+        btn("إلغاء الرمز", async () => {
+          try { await api(`${G()}/join-codes/${c.id}/revoke`, {}); toast("أُلغي الرمز"); d.close(); } catch (e) { toast(e.message, true); }
+        }, "ghost")]);
+      const timer = setInterval(async () => {
+        if (!d.open) return clearInterval(timer);
+        try {
+          const now = (await api(`${G()}/join-codes`)).find((x) => x.id === c.id);
+          if (now) paint(now);
+          else { clearInterval(timer); toast(c.max_devices > 1 ? "اكتمل الربط أو انتهى الرمز" : "رُبط الجوال"); d.close(); }
+        } catch { /* المحاولة التالية */ }
+      }, 3000);
+      d.addEventListener("close", () => { clearInterval(timer); show("devices"); });
+    };
+    const newCode = () => {
+      const gate = select(gates.filter((g) => g.is_active).map((g) => [String(g.id), g.name]));
+      const minutes = select([["30", "30 دقيقة"], ["60", "ساعة"], ["180", "3 ساعات"], ["720", "اليوم كله (12 ساعة)"]]);
+      minutes.value = "60";
+      const count = select([["1", "جوال واحد"], ["2", "جوالان"], ["3", "3 جوالات"], ["5", "5 جوالات"], ["10", "10 جوالات"]]);
+      let auto = true;
+      const d = dialog("ربط جوال جديد", h("div", {},
+        sub("يظهر لك رمز من 6 أرقام. أي جوال (للحارس أو لمعلم المناوبة أو غيرهما) يكتبه في صفحة البوابة فيصير جهاز مسح للحضور. لا يحتاج حسابًا ولا كلمة مرور."),
+        gates.length > 1 ? field("البوابة", gate) : null,
+        h("div", { class: "row" }, field("صلاحية الرمز", minutes), field("عدد الجوالات", count)),
+        h("div", { class: "line" }, h("div", {}, h("b", {}, "يعمل الجوال فورًا بدون موافقة"),
+          sub("الرمز قصير الصلاحية ومحدد العدد، وتستطيع إيقاف أي جوال فورًا. أطفئه إن أردت الموافقة على كل جوال بنفسك.")),
+        switchBtn(true, "يعمل فورًا", (v) => { auto = v; }))),
+      [btn("إظهار الرمز", async () => {
+        try {
+          const c = await api(`${G()}/join-codes`, { minutes: Number(minutes.value), max_devices: Number(count.value), auto_approve: auto,
+            ...(gates.length > 1 ? { gate_id: Number(gate.value) } : {}) });
+          d.close(); codeDialog(c);
+        } catch (e) { toast(e.message, true); }
+      })]);
+    };
     const linkDialog = (title, r, name) => {
       const msg = `السلام عليكم، هذا رابط بوابة الحضور في ${me.school.name}.\nافتحه على جوالك (${name})، ثم انتظر موافقة الإدارة وستظهر لك شاشة المسح.\n${r.link}\nالرابط يعمل مرة واحدة خلال ${r.hours} ساعة.`;
       dialog(title, h("div", { class: "gate-link" },
@@ -215,9 +272,18 @@ export async function gateView({ me }) {
     const addGate = btn("+ بوابة", () => gateDialog(null), "ghost sm");
     const live = devices.filter((d) => d.status !== "revoked");
     return [
-      panel("أجهزة الحراس", btn("+ إضافة جهاز للحارس", addDevice, "sm"),
-        sub("الحارس يفتح رابطًا ترسله له من هنا، فيصير جواله جهاز بوابة بعد موافقتك. لا أحد يستطيع تحويل جواله إلى بوابة بدونك، وتستطيع إيقاف أي جهاز فورًا."),
-        live.length ? h("div", { class: "gate-devs" }, live.map(card)) : empty("لا توجد أجهزة بعد.")),
+      h("section", { class: "gj-hero" },
+        h("div", {}, h("b", {}, "ربط أي جوال بالبوابة خلال ثوانٍ"),
+          h("p", {}, "اضغط «ربط جوال»، فيظهر رمز من 6 أرقام. الحارس يفتح صفحة البوابة على جواله ويكتبه، أو يمسح رمز QR من شاشتك، ويبدأ تسجيل الحضور فورًا.")),
+        btn("ربط جوال", newCode, "primary")),
+      codes.length ? panel("رموز ربط صالحة الآن", null, codes.map((c) => h("div", { class: "line" },
+        h("div", {}, h("b", { dir: "ltr" }, spaced(c.code || "------")),
+          sub(`${c.gate_name} · ${c.used_count} من ${c.max_devices} جوال · ينتهي بعد ${left(c.expires_at)}`)),
+        h("div", { class: "row" }, btn("عرض", () => codeDialog(c), "ghost sm"),
+          btn("إلغاء", async () => { try { await api(`${G()}/join-codes/${c.id}/revoke`, {}); toast("أُلغي الرمز"); show("devices"); } catch (e) { toast(e.message, true); } }, "ghost sm"))))) : null,
+      panel("الجوالات المرتبطة", btn("+ رابط لجوال محدد", addDevice, "ghost sm"),
+        sub("كل جوال هنا يمسح بطاقات الطلاب ويسجل الحضور. أوقف أي جوال أو ألغه فورًا، ولا أحد يستطيع تحويل جواله إلى بوابة بدونك."),
+        live.length ? h("div", { class: "gate-devs" }, live.map(card)) : empty("لا توجد جوالات بعد. اضغط «ربط جوال» أعلاه.")),
       panel("البوابات", addGate, gates.length ? gates.map(gateRow) : sub("تُنشأ «البوابة الرئيسية» تلقائيًا مع أول جهاز.")),
     ];
   }

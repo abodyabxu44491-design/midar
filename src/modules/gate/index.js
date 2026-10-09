@@ -1,11 +1,12 @@
 // واجهة أجهزة البوابة: /api/gate/<المدرسة>/...
 // لا جلسة مستخدم: الجهاز يُعرَّف بمعرّفه وسره (من الترويسة)، والمدرسة من الرابط فقط، وكل شيء داخل عزل المدرسة (RLS).
 //   POST /pair     فتح رابط الإدارة لأول مرة ← الجهاز بانتظار الموافقة ويأخذ سره
+//   POST /join     ربط أي جوال برمز الربط (6 أرقام) الذي تُظهره الإدارة ← مفعّل فورًا أو بانتظار الموافقة
 //   POST /status   نبض: الحالة، ووقت الخادم، ونافذة اليوم، والعداد
 //   POST /scan     مسح بطاقة (مباشر)
 //   POST /events   دفعة مسحات حُفظت على الجهاز أثناء انقطاع الاتصال
 import { Router } from "express";
-import { handle, forbidden } from "../../core/http/errors.js";
+import { AppError, handle, forbidden } from "../../core/http/errors.js";
 import { parse } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
 import { inSchool } from "../public/context.js";
@@ -19,6 +20,13 @@ const recordedBy = (d) => `${d.gate_name} — ${d.name}`;
 r.post("/:school/pair", limits.gatePair, handle(async (req, res) => {
   const b = parse(gate.pairBody, req.body);
   res.json(await inSchool(req, ACTOR, (q) => gate.pair(q, b, { ip: req.ip })));
+}));
+
+r.post("/:school/join", limits.gatePair, handle(async (req, res) => {
+  const b = parse(gate.joinBody, req.body);
+  const out = await inSchool(req, ACTOR, (q) => gate.joinWithCode(q, b, { ip: req.ip }));
+  if (out.error) throw new AppError(out.status || 401, out.error, "denied");
+  res.json(out);
 }));
 
 r.post("/:school/status", handle(async (req, res) => {

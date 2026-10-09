@@ -193,6 +193,9 @@ const phaseOf = (win, hm, isToday, isPast) => {
 const sha = (v) => crypto.createHash("sha256").update(String(v)).digest();
 const sameHash = (a, b) => Boolean(a && b && a.length === b.length && crypto.timingSafeEqual(a, b));
 export const PAIR_HOURS = 24;
+// بيانات الجهاز التعريفية (تظهر للإدارة لتعرف الجوال)
+const pairInfo = z.object({ ua: z.string().max(200).optional(), platform: z.string().max(60).optional(), screen: z.string().max(30).optional(),
+  lang: z.string().max(20).optional() }).default({});
 
 export const gateBody = z.object({ name: z.string().trim().min(2).max(60), location: t.optText(120), is_active: z.boolean().optional(),
   direction: z.enum(["in", "out", "both"]).optional(),
@@ -282,6 +285,102 @@ export async function rePair(q, id) {
   if (!d) throw notFound("الجهاز غير موجود");
   return { id, public_id: d.public_id, code };
 }
+/* ---------- ربط أي جوال برمز قصير ---------- */
+// الإدارة تُظهر رمزًا من 6 أرقام (ورمز QR) صالحًا لمدة ولعدد جوالات تحددهما. الحارس يكتبه في صفحة البوابة.
+// الحماية: صلاحية قصيرة + عدد محدد + قفل بعد 10 محاولات خاطئة من الجهاز (و100 على المدرسة) خلال 30 دقيقة.
+export const joinCodeBody = z.object({
+  gate_id: t.id.optional(),
+  minutes: z.coerce.number().int().min(10).max(24 * 60).default(60),
+  max_devices: z.coerce.number().int().min(1).max(50).default(1),
+  auto_approve: z.boolean().default(false),
+});
+const joinAad = (tenant) => `gate-join:${tenant}`;
+const tenantId = async (q) => (await q("SELECT app_tenant() AS t"))[0].t;
+export async function createJoinCode(q, b, { actor }) {
+  const [g] = await q("SELECT id, name FROM gates WHERE id = $1 AND is_active", [b.gate_id]);
+  if (!g) throw notFound("البوابة غير موجودة أو موقوفة");
+  const tenant = await tenantId(q);
+  // رمز لا يتكرر مع رمز صالح آخر في نفس المدرسة
+  for (let i = 0; i < 20; i++) {
+    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+    const [dup] = await q("SELECT 1 FROM gate_join_codes WHERE code_hash = $1 AND revoked_at IS NULL AND expires_at > now()", [sha(code)]);
+    if (dup) continue;
+    const [r] = await q(
+      `INSERT INTO gate_join_codes (tenant_id, gate_id, code_hash, code_enc, expires_at, max_devices, auto_approve, created_by)
+       VALUES (app_tenant(), $1, $2, $3, now() + make_interval(mins => $4), $5, $6, $7) RETURNING id, expires_at`,
+      [g.id, sha(code), sealSecret(code, joinAad(tenant)), b.minutes, b.max_devices, b.auto_approve, actor]);
+    return { id: r.id, code, expires_at: r.expires_at, gate_name: g.name, max_devices: b.max_devices, auto_approve: b.auto_approve };
+  }
+  throw conflict("تعذر إنشاء رمز جديد الآن. حاول مرة أخرى.");
+}
+/** الرموز الصالحة الآن (مع الرمز نفسه لتعيد الإدارة عرضه) والجوالات التي انضمت بكل رمز */
+export async function listJoinCodes(q) {
+  const tenant = await tenantId(q);
+  const rows = await q(
+    `SELECT c.id, c.code_enc, c.expires_at, c.max_devices, c.used_count, c.auto_approve, c.created_by, c.created_at, g.name AS gate_name,
+            COALESCE(json_agg(json_build_object('id', d.id, 'name', d.name, 'status', d.status) ORDER BY d.id) FILTER (WHERE d.id IS NOT NULL), '[]') AS devices
+       FROM gate_join_codes c JOIN gates g ON g.id = c.gate_id
+       LEFT JOIN gate_devices d ON d.join_code_id = c.id AND d.status <> 'revoked'
+      WHERE c.revoked_at IS NULL AND c.expires_at > now() AND c.used_count < c.max_devices
+      GROUP BY c.id, g.name ORDER BY c.id DESC`);
+  for (const r of rows) {
+    try { r.code = openSecret(r.code_enc, joinAad(tenant)); } catch { r.code = null; }
+    delete r.code_enc;
+  }
+  return rows;
+}
+export async function revokeJoinCode(q, id) {
+  const rows = await q("UPDATE gate_join_codes SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL RETURNING id", [id]);
+  if (!rows.length) throw notFound("الرمز غير موجود أو أُلغي");
+  return { ok: true };
+}
+export const joinBody = z.object({
+  code: z.string().trim().transform((v) => v.replace(/[\s-]/g, "").replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)))
+    .pipe(z.string().regex(/^\d{6}$/, "الرمز 6 أرقام")),
+  name: z.string().trim().min(2, "اكتب اسمًا للجوال").max(60),
+  info: pairInfo,
+  app_version: z.string().max(40).optional(),
+});
+const JOIN_FAILS_IP = 10, JOIN_FAILS_SCHOOL = 100, JOIN_LOCK_MIN = 30;
+/**
+ * الحارس يكتب الرمز: يصير جواله جهاز بوابة ويأخذ سره مرة واحدة.
+ * يعيد { error } (بدل رمي خطأ) عند الرمز الخاطئ حتى تُحفظ المحاولة في نفس المعاملة.
+ */
+export async function joinWithCode(q, b, { ip }) {
+  const tenant = await tenantId(q);
+  const ipSubject = `${tenant}:${ip || "?"}`;
+  const fails = await q(`SELECT count(*) FILTER (WHERE subject = $1)::int AS ip, count(*)::int AS school FROM security_events
+                          WHERE kind = 'gate_join_failed' AND tenant_id = $2 AND created_at > now() - make_interval(mins => $3)`,
+  [ipSubject, tenant, JOIN_LOCK_MIN]);
+  if (fails[0].ip >= JOIN_FAILS_IP || fails[0].school >= JOIN_FAILS_SCHOOL) {
+    return { status: 429, error: `محاولات خاطئة كثيرة. انتظر ${JOIN_LOCK_MIN} دقيقة ثم أعد المحاولة، أو اطلب من الإدارة رابطًا مباشرًا.` };
+  }
+  // القفل على الصف يمنع تجاوز العدد المسموح عند انضمام جوالين في نفس اللحظة
+  const [c] = await q(
+    `SELECT id, gate_id, max_devices, used_count, auto_approve, created_by FROM gate_join_codes
+      WHERE code_hash = $1 AND revoked_at IS NULL AND expires_at > now() FOR UPDATE`, [sha(b.code)]);
+  if (!c || c.used_count >= c.max_devices) {
+    await q("INSERT INTO security_events (kind, subject, tenant_id, ip) VALUES ('gate_join_failed', $1, $2, $3)", [ipSubject, tenant, ip || null]);
+    return { status: 401, error: c ? "اكتمل عدد الجوالات المسموح بهذا الرمز. اطلب رمزًا جديدًا من الإدارة." : "الرمز غير صحيح أو انتهت صلاحيته. تأكد منه أو اطلب رمزًا جديدًا من الإدارة." };
+  }
+  const publicId = crypto.randomBytes(12).toString("base64url");
+  const secret = crypto.randomBytes(32).toString("base64url");
+  const status = c.auto_approve ? "active" : "pending";
+  const [d] = await q(
+    `INSERT INTO gate_devices (tenant_id, public_id, gate_id, name, status, secret_hash, fingerprint, app_version, last_seen_at, last_ip,
+                               created_by, approved_by, approved_at, join_code_id)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, now(), $8, $9, $10, $11, $12) RETURNING id`,
+    [publicId, c.gate_id, b.name, status, sha(secret), JSON.stringify(b.info || {}), b.app_version || null, ip || null,
+      `${c.created_by} (رمز الربط)`, c.auto_approve ? `${c.created_by} (رمز الربط)` : null, c.auto_approve ? new Date() : null, c.id]);
+  await q("UPDATE gate_join_codes SET used_count = used_count + 1 WHERE id = $1", [c.id]);
+  await q("DELETE FROM security_events WHERE kind = 'gate_join_failed' AND subject = $1", [ipSubject]);
+  await notify(q, { event: "gate", users: await adminUserIds(q),
+    title: c.auto_approve ? `جوال جديد يعمل على البوابة: ${b.name}` : `جوال بانتظار موافقتك: ${b.name}`,
+    body: c.auto_approve ? "انضم برمز الربط وصار جاهزًا للمسح. تستطيع إيقافه من «الحضور ← البوابة»." : "انضم برمز الربط. وافق عليه من «الحضور ← البوابة» ليبدأ المسح.",
+    link: "attendance", dedupKey: `join:${d.id}` });
+  return { device: publicId, secret, status };
+}
+
 const STATE_MOVES = {
   approve: [["pending"], "active", "الجهاز ليس بانتظار الموافقة"],
   disable: [["active", "pending"], "disabled", "الجهاز ليس مفعّلًا"],
@@ -312,8 +411,7 @@ export async function updateDevice(q, id, b) {
 /* ---------- من جهة الجهاز ---------- */
 export const pairBody = z.object({
   device: z.string().regex(/^[A-Za-z0-9_-]{16,40}$/), code: z.string().regex(/^[A-Za-z0-9_-]{16,60}$/),
-  info: z.object({ ua: z.string().max(200).optional(), platform: z.string().max(60).optional(), screen: z.string().max(30).optional(),
-    lang: z.string().max(20).optional() }).default({}),
+  info: pairInfo,
   app_version: z.string().max(40).optional(),
 });
 /** الحارس يفتح الرابط: الجهاز يقترن (بانتظار موافقة الإدارة) ويأخذ سره مرة واحدة */

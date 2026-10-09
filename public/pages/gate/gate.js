@@ -1,5 +1,8 @@
-// تطبيق الحارس عند البوابة: يفتح من الرابط الذي ترسله الإدارة، ثم يمسح بطاقات الطلاب بكاميرا الجوال.
-//   1) الرابط (…/<المدرسة>/gate#p=<الجهاز>.<الرمز>) يُستخدم مرة واحدة: الجهاز يقترن ويأخذ سره، ثم يُمسح الرمز من الرابط.
+// تطبيق الحارس عند البوابة: يمسح بطاقات الطلاب بكاميرا أي جوال.
+//   1) الربط بإحدى طريقتين:
+//      - رمز الربط (6 أرقام) تُظهره الإدارة على شاشتها: يُكتب هنا، أو يُمسح QR فيفتح …/gate#j=<الرمز> وهو مكتوب.
+//      - رابط خاص بجهاز واحد (…/<المدرسة>/gate#p=<الجهاز>.<الرمز>) يُستخدم مرة واحدة.
+//      في الحالتين يأخذ الجهاز سره ويُمسح الرمز من الرابط.
 //   2) بانتظار موافقة الإدارة ← بعد الموافقة تظهر شاشة المسح.
 //   3) كل مسح له هوية فريدة. إن انقطع الاتصال يُحفظ على الجهاز ويُرسل تلقائيًا عند عودته (بلا تكرار).
 import { h, mount } from "../shared/js/dom.js";
@@ -7,7 +10,7 @@ import { btn } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { beep, startCamera } from "../shared/js/gate-scanner.js";
 
-const VERSION = "gate-2";
+const VERSION = "gate-3";
 const app = document.getElementById("app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const CRED = `midar-gate:${school}`, QUEUE = `midar-gate-q:${school}`, LOG = `midar-gate-log:${school}`, ROSTER = `midar-gate-roster:${school}`;
@@ -51,11 +54,61 @@ function screen(icon, title, text, ...extra) {
   mount(app, h("main", { class: "gt-screen" }, brand(),
     h("span", { class: "gt-big-ic" }, icon({ size: 44 })), h("h1", {}, title), text && h("p", {}, text), ...extra));
 }
-const noLink = () => screen(icons.link, "بوابة الحضور", "افتح على هذا الجوال الرابط الذي أرسلته لك إدارة المدرسة. الرابط يعمل مرة واحدة فقط.");
-const revoked = () => { store.del(CRED); cred = null; screen(icons.lock, "أُلغي هذا الجهاز", "تواصل مع إدارة المدرسة لإرسال رابط جديد."); };
+const revoked = () => { store.del(CRED); cred = null; joinScreen("أُلغي هذا الجهاز من الإدارة. اطلب رمز ربط جديدًا لإعادة تشغيله."); };
+const deviceInfo = () => ({ ua: navigator.userAgent.slice(0, 200), platform: (navigator.userAgentData?.platform || navigator.platform || "").slice(0, 60),
+  screen: `${window.screen.width}x${window.screen.height}`, lang: navigator.language });
+const toDigits = (v) => v.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0)).replace(/\D/g, "");
+
+/* ---------- ربط الجوال برمز الإدارة ---------- */
+const NAME = `midar-gate-name:${school}`;
+function joinScreen(note = null, prefill = "") {
+  ui = null;
+  const code = h("input", { class: "gt-code", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 7, placeholder: "000000",
+    "aria-label": "رمز الربط", value: prefill, dir: "ltr" });
+  const name = h("input", { class: "gt-field", maxLength: 60, placeholder: "مثال: جوال الحارس أبو محمد", value: store.get(NAME, "") || "", "aria-label": "اسم الجوال" });
+  const msg = h("p", { class: "gt-err", role: "alert" });
+  code.addEventListener("input", () => {
+    const v = toDigits(code.value).slice(0, 6);
+    code.value = v.length > 3 ? `${v.slice(0, 3)} ${v.slice(3)}` : v;
+    msg.textContent = "";
+  });
+  const go = btn("ربط الجوال", async () => {
+    const digits = toDigits(code.value);
+    if (digits.length !== 6) { msg.textContent = "اكتب الرمز كاملًا: 6 أرقام"; return code.focus(); }
+    if (name.value.trim().length < 2) { msg.textContent = "اكتب اسمًا لهذا الجوال ليعرفه المدير"; return name.focus(); }
+    go.disabled = true; go.textContent = "جارٍ الربط…";
+    try {
+      const r = await call("join", { code: digits, name: name.value.trim(), app_version: VERSION, info: deviceInfo() }, 10_000);
+      if (r.status !== 200) throw new Error(r.data?.error || "تعذّر ربط الجوال");
+      cred = { pid: r.data.device, secret: r.data.secret };
+      store.set(CRED, cred); store.set(NAME, name.value.trim()); store.del(QUEUE);
+      heartbeat();
+    } catch (e) {
+      msg.textContent = e.message === "Failed to fetch" || e.name === "AbortError" ? "لا يوجد اتصال بالإنترنت. تحقق منه ثم أعد المحاولة." : e.message;
+      go.disabled = false; go.textContent = "ربط الجوال";
+    }
+  }, "gt-start");
+  for (const el of [code, name]) el.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
+  mount(app, h("main", { class: "gt-screen gt-join" }, brand(),
+    h("span", { class: "gt-big-ic" }, icons.link({ size: 40 })),
+    h("h1", {}, "ربط هذا الجوال بالبوابة"),
+    note ? h("p", { class: "gt-note" }, note) : null,
+    h("p", {}, "اطلب من مدير المدرسة «رمز الربط» من: الحضور ← البوابة ← ربط جوال. اكتبه هنا، أو امسح رمز QR من شاشته بكاميرا الجوال."),
+    h("label", { class: "gt-lbl" }, "رمز الربط", code),
+    h("label", { class: "gt-lbl" }, "اسم هذا الجوال", name),
+    msg, go,
+    h("p", { class: "gt-muted" }, "بعد الربط يبقى الجوال جاهزًا للمسح دائمًا، حتى لو أُغلق التطبيق.")));
+  (prefill ? name : code).focus();
+}
 
 /* ---------- الاقتران من الرابط ---------- */
 async function pairFromHash() {
+  const j = location.hash.match(/#j=(\d{6})/);
+  if (j) {
+    history.replaceState(null, "", location.pathname);
+    if (!cred) { joinScreen(null, `${j[1].slice(0, 3)} ${j[1].slice(3)}`); throw new Error("join"); }
+    return;
+  }
   const m = location.hash.match(/#p=([A-Za-z0-9_-]{16,40})\.([A-Za-z0-9_-]{16,60})/);
   if (!m) return;
   history.replaceState(null, "", location.pathname);          // الرمز لا يبقى في الرابط ولا في السجل
@@ -63,9 +116,7 @@ async function pairFromHash() {
   const prev = cred;
   cred = null;
   try {
-    const r = await call("pair", { device: m[1], code: m[2], app_version: VERSION,
-      info: { ua: navigator.userAgent.slice(0, 200), platform: (navigator.userAgentData?.platform || navigator.platform || "").slice(0, 60),
-        screen: `${window.screen.width}x${window.screen.height}`, lang: navigator.language } });
+    const r = await call("pair", { device: m[1], code: m[2], app_version: VERSION, info: deviceInfo() });
     if (r.status !== 200) { cred = prev; throw new Error(r.data?.error || "تعذّر تجهيز الجهاز"); }
     cred = { pid: m[1], secret: r.data.secret };
     store.set(CRED, cred);
@@ -80,7 +131,7 @@ async function pairFromHash() {
 let pollTimer = null;
 async function heartbeat() {
   clearTimeout(pollTimer);
-  if (!cred) return noLink();
+  if (!cred) return joinScreen();
   const sent = Date.now();
   let r;
   try {
@@ -358,6 +409,6 @@ setInterval(() => {
 /* ---------- البدء ---------- */
 (async () => {
   try { await pairFromHash(); } catch { return; }
-  if (!cred) return noLink();
+  if (!cred) return joinScreen();
   heartbeat();
 })();

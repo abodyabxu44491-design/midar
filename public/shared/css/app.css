@@ -1447,6 +1447,19 @@ html.demo-mode .toast { bottom: 78px; z-index: 950; }
 .gd-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gate-link { display: grid; gap: 10px; justify-items: center; text-align: center; }
 .gate-link-qr { width: 220px; height: 220px; image-rendering: pixelated; }
+/* ربط جوال بالرمز */
+.gj-hero { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 16px 18px; border-radius: 16px;
+  background: linear-gradient(135deg, var(--navy), #0B4D4A); color: #fff; margin-bottom: 14px; }
+.gj-hero b { font-size: 17px; }
+.gj-hero p { margin: 4px 0 0; opacity: .85; line-height: 1.8; font-size: 14px; max-width: 560px; }
+.gj-hero .btn { background: #F0A53A; color: #16244A; border-color: #F0A53A; font-weight: 700; padding-inline: 22px; }
+.gj { display: grid; gap: 10px; justify-items: center; text-align: center; }
+.gj-step { margin: 0; color: var(--muted); }
+.gj-code { font: 800 46px/1.1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 8px; color: var(--navy); background: var(--teal-soft);
+  border-radius: 16px; padding: 10px 18px; }
+.gj-joined { display: grid; gap: 6px; width: 100%; }
+.gj-dev { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--bg); }
+.gj-wait { margin: 0; }
 .gate-link-url { font-size: 12px; overflow-wrap: anywhere; background: var(--bg); padding: 6px 8px; border-radius: 8px; max-width: 100%; }
 .gate-times { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .ac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; margin-top: 10px; }

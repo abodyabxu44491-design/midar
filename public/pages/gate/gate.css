@@ -77,3 +77,17 @@ body.gate-app { background: #0F1A36; color: #fff; min-height: 100dvh; }
 .gt-dir-b { border: 0; border-radius: 10px; padding: 10px; font: inherit; font-weight: 700; font-size: 16px; background: transparent; color: rgba(255,255,255,.75); cursor: pointer; }
 .gt-dir-b.on { background: #fff; color: #0F1A36; }
 .btn.gt-nfc { justify-self: center; color: #fff; border-color: rgba(255,255,255,.4); }
+
+/* ربط الجوال برمز الإدارة */
+.gt-join { gap: 12px; }
+.gt-lbl { width: 100%; display: grid; gap: 6px; text-align: start; font-size: 14px; color: rgba(255,255,255,.8); }
+.gt-code { width: 100%; font: 700 34px/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 6px; text-align: center; padding: 14px 10px;
+  border-radius: 16px; border: 2px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; }
+.gt-field { width: 100%; font: inherit; font-size: 16px; padding: 13px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06); color: #fff; }
+.gt-code:focus, .gt-field:focus { outline: none; border-color: var(--amber); background: rgba(255,255,255,.1); }
+.gt-code::placeholder { color: rgba(255,255,255,.25); }
+.gt-field::placeholder { color: rgba(255,255,255,.4); }
+.gt-err { min-height: 1.4em; color: #FFB4A6 !important; font-size: 14px; }
+.gt-note { background: rgba(240,165,58,.16); color: #FFD9A0 !important; border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+.gt-join .btn.gt-start { width: 100%; justify-content: center; }
