@@ -1,6 +1,7 @@
 // صفحات تعريفية ثابتة لمحركات البحث: كل صفحة تجيب عن بحث محدد (نظام إدارة مدارس، برنامج حضور وغياب...)
 // وتُرسل HTML كاملًا من الخادم، فيقرؤها جوجل مباشرة دون تشغيل جافاسكربت. المحتوى هنا فقط، والقالب في renderSeoPage.
 // أي صفحة جديدة: أضفها هنا فقط، فتدخل تلقائيًا في المسارات وخريطة الموقع وروابط الصفحة الرئيسية والرموز المحجوزة.
+import { APP_VERSION } from "./version.js";
 
 export const SEO_PAGES = [
   {
@@ -183,6 +184,8 @@ export function homeLd(origin, site = {}) {
 }
 export const ldScripts = (list) => list.map((o, i) => `<script type="application/ld+json"${i === list.length - 1 && o["@type"] === "FAQPage" ? ' id="faq-ld"' : ""}>${json(o)}</script>`).join("\n  ");
 
+// الملفات بمسار الإصدار: كاش دائم في المتصفح، ويتجدد تلقائيًا مع كل نشر
+const V = `/v/${APP_VERSION}`;
 export function renderSeoPage(page, origin) {
   const url = `${origin}/${page.slug}`;
   const others = SEO_PAGES.filter((p) => p.slug !== page.slug);
@@ -216,9 +219,12 @@ export function renderSeoPage(page, origin) {
   <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
-  <link rel="stylesheet" href="/shared/css/app.css">
-  <link rel="stylesheet" href="/home-page/site.css">
-  <link rel="stylesheet" href="/legal-page/legal.css">
+  <link rel="preload" href="${V}/shared/fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="${V}/shared/fonts/ibm-plex-sans-arabic-arabic-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="${V}/shared/css/fonts.css">
+  <link rel="stylesheet" href="${V}/shared/css/app.css">
+  <link rel="stylesheet" href="${V}/home-page/site.css">
+  <link rel="stylesheet" href="${V}/legal-page/legal.css">
   ${ldScripts(ld)}
 </head>
 <body>

@@ -120,7 +120,13 @@ export function renderPage(file, { isProd }) {
     .map((u) => `<link rel="modulepreload" href="${v}${u}">`).join("\n  ");
   html = html.replace(MOUNT_RE, (all, attr, mount) => `${attr}="${v}/${mount}/`);
   const graph = JSON.stringify(pageGraph(entries, isProd)).replace(/</g, "\\u003c");
-  html = html.replace("</head>", `  <meta name="app-version" content="${APP_VERSION}">\n  ${preload}\n  <script type="application/json" id="module-graph">${graph}</script>\n</head>`);
+  // الخطوط: app.css يستورد fonts.css، فبدون هذا تأتي الخطوط بعد ثلاث رحلات متتالية (الصفحة ثم app.css ثم fonts.css).
+  // نطلب ملف الخطوط والخطين الأساسيين (العادي والعريض) مع الصفحة مباشرة، فيظهر النص بخطه أسرع.
+  const fonts = html.includes(`/shared/css/app.css"`) ? [
+    `<link rel="preload" href="${v}/shared/css/fonts.css" as="style">`,
+    ...["400", "700"].map((w) => `<link rel="preload" href="${v}/shared/fonts/ibm-plex-sans-arabic-arabic-${w}-normal.woff2" as="font" type="font/woff2" crossorigin>`),
+  ].join("\n  ") : "";
+  html = html.replace("</head>", `  <meta name="app-version" content="${APP_VERSION}">\n  ${fonts}\n  ${preload}\n  <script type="application/json" id="module-graph">${graph}</script>\n</head>`);
   if (isProd) pageCache.set(file, html);
   return html;
 }

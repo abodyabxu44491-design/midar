@@ -679,7 +679,7 @@ button.section-chip:hover { border-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .skel-line { animation: none; } }
 .update-bar { position: fixed; bottom: 14px; inset-inline: 14px; z-index: 1000; display: flex; gap: 12px; align-items: center; justify-content: space-between;
   background: var(--navy); color: #fff; padding: 10px 14px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.2); max-width: 520px; margin-inline: auto; }
-.app-version { opacity: .6; font-size: 11px; }
+.app-version { font-size: 11px; }   /* بلا شفافية: لون --muted وحده يحقق تباين القراءة */
 img[loading="lazy"] { content-visibility: auto; }
 /* صفوف القوائم على الجوال: أزرار الإجراءات تنزل لسطر مستقل بدل أن تدفع الصفحة للعرض */
 @media (max-width: 700px) {
