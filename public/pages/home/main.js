@@ -45,7 +45,7 @@ function marketing(site) {
       plans.length ? link("plans", "الباقات") : null, link("contact", "تواصل معنا")),
     installButton()));
 
-  // الواجهة: عنوان ووصف وزران فقط، وبجانبها لمحة من التطبيق (بطاقات إشعارات حقيقية الشكل)
+  // الواجهة: عنوان ووصف وزران فقط، في الوسط
   const hero = h("section", { class: "st-hero" }, h("div", { class: "in" },
     h("div", { class: "txt" },
       h("h1", {}, site.site_headline || "إدارة مدرستك كاملة في مكان واحد"),
@@ -54,24 +54,17 @@ function marketing(site) {
         trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, "ابدأ تجربتك المجانية") : null,
         site.demo ? h("button", { class: "st-btn ghost", onclick: () => go("demo") }, icons.eye({ size: 18 }), "شاهد مدرسة تجريبية")
           : plans.length ? h("button", { class: "st-btn ghost", onclick: () => go("plans") }, "الباقات والأسعار") : null),
-      trialOn ? h("p", { class: "note" }, `${days} يومًا مجانًا، بدون رسوم خلال التجربة`) : null),
-    h("div", { class: "peek", "aria-hidden": "true" },
-      peekCard("check", "ok", "أحمد وصل المدرسة", "سجّل حضوره عند البوابة 7:04 ص"),
-      peekCard("star", "gold", "درجة الرياضيات: 18 من 20", "الاختبار الشهري — الصف الرابع"),
-      peekCard("wallet", "navy", "تم سداد القسط الثاني", "إيصال رقم 1042 — 1,500 ريال"))));
+      trialOn ? h("p", { class: "note" }, `${days} يومًا مجانًا، بدون رسوم خلال التجربة`) : null)));
 
-  // المميزات: بطاقة واحدة لكل فئة بأسماء مميزاتها، بدل عشرات الخانات
+  // المميزات مجمّعة حسب الفئة: عنوان الفئة ثم بطاقة لكل ميزة باسمها ووصفها
   const core = (site.features || []).filter((f) => f.kind !== "service");
-  // الفئات الصغيرة (أقل من 3 مميزات) تُجمع في بطاقة أخيرة «وأيضًا» حتى تبقى البطاقات متوازنة
-  const byCat = new Map();
-  for (const f of core) byCat.set(f.category, [...(byCat.get(f.category) || []), f]);
-  const small = [...byCat].filter(([, l]) => l.length < 3);
-  if (small.length > 1) { for (const [c] of small) byCat.delete(c); byCat.set("وأيضًا", small.flatMap(([, l]) => l)); }
+  const cats = [...new Set(core.map((f) => f.category))];
   const features = h("section", { class: "st-sec", id: "features" }, h("div", { class: "in" },
-    h("h2", {}, "كل أقسام المدرسة في منصة واحدة"), h("p", { class: "sub-h" }, "شغّل ما تحتاجه فقط، وأضف الباقي متى أردت."),
-    h("div", { class: "st-cats" }, [...byCat].map(([c, list]) => h("div", { class: "st-catcard" },
-        h("div", { class: "hd" }, h("span", { class: "ic" }, (icons[CAT_ICONS[c]] || icons.grid)({ size: 22 })), h("b", {}, c), h("small", {}, `${list.length}`)),
-        h("ul", {}, list.map((f) => h("li", { title: f.description || "" }, f.name))))))));
+    h("h2", {}, "ماذا تقدم مدار؟"), h("p", { class: "sub-h" }, "كل أقسام المدرسة في منصة واحدة، ويمكن تشغيل ما تحتاجه فقط."),
+    cats.map((c) => h("div", { class: "st-cat" },
+      h("h3", {}, h("span", { class: "ic" }, (icons[CAT_ICONS[c]] || icons.grid)({ size: 18 })), c),
+      h("div", { class: "st-feats" }, core.filter((f) => f.category === c).map((f) =>
+        h("div", { class: "st-feat" }, h("b", {}, f.name), f.description ? h("p", {}, f.description) : null)))))));
 
   // العرض التجريبي: يدخل الزائر مدرسة كاملة البيانات بضغطة، للتصفح فقط
   const demoSec = site.demo ? h("section", { class: "st-sec soft", id: "demo" }, h("div", { class: "in" },
@@ -118,11 +111,6 @@ function marketing(site) {
         brandLogo("", false, "row"),
         h("nav", { class: "legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام")),
         h("small", {}, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`)))));
-}
-
-function peekCard(icon, tone, title, text) {
-  return h("div", { class: `st-peek ${tone}` }, h("span", { class: "ic" }, icons[icon]({ size: 20, stroke: 2.4 })),
-    h("span", {}, h("b", {}, title), h("small", {}, text)));
 }
 
 // أدوار العرض التجريبي
