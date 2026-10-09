@@ -1484,3 +1484,26 @@ button.link { background: none; border: 0; padding: 0; color: var(--teal); font:
 .pa-results { display: grid; gap: 4px; margin: 6px 0; }
 .pa-pick { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; cursor: pointer; text-align: start; }
 .pa-pick:hover { border-color: var(--teal); }
+
+/* «ابدأ هنا»: خطوات تجهيز المدرسة الجديدة في الرئيسية */
+.start-here { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 8px; margin-bottom: 16px; }
+.start-here .sh-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.start-here h3 { margin: 0; font-size: 18px; }
+.start-here .sh-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.start-here .sh-close { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 6px; border-radius: 8px; flex: none; }
+.start-here .sh-close:hover { background: var(--bg); }
+.start-here .sh-bar { height: 6px; background: var(--bg); border-radius: 99px; margin: 14px 0 6px; overflow: hidden; }
+.start-here .sh-bar span { display: block; height: 100%; background: var(--teal, #0B7A75); border-radius: 99px; transition: width .3s; }
+.start-here .sh-list { list-style: none; margin: 0; padding: 0; }
+.start-here .sh-list li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+.start-here .sh-list li:first-child { border-top: 0; }
+.start-here .sh-mark { width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--line); color: var(--muted); }
+.start-here li.done .sh-mark { background: var(--teal, #0B7A75); border-color: transparent; color: #fff; }
+.start-here li.done b { color: var(--muted); text-decoration: line-through; font-weight: 600; }
+.start-here .sh-text { display: grid; gap: 3px; min-width: 0; padding-top: 3px; }
+.start-here .sh-text small { color: var(--muted); font-size: 13px; }
+.start-here .sh-go { font: inherit; font-weight: 700; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px; text-align: start; }
+.start-here .sh-go:hover { color: var(--teal, #0B7A75); }
+.start-here .sh-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
