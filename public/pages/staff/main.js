@@ -35,7 +35,7 @@ function setAppRole(role) {
   const href = `/${encodeURIComponent(school)}/app.webmanifest?as=${role}`;
   if (link && link.getAttribute("href") !== href) link.setAttribute("href", href);
   document.documentElement.dataset.app = { admin: "الإدارة", teacher: "المعلم", accountant: "المحاسب" }[role];
-  document.querySelector(".install-bar b")?.replaceChildren(`ثبّت تطبيق ${document.documentElement.dataset.app}`);
+  document.querySelectorAll(".install-ic").forEach((b) => { b.title = `ثبّت تطبيق ${document.documentElement.dataset.app}`; b.setAttribute("aria-label", b.title); });
 }
 const enter = (role, ...args) => { setAppRole(role); return open[role](...args); };
 

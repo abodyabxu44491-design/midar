@@ -7,7 +7,7 @@ import schoolIdentity from "./school-identity.js";
 import { mySubscription } from "./my-subscription.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
-  empty, badge, notice, switchBtn, dialog, showCredentials, showInstallBar, passwordInput, linkRow, copyRow } from "../../shared/js/ui.js";
+  empty, badge, notice, switchBtn, dialog, showCredentials, promptInstall, passwordInput, linkRow, copyRow } from "../../shared/js/ui.js";
 import { csv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
 import { A, directoryLink } from "./common.js";
 import { dangerZone } from "../../shared/js/danger-zone.js";
@@ -483,7 +483,7 @@ async function dataView({ me }) {
             download: `midar-${d.school}-${new Date().toISOString().slice(0, 10)}.json` });
           a.click();
         }, "ghost"),
-        btn("تثبيت مدار كتطبيق", () => showInstallBar(), "ghost"))),
+        btn("تثبيت مدار كتطبيق", () => promptInstall(), "ghost"))),
 
   ];
 }

@@ -7,10 +7,10 @@ import { icons } from "./icons.js";
 export const DEV = "مدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
 
 // ===================== تثبيت التطبيق =====================
-// شريط ثابت أعلى كل الصفحات (الطلاب وأولياء الأمور، الإدارة، المعلم، المحاسب) يبقى ظاهرًا حتى يُثبَّت التطبيق،
-// ويختفي تلقائيًا عند التثبيت أو عند فتح الصفحة من التطبيق المثبّت.
+// أيقونة صغيرة في رأس كل صفحة (بجانب «حساب ولي الأمر» أو «خروج»)، تظهر فقط حين يمكن التثبيت،
+// وتختفي عند التثبيت أو عند فتح الصفحة من التطبيق المثبّت. لا أشرطة ولا لافتات.
 let installEvent = null;
-window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; showInstallBar(); });
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; refreshInstall(); });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((reg) => {
     // فحص وجود إصدار جديد عند العودة للتطبيق وكل 15 دقيقة
@@ -27,10 +27,13 @@ const isStandalone = () => matchMedia("(display-mode: standalone)").matches || m
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const INSTALLED_KEY = `midar_installed:${location.pathname.split("/").slice(0, 3).join("/")}`;
 const installed = () => { try { return localStorage.getItem(INSTALLED_KEY) === "1"; } catch { return false; } };
-const markInstalled = () => { try { localStorage.setItem(INSTALLED_KEY, "1"); } catch { /* */ } hideInstallBar(); };
-function hideInstallBar() {
-  document.querySelector(".install-bar")?.remove();
-  document.documentElement.style.removeProperty("--install-h");
+const markInstalled = () => { try { localStorage.setItem(INSTALLED_KEY, "1"); } catch { /* */ } refreshInstall(); };
+/** يمكن التثبيت الآن؟ (متصفح يعرض نافذة التثبيت، أو آيفون لم يُثبَّت عليه بعد) */
+const canInstall = () => !isStandalone() && (Boolean(installEvent) || (isIOS() && !installed()));
+function refreshInstall() {
+  const on = canInstall();
+  document.querySelectorAll(".install-ic:not(.floating)").forEach((b) => { b.hidden = !on; });
+  if (floatingIc) floatingIc.hidden = !on || Boolean(document.querySelector(".install-ic:not(.floating)"));
 }
 
 function iosSteps() {
@@ -41,37 +44,45 @@ function iosSteps() {
       h("li", {}, "اختر «إضافة إلى الشاشة الرئيسية»"),
       h("li", {}, "اضغط «إضافة»، وستظهر أيقونة مدار على شاشتك"))));
 }
-
-/** شريط التثبيت أعلى الصفحة (مرة واحدة). لا يظهر في التطبيق المثبّت ولا في متصفح لا يدعم التثبيت */
+/** نافذة التثبيت (أو خطوات آيفون) */
+export async function promptInstall() {
+  if (isStandalone()) return toast("مدار مثبّت على هذا الجهاز");
+  if (!installEvent) {
+    if (isIOS()) return iosSteps();
+    return toast("افتح قائمة المتصفح واختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»");
+  }
+  const e = installEvent;
+  installEvent = null;
+  e.prompt();
+  const { outcome } = await e.userChoice;
+  if (outcome === "accepted") markInstalled(); else { installEvent = e; refreshInstall(); }
+}
+/** أيقونة التثبيت لرأس الصفحة (مخفية تلقائيًا حين لا يمكن التثبيت) */
+export function installButton(cls = "") {
+  const label = document.documentElement.dataset.app ? `ثبّت تطبيق ${document.documentElement.dataset.app}` : "ثبّت مدار على جهازك";
+  return h("button", { type: "button", class: `install-ic ${cls}`.trim(), title: label, "aria-label": label, hidden: !canInstall(),
+    onclick: () => promptInstall() }, icons.install({ size: 19, stroke: 2.2 }));
+}
+/**
+ * للصفحات التي قد تُعرض بلا رأس (شاشة الدخول): أيقونة عائمة صغيرة في الزاوية،
+ * تختفي تلقائيًا متى ظهر رأس فيه أيقونة التثبيت (بعد الدخول مثلًا) فلا تتكرر.
+ */
+let floatingIc = null;
 export function showInstallBar() {
-  if (isStandalone() || document.querySelector(".install-bar")) return;
-  if (!installEvent && !isIOS()) return;                 // متصفح لا يدعم التثبيت (أو التطبيق مثبّت أصلًا)
-  if (installed() && !installEvent) return;
-  const label = () => (document.documentElement.dataset.app ? `ثبّت تطبيق ${document.documentElement.dataset.app}` : "ثبّت مدار كتطبيق");
-  const action = btn(installEvent ? "تثبيت" : "طريقة التثبيت", async () => {
-    if (!installEvent) return iosSteps();
-    const e = installEvent;
-    installEvent = null;
-    e.prompt();
-    const { outcome } = await e.userChoice;
-    if (outcome === "accepted") markInstalled();
-  }, "sm install-btn");
-  const bar = h("div", { class: "install-bar", role: "complementary", "aria-label": "تثبيت التطبيق" },
-    h("div", { class: "install-in" },
-      h("img", { src: "/brand/mark.svg", alt: "", class: "install-mark", width: 28, height: 22 }),
-      h("div", { class: "install-text" }, h("b", {}, label()), h("span", {}, isIOS() ? "على شاشة جهازك، بخطوتين" : "يفتح مباشرة ويصلك الإشعار حتى والمتصفح مغلق")),
-      action));
-  document.body.prepend(bar);
-  // ارتفاع الشريط: لتنزل الأشرطة اللاصقة الأخرى (أقسام اللوحة) تحته
-  const measure = () => document.documentElement.style.setProperty("--install-h", `${bar.offsetHeight}px`);
-  measure();
-  window.addEventListener("resize", measure, { passive: true });
+  if (floatingIc) return;
+  floatingIc = installButton("floating");
+  document.body.append(floatingIc);
+  const sync = () => {
+    const inHeader = document.querySelector(".install-ic:not(.floating)");
+    floatingIc.hidden = Boolean(inHeader) || !canInstall();
+  };
+  sync();
+  new MutationObserver(sync).observe(document.body, { childList: true, subtree: true });
 }
 
-// بعد التثبيت يختفي الشريط على هذا الجهاز
+// بعد التثبيت تختفي الأيقونة على هذا الجهاز
 window.addEventListener("appinstalled", markInstalled);
-// فتح الصفحة من التطبيق المثبّت: لا شريط
-matchMedia("(display-mode: standalone)").addEventListener?.("change", (e) => { if (e.matches) hideInstallBar(); });
+matchMedia("(display-mode: standalone)").addEventListener?.("change", refreshInstall);
 
 /* ---------- الهوية ---------- */
 /**
@@ -108,7 +119,7 @@ export function topbar({ subtitle, school, onLogout, logo }) {
     h("div", { class: "who" }, brandLogo(),
       (school || subtitle) && h("div", { class: `school${logo ? " with-logo" : ""}` }, schoolLogoImg(logo),
         h("div", { class: "school-text" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle)))),
-    onLogout && btn("خروج", onLogout, "ghost sm")));
+    h("div", { class: "top-acts" }, installButton("on-dark"), onLogout && btn("خروج", onLogout, "ghost sm"))));
 }
 // لا يظهر اسم المنصة ولا المطوّر أسفل الصفحات؛ بيانات التواصل في الإعدادات ← الدعم والاشتراك
 // التذييل يعرض رقم الإصدار الحالي (لمعرفة النسخة التي يعمل عليها أي مستخدم)

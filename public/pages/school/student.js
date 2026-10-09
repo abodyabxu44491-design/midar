@@ -1,7 +1,7 @@
 // ملف الطالب الكامل — يُفتح بمعرّف الطالب فقط
 import { h, $, mount } from "../shared/js/dom.js";
 import { api, idempotencyKey } from "../shared/js/api.js";
-import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, showInstallBar, schoolLogoUrl } from "../shared/js/ui.js";
+import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl } from "../shared/js/ui.js";
 import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "../shared/js/format.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
@@ -68,8 +68,6 @@ function render(d, inbox) {
         text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null,
       file.el),
     footer());
-
-  showInstallBar();
   // فتح القسم المطلوب من الإشعار (#attendance مثلًا) أو صندوق الإشعارات
   const want = location.hash.slice(1);
   // من إشعار الجوال: يُعلَّم مقروءًا ويُفتح القسم المرتبط مباشرة (أو مركز الإشعارات إن لم يكن له قسم)
@@ -249,4 +247,3 @@ function payDialog(f, inv, available) {
 
 load();
 document.documentElement.dataset.app = "صفحة المدرسة";
-showInstallBar();

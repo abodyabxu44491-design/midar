@@ -1,7 +1,7 @@
 // لوحة مالك المنصة — نقطة البداية
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { topbar, footer, tabs, loginScreen, toast, showInstallBar } from "/shared/js/ui.js";
+import { topbar, footer, tabs, loginScreen, toast } from "/shared/js/ui.js";
 import overview from "./views/overview.js";
 import schools from "./views/schools.js";
 import create from "./views/create.js";
@@ -59,4 +59,3 @@ async function start() {
 }
 start();
 document.documentElement.dataset.app = "لوحة المالك";
-showInstallBar();

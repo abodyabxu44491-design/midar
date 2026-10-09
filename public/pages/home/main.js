@@ -1,7 +1,7 @@
 // الصفحة الرئيسية: فاضية (الشعار فقط) أو تسويقية، حسب إعداد لوحة المالك.
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, showInstallBar, toast } from "../shared/js/ui.js";
+import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, installButton, showInstallBar, toast } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 
@@ -42,8 +42,8 @@ function marketing(site) {
       h("a", { href: "#plans", onclick: (e) => { e.preventDefault(); go("plans"); } }, "الباقات"),
       trialOn ? h("a", { href: "#trial", onclick: (e) => { e.preventDefault(); go("trial"); } }, "التجربة المجانية") : null,
       h("a", { href: "#contact", onclick: (e) => { e.preventDefault(); go("contact"); } }, "تواصل معنا")),
-    // لا أزرار مكررة في الشريط العلوي: الروابط تكفي، والتجربة والتواصل لكل منهما قسمه
-    null));
+    // لا أزرار مكررة في الشريط العلوي: الروابط تكفي، والتجربة والتواصل لكل منهما قسمه. فقط أيقونة التثبيت
+    installButton()));
 
   const core = (site.features || []).filter((f) => f.kind !== "service");
   const hero = h("section", { class: "st-hero" }, h("div", { class: "in" },
@@ -261,4 +261,5 @@ function subscribeDialog(site, plan, cycle) {
 }
 
 start();
+// الصفحة بلا رأس (وضع «الشعار فقط»): أيقونة تثبيت صغيرة في الزاوية، وتختفي متى ظهر رأس فيه أيقونته
 showInstallBar();
