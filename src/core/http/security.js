@@ -2,6 +2,7 @@
 import helmet from "helmet";
 import { env } from "../../config/env.js";
 import { forbidden } from "./errors.js";
+import { SEO_SLUGS } from "../seo-pages.js";
 
 // نطاقات Google المطلوبة لتحليلات Firebase (تُضاف فقط إذا فُعّلت)
 const GA = env.FIREBASE_ANALYTICS ? {
@@ -32,7 +33,7 @@ export const securityHeaders = helmet({
 });
 
 // كل المنصة مخفية عن محركات البحث (صفحات المدارس فيها أسماء طلاب)، عدا الصفحات التسويقية العامة
-export const INDEXABLE = new Set(["/", "/privacy", "/terms", "/robots.txt", "/sitemap.xml"]);
+export const INDEXABLE = new Set(["/", "/privacy", "/terms", "/robots.txt", "/sitemap.xml", ...SEO_SLUGS.map((s) => `/${s}`)]);
 export function noIndex(req, res, next) {
   if (!((req.method === "GET" || req.method === "HEAD") && INDEXABLE.has(req.path))) res.setHeader("X-Robots-Tag", "noindex, nofollow");
   next();

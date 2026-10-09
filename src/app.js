@@ -11,7 +11,7 @@ import cookieParser from "cookie-parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "./config/env.js";
-import { securityHeaders, noIndex, sameOrigin, noStore } from "./core/http/security.js";
+import { securityHeaders, noIndex, sameOrigin, noStore, INDEXABLE } from "./core/http/security.js";
 import { errorHandler, notFound } from "./core/http/errors.js";
 import { limits } from "./core/rate-limit.js";
 import { ownerNetwork } from "./core/auth/guards.js";
@@ -19,6 +19,7 @@ import { healthCheck, transaction } from "./core/db/pool.js";
 import { handle } from "./core/http/errors.js";
 import { isSchoolCode } from "./core/reserved.js";
 import { baseUrl } from "./core/links.js";
+import { SEO_PAGES, renderSeoPage, homeLd, ldScripts } from "./core/seo-pages.js";
 import ownerApi from "./modules/owner/index.js";
 import adminApi from "./modules/school-admin/index.js";
 import teacherApi from "./modules/teacher/index.js";
@@ -37,6 +38,15 @@ export function createApp() {
   app.use(perfMiddleware, securityHeaders, noIndex);
   // ضغط كل الاستجابات النصية (JSON وJS وCSS وHTML): 5–10 أضعاف أصغر على الجوال
   app.use(compression({ threshold: 1024 }));
+  // نطاق واحد لمحركات البحث: الصفحات العامة على أي نطاق آخر (مثل midar.onrender.com) تُحوَّل بشكل دائم إلى PUBLIC_URL،
+  // فلا يرى جوجل نسختين من نفس الصفحة. صفحات المدارس واللوحات لا تُحوَّل حتى لا تنقطع جلسات أو روابط قديمة.
+  const canonical = env.PUBLIC_URL ? new URL(env.PUBLIC_URL) : null;
+  app.use((req, res, next) => {
+    if (!canonical || !(req.method === "GET" || req.method === "HEAD") || !INDEXABLE.has(req.path)) return next();
+    const host = req.hostname;
+    if (host === canonical.hostname || host === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return next();
+    res.redirect(301, `${canonical.origin}${req.originalUrl}`);
+  });
 
   // فحص سريع للمراقبة وإيقاظ الخادم (لا يلمس قاعدة البيانات حتى لا تُستهلك ساعات حوسبتها)
   app.get("/healthz", (req, res) => res.json({ ok: true }));
@@ -109,16 +119,30 @@ export function createApp() {
   // الصفحات العامة القابلة للفهرسة: الرئيسية والخصوصية والشروط. روابط المشاركة (og) تحتاج النطاق كاملًا
   const withOrigin = (...p) => (req, res) => res.set("Cache-Control", "no-cache").type("html")
     .send(renderPage(file(...p), { isProd: env.isProd }).replaceAll("__ORIGIN__", baseUrl(req)));
-  app.get("/", withOrigin("home", "index.html"));
+  // الرئيسية: بيانات منظمة (المنظمة والموقع والأسئلة الشائعة) وروابط الصفحات التعريفية، يقرؤها جوجل والواجهة
+  const seoLinks = JSON.stringify(SEO_PAGES.map((p) => [p.slug, p.nav])).replace(/</g, "\\u003c");
+  app.get("/", handle(async (req, res) => {
+    let site = {};
+    try { site = await siteData(); } catch { /* بدون بيانات التواصل */ }
+    res.set("Cache-Control", "no-cache").type("html").send(renderPage(file("home", "index.html"), { isProd: env.isProd })
+      .replaceAll("__ORIGIN__", baseUrl(req))
+      .replace("<!--LD-->", `${ldScripts(homeLd(baseUrl(req), site))}\n  <script type="application/json" id="seo-links">${seoLinks}</script>`));
+  }));
+  // الصفحات التعريفية لمحركات البحث (HTML كامل من الخادم)
+  for (const page of SEO_PAGES) {
+    app.get(`/${page.slug}`, (req, res) => res.set("Cache-Control", "no-cache").type("html").send(renderSeoPage(page, baseUrl(req))));
+  }
   app.get("/privacy", withOrigin("legal", "privacy.html"));
   app.get("/terms", withOrigin("legal", "terms.html"));
   // محركات البحث: الصفحات التسويقية فقط، وكل ما عداها (صفحات المدارس واللوحات) ممنوع
   app.get("/robots.txt", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("text/plain").send([
     "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
-    "Allow: /home-page/", "Allow: /legal-page/", "Allow: /api/site", "Disallow: /", "", `Sitemap: ${baseUrl(req)}/sitemap.xml`, ""].join("\n")));
+    "Allow: /home-page/", "Allow: /legal-page/", "Allow: /api/site", ...SEO_PAGES.map((p) => `Allow: /${p.slug}$`),
+    "Disallow: /", "", `Sitemap: ${baseUrl(req)}/sitemap.xml`, ""].join("\n")));
   app.get("/sitemap.xml", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("application/xml").send(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
-      [["/", "1.0"], ["/privacy", "0.3"], ["/terms", "0.3"]].map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><priority>${p}</priority></url>`).join("\n")
+      [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"]]
+        .map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><lastmod>${STARTED_AT.slice(0, 10)}</lastmod><priority>${p}</priority></url>`).join("\n")
     }\n</urlset>\n`));
   app.get("/verify/:code", send("verify", "index.html"));
   // رمز بطاقة الحضور إن مُسح بكاميرا جوال عادية: صفحة تشرح أنه للبوابة فقط، بلا أي بيانات

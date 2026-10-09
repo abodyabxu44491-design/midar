@@ -105,12 +105,24 @@ function marketing(site) {
       trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, "اطلب التجربة المجانية") : null),
     h("div", { class: "ways" }, ways)));
 
-  mount(app, h("div", { class: "st" }, nav, hero, features, demoSec, plansSec, endSec,
+  // الأسئلة الشائعة وروابط الصفحات التعريفية: من البيانات التي يضمّنها الخادم في الصفحة (نفس ما يقرؤه جوجل)
+  const faq = readJson("faq-ld")?.mainEntity?.map((q) => [q.name, q.acceptedAnswer?.text]) || [];
+  const guides = readJson("seo-links") || [];
+  const faqSec = faq.length ? h("section", { class: "st-sec soft", id: "faq" }, h("div", { class: "in narrow" },
+    h("h2", {}, "أسئلة شائعة"),
+    h("div", { class: "st-faq" }, faq.map(([q, a]) => h("details", {}, h("summary", {}, q), h("p", {}, a)))))) : null;
+
+  mount(app, h("div", { class: "st" }, nav, hero, features, demoSec, plansSec, faqSec, endSec,
     h("footer", { class: "st-foot" },
       h("div", { class: "in" },
         brandLogo("", false, "row"),
-        h("nav", { class: "legal" }, h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام")),
+        h("nav", { class: "legal" }, guides.map(([slug, name]) => h("a", { href: `/${slug}` }, name)),
+          h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "شروط الاستخدام")),
         h("small", {}, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`)))));
+}
+
+function readJson(id) {
+  try { return JSON.parse(document.getElementById(id)?.textContent || "null"); } catch { return null; }
 }
 
 // أدوار العرض التجريبي

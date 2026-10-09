@@ -106,11 +106,21 @@
 .st-end .way span { min-width: 0; } .st-end .way b { display: block; font-size: 15px; }
 .st-end .way small { display: block; color: #B7C4D8; font-size: 13px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* الأسئلة الشائعة */
+.st .in.narrow { max-width: 780px; }
+.st-faq { display: grid; gap: 10px; margin-top: 26px; }
+.st-faq details, .seo .faq details { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 0 18px; }
+.st-faq summary, .seo .faq summary { cursor: pointer; font-weight: 700; padding: 16px 0; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+.st-faq summary::-webkit-details-marker, .seo .faq summary::-webkit-details-marker { display: none; }
+.st-faq summary::after, .seo .faq summary::after { content: "+"; color: var(--acc); font-size: 20px; line-height: 1; flex: none; }
+.st-faq details[open] summary::after, .seo .faq details[open] summary::after { content: "−"; }
+.st-faq p, .seo .faq p { margin: 0 0 16px; color: var(--muted); line-height: 1.9; }
+
 /* التذييل */
 .st-foot { border-top: 1px solid var(--line); padding: 28px 20px calc(28px + env(safe-area-inset-bottom)); color: var(--muted); font-size: 14px; }
 .st-foot .in { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
 .st-foot .in > :first-child { height: 28px; }
-.st-foot .legal { display: flex; gap: 20px; flex: 1; }
+.st-foot .legal { display: flex; gap: 8px 20px; flex: 1; flex-wrap: wrap; }
 .st-foot .legal a { text-decoration: none; } .st-foot .legal a:hover { color: var(--acc); }
 
 /* النماذج والنوافذ */

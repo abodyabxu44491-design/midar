@@ -12,3 +12,18 @@
 .st-foot a { color: inherit; text-decoration: none; }
 .st-foot a:hover { text-decoration: underline; }
 @media (max-width: 640px) { .lg h1 { font-size: 26px; } .lg { padding-top: 26px; font-size: 15px; } }
+
+/* الصفحات التعريفية (نظام إدارة المدارس، الحضور والغياب...) */
+.seo .crumbs { font-size: 14px; color: #6B7489; margin-bottom: 10px; }
+.seo .crumbs a { color: inherit; text-decoration: none; } .seo .crumbs span { margin: 0 4px; }
+.seo h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.4; margin-bottom: 12px; }
+.seo .lead { font-size: 18px; color: #3B4658; }
+.seo .cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 10px; }
+.seo .st-btn { text-decoration: none; }
+.seo .st-btn.gold { color: #1E1503; } .seo .st-btn.out { color: var(--ink); }
+.seo .faq { display: grid; gap: 10px; }
+.seo-end { margin: 36px 0 10px; padding: 26px; border-radius: 18px; background: var(--soft, #F4F7FA); text-align: center; }
+.seo-end h2 { margin-top: 0; }
+.seo .more a { font-weight: 700; }
+.st-foot { line-height: 2.2; }
+@media (max-width: 640px) { .seo .lead { font-size: 16px; } .seo .cta .st-btn { flex: 1 1 100%; } }
