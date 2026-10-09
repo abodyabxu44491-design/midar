@@ -39,6 +39,7 @@ export const EVENTS = {
   payment:      { name: "تسجيل دفعة وإصدار إيصال", audience: "parent", push: true, sms: false, category: "finance", topic: "finance", priority: 3 },
   announcement: { name: "إعلان أو تعميم من المدرسة", audience: "parent", push: true, sms: false, category: "announcements", topic: "announcements", priority: 3, collapse: true },
   message:      { name: "رسالة من المدرسة", audience: "both", push: true, sms: false, category: "messages", topic: "messages", priority: 2, collapse: true },
+  chat:         { name: "رسالة جديدة في مراسلة المعلمين", audience: "both", push: true, sms: false, category: "messages", topic: "messages", priority: 2 },
   alert:        { name: "ملاحظة أو تنبيه من المعلم", audience: "parent", push: true, sms: false, category: "messages", topic: "messages", priority: 2 },
   timetable:    { name: "تغيير الجدول الدراسي", audience: "both", push: true, sms: false, category: "timetable", topic: "timetable", priority: 3, collapse: true },
   behavior:     { name: "السلوك (مخالفة أو إنجاز)", audience: "parent", push: true, sms: false, category: "messages", topic: "behavior", priority: 2 },

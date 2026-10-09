@@ -7,6 +7,7 @@ import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
 import { notificationCenter, notificationPrefs, pushInvite, pushToggle } from "../shared/js/inbox.js";
+import { chatThread, chatRow } from "../shared/js/chat.js";
 import { currentChild, closeChild, rememberChild, forgetChild, isRemembered, rememberedChildren, openChild, parentSignedIn, setParentSignedIn } from "../shared/js/children.js";
 
 const app = $("#app");
@@ -23,8 +24,9 @@ async function load() {
   if (!creds) return back();
   try {
     const who = whoOf();
-    const [d, inbox] = await Promise.all([api(`${P}/student`, who), api(`${P}/student/inbox`, who).catch(() => null)]);
-    render(d, inbox);
+    const [d, inbox, chat] = await Promise.all([api(`${P}/student`, who), api(`${P}/student/inbox`, who).catch(() => null),
+      api(`${P}/student/chat`, who).catch(() => null)]);   // المراسلة غير مفعّلة في المدرسة: لا قسم
+    render(d, inbox, chat);
   } catch (e) {
     if (viaParent() && e.status === 401) { setParentSignedIn(school, false); closeChild(school); return back(); }
     if (viaParent() && e.status === 403) { closeChild(school); return family(); }
@@ -36,7 +38,7 @@ async function load() {
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
 
-function render(d, inbox) {
+function render(d, inbox, chat) {
   if (d.currency) setCurrency(d.currency);
   const s = d.student, f = d.fees;
   schoolName = d.school; studentName = s.name; className = s.class_name;
@@ -48,6 +50,11 @@ function render(d, inbox) {
   if (isRemembered(school, creds.id)) remember();   // تحديث الاسم والفصل المحفوظين
   const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
     view: ({ reopen }) => inboxSection(inbox, who, remember, reopen, (k) => file.open(k)) }] : [];
+  if (chat) {
+    const unread = chat.teachers.reduce((n, x) => n + x.unread, 0);
+    extra.push({ key: "chat", name: "مراسلة المعلمين", note: unread ? `${unread} جديد` : chat.teachers.length ? `${chat.teachers.length} معلم` : "",
+      view: () => chatSection(chat, who) });
+  }
   const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, actions: {
     excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
@@ -77,6 +84,28 @@ function render(d, inbox) {
   let opened = false;
   if (target) { try { file.open(target); opened = true; } catch { /* قسم غير متاح */ } }
   if (!opened && nid && inbox) file.open("inbox");
+}
+
+// مراسلة المعلمين: قائمة معلمي فصل الطالب، والضغط يفتح المحادثة في نفس المكان
+function chatSection(chat, who) {
+  const body = h("div");
+  const list = async () => {
+    const fresh = await api(`${P}/student/chat`, who).catch(() => chat);
+    Object.assign(chat, fresh);
+    mount(body, chat.teachers.length
+      ? [sub("راسل معلمي ابنك مباشرة، ويصلهم إشعار برسالتك، ويصلك ردهم هنا وعلى جوالك."),
+        h("div", { class: "chat-rows" }, chat.teachers.map((t) => chatRow({ title: t.name, subtitle: (t.subjects || []).join("، "),
+          preview: t.last_preview, unread: t.unread, when: t.last_message_at, onClick: () => open(t) })))]
+      : empty("لا يوجد معلمون مسندون لفصل الطالب بعد."));
+  };
+  const open = (t) => mount(body, chatThread({ me: "parent", title: t.name, subtitle: (t.subjects || []).join("، "),
+    load: (before) => api(`${P}/student/chat/thread`, { ...who, teacher_id: t.id, before }),
+    send: (text) => api(`${P}/student/chat/send`, { ...who, teacher_id: t.id, text }),
+    onBack: list }));
+  // من إشعار رسالة: افتح محادثة المعلم صاحب آخر رسالة غير مقروءة مباشرة
+  const first = chat.teachers.find((t) => t.unread);
+  if (first && location.hash.slice(1) === "chat") open(first); else list();
+  return section("مراسلة المعلمين", body);
 }
 
 // محدد الأبناء (حساب ولي الأمر): ضغطة على اسم الابن تعرض ملفه في نفس الصفحة بلا خروج ولا دخول
