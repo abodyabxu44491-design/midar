@@ -20,6 +20,8 @@ const schema = z.object({
   trial_all_plans: z.boolean().optional(),
   trial_without_plan: z.boolean().optional(),
   trials_per_school: z.coerce.number().int().min(1).max(10).optional(),
+  instant_trial: z.boolean().optional(),                                   // التسجيل الذاتي: تُنشأ المدرسة فورًا بلا مراجعة
+  instant_trial_daily_cap: z.coerce.number().int().min(1).max(500).optional(),
   trial_reminder_days: z.array(z.coerce.number().int().min(0).max(60)).max(6).optional(),
   trial_grace_days: z.coerce.number().int().min(0).max(30).optional(),
   trial_owner_extend: z.boolean().optional(),
@@ -30,7 +32,7 @@ const schema = z.object({
   site_subheadline: z.string().trim().max(300).optional().or(z.literal("")).transform((v) => v || null),
 });
 const COLS = ["landing_mode", "brand_phone", "brand_email", "brand_instagram", "support_whatsapp", "support_note", "trial_enabled", "trial_days",
-  "trial_all_plans", "trial_without_plan", "trials_per_school", "trial_reminder_days", "trial_grace_days", "trial_owner_extend",
+  "trial_all_plans", "trial_without_plan", "trials_per_school", "instant_trial", "instant_trial_daily_cap", "trial_reminder_days", "trial_grace_days", "trial_owner_extend",
   "show_plans_after_expiry", "default_grace_days", "feature_request_mode", "site_headline", "site_subheadline"];
 
 r.get("/", handle(async (req, res) => {

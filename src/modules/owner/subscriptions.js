@@ -113,7 +113,7 @@ requests.get("/", handle(async (req, res) => {
       `SELECT l.id, l.kind, l.source, l.status, l.school_name, l.contact_name, l.phone, l.email, l.city, l.students_count,
               l.note, l.owner_note, l.tenant_id, l.plan_id, p.name AS plan_name, l.billing_cycle, l.months, l.try_plan,
               l.addon_keys, (SELECT array_agg(x.name ORDER BY x.sort) FROM features x WHERE x.key = ANY(l.addon_keys)) AS addon_names,
-              l.feature_key, fe.name AS feature_name, l.requested_by, l.handled_by, l.seen_at, l.created_at,
+              l.feature_key, fe.name AS feature_name, l.instant, l.requested_by, l.handled_by, l.seen_at, l.created_at,
               t.name AS tenant_name,
               -- حماية من تكرار التجربة: طلبات أو مدارس سابقة بنفس الجوال أو البريد
               (SELECT count(*)::int FROM leads x WHERE x.id <> l.id AND x.kind = 'trial' AND l.source = 'public'

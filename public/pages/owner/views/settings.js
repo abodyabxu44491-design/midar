@@ -25,6 +25,9 @@ export default async function settings() {
   const [tAll, tAllL] = chk(s.trial_all_plans, "التجربة متاحة لكل الباقات", "إذا ألغيتها يُطبَّق خيار «تتيح تجربة مجانية» في كل باقة على حدة");
   const [tNo, tNoL] = chk(s.trial_without_plan, "يمكن طلب تجربة المنصة بدون اختيار باقة", "وأنت تحدد الباقة عند التفعيل");
   const perSchool = input({ type: "number", min: 1, max: 10, value: s.trials_per_school });
+  const [inst, instL] = chk(s.instant_trial, "تفعيل المدرسة فورًا عند التسجيل (بدون مراجعتي)",
+    "المدرسة تسجّل من الصفحة الرئيسية فتُنشأ مدرستها وتجربتها مباشرة وتأخذ بيانات الدخول. الرقم الواحد لا يسجّل مدرسة ثانية، وتصلك كل الطلبات في «الطلبات»");
+  const instCap = input({ type: "number", min: 1, max: 500, value: s.instant_trial_daily_cap ?? 20 });
   const reminders = input({ value: (s.trial_reminder_days || []).join("، "), placeholder: "7، 3، 1" });
   const tGrace = input({ type: "number", min: 0, max: 30, value: s.trial_grace_days });
   const [tExt, tExtL] = chk(s.trial_owner_extend, "يمكنني تمديد التجربة يدويًا");
@@ -40,6 +43,7 @@ export default async function settings() {
         landing_mode: mode.value, site_headline: headline.value, site_subheadline: subhead.value, brand_phone: phone.value, brand_email: email.value, brand_instagram: insta.value,
         support_whatsapp: support.value, support_note: supportNote.value,
         trial_enabled: tOn.checked, trial_days: Number(days.value), trial_all_plans: tAll.checked, trial_without_plan: tNo.checked,
+        instant_trial: inst.checked, instant_trial_daily_cap: Number(instCap.value),
         trials_per_school: Number(perSchool.value), trial_reminder_days: reminders.value.split(/[،,\s]+/).filter(Boolean).map(Number),
         trial_grace_days: Number(tGrace.value), trial_owner_extend: tExt.checked, show_plans_after_expiry: showPlans.checked,
         default_grace_days: Number(grace.value), feature_request_mode: reqMode.value,
@@ -60,6 +64,7 @@ export default async function settings() {
       tOnL, h("div", { class: "row" }, field("مدة التجربة (يوم)", days), field("عدد التجارب المسموحة لكل مدرسة", perSchool, "الافتراضي مرة واحدة، ويمكنك منح تجربة إضافية يدويًا"),
         field("فترة سماح بعد التجربة (يوم)", tGrace)),
       field("أيام التنبيه قبل انتهاء التجربة", reminders, "تظهر للمدرسة وتُسجَّل في سجل الاشتراك"),
+      instL, h("div", { class: "row" }, field("حد التسجيل الفوري في اليوم", instCap, "بعده تصلك الطلبات للمراجعة كالمعتاد")),
       tAllL, tNoL, tExtL, showPlansL,
       notice("عند انتهاء التجربة: يتوقف الوصول فقط، والبيانات كلها محفوظة. المدير يدخل ويرى «انتهت تجربتك المجانية — اختر باقة للاستمرار».", "")),
     panel("سياسة الاشتراكات", null,

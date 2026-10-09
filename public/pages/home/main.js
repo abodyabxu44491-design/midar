@@ -101,7 +101,9 @@ function marketing(site) {
   const endSec = h("section", { class: "st-sec", id: "contact" }, h("div", { class: "st-end", id: "trial" },
     h("div", { class: "txt" },
       h("h2", {}, trialOn ? `جرّب مدار ${days} يومًا مجانًا` : "ابدأ مع مدار"),
-      h("p", {}, trialOn ? "نجهّز مدرستك ونرسل لك بيانات الدخول، وبياناتك تبقى محفوظة إذا اشتركت بعدها." : "تواصل معنا ونجهّز مدرستك خطوة بخطوة."),
+      h("p", {}, !trialOn ? "تواصل معنا ونجهّز مدرستك خطوة بخطوة."
+        : site.instant_trial ? "سجّل مدرستك وادخل لوحتها خلال دقيقة، وبياناتك تبقى محفوظة إذا اشتركت بعدها."
+        : "نجهّز مدرستك ونرسل لك بيانات الدخول، وبياناتك تبقى محفوظة إذا اشتركت بعدها."),
       trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, "اطلب التجربة المجانية") : null),
     h("div", { class: "ways" }, ways)));
 
@@ -211,19 +213,22 @@ function leadForm(site, { kind, plan = null, cycle = "yearly", onDone }) {
   planSel?.addEventListener("change", drawAddons);
   drawAddons();
   const msg = h("div");
-  const label = { trial: "طلب التجربة المجانية", subscription: "إرسال طلب الاشتراك", contact: "إرسال" }[kind];
+  const label = { trial: site.instant_trial ? "ابدأ التجربة الآن" : "طلب التجربة المجانية", subscription: "إرسال طلب الاشتراك", contact: "إرسال" }[kind];
   const send = h("button", { class: `st-btn ${kind === "trial" ? "gold" : "pri"} wide`, type: "button" }, label);
   send.addEventListener("click", async () => {
     mount(msg);
     send.disabled = true;
     try {
-      await api("/api/public/leads", {
+      // التسجيل الفوري (إن فعّله المالك): تُنشأ المدرسة وتظهر بيانات الدخول مباشرة
+      const instant = kind === "trial" && site.instant_trial;
+      const r = await api(instant ? "/api/public/leads/signup" : "/api/public/leads", {
         kind, ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value])),
         plan_id: planSel?.value || null, ...(kind === "subscription" ? { billing_cycle: cycleSel?.value || "yearly" } : {}),
         try_plan: tryPlan ? tryPlan.checked : true,
         addon_keys: [...addonsBox.querySelectorAll("input:checked")].map((x) => x.value),
       });
       for (const el of Object.values(f)) el.value = "";
+      if (instant && r?.credentials) { const ready = readyView(r); if (onDone) onDone(ready); else mount(msg, ready); send.disabled = false; return; }
       const ok = h("div", { class: "st-ok" }, icons.check({ size: 40 }), h("h3", {}, "وصلنا طلبك"),
         h("p", {}, kind === "trial" ? "سنراجع طلب التجربة ونرسل لك بيانات الدخول قريبًا بإذن الله." : "سنتواصل معك قريبًا بإذن الله."));
       if (onDone) onDone(ok); else mount(msg, ok);
@@ -245,31 +250,50 @@ function leadForm(site, { kind, plan = null, cycle = "yearly", onDone }) {
     msg, send);
 }
 
+// المدرسة أُنشئت فورًا: بيانات الدخول وزر الدخول مباشرة
+function readyView(r) {
+  const c = r.credentials;
+  const link = r.links?.staff?.admin || `/${c.school}/idara?role=admin`;
+  const ends = r.trial?.ends_on ? new Date(r.trial.ends_on).toLocaleDateString("ar", { day: "numeric", month: "long", year: "numeric" }) : null;
+  const text = `منصة مدار — بيانات دخول ${r.school.name}\nرابط الدخول: ${link}\nاسم المستخدم: ${c.username}\nكلمة المرور المؤقتة: ${c.password}`;
+  const row = (label, value) => h("div", { class: "rd-row" }, h("span", {}, label), h("b", { class: "ltr" }, value));
+  return h("div", { class: "st-ready" },
+    h("div", { class: "st-ok" }, icons.check({ size: 40 }), h("h3", {}, "مدرستك جاهزة"),
+      h("p", {}, ends ? `تجربتك المجانية فعّالة حتى ${ends}.` : "تجربتك المجانية فعّالة الآن.")),
+    h("div", { class: "rd-creds" }, row("رابط الدخول", link.replace(/^https?:\/\//, "")), row("اسم المستخدم", c.username), row("كلمة المرور المؤقتة", c.password)),
+    h("p", { class: "st-consent" }, "احفظ هذه البيانات الآن. عند أول دخول تختار كلمة مرور جديدة خاصة بك."),
+    h("div", { class: "ready-acts" },
+      h("a", { class: "st-btn gold wide", href: link }, "ادخل لوحة مدرستك"),
+      h("button", { type: "button", class: "st-btn out wide", onclick: async () => {
+        try { await navigator.clipboard.writeText(text); toast("نُسخت بيانات الدخول"); } catch { toast("انسخها يدويًا من الأعلى", true); }
+      } }, icons.copy({ size: 18 }), "نسخ البيانات")));
+}
+
 // زر الإرسال في شريط أزرار النافذة الثابت (بجانب «إغلاق»): ظاهر دائمًا ولا يغطيه شيء
 function formDialog(title, top, form) {
   const box = h("div", { class: "st-form", style: "padding:0" }, top, form);
   const send = form.querySelector(":scope > .st-btn.wide:last-child");
   const d = dialog(title, box, send ? [send] : []);
   d.classList.add("st-dlg");
-  return { d, box };
+  return { d, box, send };
 }
 
 function trialDialog(site, plan = null) {
   let ref;
-  const form = leadForm(site, { kind: "trial", plan, onDone: (ok) => { mount(ref.box, ok); ref.d.querySelector(".st-btn.wide")?.remove(); } });
+  const form = leadForm(site, { kind: "trial", plan, onDone: (ok) => { mount(ref.box, ok); ref.send?.remove(); } });
   ref = formDialog("اطلب تجربة مجانية", h("div", { class: "st-dlg-note" }, icons.gift({ size: 16 }),
     `${site.trial_days || 30} يومًا مجانًا — بدون رسوم خلال فترة التجربة`), form);
 }
 
 function contactDialog(site) {
   let ref;
-  const form = leadForm(site, { kind: "contact", onDone: (ok) => { mount(ref.box, ok); ref.d.querySelector(".st-btn.wide")?.remove(); } });
+  const form = leadForm(site, { kind: "contact", onDone: (ok) => { mount(ref.box, ok); ref.send?.remove(); } });
   ref = formDialog("تواصل معنا", null, form);
 }
 
 function subscribeDialog(site, plan, cycle) {
   let ref;
-  const form = leadForm(site, { kind: "subscription", plan, cycle, onDone: (ok) => { mount(ref.box, ok); ref.d.querySelector(".st-btn.wide")?.remove(); } });
+  const form = leadForm(site, { kind: "subscription", plan, cycle, onDone: (ok) => { mount(ref.box, ok); ref.send?.remove(); } });
   ref = formDialog(`طلب اشتراك — ${plan.name}`, null, form);
 }
 
