@@ -174,3 +174,24 @@ dialog.st-dlg .d-in > .row.spaced:last-child .st-btn.wide { width: auto; flex: 1
   .st-form .addons { grid-template-columns: 1fr; }
   .st-foot .in { flex-direction: column; text-align: center; gap: 12px; } .st-foot .legal { justify-content: center; }
 }
+
+/* شاشة بداية التطبيق (?app): مدارس الجهاز ورمز المدرسة */
+.st.ln { background: transparent; }
+.ln { max-width: 460px; margin: 0 auto; padding: calc(36px + env(safe-area-inset-top)) 18px 40px; display: grid; gap: 22px; color: #16244A; }
+.ln .ln-logo { height: 120px; justify-self: center; }
+.ln h2 { font-size: 17px; margin: 0 0 10px; }
+.ln-list { display: grid; gap: 8px; }
+.ln-item { display: flex; align-items: center; gap: 6px; }
+.ln-school { flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px; background: #fff; border: 1px solid #E4E9F0; border-radius: 16px;
+  text-decoration: none; color: inherit; min-width: 0; }
+.ln-school:hover { border-color: #0B7A75; }
+.ln-ava { width: 44px; height: 44px; flex: none; border-radius: 12px; background: #E3F1F0; color: #0B7A75; display: grid; place-items: center; font-weight: 700; font-size: 19px; }
+.ln-txt { flex: 1; min-width: 0; display: grid; } .ln-txt b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ln-txt small { color: #5A6478; font-size: 13px; }
+.ln-x { border: 0; background: none; color: #8A93A3; padding: 8px; border-radius: 10px; cursor: pointer; }
+.ln-enter { background: #fff; border: 1px solid #E4E9F0; border-radius: 18px; padding: 18px; }
+.ln-enter p { margin: 0 0 12px; color: #5A6478; font-size: 14px; }
+.ln-row { display: flex; gap: 8px; } .ln-row input { flex: 1; min-width: 0; font-size: 16px; }
+.ln-row .st-btn { min-height: 46px; padding: 0 20px; }
+.ln-msg { color: #B8412F !important; margin: 8px 0 0 !important; } .ln-msg:empty { display: none; }
+.ln-about { text-align: center; color: #5A6478; font-size: 14px; margin: 0; } .ln-about a { color: #0B7A75; text-decoration: none; }

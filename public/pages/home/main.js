@@ -4,6 +4,7 @@ import { api } from "../shared/js/api.js";
 import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, installButton, showInstallBar, toast } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
+import { recentSchools, forgetSchool } from "../shared/js/recent.js";
 
 const app = $("#app");
 
@@ -12,6 +13,8 @@ const fmt = (n) => Number(n).toLocaleString("ar", { maximumFractionDigits: 2 });
 
 async function start() {
   let site = { landing_mode: "blank" };
+  // فتح التطبيق المثبّت (أو تطبيق Google Play): شاشة البداية بمدارس هذا الجهاز بدل الصفحة التسويقية
+  if (new URLSearchParams(location.search).has("app")) return launcher();
   try { site = await api("/api/site"); } catch { /* الوضع الافتراضي */ }
   if (site.landing_mode === "marketing") {
     marketing(site);
@@ -125,6 +128,43 @@ function marketing(site) {
 
 function readJson(id) {
   try { return JSON.parse(document.getElementById(id)?.textContent || "null"); } catch { return null; }
+}
+
+/* ======================= شاشة بداية التطبيق ======================= */
+// مدارس هذا الجهاز (آخر ما فُتح أولًا)، وخانة لرمز المدرسة أو رابطها، ورابط للتعرف على مدار
+function launcher() {
+  document.title = "مدار";
+  const box = h("div", { class: "ln-list" });
+  const draw = () => {
+    const list = recentSchools();
+    mount(box, list.length ? [h("h2", {}, "مدارسك"), list.map((x) => h("div", { class: "ln-item" },
+      h("a", { class: "ln-school", href: x.url },
+        h("span", { class: "ln-ava", "aria-hidden": "true" }, String(x.name).trim().charAt(0)),
+        h("span", { class: "ln-txt" }, h("b", {}, x.name), h("small", {}, x.roleName)),
+        icons.chevronLeft({ size: 18 })),
+      h("button", { type: "button", class: "ln-x", title: "إزالة من هذا الجهاز", "aria-label": `إزالة ${x.name}`,
+        onclick: () => { forgetSchool(x.id, x.role); draw(); } }, icons.close({ size: 16 }))))] : null);
+  };
+  draw();
+  const code = h("input", { class: "ltr", placeholder: "رمز المدرسة أو رابطها", autocapitalize: "none", autocorrect: "off", spellcheck: false,
+    "aria-label": "رمز المدرسة أو رابطها" });
+  const msg = h("p", { class: "ln-msg", role: "alert" });
+  const go = () => {
+    let v = code.value.trim().toLowerCase();
+    try { if (/^https?:|\//.test(v)) v = new URL(v, location.origin).pathname.split("/").filter(Boolean)[0] || ""; } catch { v = ""; }
+    if (!/^[a-z0-9][a-z0-9-]{2,29}$/.test(v)) { msg.textContent = "اكتب رمز المدرسة كما وصلك من المدرسة، أو الصق رابطها."; return; }
+    location.href = `/${encodeURIComponent(v)}`;
+  };
+  code.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  mount(app, h("main", { class: "st ln" },
+    brandLogo("ln-logo", false, "stacked"),
+    box,
+    h("div", { class: "ln-enter" },
+      h("h2", {}, recentSchools().length ? "مدرسة أخرى" : "ادخل مدرستك"),
+      h("p", {}, "اكتب رمز مدرستك أو الصق الرابط الذي وصلك منها."),
+      h("div", { class: "ln-row" }, code, h("button", { type: "button", class: "st-btn pri", onclick: go }, "دخول")), msg),
+    h("p", { class: "ln-about" }, h("a", { href: "/" }, "تعرّف على مدار"), " · ", h("a", { href: "/?trial" }, "سجّل مدرستك"), " · ",
+      h("a", { href: "/privacy" }, "الخصوصية"))));
 }
 
 // أدوار العرض التجريبي

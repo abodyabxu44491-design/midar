@@ -6,6 +6,7 @@ import { setCurrency } from "../shared/js/format.js";
 import { attachBell } from "../shared/js/inbox.js";
 import { topbar, footer, tabs, lazy, panel, field, input, btn, toast, sub, notice, passwordChangeScreen, passwordInput, schoolLogoUrl } from "../shared/js/ui.js";
 import { setApiBase } from "../admin/views/common.js";
+import { rememberSchool } from "../shared/js/recent.js";
 const ledger = lazy(() => import("../admin/views/ledger.js"), new URL("../admin/views/ledger.js", import.meta.url).pathname);
 const fees = lazy(() => import("../admin/views/finance.js"), new URL("../admin/views/finance.js", import.meta.url).pathname);
 
@@ -14,6 +15,7 @@ const app = $("#app");
 export async function startAccountant() {
   setApiBase("accountant");
   const me = await api("/api/accountant/me");
+  rememberSchool({ id: me.school.id, name: me.school.name, role: "accountant" });
   if (me.access?.locked) {
     return mount(app, topbar({ school: me.school.name, subtitle: me.name, onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } }),
       h("main", {}, panel("اشتراك المدرسة غير فعّال حاليًا", null, notice("لا يمكن استخدام المنصة الآن لأن اشتراك المدرسة متوقف. كل البيانات محفوظة، وتعود للعمل فور تجديد الإدارة للاشتراك.", "warn"))), footer());

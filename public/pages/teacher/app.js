@@ -7,6 +7,7 @@ import { api } from "../shared/js/api.js";
 import { attachBell } from "../shared/js/inbox.js";
 import { topbar, footer, tabs, lazy, panel, notice, passwordChangeScreen, schoolLogoUrl } from "../shared/js/ui.js";
 import home from "./views/home.js";
+import { rememberSchool } from "../shared/js/recent.js";
 const attendance = lazy(() => import("./views/attendance.js"), new URL("./views/attendance.js", import.meta.url).pathname);
 const exams = lazy(() => import("./views/exams.js"), new URL("./views/exams.js", import.meta.url).pathname);
 const announcements = lazy(() => import("./views/announcements.js"), new URL("./views/announcements.js", import.meta.url).pathname);
@@ -32,6 +33,7 @@ export async function startTeacher(offlineMe = null) {
     if (!offlineMe || (e.code !== "network" && e.code !== "timeout")) throw e;
     me = offlineMe;
   }
+  rememberSchool({ id: me.school.id, name: me.school.name, role: "teacher" });
   if (me.access?.locked) {
     return mount(app, topbar({ school: me.school.name, subtitle: me.name, onLogout: async () => { await api("/api/teacher/logout", {}); location.reload(); } }),
       h("main", {}, panel("اشتراك المدرسة غير فعّال حاليًا", null, notice("لا يمكن استخدام المنصة الآن لأن اشتراك المدرسة متوقف. كل البيانات محفوظة، وتعود للعمل فور تجديد الإدارة للاشتراك.", "warn"))), footer());

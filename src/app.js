@@ -144,6 +144,10 @@ export function createApp() {
       [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"]]
         .map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><lastmod>${STARTED_AT.slice(0, 10)}</lastmod><priority>${p}</priority></url>`).join("\n")
     }\n</urlset>\n`));
+  // ربط النطاق بتطبيق Google Play (TWA): بدونه يظهر شريط المتصفح أعلى التطبيق. القيم من متغيرات البيئة
+  app.get("/.well-known/assetlinks.json", (req, res) => res.set("Cache-Control", "public, max-age=3600").json(
+    env.ANDROID_PACKAGE && env.ANDROID_SHA256.length ? [{ relation: ["delegate_permission/common.handle_all_urls"],
+      target: { namespace: "android_app", package_name: env.ANDROID_PACKAGE, sha256_cert_fingerprints: env.ANDROID_SHA256 } }] : []));
   app.get("/verify/:code", send("verify", "index.html"));
   // رمز بطاقة الحضور إن مُسح بكاميرا جوال عادية: صفحة تشرح أنه للبوابة فقط، بلا أي بيانات
   app.get("/q/:school/:token", send("gate", "card.html"));   // التحقق من الشهادات برمز QR
