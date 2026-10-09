@@ -9,7 +9,7 @@
 #
 # الاسترجاع:
 #   gpg --decrypt midar-XXXX.dump.gpg > midar.dump
-#   pg_restore --no-owner --dbname "رابط قاعدة بيانات جديدة" midar.dump
+#   pg_restore --no-owner --dbname "رابط قاعدة بيانات جديدة في نفس مشروع Neon" midar.dump   (التفاصيل: docs/MONITORING.md)
 name: نسخة احتياطية
 
 on:
@@ -52,7 +52,8 @@ jobs:
           umask 077
           NAME="midar-$(date -u +%F-%H%M)"
           echo "NAME=$NAME" >> "$GITHUB_ENV"
-          /usr/lib/postgresql/17/bin/pg_dump --format=custom --no-owner --no-privileges --dbname "$DB_URL" --file "$NAME.dump"
+          # الصلاحيات تُحفظ مع النسخة (صلاحيات midar_app الدقيقة لكل جدول)، فيعمل التطبيق مباشرة بعد الاسترجاع
+          /usr/lib/postgresql/17/bin/pg_dump --format=custom --no-owner --dbname "$DB_URL" --file "$NAME.dump"
           # فحص سلامة الملف قبل التشفير
           /usr/lib/postgresql/17/bin/pg_restore --list "$NAME.dump" > /dev/null
           printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
