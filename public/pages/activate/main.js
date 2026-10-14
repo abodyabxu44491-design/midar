@@ -15,7 +15,7 @@ const shell = (...content) => h("div", { class: "gate" }, h("div", { class: "gat
   h("aside", { class: "gate-aside hide-sm" },
     brandLogo("hero-logo", true, "stacked"),
     h("h1", {}, "تفعيل حساب مدرستكم"),
-    h("p", {}, "أدخلوا رقم جوال المدير، واكتبوا الرمز الذي يصلكم، ثم اختاروا كلمة المرور.")),
+    h("p", {}, "رقم جوال المدير، ثم رمز التحقق، ثم كلمة المرور.")),
   h("section", { class: "gate-card" },
     h("div", { class: "show-sm", style: "margin-bottom:10px" }, brandLogo("hero-logo", true, "stacked")),
     ...content)));
@@ -32,7 +32,22 @@ let info;
 async function start() {
   if (!/^[0-9a-f]{64}$/.test(token)) return fail("الرابط غير مكتمل. افتحوا رابط التفعيل كما وصلكم بالكامل.");
   try { info = await api(`/api/public/activation/check?token=${token}`); } catch (e) { return fail(e.message); }
-  return info.phone_verified ? passwordStep() : phoneStep();
+  if (info.phone_verified) return passwordStep();
+  return info.code_sent ? phoneStep() : introStep();
+}
+
+function introStep() {
+  const row = (icon, title, text) => h("li", {}, h("span", { class: "av-ic" }, icon({ size: 18 })), h("div", {}, h("b", {}, title), h("small", {}, text)));
+  const next = btn("التالي", () => phoneStep());
+  mount(app, shell(h("h2", {}, "تفعيل حساب المدرسة"),
+    h("p", { class: "gate-sub" }, "ثلاث خطوات سريعة، وتدخل لوحة مدرستك مباشرة."),
+    identity({ ...info, phone: null }),
+    h("ol", { class: "av-intro" },
+      row(icons.phone, "رقم جوالك", "تكتب رقم جوال المدير وتضغط تفعيل."),
+      row(icons.message, "رمز التحقق", "يصلك الرمز برسالة نصية ويُكتب تلقائيًا."),
+      row(icons.lock, "كلمة المرور", "تختار كلمة مرور، وبها تدخل مع رقم جوالك.")),
+    next));
+  next.focus();
 }
 
 function phoneStep() {
@@ -44,8 +59,8 @@ function phoneStep() {
   const codeBox = h("div", {}, field("رمز التحقق", code));
   const sentTo = h("p", { class: "gate-sub av-sent" });
   let wait = info.resend_in || 0, timer;
-  const sendBtn = btn("إرسال الرمز", () => send());
-  const verifyBtn = btn("تحقق ومتابعة", () => verify());
+  const sendBtn = btn("تفعيل", () => send());
+  const verifyBtn = btn("متابعة", () => verify());
   const resend = h("button", { type: "button", class: "gate-link", onclick: () => send() });
   const change = h("button", { type: "button", class: "gate-link", onclick: () => stage("phone") }, "تغيير الرقم");
   const links = h("div", { class: "gate-row av-links" }, resend, change);
@@ -61,7 +76,7 @@ function phoneStep() {
     const onCode = k === "code";
     phoneBox.hidden = onCode; sendBtn.hidden = onCode;
     codeBox.hidden = !onCode; verifyBtn.hidden = !onCode; links.hidden = !onCode; sentTo.hidden = !onCode;
-    mount(msg);
+    stageText(onCode); mount(msg);
     (onCode ? code : phone).focus();
   };
   const tick = () => {
@@ -97,19 +112,25 @@ function phoneStep() {
     if (code.value.length === 6) verify();
   });
   phone.addEventListener("keydown", (e) => e.key === "Enter" && send());
-  mount(app, shell(h("h2", {}, "تحقق من الجوال"),
-    identity({ ...info, phone: null }), phoneBox, sentTo, codeBox, msg, sendBtn, verifyBtn, links));
+  const title = h("h2", {});
+  const hint = h("p", { class: "gate-sub" });
+  const stageText = (onCode) => {
+    title.textContent = onCode ? "أدخل رمز التحقق" : "رقم جوال المدير";
+    hint.textContent = onCode ? "" : `لتفعيل ${info.school}، يصلك رمز برسالة نصية.`;
+    hint.hidden = onCode;
+  };
+  mount(app, shell(title, hint, phoneBox, sentTo, codeBox, msg, sendBtn, verifyBtn, links));
   if (info.code_sent) { sentTo.textContent = `أرسلنا رمزًا إلى ${info.phone}`; stage("code"); if (wait) tick(); else resend.textContent = "إعادة إرسال الرمز"; }
   else stage("phone");
 }
 
 function passwordStep() {
   const pass = passwordInput({ autocomplete: "new-password", placeholder: "كلمة المرور الجديدة" });
-  const again = passwordInput({ autocomplete: "new-password", placeholder: "أعيدوا كتابتها" });
+  const again = passwordInput({ autocomplete: "new-password", placeholder: "كرّر كلمة المرور" });
   const meter = h("div", { class: "sub" });
   const msg = h("div", { "aria-live": "polite" });
   pass.inputEl.addEventListener("input", () => { meter.textContent = pass.value ? `قوة كلمة المرور: ${strength(pass.value)}` : ""; });
-  const save = btn("تفعيل الحساب والدخول", async () => {
+  const save = btn("تفعيل", async () => {
     mount(msg);
     if (pass.value !== again.value) return mount(msg, notice("كلمتا المرور غير متطابقتين", "err"));
     save.disabled = true;
@@ -117,17 +138,17 @@ function passwordStep() {
       const r = await api("/api/public/activation", { token, password: pass.value });
       try { localStorage.setItem("midar_school", info.school_id); } catch { /* storage unavailable */ }
       mount(app, shell(h("div", { class: "act-done" }, h("span", { class: "big" }, icons.check({ size: 34 })),
-          h("h2", {}, "تم تفعيل حساب مدرستكم"),
-          h("p", { class: "gate-sub" }, "سجّلوا الدخول لاحقًا برقم الجوال وكلمة المرور.")),
+          h("h2", {}, "تم تفعيل المدرسة"),
+          h("p", { class: "gate-sub" }, "تدخل لاحقًا برقم جوالك وكلمة المرور.")),
         btn("الدخول إلى لوحة المدرسة", () => { location.href = r.redirect; })));
       setTimeout(() => { location.href = r.redirect; }, 2200);
     } catch (e) { save.disabled = false; mount(msg, notice(e.message, "err")); }
   });
   for (const el of [pass, again]) el.addEventListener("keydown", (e) => e.key === "Enter" && save.click());
-  mount(app, shell(h("h2", {}, "اختاروا كلمة المرور"),
-    identity(info),
+  mount(app, shell(h("h2", {}, "إنشاء كلمة المرور"),
+    h("p", { class: "gate-sub" }, "بها تدخل لاحقًا مع رقم جوالك."),
     field("كلمة المرور الجديدة", pass, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),
-    meter, field("أعيدوا كتابة كلمة المرور", again), msg, save));
+    meter, field("تأكيد كلمة المرور", again), msg, save));
   pass.inputEl.focus();
 }
 
