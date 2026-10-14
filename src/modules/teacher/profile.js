@@ -23,7 +23,7 @@ r.get("/me", handle(async (req, res) => {
     photo: (await q("SELECT (photo IS NOT NULL) AS has, extract(epoch FROM updated_at)::bigint AS v FROM teachers WHERE id = $1", [req.user.teacher_id]))[0],
   }));
   res.json({ access: accessSummary(req), modules: req.modules, name: req.user.full_name, user_id: req.user.id, must_change_password: req.user.must_change_password,
-    school: { id: req.tenant.id, name: req.tenant.name, logo: school },
+    school: { id: req.tenant.id, name: req.tenant.name, logo: school, org_type: req.tenant.org_type || "school" },
     photo: photo?.has ? `/api/teacher/photo?v=${photo.v}` : null, ...data });
 }));
 

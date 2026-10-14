@@ -20,6 +20,8 @@ export const MOUNTS = {
   "staff-page": path.join(PAGES, "staff"),
   "home-page": path.join(PAGES, "home"),
   reset: path.join(PAGES, "reset"),
+  "group-page": path.join(PAGES, "group"),
+  "activate-page": path.join(PAGES, "activate"),
   verify: path.join(PAGES, "verify"),
   "legal-page": path.join(PAGES, "legal"),
   "gate-page": path.join(PAGES, "gate"),

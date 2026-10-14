@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "/shared/js/dom.js";
@@ -8,7 +8,7 @@ import { api } from "/shared/js/api.js";
 import { panel, field, input, select, btn, badge, sub, notice, toast, dialog, empty, textarea, confirmAction, line, keyText } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
 import { waLink } from "/shared/js/whatsapp.js";
-import { loadRefs, subForm, handoverText, REQ_KINDS, REQ_STATUS } from "./sub-form.js";
+import { loadRefs, subForm, REQ_KINDS, REQ_STATUS } from "./sub-form.js";
 import { detail } from "./subscriptions.js";
 
 export const KINDS = REQ_KINDS;
@@ -47,13 +47,15 @@ function row(r, refresh, root) {
       leadDetails(r.details),
       r.note ? sub(`«${r.note}»`) : null,
       r.owner_note ? sub(`ملاحظتك: ${r.owner_note}`) : null,
+      r.last_error ? notice(`تعثّر إنشاء المدرسة: ${r.last_error} — صحّح البيانات وأعد «إنشاء وتفعيل».`, "err") : null,
       r.similar_trials ? notice(`تنبيه: ${r.similar_trials} طلب تجربة سابق بنفس الجوال أو البريد`, "warn") : null,
       r.tenant_trials && r.kind === "trial" ? notice(`هذه المدرسة استخدمت ${r.tenant_trials} تجربة سابقة`, "warn") : null),
     h("div", { class: "acts" },
       setStatus,
       canConvert ? btn(r.kind === "trial" ? "تفعيل التجربة" : "إنشاء المدرسة والاشتراك", () => convert(r, refresh), "sm") : null,
       r.kind === "feature" && r.tenant_id && r.status !== "active" ? btn("منح الميزة", () => grant(r, refresh), "sm") : null,
-      r.tenant_id ? btn("اشتراك المدرسة", () => detail(r.tenant_id, root, refresh), "soft sm") : null,
+      r.tenant_id ? btn("ملف المدرسة", () => { location.hash = `#/schools?school=${r.tenant_id}`; }, "soft sm") : null,
+      r.tenant_id ? btn("اشتراك المدرسة", () => detail(r.tenant_id, root, refresh), "ghost sm") : null,
       wa ? h("a", { class: "btn ghost sm", href: wa, target: "_blank", rel: "noopener" }, "واتساب") : null,
       btn("ملاحظة", () => note(r, refresh), "ghost sm"),
       r.source === "public" ? btn("حذف", async () => { if (!confirmAction("حذف الطلب نهائيًا؟")) return; await api(`/api/owner/requests/${r.id}`, undefined, "DELETE"); refresh(); }, "danger sm") : null));
@@ -61,28 +63,42 @@ function row(r, refresh, root) {
 
 async function convert(r, refresh) {
   const refs = await loadRefs();
-  const suggested = (r.email?.split("@")[0] || "school").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20) || "school";
-  const id = input({ class: "ltr", value: `${suggested}${Math.floor(Math.random() * 90 + 10)}` });
   const name = input({ value: r.school_name });
+  const org = select([["school", "مدرسة"], ["institute", "معهد تدريبي"]], { value: r.details?.org_type === "institute" ? "institute" : "school" });
+  // The school code is derived from the name on the server (unique, readable); the owner may still adjust it.
+  const id = input({ class: "ltr", dir: "ltr", placeholder: "alnoor", "aria-label": "رمز المدرسة" });
+  let touched = false, seq = 0;
+  const preview = h("bdi", { dir: "ltr", class: "code-url" });
+  const paint = () => { preview.textContent = `${location.host}/${id.value || "…"}`; };
+  const suggest = async () => {
+    if (touched) return;
+    const n = ++seq;
+    try { const { code } = await api(`/api/owner/files/suggest-code?name=${encodeURIComponent(name.value)}`); if (n === seq && !touched) { id.value = code; paint(); } } catch { /* keep current */ }
+  };
+  let t;
+  name.addEventListener("input", () => { clearTimeout(t); t = setTimeout(suggest, 350); });
+  id.addEventListener("input", () => { touched = true; id.value = id.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30); paint(); });
+  const codeBox = h("div", { class: "code-pick" }, h("span", { class: "sub" }, "رابط المدرسة"), preview,
+    h("details", {}, h("summary", {}, "تعديل الرمز"), id));
+  suggest();
   const admin = input({ value: r.contact_name || "مدير المدرسة" });
   const form = subForm(refs, { kind: r.kind === "trial" ? "trial" : "paid", plan_id: r.plan_id ?? undefined, billing_cycle: r.billing_cycle || "yearly",
     addons: (r.addon_keys || []).map((k) => ({ key: k })) });
   const d = dialog(r.kind === "trial" ? "تفعيل التجربة المجانية" : "إنشاء المدرسة وتفعيل الاشتراك", h("div", {},
     !r.plan_id && r.kind === "trial" ? notice("طلب العميل تجربة المنصة بدون تحديد باقة. اختر الباقة التي سيجربها.", "") : null,
-    h("div", { class: "row" }, field("اسم المدرسة", name), field("رمز المدرسة", id, "إنجليزي صغير، يظهر في الرابط")),
-    field("اسم المدير", admin), h("hr"), form.el),
-  [btn("إنشاء وتفعيل", async () => {
-    const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value, name: name.value, admin_name: admin.value, subscription: form.value() });
-    d.close(); refresh();
-    const text = handoverText(res);
-    const wa = res.lead?.phone ? waLink(res.lead.phone, text) : null;
-    dialog("تم تفعيل المدرسة", h("div", {},
-      notice("أرسل بيانات الدخول للمدرسة الآن. كلمة المرور لن تظهر مرة أخرى.", "warn"),
-      [["رابط الدخول", `${location.origin}/${res.credentials.school}/idara`], ["اسم المستخدم", res.credentials.username],
-        ["كلمة المرور المؤقتة", res.credentials.password], ["رابط أولياء الأمور", `${location.origin}/${res.credentials.school}`]].map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
-      sub("بعد أول دخول: تغيير كلمة المرور ← معالج إعداد المدرسة ← لوحة التحكم.")),
-    [wa ? h("a", { class: "btn", href: wa, target: "_blank", rel: "noopener" }, "إرسال عبر واتساب") : null,
-      btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }, "ghost")].filter(Boolean));
+    field("نوع المؤسسة", org), field("الاسم", name), codeBox,
+    field("اسم المدير", admin),
+    h("hr"), form.el),
+  [btn("إنشاء وتفعيل", async (e) => {
+    const b = e?.currentTarget; if (b) b.disabled = true;
+    try {
+      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value || undefined, org_type: org.value, name: name.value, admin_name: admin.value, subscription: form.value() });
+      d.close(); toast("اعتُمدت المدرسة وأُنشئ حسابها");
+      location.hash = `#/schools?school=${res.tenant_id}&handover=1`;
+    } catch (err) {
+      if (err.data?.tenant_id) { d.close(); location.hash = `#/schools?school=${err.data.tenant_id}`; return; }
+      toast(err.message, true); if (b) b.disabled = false;
+    }
   })]);
   d.classList.add("xb-wide");
 }
@@ -116,7 +132,7 @@ function leadDetails(d) {
   if (!d || !Object.keys(d).length) return null;
   const m = d.manager || {};
   const rows = [
-    ["الاسم المختصر", d.short_name], ["نوع المؤسسة", ORG[d.org_type]], ["الدولة", COUNTRY[d.country]], ["المنطقة", d.region], ["العنوان", d.address],
+    ["الاسم المختصر", d.short_name], ["نوع المؤسسة", ORG[d.org_type]], ["الدولة", COUNTRY[d.country] || d.country], ["المنطقة", d.region], ["العنوان", d.address],
     ["هاتف المدرسة", d.school_phone], ["بريد المدرسة", d.school_email], ["الموقع", d.website], ["رقم الترخيص", d.license_no],
     ["المراحل", (d.stages || []).map((x) => STAGE[x]).join("، ")], ["عدد الفصول", d.classes_count], ["العام الدراسي", d.academic_year],
     ["مدير المدرسة", [m.first, m.second, m.third, m.family].filter(Boolean).join(" ")], ["المسمى", m.title], ["التواصل المفضل", PREF[m.preferred]],

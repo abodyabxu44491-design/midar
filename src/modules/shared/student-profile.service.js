@@ -67,9 +67,11 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     };
   }
   const student = { id: s.id, name: s.full_name, class_name: cls?.name || "غير محدد", guardian_name: s.guardian_name,
-    guardian_phone: admin ? s.guardian_phone : mask(s.guardian_phone), since: s.created_at };
+    guardian_phone: admin ? s.guardian_phone : mask(s.guardian_phone), since: s.created_at,
+    student_no: s.student_no ?? null, access_key: s.access_key ?? null };
   if (admin) {
     Object.assign(student, { student_no: s.student_no, birth_date: s.birth_date, gender: s.gender, student_phone: s.student_phone,
+      family_name: s.family_name, area: s.area,
       status: s.status, status_note: s.status_note, has_photo: Boolean(s.photo), version: s.version, class_id: s.class_id });
   }
   return {

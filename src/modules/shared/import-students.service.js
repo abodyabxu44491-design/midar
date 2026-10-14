@@ -21,6 +21,8 @@ export const COLUMNS = [
   { key: "guardian_name", header: "اسم ولي الأمر", aliases: ["اسم ولي الامر", "ولي الامر", "guardian", "guardian name", "parent name"] },
   { key: "guardian_phone", header: "جوال ولي الأمر", aliases: ["جوال ولي الامر", "رقم ولي الامر", "هاتف ولي الامر", "guardian phone", "parent phone"] },
   { key: "student_phone", header: "جوال الطالب", aliases: ["جوال الطالب", "هاتف الطالب", "student phone"] },
+  { key: "family_name", header: "اللقب", aliases: ["اللقب", "اسم العائله", "العائله", "القبيله", "family name", "surname", "last name"] },
+  { key: "area", header: "المنطقة", aliases: ["المنطقه", "الحي", "منطقه السكن", "السكن", "area", "district"] },
   { key: "fees_enabled", header: "الرسوم (نعم/لا)", aliases: ["الرسوم", "الرسوم نعم لا", "fees"] },
   { key: "class_legacy", header: "الفصل", hidden: true, aliases: ["الفصل", "class"] },
   { key: "access_key", header: "معرّف الطالب", hidden: true, aliases: ["معرف الطالب", "المعرف", "access key"] },
@@ -74,7 +76,7 @@ export async function analyze(q, tenant, rawRows, { gradeMap = {}, includeDuplic
   const nos = [...new Set(rows.map((r) => latin(r.student_no)).filter(Boolean))];
   const keys = [...new Set(rows.map((r) => String(r.access_key || "").toUpperCase()).filter(Boolean))];
   const phones = [...new Set(rows.map((r) => normalizePhone(r.guardian_phone)).filter(Boolean))];
-  const cols = `id, student_no, full_name, class_id, guardian_name, guardian_phone, birth_date::text AS birth_date, gender, student_phone, fees_enabled, status, access_key`;
+  const cols = `id, student_no, full_name, class_id, guardian_name, guardian_phone, birth_date::text AS birth_date, gender, student_phone, fees_enabled, status, access_key, family_name, area`;
   const existing = nos.length || keys.length
     ? await q(`SELECT ${cols} FROM students WHERE student_no = ANY($1::text[]) OR access_key = ANY($2::text[])`, [nos, keys]) : [];
   const byNo = new Map(existing.filter((s) => s.student_no).map((s) => [s.student_no, s]));
@@ -110,6 +112,8 @@ export async function analyze(q, tenant, rawRows, { gradeMap = {}, includeDuplic
       if (!p || p.replace(/\D/g, "").length < 7) fail(`${label} «${r[k]}» غير صالح`); else data[k] = p;
     }
     const gn = cleanName(r.guardian_name); if (gn) data.guardian_name = gn.slice(0, 120);
+    const fam = cleanName(r.family_name); if (fam.length >= 2) data.family_name = fam.slice(0, 60);
+    const ar = cleanName(r.area); if (ar.length >= 2) data.area = ar.slice(0, 80);
     const fe = String(r.fees_enabled || "").trim().toLowerCase();
     if (fe) { if (YES.includes(fe)) data.fees_enabled = true; else if (NO.includes(fe)) data.fees_enabled = false; else fail(`قيمة الرسوم «${r.fees_enabled}» غير مفهومة (نعم/لا)`); }
 
@@ -147,7 +151,8 @@ export async function analyze(q, tenant, rawRows, { gradeMap = {}, includeDuplic
       if (data.name && norm(data.name) !== norm(ex.full_name)) res.notes.push(`الاسم يتغير من «${ex.full_name}»`);
       const changes = {};
       const cmp = { name: ex.full_name, class_id: ex.class_id && Number(ex.class_id), guardian_name: ex.guardian_name, guardian_phone: ex.guardian_phone,
-        birth_date: ex.birth_date, gender: ex.gender, student_phone: ex.student_phone, fees_enabled: ex.fees_enabled };
+        birth_date: ex.birth_date, gender: ex.gender, student_phone: ex.student_phone, fees_enabled: ex.fees_enabled,
+        family_name: ex.family_name, area: ex.area };
       for (const [k, v] of Object.entries(data)) if (v !== undefined && v !== cmp[k]) changes[k] = v;
       data.__changes = changes;
       if (!Object.keys(changes).length && !res.errors.length) res.action = "unchanged";
@@ -196,10 +201,10 @@ export async function commit(q, tenant, rawRows, opts = {}) {
   const createdRows = creates.length ? await students.create(q, tenant, creates.map((r) => ({
     name: r.data.name, class_id: r.data.class_id ?? null, guardian_name: r.data.guardian_name ?? null, guardian_phone: r.data.guardian_phone ?? null,
     fees_enabled: r.data.fees_enabled ?? false, student_no: r.student_no, birth_date: r.data.birth_date ?? null, gender: r.data.gender ?? null,
-    student_phone: r.data.student_phone ?? null })), report) : [];
+    student_phone: r.data.student_phone ?? null, family_name: r.data.family_name ?? null, area: r.data.area ?? null })), report) : [];
 
   const COLUMN = { name: "full_name", class_id: "class_id", guardian_name: "guardian_name", guardian_phone: "guardian_phone", birth_date: "birth_date",
-    gender: "gender", student_phone: "student_phone", fees_enabled: "fees_enabled" };
+    gender: "gender", student_phone: "student_phone", fees_enabled: "fees_enabled", family_name: "family_name", area: "area" };
   let updated = 0;
   for (const r of updates) {
     const sets = [], vals = [r.existing_id];

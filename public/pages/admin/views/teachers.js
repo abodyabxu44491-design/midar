@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../../shared/js/dom.js";
@@ -60,7 +60,7 @@ export default async function teachers({ me, refresh }) {
   const subjectSel = select([["", "كل المواد"], ...subjects.map((s) => [s.id, s.name])]);
   const specialty = select([["", "كل التخصصات"], ...uniq(list, "specialty").map((x) => [x, x])]);
   const status = select([["active", "نشط"], ["inactive", "موقوف"], ["pending", "لم يفعّل حسابه"], ["all", "كل الحالات"]]);
-  const box = h("div", { class: "s-list" });
+  const box = h("div", { class: "tc-grid" });
   const count = h("span", { class: "sub" });
 
   const norm = (v) => String(v || "").toLowerCase();
@@ -81,17 +81,23 @@ export default async function teachers({ me, refresh }) {
     const pl = placesOf(t);
     const subs = [...new Set(t.load.map((l) => l.subject_name))];
     const open = () => openFile(t);
-    return h("div", { class: "s-card", role: "button", tabindex: "0", onclick: open,
+    const state = t.is_active ? (["not_activated", "initial"].includes(t.account_state) ? badge("لم يفعّل", "amber") : badge("نشط")) : badge("موقوف", "red");
+    const shown = subs.slice(0, 3);
+    return h("article", { class: `tc-card${t.is_active ? "" : " off"}`, role: "button", tabindex: "0", onclick: open, title: t.name,
       onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } },
-      avatar(t),
-      h("div", { class: "s-main" },
-        h("b", { class: "s-title" }, t.name),
-        h("span", { class: "sub" }, [t.employee_no ? `رقم وظيفي: ${t.employee_no}` : null, `@${t.username}`].filter(Boolean).join(" • ")),
-        h("span", { class: "sub" }, [t.specialty, subs.length ? subs.join("، ") : "بدون مواد"].filter(Boolean).join(" • ")),
-        h("span", { class: "s-meta" }, [pl.stages.join("، "), pl.grades.length ? `الصفوف: ${pl.grades.join("، ")}` : null,
-          pl.sections.length ? `الشعب: ${pl.sections.length}` : null].filter(Boolean).join(" • ") || "بدون إسناد"),
-        h("span", { class: "sub" }, t.last_login_at ? `آخر دخول: ${fmtDateTime(t.last_login_at)}` : "لم يدخل بعد")),
-      t.is_active ? (["not_activated", "initial"].includes(t.account_state) ? badge("لم يفعّل", "amber") : badge("نشط")) : badge("موقوف", "red"));
+      h("header", { class: "tc-head" }, avatar(t),
+        h("div", { class: "tc-id" }, h("b", { class: "tc-name" }, t.name),
+          h("span", { class: "tc-spec" }, (t.specialty && !subs.includes(t.specialty) ? t.specialty : t.job_title) || "معلم")),
+        state),
+      h("div", { class: "tc-subs" }, shown.length ? [...shown.map((x) => h("span", { class: "tc-chip" }, x)),
+        subs.length > 3 ? h("span", { class: "tc-chip more" }, `+${subs.length - 3}`) : null] : h("span", { class: "tc-chip none" }, "بدون مواد")),
+      h("dl", { class: "tc-facts" },
+        h("div", {}, h("dt", {}, "المراحل"), h("dd", { title: pl.stages.join("، ") }, pl.stages.join("، ") || "—")),
+        h("div", {}, h("dt", {}, "الصفوف"), h("dd", { title: pl.grades.join("، ") }, pl.grades.length ? String(pl.grades.length) : "—")),
+        h("div", {}, h("dt", {}, "الفصول"), h("dd", {}, String(new Set(t.load.map((l) => l.class_id)).size || "—")))),
+      h("footer", { class: "tc-foot" },
+        h("span", { class: "ltr" }, t.employee_no || `@${t.username}`),
+        h("span", {}, t.last_login_at ? `آخر دخول ${fmtDate(t.last_login_at)}` : "لم يدخل بعد")));
   };
   const draw = () => {
     const ids = classIdsFilter();
@@ -292,13 +298,12 @@ export default async function teachers({ me, refresh }) {
       catch (e) { toast(e.message, true); }
     });
     mount(body,
-      h("div", { class: "file-hero" }, photoBox,
-        h("div", { class: "file-hero-text" }, h("h2", {}, t.name),
-          h("p", {}, [t.job_title, t.specialty, subjectNames.slice(0, 3).join("، ")].filter(Boolean).join(" · ") || "بدون تخصص"),
-          h("div", { class: "file-hero-tags" },
-            acc ? badge(STATE_LABEL[acc.state], STATE_TONE[acc.state]) : badge("بدون حساب", "gray"),
-            t.phone ? h("a", { class: "btn ghost sm", href: `tel:${t.phone}` }, "اتصال") : null),
-          h("div", { class: "row", style: "justify-content:flex-start;gap:6px;margin-top:6px" }, btn(t.has_photo ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
+      h("div", { class: "tf-hero" }, photoBox,
+        h("div", { class: "tf-text" }, h("h2", {}, t.name),
+          h("p", {}, [t.job_title, t.specialty && !subjectNames.includes(t.specialty) ? t.specialty : null, subjectNames.slice(0, 3).join("، ")].filter(Boolean).join(" · ") || "بدون تخصص"),
+          h("div", { class: "tf-acts" },
+            t.phone ? h("a", { class: "btn ghost sm", href: `tel:${t.phone}` }, "اتصال") : null,
+            btn(t.has_photo ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
             t.has_photo ? btn("حذف الصورة", async () => { await api(`${A}/teachers/${t.id}/photo`, null, "DELETE"); drawPhoto(null); refresh(); }, "ghost sm") : null))),
       nav, pane);
     show("overview");

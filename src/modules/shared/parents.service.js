@@ -10,7 +10,7 @@ import { newTempPassword, safeEqual } from "../../core/auth/codes.js";
 import { sealCredential, openCredential } from "../../core/auth/secret-box.js";
 import { readSession } from "../../core/auth/sessions.js";
 import { securityEvent, recentFailures, logEvent } from "../../core/audit.js";
-import { normalizePhone } from "./students.service.js";
+import { normalizePhone, cleanName } from "./students.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 import { notify, adminUserIds, activeModules, pushPublicKey } from "./notify.service.js";
 
@@ -418,7 +418,7 @@ export async function autoCreate(q, { actor }) {
             array_agg(id ORDER BY id) AS ids
        FROM students WHERE status = 'active' AND archived_at IS NULL AND guardian_phone IS NOT NULL AND guardian_phone <> ''
       GROUP BY guardian_phone`);
-  let created = 0, linked = 0;
+  let created = 0, linked = 0, review = 0;
   const credentials = [];
   for (const g of groups) {
     const p = normalizePhone(g.phone);
@@ -430,9 +430,74 @@ export async function autoCreate(q, { actor }) {
       created++;
       credentials.push({ name: parent.full_name, phone: p, password: await issueTemp(q, parent.id), children: g.ids.length });
     }
+    const kids = await q("SELECT id, full_name, family_name FROM students WHERE id = ANY($1::bigint[])", [g.ids]);
+    const keys = [...new Set(kids.map(familyKey).filter(Boolean))];
+    if (keys.length > 1) {
+      for (const k of kids) {
+        if (await isLinked(q, parent.id, k.id)) continue;
+        await openRequest(q, { ...parent, phone: p }, k, { note: "ربط تلقائي: نفس جوال ولي الأمر بأسماء عائلات مختلفة. تحقّق قبل الاعتماد." });
+        review++;
+      }
+      continue;
+    }
     for (const sid of g.ids) if ((await link(q, parent.id, Number(sid), { actor, source: "auto" })).linked) linked++;
   }
-  return { created, linked, credentials };
+  return { created, linked, review, credentials };
+}
+
+const arabicKey = (v) => cleanName(v).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/^ال/, "");
+export const familyKey = (s) => {
+  const f = s.family_name || cleanName(s.full_name || s.name).split(" ").filter(Boolean).at(-1);
+  return f ? arabicKey(f) : null;
+};
+
+// Links a newly registered student to the parent account that already holds the same guardian phone.
+// The phone alone is not enough: the family name must agree with the children already on that account,
+// otherwise the link waits for the administration's review instead of attaching a stranger's child.
+export async function autoLinkStudent(q, studentId, { actor }) {
+  const settings = await featureSettings(q, "parents");
+  if (!settings.auto_link_siblings) return { state: "off" };
+  const [s] = await q("SELECT id, full_name, family_name, guardian_phone FROM students WHERE id = $1 AND status = 'active' AND archived_at IS NULL", [studentId]);
+  const phone = s && normalizePhone(s.guardian_phone);
+  if (!phone) return { state: "no_phone" };
+  const [parent] = await q("SELECT id, full_name, phone, email FROM parents WHERE phone = $1 AND status = 'active'", [phone]);
+  if (!parent) return { state: "no_parent" };
+  if (await isLinked(q, parent.id, s.id)) return { state: "linked", parent_id: parent.id };
+  const kids = await q(`SELECT st.full_name, st.family_name FROM parent_students ps JOIN students st ON st.id = ps.student_id
+                         WHERE ps.parent_id = $1 AND ps.removed_at IS NULL`, [parent.id]);
+  const known = [...new Set(kids.map(familyKey).filter(Boolean))];
+  const mine = familyKey(s);
+  if (!known.length || !mine || known.includes(mine)) {
+    await link(q, parent.id, s.id, { actor, source: "auto" });
+    return { state: "linked", parent_id: parent.id };
+  }
+  await openRequest(q, parent, s, { note: "ربط تلقائي: نفس جوال ولي الأمر لكن اسم العائلة مختلف عن أبنائه المسجلين. تحقّق قبل الاعتماد." });
+  return { state: "review", parent_id: parent.id };
+}
+
+// Groups students by guardian phone and checks every group's family names before linking.
+export async function familyGroups(q) {
+  const rows = await q(
+    `SELECT s.id, s.full_name, s.family_name, s.guardian_phone, s.guardian_name, c.name AS class_name,
+            (SELECT p.id FROM parents p WHERE p.phone = s.guardian_phone) AS parent_id,
+            EXISTS (SELECT 1 FROM parent_students ps JOIN parents p ON p.id = ps.parent_id
+                     WHERE ps.student_id = s.id AND ps.removed_at IS NULL AND p.phone = s.guardian_phone) AS linked
+       FROM students s LEFT JOIN classes c ON c.id = s.class_id
+      WHERE s.status = 'active' AND s.archived_at IS NULL AND s.guardian_phone IS NOT NULL AND s.guardian_phone <> ''
+      ORDER BY s.guardian_phone, s.full_name`);
+  const groups = new Map();
+  for (const r of rows) {
+    if (!groups.has(r.guardian_phone)) groups.set(r.guardian_phone, []);
+    groups.get(r.guardian_phone).push(r);
+  }
+  return [...groups.entries()].filter(([, list]) => list.length > 1).map(([phone, list]) => {
+    const keys = [...new Set(list.map(familyKey).filter(Boolean))];
+    return {
+      phone, guardian_name: list.find((x) => x.guardian_name)?.guardian_name || null, parent_id: list[0].parent_id,
+      verified: keys.length <= 1, families: keys.length,
+      students: list.map((x) => ({ id: x.id, name: x.full_name, family_name: x.family_name, class_name: x.class_name, linked: x.linked })),
+    };
+  });
 }
 
 export async function listRequests(q) {

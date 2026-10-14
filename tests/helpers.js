@@ -4,7 +4,8 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { createApp } from "../src/app.js";
-import { closePool } from "../src/core/db/pool.js";
+import { closePool, transaction } from "../src/core/db/pool.js";
+import { setTransport } from "../src/modules/shared/notify.service.js";
 
 export async function startServer() {
   const server = createApp().listen(0);
@@ -77,4 +78,29 @@ export async function readySchool(base, { prefix = "t", name = "مدرسة ال�
   const teacherId = (await admin.get("/api/admin/teachers/")).data[0].id;
   return { id, owner, admin, teacher, teacherId, c1, c2, math, students: list, code: r.data.credentials.directory_code,
     parent: (s) => ({ student_id: s.id, key: s.access_key }) };
+}
+
+export const randomPhone = () => `05${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+
+// Runs the manager's activation: SMS code to the typed number (captured by a stub gateway), then the password.
+export async function activateSchool(base, schoolId, url, password, phone = randomPhone()) {
+  const token = new URL(url).searchParams.get("token");
+  const pub = client(base);
+  const sent = [];
+  const [was] = await transaction({ platform: true }, (q) => q("SELECT enabled, url FROM sms_gateway WHERE id = 1"));
+  setTransport({ sms: async (g, m) => { sent.push(m); } });
+  await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = true, url = CASE WHEN url = '' THEN 'https://sms.example/send' ELSE url END WHERE id = 1"));
+  try {
+    const s = await pub.post("/api/public/activation/send-code", { token, phone });
+    if (s.status !== 200) throw new Error(`send ${s.status} ${JSON.stringify(s.data)}`);
+  } finally {
+    setTransport(null);
+    await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = $1, url = $2 WHERE id = 1", [was.enabled, was.url]));
+  }
+  const code = sent.at(-1).message.match(/(\d{6})/)[1];
+  const v = await pub.post("/api/public/activation/verify", { token, code });
+  if (v.status !== 200) throw new Error(`verify ${v.status} ${JSON.stringify(v.data)}`);
+  const done = await pub.post("/api/public/activation", { token, password });
+  if (done.status !== 200) throw new Error(`activate ${done.status} ${JSON.stringify(done.data)}`);
+  return pub;
 }

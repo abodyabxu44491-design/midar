@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "./dom.js";
@@ -38,7 +38,8 @@ export function feesReadOnly(f, compact = false) {
         : empty("لا توجد فواتير.")]);
 }
 
-export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [], appNav = false, afterHead = null, teachersView = null } = {}) {
+export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [], appNav = false, afterHead = null, teachersView = null,
+  headActions = [], moreActions = [] } = {}) {
   const s = d.student, f = d.fees;
   const avg = d.grades_percent !== undefined && d.grades_percent !== null ? Math.round(d.grades_percent)
     : d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
@@ -121,8 +122,6 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     const STATE = { pending: ["عذرك قيد المراجعة", "amber"], accepted: ["قُبل العذر", ""], rejected: ["لم يُقبل العذر", "red"] };
     return section("الحضور والغياب",
       banners()[0],
-      d.has_gate && actions.attendanceCard ? h("div", { class: "row spaced", style: "justify-content:flex-start" },
-        btn("بطاقة الحضور (QR)", () => cardDialog(), "soft sm"), sub("تُمسح عند بوابة المدرسة فيُسجَّل الحضور ويصلك إشعار.")) : null,
       h("div", { class: "kpis inline att-inline" },
         h("div", { class: "s-present" }, h("b", {}, count("present")), "حاضر"), h("div", { class: "s-absent" }, h("b", {}, count("absent")), "غائب"),
         h("div", { class: "s-late" }, h("b", {}, count("late")), "متأخر"), h("div", { class: "s-excused" }, h("b", {}, count("excused")), "بعذر"),
@@ -188,56 +187,62 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   }
 
   const body = h("div", { class: "profile-body" });
+  // Sections sit in one scrollable bar at the top (parent app and admin alike).
   const nav = h("nav", { class: "profile-nav", "aria-label": "أقسام الملف" });
-  const SHORT = { overview: "الرئيسية", grades: "الدرجات", attendance: "الحضور", fees: "الرسوم", teachers: "المعلمون" };
   const ICON = { overview: icons.home, grades: icons.chart, attendance: icons.calendar, fees: icons.wallet, alerts: icons.alert, homework: icons.clipboard,
     timetable: icons.grid, teachers: icons.users, news: icons.megaphone, inbox: icons.bell, chat: icons.message,
     "online-exams": icons.monitor, certificates: icons.award, calendar: icons.calendar, transport: icons.bus, health: icons.heart,
     library: icons.book, surveys: icons.poll, meetings: icons.clock, behavior: icons.star };
-  const pinned = appNav ? ["overview", "grades", "attendance", "teachers", "fees"].filter((k) => sections.some((x) => x.key === k)) : [];
-  const bnav = appNav ? h("nav", { class: "bnav sf-bnav", "aria-label": "التنقل" }) : null;
   let current = null, elRef = null;
   const open = (key, stay = false) => {
     current = key;
     nav.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
-    if (bnav) {
-      bnav.querySelectorAll("button[data-k]").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
-      bnav.querySelector(".bnav-more")?.classList.toggle("on", !pinned.includes(key));
-    }
+    nav.querySelector("button.on")?.scrollIntoView({ block: "nearest", inline: "center", behavior: stay ? "auto" : "smooth" });
     mount(body, views[key]());
     if (elRef) elRef.dataset.view = key;
     if (scrollTop && !stay) window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  mount(nav, sections.map((sec) => h("button", { type: "button", "data-k": sec.key, onclick: () => open(sec.key) },
-    h("span", {}, sec.name), sec.note ? h("small", {}, sec.note) : null)));
-  if (bnav) {
-    const rest = sections.filter((x) => !pinned.includes(x.key));
-    mount(bnav, pinned.map((k) => h("button", { type: "button", class: "bnav-item", "data-k": k, onclick: () => open(k) },
-      (ICON[k] || icons.list)({ size: 20 }), h("span", { class: "tab-label" }, SHORT[k]),
-      k === "teachers" && /جديد/.test(sections.find((x) => x.key === k)?.note || "") ? h("span", { class: "nav-badge" }, (sections.find((x) => x.key === k).note.match(/\d+/) || ["•"])[0]) : null)),
-    rest.length ? h("button", { type: "button", class: "bnav-item bnav-more", "aria-haspopup": "dialog",
-      onclick: () => sheetMenu("أقسام الملف", [{ title: "", items: rest.map((x) => ({ key: x.key, name: x.name, note: x.note, icon: ICON[x.key] })) }], { current, onPick: open }) },
-      icons.grid({ size: 20 }), h("span", { class: "tab-label" }, "المزيد"),
-      rest.some((x) => /جديد/.test(x.note || "")) ? h("span", { class: "nav-badge" }, "•") : null) : null);
-    document.body.classList.add("has-bnav");
-  }
+  mount(nav, sections.map((sec) => h("button", { type: "button", "data-k": sec.key, onclick: () => open(sec.key), title: sec.note || sec.name },
+    (ICON[sec.key] || icons.list)({ size: 16 }), h("span", {}, sec.name),
+    /جديد/.test(sec.note || "") ? h("span", { class: "nav-badge" }, (sec.note.match(/\d+/) || ["•"])[0]) : null)));
 
   const avatar = photo ? h("img", { class: "sf-avatar", src: photo, alt: "" }) : personAvatar(s.gender, 72, "sf-avatar");
   const todayRec = d.attendance.find((a) => a.day === new Date().toLocaleDateString("en-CA"));
   const tile = (tone, label, value) => h("div", { class: `sf-kpi ${tone}` }, h("span", {}, label), h("b", {}, value));
+  const canCard = (d.admin || d.has_gate) && actions.attendanceCard;
+  const acts = headActions;
+  const copyId = (value, b) => {
+    navigator.clipboard?.writeText(value).then(() => { b.classList.add("done"); setTimeout(() => b.classList.remove("done"), 1400); }, () => {});
+  };
+  // Compact identifiers: the student ID (parent login) with copy and the attendance barcode next to it; the school number only if set.
+  const idBox = (label, value, extra = null) => {
+    const b = h("button", { type: "button", class: "sf-copy", title: "نسخ", "aria-label": `نسخ ${label}` }, icons.copy({ size: 13 }));
+    b.addEventListener("click", () => copyId(value, b));
+    return h("div", { class: "sf-idbox" }, h("span", {}, label), h("b", { dir: "ltr" }, value), b, extra);
+  };
+  const cardBtn = canCard ? h("button", { type: "button", class: "sf-copy sf-qr", title: "طباعة باركود الحضور", "aria-label": "طباعة باركود الحضور", onclick: () => cardDialog() },
+    icons.print({ size: 13 }), h("span", {}, "الباركود")) : null;
+  const ids = [s.access_key ? idBox("المعرّف", s.access_key, cardBtn) : null, s.student_no ? idBox("رقم الطالب", String(s.student_no)) : null].filter(Boolean);
+  const bar = acts.length || moreActions.length ? h("div", { class: "sf-bar", role: "toolbar", "aria-label": "إجراءات الطالب" },
+    acts.map((a) => (a.el ? a.el : h("button", { type: "button", class: `sf-act ${a.tone || ""}`, onclick: a.onClick },
+      icons[a.icon] ? icons[a.icon]({ size: 18 }) : null, h("span", {}, a.label)))),
+    moreActions.length ? h("button", { type: "button", class: "sf-act", "aria-haspopup": "dialog",
+      onclick: () => sheetMenu("إجراءات أخرى", [{ title: "", items: moreActions.map((a, i) => ({ key: String(i), name: a.label, note: a.note, icon: icons[a.icon] })) }],
+        { onPick: (k) => moreActions[Number(k)].onClick() }) },
+      icons.grid({ size: 18 }), h("span", {}, "المزيد")) : null) : null;
   const el = h("div", { class: `student-file${appNav ? " app" : ""}` },
-    toolbar,
+    toolbar, nav,
     h("div", { class: "sf-head" },
       avatar,
       h("div", { class: "sf-id" },
         h("h1", {}, s.name),
-        h("div", { class: "sub" }, [s.class_name, d.admin && s.student_no ? `رقم ${s.student_no}` : null].filter(Boolean).join(" · ")),
+        h("div", { class: "sub" }, s.class_name),
         h("div", { class: "sf-chips" },
           todayRec ? h("span", { class: `stu-today s-${todayRec.status}` }, `اليوم: ${ATTENDANCE[todayRec.status]?.[0] || todayRec.status}`) : null,
           avg !== null && d.settings.profile_show_grades ? badge(avg >= 90 ? "ممتاز" : avg >= 75 ? "جيد جدًا" : avg >= 60 ? "جيد" : "يحتاج متابعة", avg >= 60 ? "violet" : "amber") : null,
-          f && f.status === "unpaid" ? badge("عليه رسوم", "amber") : null),
-        !d.admin && d.has_gate && actions.attendanceCard ? h("div", { class: "sf-acts" },
-          btn([icons.print({ size: 16 }), "طباعة باركود الدخول"], () => cardDialog(), "soft sm")) : null)),
+          f && f.status === "unpaid" ? badge("عليه رسوم", "amber") : null)),
+      ids.length ? h("div", { class: "sf-ids" }, ids) : null),
+    bar,
     h("div", { class: "sf-kpis" },
       d.settings.profile_show_attendance && rate !== null ? tile("teal", "نسبة الحضور", `${rate}%`) : null,
       d.settings.profile_show_grades ? tile("violet", "متوسط الدرجات", avg === null ? "—" : `${avg}%`) : null,
@@ -245,8 +250,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
       d.settings.profile_show_attendance ? tile("amber", "مرات التأخر", String(count("late"))) : null,
       f ? tile("navy", f.status === "unpaid" ? "رسوم متبقية" : "الرسوم", f.status === "paid" ? "مسددة" : f.status === "unpaid" ? money(f.remaining) : "—") : null),
     afterHead,
-    h("div", { class: "profile-layout" }, nav, body),
-    bnav);
+    h("div", { class: "profile-layout" }, body));
   elRef = el;
   open("overview");
   return { el, open };

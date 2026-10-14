@@ -27,7 +27,7 @@ const leadSchema = z.object({
   details: z.object({
     short_name: t.optText(60),
     org_type: z.enum(["private", "public", "international", "institute", "other"]).optional(),
-    country: z.enum(["YE", "SA", "OTHER"]).optional(),
+    country: z.string().trim().max(60).optional(),
     region: t.optText(60), address: t.optText(200),
     school_phone: z.string().trim().regex(/^[0-9+ ]{6,20}$/, "هاتف المدرسة غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
     school_email: z.string().trim().email("بريد المدرسة غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
@@ -51,7 +51,7 @@ function normalize(b) {
 
 const STATUS = {
   new: "وصل طلبك وينتظر المراجعة", reviewing: "قيد المراجعة، وسنتواصل معك قريبًا", approved: "تمت الموافقة، ونجهّز مدرستك",
-  awaiting_payment: "بانتظار إتمام الدفع", active: "مدرستك جاهزة، ووصلتك بيانات الدخول", rejected: "اعتذرنا عن الطلب",
+  awaiting_payment: "بانتظار إتمام الدفع", active: "مدرستك جاهزة، ووصلكم رابط التفعيل", rejected: "اعتذرنا عن الطلب",
   canceled: "أُلغي الطلب", expired: "انتهت صلاحية الطلب",
 };
 const KIND = { trial: "تجربة مجانية", subscription: "اشتراك", contact: "رسالة تواصل" };

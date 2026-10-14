@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "/shared/js/dom.js";
@@ -109,14 +109,6 @@ export function subForm(refs, defaults = {}) {
     return out;
   };
   return { el: h("div", {}, box, sub("المميزات والحدود تُحفظ كلقطة وقت التفعيل؛ تعديل الباقة لاحقًا لا يغيّر هذا الاشتراك إلا بقرارك.")), value };
-}
-
-export function handoverText(r) {
-  const link = `${location.origin}/${r.credentials.school}`;
-  return [`مرحبًا ${r.lead?.contact_name || ""}، تم تفعيل حساب ${r.school.name} على منصة مدار.`,
-    `رابط دخول الإدارة: ${link}/idara`, `اسم المستخدم: ${r.credentials.username}`, `كلمة المرور المؤقتة: ${r.credentials.password}`,
-    `رابط صفحة المدرسة وأولياء الأمور: ${link}`,
-    "بعد الدخول سيطلب النظام تغيير كلمة المرور، ثم يبدأ معالج إعداد المدرسة."].join("\n");
 }
 
 export const REQ_KINDS = { trial: ["طلب تجربة", "amber"], subscription: ["طلب اشتراك", "blue"], feature: ["طلب ميزة", ""], contact: ["تواصل", "gray"],

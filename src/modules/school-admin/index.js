@@ -4,6 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { Router } from "express";
+import { forbidden } from "../../core/http/errors.js";
 import { requireStaff, requireModule } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
 import dashboard from "./dashboard.js";
@@ -17,6 +18,8 @@ import gradeComponents from "./grade-components.js";
 import finance from "./finance.js";
 import ledger from "./ledger.js";
 import users from "./users.js";
+import financeRequests from "./finance-requests.js";
+import bookDeposits from "./book-deposits.js";
 import passwordRequests from "./password-requests.js";
 import announcements from "./announcements.js";
 import settings from "./settings.js";
@@ -48,11 +51,20 @@ import { papersRouter, papersAdminSettingsRouter } from "../shared/exam-papers.r
 import { adminSyncRouter } from "../shared/sync.routes.js";
 import { jobsRouter } from "../shared/jobs.routes.js";
 import { staffNotificationsRouter } from "../shared/notifications.routes.js";
+import { instituteRouter } from "../shared/institute.routes.js";
 
 const r = Router();
 r.use(logoutRouter("admin"));
 r.use(requireStaff("admin"));
+const FULL_ONLY = ["/finance", "/ledger", "/users", "/danger", "/subscription", "/settings/subscription", "/book-deposits", "/staff-affairs/payroll"];
+r.use((req, res, next) => (req.user.admin_scope === "school" && FULL_ONLY.some((p) => req.path === p || req.path.startsWith(`${p}/`))
+  ? next(forbidden("هذا القسم للإدارة العامة. قدّم ما تحتاجه من «الطلبات المالية».")) : next()));
+// Institute staff other than the director reach only the institute section (plus their own account).
+const STAFF_OPEN = ["/me", "/password", "/institute", "/notifications"];
+r.use((req, res, next) => (req.tenant.org_type === "institute" && req.user.staff_role && req.user.staff_role !== "director"
+  && !STAFF_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`)) ? next(forbidden("هذا القسم خارج صلاحيات دورك في المعهد.")) : next()));
 r.post("/password", changePassword);
+r.use("/institute", instituteRouter());
 r.use(dashboard);
 r.use("/structure", structure);
 r.use("/teachers", teachers);
@@ -64,6 +76,8 @@ r.use("/grade-components", requireModule("exams"), gradeComponents);
 r.use("/finance", requireModule("fees"), finance);
 r.use("/ledger", requireModule("finance"), ledger);
 r.use("/users", users);
+r.use("/finance-requests", financeRequests);
+r.use("/book-deposits", requireModule("finance"), bookDeposits);
 r.use("/notifications", staffNotificationsRouter());
 r.use("/jobs", jobsRouter("school"));
 r.use("/password-requests", passwordRequests);

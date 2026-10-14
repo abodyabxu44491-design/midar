@@ -13,7 +13,7 @@ import { notify } from "./notify.service.js";
 
 const qrcode = createRequire(import.meta.url)("qrcode-generator");
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const newCode = () => Array.from(crypto.randomBytes(10), (b) => ALPHA[b % ALPHA.length]).join("");
+export const newCode = () => Array.from(crypto.randomBytes(10), (b) => ALPHA[b % ALPHA.length]).join("");
 
 export const issueSchema = z.object({
   class_id: t.id,

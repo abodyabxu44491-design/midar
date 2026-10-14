@@ -62,7 +62,7 @@ export const ensureDefaults = (q) => q("SELECT seed_finance_defaults()");
 
 export async function listAccounts(q) {
   const accounts = await q(
-    `SELECT a.id, a.name, a.kind, a.currency, a.opening_balance, a.low_balance, a.note, a.is_active,
+    `SELECT a.id, a.name, a.kind, a.currency, a.opening_balance, a.low_balance, a.note, a.is_active, a.purpose,
             account_balance(a.id) AS balance
        FROM finance_accounts a ORDER BY a.is_active DESC, a.id`);
   const methods = await q("SELECT method, account_id FROM finance_method_accounts");

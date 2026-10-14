@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { $, h, mount } from "./dom.js";
@@ -8,7 +8,7 @@ import { api, APP_VERSION, announceUpdate, applyPendingUpdate } from "./api.js";
 import { startAnalytics } from "./analytics.js";
 import { icons } from "./icons.js";
 
-export const DEV = "مدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
+export const DEV = "مدار MIDAR";
 
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; refreshInstall(); });
@@ -285,13 +285,15 @@ const TAB_ICONS = {
   attendance: "check", distribution: "shuffle", timetable: "grid", exams: "clipboard", papers: "file", reports: "award",
   sheets: "print", analytics: "chart", finance: "wallet", fees: "wallet", ledger: "bank", admissions: "userPlus",
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",
-  homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus",
+  homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus", deposits: "book", "money-requests": "clipboard",
   billing: "money", passwords: "key", danger: "lock",
+  trainees: "users", programs: "book", courses: "clipboard", trainers: "briefcase", sessions: "calendar", icerts: "award", ifees: "wallet",
+  ireports: "chart", istaff: "user", isettings: "settings", mycourses: "clipboard",
   communication: "message", staff: "briefcase", behavior: "star", calendar: "calendar", certificates: "award", services: "box",
   ai: "sparkle", chat: "message", testimonials: "star", groups: "building", lessons: "clipboard", meetings: "clock", surveys: "poll", me: "briefcase", sms: "message", "online-exams": "monitor",
 };
 
-export function tabs(list, views, ctx, { primary = [] } = {}) {
+export function tabs(list, views, ctx, { primary = [], top = false } = {}) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
   let current;
@@ -328,7 +330,7 @@ export function tabs(list, views, ctx, { primary = [] } = {}) {
     markActive();
     const active = bar.querySelector(`[data-k="${key}"]`);
     if (active && bar.scrollWidth > bar.clientWidth + 4 && getComputedStyle(bar).flexDirection === "row") {
-      bar.scrollTo({ left: active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
+      active.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
     }
     mount(body, skeleton());
     const refresh = () => show(key);
@@ -365,12 +367,12 @@ export function tabs(list, views, ctx, { primary = [] } = {}) {
     document.body.append(sheet);
     sheet.showModal();
   };
-  for (const key of pinned) bnav.append(tabBtn(key, "bnav-item"));
-  if (withMore) {
+  if (!top) for (const key of pinned) bnav.append(tabBtn(key, "bnav-item"));
+  if (withMore && !top) {
     bnav.append(h("button", { type: "button", class: "bnav-item bnav-more", onclick: openMore, "aria-haspopup": "dialog" },
       icons.grid({ size: 20 }), h("span", { class: "tab-label" }, "المزيد"), badgeEl("__more")));
   }
-  document.body.classList.add("has-bnav");
+  if (!top) document.body.classList.add("has-bnav");
 
   const setBadge = (key, n) => {
     badges[key] = Number(n) || 0;
@@ -390,7 +392,8 @@ export function tabs(list, views, ctx, { primary = [] } = {}) {
     if (!k && location.hash) history.replaceState(null, "", location.pathname + location.search);
     return show(k || fallback, { push: false });
   };
-  return { el: h("div", { class: "tabs-layout" }, bar, body, bnav), show, start, setBadge };
+  // top: one horizontally scrollable bar above the content on every screen size, no bottom bar.
+  return { el: h("div", { class: `tabs-layout${top ? " tabs-top" : ""}` }, bar, body, top ? null : bnav), show, start, setBadge };
 }
 
 export function sheetMenu(title, groups, { current, onPick } = {}) {
@@ -454,8 +457,10 @@ export function showCredentials(title, all, note) {
 }
 
 export function loginScreen({ role, endpoint, withSchool = true, withCode = false, onSuccess,
-  title = "بوابة مالك المنصة", subtitle = "إدارة المدارس والاشتراكات من مكان واحد", points = [] }) {
-  const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem("midar_school") || "", "aria-label": "رمز المدرسة" });
+  title = "بوابة مالك المنصة", subtitle = "إدارة المدارس والاشتراكات من مكان واحد", points = [],
+  schoolLabel = "رمز المدرسة", storeKey = "midar_school",
+  recoveryText = "استعادة كلمة مرور المالك تتم من ملف الإعدادات على الخادم: npm run owner:password ثم تحديث OWNER_PASSWORD_HASH." }) {
+  const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem(storeKey) || "", "aria-label": schoolLabel });
   const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
   const pass = passwordInput({ autocomplete: "current-password", placeholder: "كلمة المرور" });
   const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 6, placeholder: "000000" });
@@ -466,7 +471,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
     mount(msg);
     try {
       await api(endpoint, { school: school.value, username: user.value, password: pass.value, code: code.value, remember: remember.checked });
-      if (withSchool) localStorage.setItem("midar_school", school.value.trim().toLowerCase());
+      if (withSchool) localStorage.setItem(storeKey, school.value.trim().toLowerCase());
       pass.value = "";
       onSuccess();
     } catch (e) { mount(msg, notice(e.message, "err")); }
@@ -489,7 +494,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
         h("h2", {}, title),
         h("p", { class: "gate-sub" }, subtitle),
 
-        withSchool ? field("رمز المدرسة", school) : null,
+        withSchool ? field(schoolLabel, school) : null,
         field("اسم المستخدم", user),
         field("كلمة المرور", pass),
         withCode ? field("رمز التحقق (6 أرقام)", code) : null,
@@ -497,7 +502,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
         h("div", { class: "gate-row" },
           h("label", {}, remember, h("span", {}, "تذكرني على هذا الجهاز")),
           h("button", { class: "gate-link", type: "button", onclick: () => mount(recovery,
-            notice("استعادة كلمة مرور المالك تتم من ملف الإعدادات على الخادم: npm run owner:password ثم تحديث OWNER_PASSWORD_HASH.", "warn")) },
+            notice(recoveryText, "warn")) },
             "نسيت كلمة المرور؟")),
 
         recovery, msg, submit,

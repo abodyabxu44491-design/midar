@@ -9,6 +9,8 @@ import { handle, notFound, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { activate, activateSchema, act, actionSchema, trialHistory, STATUS_LABEL, runExpiry } from "../shared/subscription.service.js";
 import { createTenant } from "./tenants.js";
+import * as files from "../shared/school-files.service.js";
+import { baseUrl } from "../../core/links.js";
 
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 const tenantParam = z.string().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/);
@@ -114,7 +116,7 @@ requests.get("/", handle(async (req, res) => {
       `SELECT l.id, l.kind, l.source, l.status, l.school_name, l.contact_name, l.phone, l.email, l.city, l.students_count,
               l.note, l.owner_note, l.tenant_id, l.plan_id, p.name AS plan_name, l.billing_cycle, l.months, l.try_plan,
               l.addon_keys, (SELECT array_agg(x.name ORDER BY x.sort) FROM features x WHERE x.key = ANY(l.addon_keys)) AS addon_names,
-              l.feature_key, fe.name AS feature_name, l.details, l.requested_by, l.handled_by, l.seen_at, l.created_at,
+              l.feature_key, fe.name AS feature_name, l.details, l.last_error, l.requested_by, l.handled_by, l.seen_at, l.created_at,
               t.name AS tenant_name,
               -- حماية من تكرار التجربة: طلبات أو مدارس سابقة بنفس الجوال أو البريد
               (SELECT count(*)::int FROM leads x WHERE x.id <> l.id AND x.kind = 'trial' AND l.source = 'public'
@@ -156,23 +158,49 @@ requests.patch("/:id", handle(async (req, res) => {
 }));
 
 const convertSchema = z.object({
-  id: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)"),
+  id: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)").optional().or(z.literal("")),
   name: t.shortText("اسم المدرسة", 150),
   admin_name: t.name("اسم المدير").optional().default("مدير المدرسة"),
   currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
   subscription: activateSchema,
+  org_type: z.enum(["school", "institute"]).optional(),
 });
 requests.post("/:id/convert", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(convertSchema, req.body);
-  const [lead] = await platform(req, (q) => q("SELECT * FROM leads WHERE id = $1", [id]));
-  if (!lead) throw notFound("الطلب غير موجود");
-  if (lead.tenant_id) throw badRequest("هذا الطلب مرتبط بمدرسة قائمة. فعّل اشتراكها من صفحة الاشتراكات.");
-  const created = await createTenant(req, {
-    id: b.id, name: b.name, admin_name: b.admin_name, currency: b.currency, max_students: b.subscription.max_students || 200,
-    subscription: { ...b.subscription, lead_id: id },
+  // One school per request: the request is claimed first, so a double click or a retry cannot create a second school.
+  const [lead] = await platform(req, (q) => q(
+    `UPDATE leads SET converting_at = now(), last_error = NULL WHERE id = $1 AND tenant_id IS NULL
+        AND (converting_at IS NULL OR converting_at < now() - interval '2 minutes') RETURNING *`, [id]));
+  if (!lead) {
+    const [cur] = await platform(req, (q) => q("SELECT tenant_id FROM leads WHERE id = $1", [id]));
+    if (!cur) throw notFound("الطلب غير موجود");
+    if (cur.tenant_id) return res.status(409).json({ error: "أُنشئت مدرسة هذا الطلب مسبقًا. افتح ملفها من «ملفات المدارس».", tenant_id: cur.tenant_id });
+    throw badRequest("جارٍ إنشاء مدرسة هذا الطلب الآن. انتظر لحظة ثم حدّث الصفحة.");
+  }
+  if (!b.id) b.id = await platform(req, (q) => files.uniqueSchoolCode(q, b.name));
+  let created;
+  try {
+    created = await createTenant(req, {
+      id: b.id, name: b.name, admin_name: b.admin_name, currency: b.currency, max_students: b.subscription.max_students || 200,
+      org_type: b.org_type || (lead.details?.org_type === "institute" ? "institute" : "school"),
+      subscription: { ...b.subscription, lead_id: id },
+    });
+  } catch (e) {
+    await platform(req, (q) => q("UPDATE leads SET converting_at = NULL, last_error = $2 WHERE id = $1", [id, String(e.message).slice(0, 500)]));
+    throw e;
+  }
+  const link = await platform(req, async (q) => {
+    const profile = Object.fromEntries(Object.entries({ contact_name: lead.contact_name, phone: lead.phone, email: lead.email, city: lead.city,
+      students_count: lead.students_count, note: lead.note, ...(lead.details || {}) }).filter(([, v]) => v !== null && v !== undefined && v !== ""));
+    await q(`UPDATE tenants SET profile = $2, lead_id = $3, approved_at = now(), approved_by = $4 WHERE id = $1`, [b.id, profile, id, req.actor]);
+    await q("UPDATE leads SET converting_at = NULL, last_error = NULL, handled_by = $2 WHERE id = $1", [id, req.actor]);
+    await files.addEvent(q, b.id, { kind: "approved", body: `اعتُمد طلب رقم ${id} وأُنشئت المدرسة` }, req.actor);
+    await files.addEvent(q, b.id, { kind: "account", body: "أُنشئ حساب مدير المدرسة بانتظار التفعيل من رابط التفعيل" }, req.actor);
+    return files.issueLink(q, b.id, req.actor, baseUrl(req));
   });
-  res.status(201).json({ ...created, lead: { phone: lead.phone, contact_name: lead.contact_name } });
+  // The temporary password is not handed out: the school sets its own password from the activation link.
+  res.status(201).json({ school: created.school, tenant_id: b.id, activation: link, lead: { phone: lead.phone, contact_name: lead.contact_name } });
 }));
 
 requests.post("/:id/grant-feature", handle(async (req, res) => {

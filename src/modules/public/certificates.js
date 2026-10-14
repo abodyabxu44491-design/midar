@@ -18,7 +18,9 @@ verifyRouter.get("/verify/:code", limits.studentKey, handle(async (req, res) => 
   const code = parse(z.string().trim().toUpperCase().regex(/^[A-HJ-NP-Z2-9]{10}$/, "رمز الشهادة غير صحيح"), req.params.code);
   const [row] = await transaction({ platform: true, actor: "زائر", ip: req.ip }, (q) => q("SELECT * FROM verify_certificate($1)", [code]));
   if (!row) throw notFound("لا توجد شهادة بهذا الرمز");
-  res.set("Cache-Control", "no-store").json(row);
+  // School certificates publish exactly what they always did; course fields appear only for institutes.
+  const { org_type, kind, course, program, hours, completed_on, ...base } = row;
+  res.set("Cache-Control", "no-store").json(org_type === "institute" ? { ...base, org_type, kind, course, program, hours, completed_on } : base);
 }));
 
 export const schoolRouter = Router({ mergeParams: true });

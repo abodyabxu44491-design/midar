@@ -15,6 +15,10 @@ export const profileFields = {
   birth_date: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاريخ الميلاد غير صحيح"), z.literal(""), z.null()]).optional().transform(blankToNull),
   gender: z.union([z.enum(["male", "female"]), z.literal(""), z.null()]).optional().transform(blankToNull),
   student_phone: t.phone,
+  family_name: z.string().trim().max(60).optional().nullable().transform(blankToNull)
+    .refine((v) => v == null || v.length >= 2, "اللقب حرفان على الأقل"),
+  area: z.string().trim().max(80).optional().nullable().transform(blankToNull)
+    .refine((v) => v == null || v.length >= 2, "المنطقة حرفان على الأقل"),
 };
 export const studentSchema = z.object({
   ...profileFields,
@@ -79,12 +83,12 @@ async function insertOne(q, s) {
     const key = newStudentKey();
     const rows = await q(
       `INSERT INTO students (tenant_id, class_id, full_name, guardian_name, guardian_phone, access_key, fees_enabled,
-                             student_no, birth_date, gender, student_phone)
-       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                             student_no, birth_date, gender, student_phone, family_name, area)
+       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (tenant_id, access_key) DO NOTHING
-       RETURNING id, full_name AS name, guardian_name, guardian_phone, access_key, student_no`,
+       RETURNING id, full_name AS name, guardian_name, guardian_phone, access_key, student_no, family_name`,
       [classId, name, guardian, phone, key, s.fees_enabled ?? false, s.student_no ?? null, s.birth_date ?? null,
-       s.gender ?? null, normalizePhone(s.student_phone)]);
+       s.gender ?? null, normalizePhone(s.student_phone), cleanName(s.family_name) || null, cleanName(s.area) || null]);
     if (rows.length) return rows[0];
   }
   throw conflict("تعذر إنشاء معرّف فريد، أعد المحاولة");
@@ -106,7 +110,14 @@ export async function create(q, tenant, list, onEach = null) {
   await ensureStudentNos(q, list.map((x) => x.student_no));
   const out = [];
   for (const s of list) { out.push(await insertOne(q, s)); onEach?.(out.length, list.length); }
+  await linkToParents(q, out.filter((x) => x.guardian_phone).map((x) => x.id));
   return out;
+}
+
+async function linkToParents(q, ids) {
+  if (!ids.length) return;
+  const { autoLinkStudent } = await import("./parents.service.js");
+  for (const id of ids) await autoLinkStudent(q, id, { actor: "ربط تلقائي" });
 }
 
 export async function ensureStudentNos(q, numbers, exceptId = null) {
@@ -133,14 +144,17 @@ export async function update(q, id, b) {
     birth_date: b.birth_date !== undefined ? b.birth_date : s.birth_date,
     gender: b.gender !== undefined ? b.gender : s.gender,
     student_phone: b.student_phone !== undefined ? normalizePhone(b.student_phone) : s.student_phone,
+    family_name: b.family_name !== undefined ? cleanName(b.family_name) || null : s.family_name,
+    area: b.area !== undefined ? cleanName(b.area) || null : s.area,
   };
   const [row] = await q(
     `UPDATE students SET full_name = $2, class_id = $3, guardian_name = $4, guardian_phone = $5, fees_enabled = $6,
-            student_no = $8, birth_date = $9, gender = $10, student_phone = $11
+            student_no = $8, birth_date = $9, gender = $10, student_phone = $11, family_name = $12, area = $13
       WHERE id = $1 AND version = $7 RETURNING version`,
     [id, next.full_name, next.class_id, next.guardian_name, next.guardian_phone, next.fees_enabled, b.version,
-     next.student_no, next.birth_date, next.gender, next.student_phone]);
+     next.student_no, next.birth_date, next.gender, next.student_phone, next.family_name, next.area]);
   if (!row) throw conflict("تم تعديل بيانات هذا الطالب من شخص آخر. حدّث الصفحة ثم أعد المحاولة.");
+  if (next.guardian_phone && next.guardian_phone !== s.guardian_phone) await linkToParents(q, [id]);
   return row;
 }
 

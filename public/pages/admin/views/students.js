@@ -1,15 +1,15 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { personAvatar } from "../../shared/js/ui.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
-  showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
+  showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
-import { waButton, messageVars } from "../../shared/js/whatsapp.js";
+import { waLink, fillTemplate, messageVars } from "../../shared/js/whatsapp.js";
 import { cardWithActions } from "../../shared/js/parent-card.js";
 import { A, loadClasses, directoryLink, optional, rememberField } from "./common.js";
 import { openStudentImport } from "./student-import.js";
@@ -60,11 +60,14 @@ export default async function students({ me, refresh }) {
       h("div", { class: "sub" }, "حسب المرحلة"), chips(byStage, "stage"),
       h("div", { class: "sub" }, "حسب الصف"), chips(byGrade, "grade")) : null);
 
-  const q = rememberField("students-q", input({ placeholder: "ابحث عن طالب بالاسم أو رقم الطالب…", type: "search", "aria-label": "بحث" }));
+  const q = rememberField("students-q", input({ placeholder: "ابحث بالاسم أو اللقب أو المنطقة أو رقم الطالب…", type: "search", "aria-label": "بحث" }));
   const picker = gradePicker(structure, { sectionsOn, onChange: () => load() });
   const statusSel = select([["active", "نشط"], ["graduated", "متخرج"], ["transferred", "منقول"], ["withdrawn", "منسحب"], ["all", "كل الحالات"]]);
   const feeFilter = rememberField("students-fees", select([["", "كل الحالات المالية"], ["unpaid", "عليه رسوم متبقية"], ["paid", "مسدد"], ["off", "الرسوم موقوفة"]]), { event: "change" });
-  for (const el of [statusSel, feeFilter]) el.addEventListener("change", () => load());
+  const areaFilter = select([["", "كل المناطق"]]);
+  api(`${A}/students/areas`).then((areas) => { if (areas.length) mount(areaFilter, h("option", { value: "" }, "كل المناطق"), areas.map((a) => h("option", { value: a.area }, `${a.area} (${a.students})`))); else areaFilter.hidden = true; })
+    .catch(() => { areaFilter.hidden = true; });
+  for (const el of [statusSel, feeFilter, areaFilter]) el.addEventListener("change", () => load());
 
   let list = [], total = 0, seq = 0, loadingMore = false, selectMode = false;
   const selected = new Set();
@@ -81,6 +84,7 @@ export default async function students({ me, refresh }) {
     if (statusSel.value === "active" || statusSel.value === "all") p.set("status", statusSel.value); else p.set("st", statusSel.value);
     if (picker.stageId || picker.classId) p.set("class_ids", picker.classIds().join(",") || "0");
     if (feeFilter.value) p.set("fees", feeFilter.value);
+    if (areaFilter.value) p.set("area", areaFilter.value);
     if (importedSince) p.set("since", importedSince);
     return `${A}/students?${p}`;
   };
@@ -155,28 +159,31 @@ export default async function students({ me, refresh }) {
     try {
       const data = await api(`${A}/students/${s.id}/profile`);
       const cur = { ...s, ...data.student, name: data.student.name };
-      const toolbar = h("div", { class: "file-actions" },
-        btn("تعديل", () => { d.close(); studentForm({ student: s, classes, structure, sectionsOn, onSaved: afterChange }); }, "sm"),
-        btn("بطاقة ولي الأمر", () => card2(me, s), "ghost sm"),
-        btn("حسابات أولياء الأمور", async () => dialog(`أولياء أمور ${s.name}`, h("div", {}, await studentParents(s.id),
-          sub("الربط وفك الارتباط من قسم «أولياء الأمور»."))), "ghost sm"),
-        templates && waButton({ phone: s.guardian_phone, template: templates.general, countryCode: templates.country_code,
-          vars: messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) }), label: "واتساب" }),
-        h("span", { class: "fees-switch" }, h("span", { class: "sub" }, "الرسوم"),
-          switchBtn(s.fees_enabled, `الرسوم للطالب ${s.name}`, async () => {
-            try { const r = await api(`${A}/students/${s.id}`, { version: s.version, fees_enabled: !s.fees_enabled }, "PATCH");
-              s.version = r.version; s.fees_enabled = !s.fees_enabled; d.close(); afterChange(); return true; }
-            catch (e) { toast(e.message, true); return false; }
-          })),
-        btn("معرّف جديد", async () => {
+      const wa = templates ? waLink(s.guardian_phone, fillTemplate(templates.general,
+        messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) })), templates.country_code) : null;
+      const headActions = [
+        { icon: "edit", label: "تعديل البيانات", tone: "pri", onClick: () => { d.close(); studentForm({ student: s, classes, structure, sectionsOn, onSaved: afterChange }); } },
+        { icon: "user", label: "بطاقة ولي الأمر", onClick: () => card2(me, s) },
+        ...(wa ? [{ icon: "message", label: "واتساب", onClick: () => window.open(wa, "_blank", "noopener") }] : []),
+        { icon: "print", label: "طباعة الملف", onClick: () => window.print() },
+      ];
+      const moreActions = [
+        { icon: "users", label: "حسابات أولياء الأمور", note: "من يتابع الطالب", onClick: async () => dialog(`أولياء أمور ${s.name}`, h("div", {}, await studentParents(s.id),
+          sub("الربط وفك الارتباط من قسم «أولياء الأمور»."))) },
+        { icon: "wallet", label: s.fees_enabled ? "إيقاف الرسوم لهذا الطالب" : "تفعيل الرسوم لهذا الطالب", onClick: async () => {
+          try { const r = await api(`${A}/students/${s.id}`, { version: s.version, fees_enabled: !s.fees_enabled }, "PATCH");
+            s.version = r.version; s.fees_enabled = !s.fees_enabled; toast(s.fees_enabled ? "فُعّلت الرسوم" : "أُوقفت الرسوم"); d.close(); afterChange(); }
+          catch (e) { toast(e.message, true); }
+        } },
+        { icon: "key", label: "إصدار معرّف جديد", note: "يوقف المعرّف الحالي فورًا", onClick: async () => {
           if (!confirmAction("المعرّف القديم سيتوقف فورًا. متابعة؟")) return;
           const r = await api(`${A}/students/${s.id}/regenerate-key`, {});
           d.close(); showCredentials("المعرّف الجديد", { access_key: r.access_key }); afterChange();
-        }, "ghost sm"),
-        btn("تغيير الحالة", () => { d.close(); statusDialog(s, afterChange); }, "danger sm"),
-        btn("طباعة", () => window.print(), "ghost sm"));
+        } },
+        { icon: "alert", label: "تغيير الحالة", note: "نقل، انسحاب، تخرج", onClick: () => { d.close(); statusDialog(s, afterChange); } },
+      ];
       const draw = (tab) => {
-        const f = studentFile(data, { toolbar, photo: s.has_photo ? photoUrl(s) : null, actions });
+        const f = studentFile(data, { headActions, moreActions, photo: s.has_photo ? photoUrl(s) : null, actions });
         mount(holder, f.el);
         if (tab) f.open(tab);
       };
@@ -229,7 +236,7 @@ export default async function students({ me, refresh }) {
       statsBox, actions),
     h("div", { class: "panel" },
       h("div", { class: "search-row" }, q),
-      h("div", { class: "filters" }, picker.el, statusSel, feeFilter),
+      h("div", { class: "filters" }, picker.el, statusSel, feeFilter, areaFilter),
       inactive ? sub(`${inactive} طالبًا خارج القيد — اختر الحالة من الفلتر لعرضهم.`) : null,
       sinceBar, h("div", { class: "toolbar" }, count), bulkBar, box),
   ];
@@ -248,7 +255,8 @@ async function resizePhoto(file) {
 function studentForm({ student = null, classes, structure, sectionsOn, onSaved }) {
   const s = student, editing = Boolean(s);
   const f = {
-    name: input({ value: s?.name || "" }), no: input({ class: "ltr", value: s?.student_no || "", placeholder: "اختياري — يُستخدم للتحديث عبر الاستيراد" }),
+    name: input({ value: s?.name || "" }), family: input({ value: s?.family_name || "", placeholder: "اسم العائلة أو اللقب" }),
+    area: input({ value: s?.area || "", list: "area-options", placeholder: "الحي أو المنطقة السكنية" }), no: input({ class: "ltr", value: s?.student_no || "", placeholder: "اختياري — يُستخدم للتحديث عبر الاستيراد" }),
     birth: input({ type: "date", value: s?.birth_date ? String(s.birth_date).slice(0, 10) : "" }),
     gender: select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]], { value: s?.gender || "" }),
     status: select(Object.entries(STATUS_LABEL), { value: s?.status || "active" }),
@@ -320,18 +328,22 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   }).catch(() => {});
 
   const grid = (...k) => h("div", { class: "form-grid" }, ...k);
+  const areaOptions = h("datalist", { id: "area-options" });
+  api(`${A}/students/areas`).then((list) => mount(areaOptions, list.map((x) => h("option", { value: x.area })))).catch(() => {});
   const body = h("div", { class: "student-form" },
     h("h3", { class: "sec-title first" }, "المعلومات الأساسية"),
     h("div", { class: "photo-row" }, preview, h("div", {},
       btn(s?.has_photo || photoData ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
       (s?.has_photo && !photoRemoved) || photoData ? btn("حذف الصورة", () => { photoData = null; photoRemoved = true; drawPhoto(); }, "ghost sm") : null)),
-    grid(field("الاسم الكامل *", f.name), field("رقم الطالب", f.no), field("تاريخ الميلاد", f.birth), field("الجنس", f.gender),
+    grid(field("الاسم الكامل *", f.name), field("اللقب", f.family, "يميّز المتشابهين في الأسماء ويساعد ربط الإخوة"), field("رقم الطالب", f.no),
+      field("تاريخ الميلاد", f.birth), field("الجنس", f.gender),
       editing ? field("الحالة", f.status) : null),
     h("h3", { class: "sec-title" }, "المعلومات الأكاديمية"),
     grid(field("المرحلة", f.stage), field("الصف", f.grade), sectionsOn ? field("الشعبة", f.section) : null,
       field("السنة الدراسية", input({ value: structure.year_name || "غير محددة", disabled: true }))),
     h("h3", { class: "sec-title" }, "معلومات التواصل"),
-    grid(field("جوال الطالب (إن وجد)", f.sphone), field("اسم ولي الأمر", f.gname), field("جوال ولي الأمر", f.gphone)),
+    grid(field("جوال الطالب (إن وجد)", f.sphone), field("اسم ولي الأمر", f.gname), field("جوال ولي الأمر", f.gphone), field("المنطقة", f.area)),
+    areaOptions,
     hint,
     h("label", { class: "f pill" }, f.fees, "تفعيل الرسوم لهذا الطالب"),
     extra);
@@ -340,7 +352,8 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
     if (!f.name.value.trim()) return toast("اسم الطالب مطلوب", true);
     const classId = f.section.value || null;
     const common = { name: f.name.value, class_id: classId, guardian_name: f.gname.value, guardian_phone: f.gphone.value,
-      student_no: f.no.value.trim(), birth_date: f.birth.value, gender: f.gender.value, student_phone: f.sphone.value };
+      student_no: f.no.value.trim(), birth_date: f.birth.value, gender: f.gender.value, student_phone: f.sphone.value,
+      family_name: f.family.value, area: f.area.value };
     let id, result;
     if (editing) {
       const r = await api(`${A}/students/${s.id}`, { version: s.version, ...common }, "PATCH");

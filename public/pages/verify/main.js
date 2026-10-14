@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, $, mount } from "../shared/js/dom.js";
@@ -16,12 +16,16 @@ async function start() {
   let body;
   try {
     const c = await api(`/api/public/verify/${encodeURIComponent(code)}`);
+    const inst = c.org_type === "institute", org = inst ? "المعهد" : "المدرسة";
     body = h("section", { class: `panel verify-card ${c.revoked ? "revoked" : "valid"}` },
       h("div", { class: "verify-head" }, (c.revoked ? icons.close : icons.shield)({ size: 34 }),
         h("div", {}, h("h1", {}, c.revoked ? "شهادة ملغاة" : "شهادة صحيحة"),
-          h("p", {}, c.revoked ? "هذه الشهادة صدرت من المدرسة ثم أُلغيت، ولا يُعتد بها." : "هذه الشهادة صادرة فعلًا من المدرسة عبر منصة مدار."))),
-      row("المدرسة", c.school), row("الطالب", c.student), row("الفصل", c.class_name), row("الشهادة", c.title),
-      c.result ? row("النتيجة", c.result) : null, c.percent !== null ? row("النسبة", `${c.percent}%`) : null,
+          h("p", {}, c.revoked ? `هذه الشهادة صدرت من ${org} ثم أُلغيت، ولا يُعتد بها.` : `هذه الشهادة صادرة فعلًا من ${org} عبر منصة مدار.`))),
+      ...(inst ? [row("المعهد", c.school), row("الاسم", c.student), row("الدورة", c.course), c.program ? row("البرنامج", c.program) : null,
+        c.hours != null ? row(c.kind === "attendance" ? "الساعات المحضورة" : "عدد الساعات", String(Number(c.hours))) : null,
+        c.completed_on ? row("تاريخ الإكمال", fmtDate(c.completed_on)) : null]
+        : [row("المدرسة", c.school), row("الطالب", c.student), row("الفصل", c.class_name)]),
+      row("الشهادة", c.title), c.result ? row("النتيجة", c.result) : null, c.percent !== null && !inst ? row("النسبة", `${c.percent}%`) : null,
       row("تاريخ الإصدار", fmtDate(c.issued_at)), row("رمز الشهادة", code));
   } catch (e) {
     body = notice(e.status === 404 ? "لا توجد شهادة بهذا الرمز. تأكد من الرمز أو تواصل مع المدرسة." : e.message, "err");

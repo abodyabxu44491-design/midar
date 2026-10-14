@@ -1,76 +1,59 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { $, h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { brandLogo, field, btn, notice, sub, passwordInput } from "../shared/js/ui.js";
+import { btn, notice, passwordInput } from "../shared/js/ui.js";
+import { strengthMeter, authShell, authHead, authField } from "../shared/js/auth.js";
 import { icons } from "../shared/js/icons.js";
 
 const app = $("#app");
 const token = new URLSearchParams(location.search).get("token") || "";
 
-const shell = (...content) => h("div", { class: "gate" }, h("div", { class: "gate-wrap" },
-  h("aside", { class: "gate-aside hide-sm" },
-    brandLogo("hero-logo", true, "stacked"),
-    h("h1", {}, "تغيير كلمة المرور"),
-    h("p", {}, "رابط آمن يُستخدم مرة واحدة، وينتهي بعد ساعتين من إصداره.")),
-  h("section", { class: "gate-card" },
-    h("div", { class: "show-sm", style: "margin-bottom:10px" }, brandLogo("hero-logo", true, "stacked")),
-    ...content)));
-
-function strengthOf(value) {
-  let score = 0;
-  if (value.length >= 10) score++;
-  if (value.length >= 14) score++;
-  if (/[A-Za-z]/.test(value) && /\d/.test(value)) score++;
-  if (/[^A-Za-z0-9]/.test(value)) score++;
-  return ["ضعيفة", "مقبولة", "جيدة", "قوية", "قوية جدًا"][score];
-}
+const BRAND = {
+  title: "تغيير كلمة المرور",
+  text: "رابط آمن يُستخدم مرة واحدة، وينتهي بعد ساعتين من إصداره.",
+  points: [[icons.shield, "تُنهى الجلسات السابقة بعد التغيير"], [icons.lock, "كلمة المرور محفوظة بتشفير قوي"]],
+};
+const page = (...content) => mount(app, authShell(BRAND, ...content));
+const go = (label, onClick) => { const b = btn(label, onClick, "au-go"); b.append(icons.chevronLeft({ size: 18 })); return b; };
 
 async function start() {
   if (!token) return fail("الرابط غير مكتمل. افتح الرابط كما وصلك بالكامل.");
   let ref;
   try {
     ({ ref } = await api(`/api/public/password-reset/check?token=${encodeURIComponent(token)}`));
-  } catch (e) { return fail(e.message); }
+  } catch (e) { return fail(e.status === 400 ? "رابط تغيير كلمة المرور غير صالح. افتح الرابط كما وصلك بالكامل." : e.message); }
 
-  const pass = passwordInput({ autocomplete: "new-password", placeholder: "كلمة المرور الجديدة" });
-  const again = passwordInput({ autocomplete: "new-password", placeholder: "أعد كتابتها" });
-  const meter = h("div", { class: "sub" });
-  const msg = h("div");
+  const pass = passwordInput({ id: "rs-pass", autocomplete: "new-password", placeholder: "كلمة المرور الجديدة" });
+  const again = passwordInput({ id: "rs-again", autocomplete: "new-password", placeholder: "أعد كتابة كلمة المرور" });
+  const meter = strengthMeter(pass);
+  const msg = h("div", { "aria-live": "polite" });
 
-  pass.inputEl.addEventListener("input", () => {
-    meter.textContent = pass.value ? `قوة كلمة المرور: ${strengthOf(pass.value)}` : "";
-  });
-
-  const save = btn("حفظ كلمة المرور", async () => {
+  const save = go("حفظ كلمة المرور", async () => {
     mount(msg);
-    if (pass.value !== again.value) return mount(msg, notice("كلمتا المرور غير متطابقتين", "err"));
+    if (!pass.value) { pass.focus(); return mount(msg, notice("أدخل كلمة المرور الجديدة.", "err")); }
+    if (pass.value !== again.value) { again.focus(); return mount(msg, notice("كلمتا المرور غير متطابقتين.", "err")); }
+    save.disabled = true;
     try {
       await api("/api/public/password-reset", { token, password: pass.value });
-      mount(app, shell(
-        h("h2", {}, "تم تغيير كلمة المرور"),
-        notice("يمكنك الآن الدخول بكلمة المرور الجديدة. أُنهيت جميع الجلسات السابقة لحسابك.", ""),
-        btn("الذهاب لصفحة الدخول", () => { location.href = "/"; })));
-    } catch (e) { mount(msg, notice(e.message, "err")); }
-  }, "wide");
+      page(h("div", { class: "au-done" }, h("span", { class: "big" }, icons.check({ size: 36 })),
+        authHead("تم تغيير كلمة المرور", "يمكنك الآن الدخول بكلمة المرور الجديدة. أُنهيت جميع الجلسات السابقة لحسابك.")),
+      go("الذهاب لصفحة الدخول", () => { location.href = "/"; }));
+    } catch (e) { save.disabled = false; mount(msg, notice(e.message, "err")); }
+  });
   for (const el of [pass, again]) el.addEventListener("keydown", (e) => e.key === "Enter" && save.click());
 
-  mount(app, shell(
-    h("h2", {}, "اختر كلمة مرور جديدة"),
-    h("p", { class: "gate-sub" }, `طلب رقم ${ref}`),
-    field("كلمة المرور الجديدة", pass, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),
-    field("تأكيد كلمة المرور", again),
-    meter, msg, save,
-    h("div", { class: "gate-foot" }, h("span", { class: "gate-badge" }, icons.lock({ size: 14 }), "هذا الرابط يُستخدم مرة واحدة"))));
+  page(authHead("اختر كلمة مرور جديدة", `طلب رقم ${ref}`),
+    authField("كلمة المرور الجديدة", h("div", {}, pass, meter.el), { id: "rs-pass", hint: h("span", {}, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا. ", meter.label) }),
+    authField("تأكيد كلمة المرور", again, { id: "rs-again" }),
+    msg, save);
   pass.focus();
 }
 
-const fail = (message) => mount(app, shell(
-  h("h2", {}, "الرابط غير صالح"),
-  notice(message, "err"),
-  sub("اطلب رابطًا جديدًا من إدارة مدرستك.")));
+const fail = (message) => page(authHead("الرابط غير صالح", null), notice(message, "err"),
+  h("p", { class: "au-hint" }, "اطلب رابطًا جديدًا من إدارة مدرستك."));
 
 start();

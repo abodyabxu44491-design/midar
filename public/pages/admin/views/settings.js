@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../../shared/js/dom.js";
@@ -24,7 +24,7 @@ const SECTIONS = [
   { key: "page", name: "صفحة المدرسة العامة", note: "ما يراه أولياء الأمور" },
   { key: "payment", name: "طرق السداد", note: "الحسابات البنكية والدفع النقدي" },
   { key: "messages", name: "رسائل واتساب", note: "قوالب التنبيه ورمز الدولة" },
-  { key: "users", name: "المستخدمون والصلاحيات", note: "حسابات المحاسبين" },
+  { key: "users", name: "المستخدمون والصلاحيات", note: "الإدارة العامة وإدارة المدرسة والمحاسبين" },
   { key: "passwords", name: "طلبات كلمات المرور", note: "تحقق من هوية الطالب ثم أحِل الطلب" },
   { key: "money", name: "العملة", note: "عملة المدرسة الأساسية" },
   { key: "access", name: "الدخول والأمان", note: "كلمة المرور والجلسات" },
@@ -40,9 +40,10 @@ export default function settings(ctx) {
     access: accessView, data: dataView,
     subscription: mySubscription, sync: syncView,
     danger: () => dangerZone({ base: `${A}/danger`, scope: "admin" }) };
+  const hidden = ctx.me?.admin_scope === "school" ? new Set(["users", "money", "payment", "subscription", "danger"]) : new Set();
   return sectionMenu({
     title: "الإعدادات",
-    items: SECTIONS,
+    items: SECTIONS.filter((x) => !hidden.has(x.key)),
     render: (key, { reload }) => views[key]({ ...ctx, show: reload }),
   });
 }
@@ -292,8 +293,43 @@ async function messagesView({ me }) {
     }));
 }
 
+const SCOPES = { full: ["الإدارة العامة", "كل الأقسام، واعتماد الطلبات المالية والصرف"], school: ["إدارة المدرسة", "الطلاب والتعليم والشؤون الإدارية، وتُقدَّم المالية كطلبات"] };
+async function adminsPanel(show) {
+  const list = await api(`${A}/users/admins`);
+  const name = input(), username = input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" });
+  const scope = select(Object.entries(SCOPES).map(([k, [label]]) => [k, label]), { value: "school" });
+  const row = (u) => line(
+    h("div", { class: u.is_active ? "" : "muted-row" },
+      h("b", {}, u.name), " ", badge(SCOPES[u.admin_scope][0], u.admin_scope === "full" ? "" : "violet"), u.me ? [" ", badge("أنت", "gray")] : null,
+      u.is_active ? null : [" ", badge("موقوف", "gray")],
+      sub(`اسم المستخدم: ${u.username} — ${SCOPES[u.admin_scope][1]}`)),
+    u.me ? null : h("div", { class: "row", style: "flex:none" },
+      btn(u.admin_scope === "full" ? "اجعله إدارة مدرسة" : "اجعله إدارة عامة", async () => {
+        try { await api(`${A}/users/admins/${u.id}`, { admin_scope: u.admin_scope === "full" ? "school" : "full" }, "PATCH"); show(); } catch (e) { toast(e.message, true); }
+      }, "ghost sm"),
+      btn("كلمة مرور جديدة", async () => {
+        if (!confirmAction(`إنشاء كلمة مرور جديدة لـ ${u.name}؟`)) return;
+        showCredentials("كلمة مرور جديدة", (await api(`${A}/users/admins/${u.id}/reset-password`, {})).credentials);
+      }, "ghost sm"),
+      btn(u.is_active ? "إيقاف" : "تفعيل", async () => {
+        try { await api(`${A}/users/admins/${u.id}`, { active: !u.is_active }, "PATCH"); show(); } catch (e) { toast(e.message, true); }
+      }, "ghost sm")));
+  return panel("حسابات الإدارة", null,
+    sub("الإدارة العامة تدير كل شيء وتعتمد المالية. إدارة المدرسة تدير الطلاب والفصول والجداول والمهام، وترسل احتياجاتها المالية كطلبات للقسم المالي."),
+    list.map(row),
+    h("details", { class: "add-admin" }, h("summary", {}, "إضافة حساب إدارة"),
+      h("div", { class: "row" }, field("الاسم", name), field("اسم المستخدم", username), field("نوع الحساب", scope)),
+      btn("إضافة الحساب", async () => {
+        try {
+          const r = await api(`${A}/users/admins`, { name: name.value, username: username.value, admin_scope: scope.value });
+          showCredentials("بيانات دخول الحساب الجديد", r.credentials); show();
+        } catch (e) { toast(e.message, true); }
+      })));
+}
+
 async function usersView({ show }) {
   const list = await api(`${A}/users`);
+  const admins = await adminsPanel(show);
   const f = { name: input(), username: input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" }),
     approve: input({ type: "checkbox" }), payroll: input({ type: "checkbox" }), accounts: input({ type: "checkbox" }),
     manager: input({ type: "checkbox" }) };
@@ -319,6 +355,7 @@ async function usersView({ show }) {
       }, "ghost sm")));
 
   return [
+    admins,
     panel("حسابات المحاسبين", null,
       sub("المحاسب يرى المالية والرسوم فقط، ولا يرى الطلاب ولا الدرجات ولا الإعدادات."),
       list.length ? list.map(row) : empty("لا توجد حسابات محاسبين.")),

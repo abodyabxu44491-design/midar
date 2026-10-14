@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { $, mount, h } from "/shared/js/dom.js";
@@ -16,6 +16,7 @@ import requests from "./views/requests.js";
 import passwordRequests from "./views/password-requests.js";
 import settings from "./views/settings.js";
 import testimonials from "./views/testimonials.js";
+import groups from "./views/groups.js";
 import billing from "./views/billing.js";
 import danger from "./views/danger.js";
 import sms from "./views/sms.js";
@@ -35,12 +36,14 @@ async function start() {
       points: ["إنشاء المدارس والاشتراكات", "إدارة الباقات والفوترة", "المؤشرات العامة وسجل العمليات"],
     }));
   }
+  const ownerCtx = {};
   const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
-    [null, "المدارس والاشتراكات"], ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
+    [null, "المدارس والاشتراكات"], ["schools", "ملفات المدارس"], ["create", "إضافة مدرسة"], ["groups", "مجموعات المدارس"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
     [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
     [null, "المنصة"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "آراء العملاء"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, testimonials, audit, danger }, {},
+    { overview, requests, subscriptions, plans, schools, create, groups, billing, passwords: passwordRequests, sms, settings, testimonials, audit, danger }, ownerCtx,
     { primary: ["overview", "requests", "schools", "subscriptions"] });
+  ownerCtx.go = (k) => t.show(k);
   let lastUnseen = null;
   const badgeTick = async () => {
     try {

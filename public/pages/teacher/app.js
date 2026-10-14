@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { $, mount, h } from "../shared/js/dom.js";
@@ -43,6 +43,7 @@ export async function startTeacher(offlineMe = null) {
   if (me.must_change_password) {
     return passwordChangeScreen({ endpoint: "/api/teacher/password", logoutEndpoint: "/api/teacher/logout", school: me.school.name, name: me.name });
   }
+  if (me.school.org_type === "institute") return startTrainer(me);
   const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
     homework: "homework", announcements: "announcements", papers: "exam_papers",
     behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat" };
@@ -72,6 +73,20 @@ export async function startTeacher(offlineMe = null) {
     if (!tab || !list.some((x) => x[0] === tab || x.key === tab)) return false;
     t.show(tab); return true;
   });
+  mount(app, bar, h("main", {}, t.el), footer());
+  t.start("home");
+}
+
+// Institute trainers: their sessions, attendance and assessments for their own courses only.
+async function startTrainer(me) {
+  const [{ loadMeta, T }, V] = await Promise.all([import("../shared/js/institute-ui.js"), import("./views/trainer.js")]);
+  await loadMeta("/api/teacher/institute");
+  const list = [["home", "الرئيسية"], ["mycourses", `${T("courses")}ي`], ["sessions", T("sessions")], ["account", "حسابي"]];
+  const ctx = { me };
+  const t = tabs(list, { home: V.home, mycourses: V.courses, sessions: V.sessions, account }, ctx, { primary: ["home", "mycourses", "sessions", "account"] });
+  ctx.goTo = (key) => t.show(key);
+  const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `${T("trainer")} — ${me.name}`,
+    onLogout: async () => { try { await api("/api/teacher/logout", {}); } catch { /* ignore */ } location.reload(); } });
   mount(app, bar, h("main", {}, t.el), footer());
   t.start("home");
 }
