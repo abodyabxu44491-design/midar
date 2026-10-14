@@ -1,10 +1,14 @@
-// الأخطاء الموحدة: رسائل واضحة للمستخدم، وتفاصيل تقنية في السجل فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export class AppError extends Error {
   constructor(status, message, code, details) {
     super(message);
     this.status = status;
     this.code = code;
-    this.details = details;      // تفاصيل إضافية (مثل أخطاء أسطر الاستيراد)
+    this.details = details;
   }
 }
 export const badRequest = (m, details) => new AppError(400, m, "bad_request", details);
@@ -13,14 +17,12 @@ export const forbidden = (m = "غير مسموح") => new AppError(403, m, "forb
 export const notFound = (m = "غير موجود") => new AppError(404, m, "not_found");
 export const conflict = (m) => new AppError(409, m, "conflict");
 
-// تغليف المعالجات غير المتزامنة
 export const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// ترجمة أخطاء قاعدة البيانات إلى رسائل مفهومة
 function fromDatabase(err) {
   switch (err.code) {
-    case "P0001": return new AppError(400, err.message, "rule");               // قواعد الحماية داخل القاعدة
-    case "P0002": return new AppError(404, err.message, "not_found");          // سجل غير موجود (دوال القاعدة)
+    case "P0001": return new AppError(400, err.message, "rule");
+    case "P0002": return new AppError(404, err.message, "not_found");
     case "23505": return new AppError(409, "هذه القيمة مسجلة من قبل", "duplicate");
     case "23503": return new AppError(409, "لا يمكن تنفيذ العملية لأن السجل مرتبط ببيانات أخرى", "in_use");
     case "23514": return new AppError(400, "إحدى القيم غير صالحة", "check");
@@ -32,7 +34,6 @@ function fromDatabase(err) {
   }
 }
 
-/** رسالة الخطأ كما تُعرض للمستخدم (للعمليات التي تعمل خارج الطلب، مثل عمليات الخلفية) */
 export function publicError(err) {
   const known = err instanceof AppError ? err : fromDatabase(err);
   if (known) return { message: known.message, status: known.status, details: known.details || null };

@@ -1,12 +1,17 @@
-// ملف الطالب الكامل — يُفتح بمعرّف الطالب فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api, idempotencyKey } from "../shared/js/api.js";
-import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl } from "../shared/js/ui.js";
+import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl, teacherCards } from "../shared/js/ui.js";
 import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "../shared/js/format.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
 import { notificationCenter, notificationPrefs, pushInvite, pushToggle } from "../shared/js/inbox.js";
+import { chatThread, CHAT_NOTE } from "../shared/js/chat.js";
 import { currentChild, closeChild, rememberChild, forgetChild, isRemembered, rememberedChildren, openChild, parentSignedIn, setParentSignedIn } from "../shared/js/children.js";
 
 const app = $("#app");
@@ -14,7 +19,6 @@ const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLower
 const P = `/api/public/${encodeURIComponent(school)}`;
 const back = () => { location.href = `/${encodeURIComponent(school)}`; };
 let creds = currentChild(school);
-// بحساب ولي الأمر: لا معرّف، والخادم يتحقق من ارتباط الطالب بالحساب
 const viaParent = () => !creds?.key && parentSignedIn(school);
 const whoOf = () => (creds.key ? { student_id: creds.id, key: creds.key } : { student_id: creds.id });
 const family = () => { location.href = `/${encodeURIComponent(school)}#/family`; };
@@ -23,8 +27,9 @@ async function load() {
   if (!creds) return back();
   try {
     const who = whoOf();
-    const [d, inbox] = await Promise.all([api(`${P}/student`, who), api(`${P}/student/inbox`, who).catch(() => null)]);
-    render(d, inbox);
+    const [d, inbox, chat] = await Promise.all([api(`${P}/student`, who), api(`${P}/student/inbox`, who).catch(() => null),
+      api(`${P}/student/chat`, who).catch(() => null)]);
+    render(d, inbox, chat);
   } catch (e) {
     if (viaParent() && e.status === 401) { setParentSignedIn(school, false); closeChild(school); return back(); }
     if (viaParent() && e.status === 403) { closeChild(school); return family(); }
@@ -36,19 +41,23 @@ async function load() {
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
 
-function render(d, inbox) {
+function render(d, inbox, chat) {
   if (d.currency) setCurrency(d.currency);
   const s = d.student, f = d.fees;
   schoolName = d.school; studentName = s.name; className = s.class_name;
   document.title = `مدار — ${s.name}`;
 
-  // ملف الطالب: مصدره المشترك public/shared/js/student-file.js (نفسه الذي تراه الإدارة، لكن هنا مع زر الدفع)
   const who = whoOf();
   const remember = () => rememberChild(school, { id: creds.id, key: creds.key, name: s.name, class_name: s.class_name });
-  if (isRemembered(school, creds.id)) remember();   // تحديث الاسم والفصل المحفوظين
+  if (isRemembered(school, creds.id)) remember();
   const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
     view: ({ reopen }) => inboxSection(inbox, who, remember, reopen, (k) => file.open(k)) }] : [];
-  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, actions: {
+  const unread = chat ? chat.teachers.reduce((n, x) => n + x.unread, 0) : 0;
+  const teachersView = chat ? { note: unread ? `${unread} رسالة جديدة` : `${chat.teachers.length} معلم`,
+    view: () => teachersSection(chat, who, d.teachers) } : null;
+  const invite = inbox?.push.key ? pushInvite({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
+    text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null;
+  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, appNav: true, afterHead: invite, teachersView, actions: {
     excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
     who, api: (path, body) => api(`${P}${path}`, { ...who, ...body }),
@@ -62,24 +71,56 @@ function render(d, inbox) {
         : () => { closeChild(school); back(); } }),
     h("main", { class: "profile-page" },
       viaParent() ? kidSwitcher(s) : null,
-      h("div", { class: "toolbar" }, viaParent() ? btn("أبنائي", family, "ghost sm") : btn("الرجوع لقائمة الطلاب", back, "ghost sm"),
+      h("div", { class: "toolbar sf-toolbar" }, viaParent() ? btn("أبنائي", family, "ghost sm") : btn("قائمة الطلاب", back, "ghost sm"),
         btn("طباعة", () => window.print(), "ghost sm")),
-      inbox?.push.key ? pushInvite({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
-        text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null,
       file.el),
     footer());
-  // فتح القسم المطلوب من الإشعار (#attendance مثلًا) أو صندوق الإشعارات
   const want = location.hash.slice(1);
-  // من إشعار الجوال: يُعلَّم مقروءًا ويُفتح القسم المرتبط مباشرة (أو مركز الإشعارات إن لم يكن له قسم)
   const nid = Number(new URLSearchParams(location.search).get("n")) || null;
   if (nid && inbox) api(`${P}/student/inbox/read`, { ...who, ids: [nid] }).catch(() => {});
-  const target = { absence: "attendance", late: "attendance", present: "attendance" }[want] || want;
+  const target = { absence: "attendance", late: "attendance", present: "attendance", chat: "teachers" }[want] || want;
   let opened = false;
-  if (target) { try { file.open(target); opened = true; } catch { /* قسم غير متاح */ } }
+  if (target) { try { file.open(target); opened = true; } catch { /* ignore */ } }
   if (!opened && nid && inbox) file.open("inbox");
 }
 
-// محدد الأبناء (حساب ولي الأمر): ضغطة على اسم الابن تعرض ملفه في نفس الصفحة بلا خروج ولا دخول
+function teachersSection(chat, who, staff) {
+  const body = h("div");
+  const photoOf = (name) => staff.find((t) => t.teacher === name)?.photo || null;
+  const list = async () => {
+    const fresh = await api(`${P}/student/chat`, who).catch(() => chat);
+    Object.assign(chat, fresh);
+    const anyOpen = chat.teachers.some((t) => t.can_send || t.thread_id);
+    mount(body, chat.teachers.length && anyOpen
+      ? [sub("اضغط «مراسلة» لتفتح محادثة مع المعلم. يصله إشعار برسالتك، ويصلك رده هنا وعلى جوالك."),
+        h("p", { class: "chat-note" }, CHAT_NOTE),
+        h("div", { class: "tc-list" }, chat.teachers.map((t) => {
+          const photo = photoOf(t.name);
+          return h("div", { class: `tc-row${t.unread ? " unread" : ""}` },
+            photo ? h("img", { class: "tc-av", src: photo, alt: "" }) : h("span", { class: "tc-av ph", "aria-hidden": "true" }, String(t.name).replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0)),
+            h("div", { class: "tc-main" }, h("b", {}, t.name), h("small", {}, (t.subjects || []).join("، ")),
+              t.can_send && t.hours ? h("small", { class: `tc-hours${t.available_now ? "" : " off"}` }, `${t.available_now ? "متاح الآن · " : "خارج أوقات المراسلة · "}${t.hours}`) : null,
+              t.last_preview ? h("span", { class: "tc-prev" }, t.last_preview) : null),
+            h("div", { class: "tc-side" },
+              t.unread ? h("span", { class: "chat-badge" }, String(t.unread)) : null,
+              t.can_send ? btn("مراسلة", () => open(t), t.unread ? "sm" : "soft sm")
+                : t.thread_id ? btn("عرض المحادثة", () => open(t), "ghost sm")
+                : h("span", { class: "tc-off" }, "المراسلة غير مفعّلة")));
+        }))]
+      : [staff.length ? teacherCards(staff) : null,
+        notice(chat.teachers.length ? "المراسلة مع المعلمين غير مفعّلة حاليًا من إدارة المدرسة." : "لا يوجد معلمون مسندون لفصل الطالب بعد.", "")]);
+  };
+  const open = (t) => mount(body, chatThread({ me: "parent", title: t.name, subtitle: (t.subjects || []).join("، "),
+    readOnly: t.can_send ? (t.available_now === false ? `يستقبل المعلم الرسائل: ${t.hours}. تستطيع قراءة المحادثة والإرسال خلال هذه الأوقات.` : null)
+      : t.closed ? "أغلقت إدارة المدرسة هذه المحادثة." : "المراسلة مع هذا المعلم غير مفعّلة حاليًا من إدارة المدرسة.",
+    load: (before) => api(`${P}/student/chat/thread`, { ...who, teacher_id: t.id, before }),
+    send: (text) => api(`${P}/student/chat/send`, { ...who, teacher_id: t.id, text }),
+    onBack: list }));
+  const first = chat.teachers.find((t) => t.unread);
+  if (first && location.hash.slice(1) === "chat") open(first); else list();
+  return section("المعلمون والمراسلة", body);
+}
+
 function kidSwitcher(s) {
   let kids = [];
   try { kids = JSON.parse(sessionStorage.getItem(`midar_family_${school}`) || "[]"); } catch { /* */ }
@@ -106,8 +147,6 @@ function switchTo(id) {
   load();
 }
 
-// تسجيل هذا الجهاز لإشعارات هذا الابن ولكل الأبناء المحفوظين على الجهاز (ولي أمر لديه أكثر من طالب):
-// كل ابن مسجّل بمعرّفه، فيصل إشعار كل طالب لولي أمره فقط. وبحساب ولي الأمر: كل أبنائه المرتبطين دفعة واحدة
 async function savePushAll(sub, who, remember) {
   if (!who.key) { await api(`${P}/parent/push`, { subscription: sub }); return; }
   remember();
@@ -117,7 +156,6 @@ async function savePushAll(sub, who, remember) {
   }
 }
 
-// مركز الإشعارات وإعداداته وتفعيلها على هذا الجهاز
 function inboxSection(inbox, who, remember, reopen, openSection) {
   const saved = isRemembered(school, who.student_id);
   const center = notificationCenter({ audience: "parent", initial: inbox,
@@ -125,7 +163,7 @@ function inboxSection(inbox, who, remember, reopen, openSection) {
     read: (b) => api(`${P}/student/inbox/read`, { ...who, ...b }),
     archive: (ids) => api(`${P}/student/inbox/archive`, { ...who, ids }),
     onUnread: (n) => { inbox.unread = n; if (navigator.setAppBadge) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge?.())?.catch?.(() => {}); },
-    onOpen: (n) => { const k = { absence: "attendance", late: "attendance", present: "attendance" }[n.link] || n.link; if (k) { try { openSection(k); } catch { /* قسم غير متاح */ } } } });
+    onOpen: (n) => { const k = { absence: "attendance", late: "attendance", present: "attendance" }[n.link] || n.link; if (k) { try { openSection(k); } catch { /* ignore */ } } } });
   return [
     section("الإشعارات", center.el),
     section("إعدادات الإشعارات",
@@ -140,8 +178,6 @@ function inboxSection(inbox, who, remember, reopen, openSection) {
           : btn("حفظ", () => { remember(); toast("حُفظ على هذا الجهاز"); reopen(); }, "sm"))),
   ];
 }
-
-// سطر درجة واحد
 
 let schoolName = "", studentName = "", className = "";
 
@@ -189,7 +225,6 @@ function feesSection(f, compact = false) {
           }), "ghost sm"))))] : null);
 }
 
-// نافذة السداد: الحساب البنكي + إشعار التحويل + الدفع النقدي
 function payDialog(f, inv, available) {
   const reference = `فاتورة ${inv.id} - ${document.title.replace("مدار — ", "")}`;
   const copy = (text) => btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }, "ghost sm");

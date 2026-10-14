@@ -1,5 +1,8 @@
-// نموذج تفعيل الاشتراك (مشترك): التجربة، الاشتراك المدفوع، والمجاني — بالباقة أو بمميزات مخصصة
-// التجربة: تاريخ النهاية يُحسب تلقائيًا من مدة التجربة في الإعدادات (لا يُدخل يدويًا).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { field, input, select, sub, notice } from "/shared/js/ui.js";
@@ -18,10 +21,6 @@ export async function loadRefs() {
   return { plans: plans.filter((p) => p.status !== "archived"), catalog: catalog.filter((f) => f.is_active), settings };
 }
 
-/**
- * defaults: { kind, plan_id, billing_cycle, features, addons, tenantPrices }
- * يعيد { el, value() }
- */
 export function subForm(refs, defaults = {}) {
   const { plans, catalog, settings } = refs;
   const kind = select(Object.entries(KIND), { value: defaults.kind || "trial" });
@@ -112,7 +111,6 @@ export function subForm(refs, defaults = {}) {
   return { el: h("div", {}, box, sub("المميزات والحدود تُحفظ كلقطة وقت التفعيل؛ تعديل الباقة لاحقًا لا يغيّر هذا الاشتراك إلا بقرارك.")), value };
 }
 
-// نص رسالة تسليم بيانات الدخول (يُرسل بواتساب للمدرسة)
 export function handoverText(r) {
   const link = `${location.origin}/${r.credentials.school}`;
   return [`مرحبًا ${r.lead?.contact_name || ""}، تم تفعيل حساب ${r.school.name} على منصة مدار.`,
@@ -125,5 +123,4 @@ export const REQ_KINDS = { trial: ["طلب تجربة", "amber"], subscription: 
   upgrade: ["طلب ترقية", "blue"], renewal: ["طلب تجديد", ""] };
 export const REQ_STATUS = { new: ["جديد", "amber"], reviewing: ["قيد المراجعة", "blue"], approved: ["تمت الموافقة", ""], awaiting_payment: ["بانتظار الدفع", "amber"],
   active: ["فعّال", ""], rejected: ["مرفوض", "red"], canceled: ["ملغي", "gray"], expired: ["منتهي", "gray"] };
-// حد «مفتوح» يُخزَّن داخليًا كرقم كبير
 export const limitText = (n) => (n == null || Number(n) >= 100000 ? "مفتوح" : n);

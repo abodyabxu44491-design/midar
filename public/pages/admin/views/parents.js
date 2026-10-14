@@ -1,7 +1,8 @@
-// أولياء الأمور (الإدارة): حساب واحد لكل ولي أمر مرتبط بكل أبنائه.
-//   - إنشاء الحسابات تلقائيًا من أرقام الجوال المسجلة (حساب لكل رقم، مرتبط بكل طلابه، بلا تكرار)
-//   - فتح الحساب: الأبناء المرتبطون (إضافة/فك)، صلة القرابة، صلاحية الرسوم، كلمة المرور المؤقتة، الإيقاف
-//   - طلبات الربط من أولياء الأمور، وإعدادات التفعيل الذاتي والربط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, notice, sub, toast, dialog, badge, switchBtn, confirmAction, keyText, line } from "../../shared/js/ui.js";
@@ -112,7 +113,6 @@ export default async function parents({ me }) {
           if (!confirmAction(`فك ارتباط ${k.name} بهذا الحساب؟ لن يراه ولي الأمر بعد الآن (ويبقى السجل).`)) return;
           await api(`${R()}/${id}/unlink`, { student_id: k.id }); toast("فُك الارتباط"); reopen();
         }, "danger sm")));
-    // إضافة ابن: بحث في الطلاب
     const find = input({ placeholder: "ابحث عن طالب بالاسم أو المعرّف", maxLength: 60 });
     const rel = select(RELATION);
     const results = h("div", { class: "pa-results" });
@@ -158,7 +158,6 @@ export default async function parents({ me }) {
   return box;
 }
 
-/** أولياء أمور الطالب (في ملف الطالب عند الإدارة) */
 export async function studentParents(studentId) {
   const list = await api(`${A}/parents/of-student/${studentId}`).catch(() => []);
   return list.length ? list.map((p) => line(h("span", {}, `${p.name} (${REL[p.relation]})`), h("bdi", { dir: "ltr" }, p.phone || p.email)))

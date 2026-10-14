@@ -1,4 +1,8 @@
-// صفحة تغيير كلمة المرور برابط معتمد من مالك المنصة (يُستخدم مرة واحدة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { $, h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { brandLogo, field, btn, notice, sub, passwordInput } from "../shared/js/ui.js";
@@ -16,7 +20,6 @@ const shell = (...content) => h("div", { class: "gate" }, h("div", { class: "gat
     h("div", { class: "show-sm", style: "margin-bottom:10px" }, brandLogo("hero-logo", true, "stacked")),
     ...content)));
 
-// مؤشر قوة كلمة المرور
 function strengthOf(value) {
   let score = 0;
   if (value.length >= 10) score++;

@@ -1,4 +1,8 @@
-// المالية: الحسابات، التصنيفات، الحركات، التبرعات، الرواتب، التقارير
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -23,7 +27,6 @@ const canAccounts = requirePermission("can_manage_accounts", "ليس لديك ص
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
 
-/* ---------- لوحة التحكم المالية ---------- */
 r.get("/summary", handle(async (req, res) => {
   const f = parse(period, req.query);
   res.json(await inTenant(req, async (q) => {
@@ -32,7 +35,6 @@ r.get("/summary", handle(async (req, res) => {
   }));
 }));
 
-/* ---------- الحسابات والصناديق ---------- */
 r.get("/accounts", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return ledger.listAccounts(q); }));
 }));
@@ -53,7 +55,6 @@ r.patch("/accounts/:id/active", canAccounts, handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- التصنيفات ---------- */
 r.get("/categories", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return ledger.listCategories(q); }));
 }));
@@ -62,7 +63,6 @@ r.post("/categories", canAccounts, handle(async (req, res) => {
   res.status(201).json(await inTenant(req, (q) => ledger.addCategory(q, b)));
 }));
 
-/* ---------- الحركات ---------- */
 r.get("/entries", handle(async (req, res) => {
   const f = parse(period, req.query);
   res.json(await inTenant(req, (q) => ledger.listEntries(q, f)));
@@ -70,16 +70,12 @@ r.get("/entries", handle(async (req, res) => {
 
 r.post("/entries", handle(async (req, res) => {
   const b = parse(ledger.entrySchema, req.body);
-  // الاعتماد يُفرض من الخادم: من لا يملك صلاحية الاعتماد لا يصرف مبلغًا بدون مراجعة،
-  // فأي مصروف يُنشئه يبقى بانتظار الاعتماد مهما أرسل العميل في needs_approval.
   const pending = b.needs_approval || (b.direction === "expense" && !req.user.can_approve_finance);
   const source = b.direction === "expense" ? (pending ? "withdrawal" : "expense") : "manual";
   res.status(201).json(await inTenant(req, (q) => ledger.addEntry(q, b, {
     actor: req.actor, sourceType: source, status: pending ? "pending" : "approved",
   })));
 }));
-
-
 
 r.post("/entries/:id/review", canApprove, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
@@ -93,13 +89,11 @@ r.post("/entries/:id/void", canApprove, handle(async (req, res) => {
   res.json({ ok: true, ...(await inTenant(req, (q) => ledger.voidEntry(q, id, b.reason, req.actor))) });
 }));
 
-/* ---------- التحويل بين الحسابات ---------- */
 r.post("/transfers", requireModule("transfers"), canAccounts, handle(async (req, res) => {
   const b = parse(ledger.transferSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => ledger.transfer(q, b, req.actor)));
 }));
 
-/* ---------- التبرعات ---------- */
 r.get("/donations", requireModule("donations"), handle(async (req, res) => {
   const f = parse(period, req.query);
   res.json(await inTenant(req, (q) => donations.list(q, f)));
@@ -109,8 +103,6 @@ r.post("/donations", requireModule("donations"), handle(async (req, res) => {
   res.status(201).json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return donations.add(q, b, req.actor); }));
 }));
 
-/* ---------- نظرة عامة: كل المالية في شاشة واحدة ---------- */
-// الأرصدة وحركة الفترة، والرسوم، ورواتب الشهر الحالي وحالة مسيره، وما ينتظر الاعتماد
 r.get("/overview", handle(async (req, res) => {
   const f = parse(period, req.query);
   res.json(await inTenant(req, async (q) => {
@@ -125,7 +117,6 @@ r.get("/overview", handle(async (req, res) => {
   }));
 }));
 
-/* ---------- الموظفون ---------- */
 r.get("/staff", requireModule("payroll"), handle(async (req, res) => res.json(await inTenant(req, async (q) => ({
   staff: await payroll.listStaff(q), summary: await payroll.staffSummary(q), categories: payroll.CATEGORIES,
 })))));
@@ -155,9 +146,7 @@ r.post("/staff/import-teachers", requireModule("payroll"), canPayroll, handle(as
   res.json({ added: await inTenant(req, payroll.importTeachers) });
 }));
 
-/* ---------- مسير الرواتب ---------- */
 r.get("/payroll", requireModule("payroll"), handle(async (req, res) => res.json(await inTenant(req, payroll.listRuns))));
-// شهر واحد: المسير وسطوره، أو معاينة قبل إنشائه
 r.get("/payroll/month", requireModule("payroll"), handle(async (req, res) => {
   const { period: p } = parse(z.object({ period: t.date.optional() }), req.query);
   res.json(await inTenant(req, (q) => payroll.month(q, p || today())));
@@ -194,7 +183,6 @@ r.post("/payroll/:id/pay", requireModule("payroll"), canPayroll, handle(async (r
   res.json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return payroll.payRun(q, id, b, req.actor); }));
 }));
 
-/* ---------- المرفقات ---------- */
 r.post("/entries/:id/attachments", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const file = parse(files.uploadSchema, req.body);
@@ -213,7 +201,6 @@ r.get("/entries/:id/attachments", handle(async (req, res) => {
   }));
 }));
 
-// تنزيل المرفق (داخل جلسة المدرسة فقط)
 r.get("/attachments/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const file = await inTenant(req, (q) => files.download(q, id));

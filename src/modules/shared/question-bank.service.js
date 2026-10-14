@@ -1,11 +1,13 @@
-// بنك الأسئلة: حفظ الأسئلة وإعادة استخدامها، والسحب التلقائي حسب النوع والصعوبة
-// ومخطط التحقق من السؤال (مشترك مع ورقة الاختبار)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import crypto from "node:crypto";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden } from "../../core/http/errors.js";
 import { QTYPE_KEYS, QTYPES } from "../../../public/shared/js/exam/engine.js";
 
-/* ---------- مخطط السؤال ---------- */
 const itemId = z.string().regex(/^[a-z]_[a-z0-9]{3,20}$/, "معرّف عنصر غير صالح");
 const txt = (max) => z.string().max(max, "النص طويل جدًا").default("");
 const marks = z.coerce.number().positive("درجة السؤال يجب أن تكون أكبر من صفر").max(1000)
@@ -13,15 +15,15 @@ const marks = z.coerce.number().positive("درجة السؤال يجب أن تك
 
 export const imageRef = z.object({
   id: t.id,
-  width: z.coerce.number().int().min(10).max(100).default(60),      // نسبة من عرض الورقة
+  width: z.coerce.number().int().min(10).max(100).default(60),
   align: z.enum(["start", "center", "end"]).default("center"),
-  position: z.enum(["before", "after", "side"]).default("after"),  // فوق السؤال أو تحته أو بجانبه
+  position: z.enum(["before", "after", "side"]).default("after"),
 });
 const cell = z.object({
   t: txt(500),
-  cs: z.coerce.number().int().min(1).max(10).optional(),          // دمج أعمدة
-  rs: z.coerce.number().int().min(1).max(30).optional(),          // دمج صفوف
-  hide: z.boolean().optional(),                                   // خلية مغطاة بدمج
+  cs: z.coerce.number().int().min(1).max(10).optional(),
+  rs: z.coerce.number().int().min(1).max(30).optional(),
+  hide: z.boolean().optional(),
 });
 export const tableSchema = z.object({
   header: z.boolean().default(true),
@@ -43,7 +45,7 @@ export const questionFields = {
   image: imageRef.nullable().optional(),
   space: z.enum(["none", "small", "medium", "large", "page", "auto"]).optional(),
   lined: z.boolean().optional(),
-  cols: z.coerce.number().int().refine((v) => [1, 2, 4].includes(v)).optional(),   // أعمدة الخيارات
+  cols: z.coerce.number().int().refine((v) => [1, 2, 4].includes(v)).optional(),
   solution: txt(6000).optional(),
   notes: txt(2000).optional(),
   bank_id: z.coerce.number().int().positive().nullable().optional(),
@@ -51,10 +53,8 @@ export const questionFields = {
   lesson: txt(120).optional(),
 };
 
-// سؤال داخل ورقة: له معرّف ثابت (للسحب والإفلات والنماذج)
 export const paperQuestion = z.object({ id: itemId, ...questionFields });
 
-// قواعد منطقية لكل نوع (بعد التحقق من الشكل)
 export function normalizeQuestion(q) {
   const out = { ...q };
   const def = QTYPES[q.type];
@@ -75,7 +75,6 @@ export function normalizeQuestion(q) {
   return out;
 }
 
-/* ---------- البنك ---------- */
 const bankBody = z.object({
   subject_id: t.id,
   grade_id: t.optId,
@@ -84,7 +83,6 @@ const bankBody = z.object({
   ...questionFields,
 });
 export const bankCreateSchema = bankBody;
-// حفظ عدة أسئلة دفعة واحدة (لصق أسئلة أو ملف Word): المادة والصف والوحدة مشتركة بينها
 export const bankBulkSchema = z.object({
   subject_id: t.id,
   grade_id: t.optId,
@@ -95,7 +93,6 @@ export const bankBulkSchema = z.object({
 });
 export const bankUpdateSchema = bankBody.partial({ subject_id: true }).extend({ type: questionFields.type.optional(), marks: marks.optional() });
 
-// الحقول التي تُخزن في body (والباقي أعمدة للبحث والتصفية)
 const BODY_KEYS = ["text", "options", "correct", "answers", "answer", "pairs", "items", "table", "image", "space", "lined", "cols", "solution", "notes"];
 const toBody = (q) => Object.fromEntries(BODY_KEYS.filter((k) => q[k] !== undefined).map((k) => [k, q[k]]));
 
@@ -104,8 +101,6 @@ const COLS = `b.id, b.teacher_id, b.subject_id, b.grade_id, b.term_id, b.unit, b
 const FROM = `FROM question_bank b JOIN subjects s ON s.id = b.subject_id LEFT JOIN grades g ON g.id = b.grade_id
   LEFT JOIN teachers te ON te.id = b.teacher_id`;
 
-// ما يراه المعلم: أسئلته، والأسئلة المشتركة في المواد التي يدرّسها
-// المعامل $p يُمرَّر دائمًا (NULL للإدارة = كل أسئلة المدرسة)
 const visibleTo = (teacherId, p) => `($${p}::bigint IS NULL OR b.teacher_id = $${p}
   OR (b.is_shared AND b.subject_id IN (SELECT subject_id FROM teacher_assignments WHERE teacher_id = $${p})))`;
 
@@ -137,7 +132,6 @@ export async function list(q, teacherId, f) {
   return rows.map(flat);
 }
 
-// الوحدات والدروس الموجودة (لقوائم التصفية)
 export const units = (q, teacherId, subjectId) => q(
   `SELECT b.unit, b.lesson, count(*)::int AS n FROM question_bank b
     WHERE NOT b.is_archived AND ${visibleTo(teacherId, 1)} AND ($2::bigint IS NULL OR b.subject_id = $2)
@@ -191,7 +185,6 @@ export async function archive(q, id, teacherId) {
   await q("UPDATE question_bank SET is_archived = true WHERE id = $1", [id]);
 }
 
-// تحويل سؤال البنك إلى سؤال داخل ورقة (نسخة مستقلة: تعديل البنك لاحقًا لا يغيّر الاختبار)
 export const newItemId = (p = "q") => `${p}_${crypto.randomBytes(6).toString("hex")}`;
 export function toPaperQuestion(row) {
   const body = row.body || {};
@@ -201,7 +194,6 @@ export function toPaperQuestion(row) {
   };
 }
 
-/* ---------- السحب التلقائي ---------- */
 export const pickSchema = z.object({
   subject_id: t.id,
   grade_id: t.optId,
@@ -212,11 +204,6 @@ export const pickSchema = z.object({
   exclude: z.array(z.coerce.number().int().positive()).max(1000).default([]),
 });
 
-/**
- * يسحب أسئلة عشوائية من البنك حسب المواصفات.
- * «مختلط» يوزّع العدد على السهل والمتوسط والصعب قدر الإمكان، ثم يكمل الناقص من أي مستوى.
- * يعيد الأسئلة المسحوبة والعجز لكل نوع (إن لم يكفِ البنك).
- */
 export async function pick(q, teacherId, p) {
   const out = [];
   const shortages = [];
@@ -254,7 +241,6 @@ export async function pick(q, teacherId, p) {
   return { questions: out, shortages };
 }
 
-// حفظ أسئلة من ورقة في البنك (يتخطى الأسئلة المأخوذة من البنك أصلًا)
 export async function saveFromPaper(q, teacherId, paper, questionIds) {
   const want = new Set(questionIds);
   let saved = 0;

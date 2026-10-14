@@ -1,5 +1,8 @@
-// السجل الأكاديمي: مصدر واحد لمعالج أول دخول وللإعدادات — مراحل مخصصة، ربط المواد بمراحلها،
-// تغيير نمط تسمية الصفوف دون إنشاء صفوف جديدة، حالات السنة، التدقيق، والعزل بين المدارس
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -91,7 +94,6 @@ test("تغيير نمط التسمية: نفس الصفوف بأسماء جدي�
   assert.deepEqual(change.changes, [{ field: "الاسم", from: "الصف 7", to: "أول متوسط" }], "القيمة القديمة والجديدة");
   assert.ok(!audit.some((x) => x.changes?.some((c) => /^~/.test(String(c.to)))), "لا أسماء مؤقتة بلا داعٍ");
 
-  // الرجوع للنمط الأول يعمل أيضًا، وأسماء متبادلة لا تصطدم بالقيد الفريد
   assert.equal((await A.admin.post("/api/admin/setup/rename-grades", { grade_set: "international" })).data.renamed, 6);
   assert.equal((await A.admin.post("/api/admin/setup/rename-grades", { grade_set: "nope" })).status, 400);
 });

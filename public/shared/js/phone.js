@@ -1,10 +1,8 @@
-// أرقام الجوال: الدولة تُعرف من الرقم نفسه (مشترك بين الخادم والمتصفح).
-// أولياء الأمور في اليمن أرقامهم يمنية، والمغتربون في السعودية أرقامهم سعودية، وغيرهم بمفتاح دولة.
-//   يمني: 7XXXXXXXX (9 أرقام تبدأ بـ 70/71/73/77/78)، أو 967 قبلها
-//   سعودي: 05XXXXXXXX أو 5XXXXXXXX، أو 966 قبلها
-//   أي دولة أخرى: تُكتب بمفتاحها (+ أو 00) فتبقى كما هي
-// الحفظ بصيغة واحدة لكل دولة حتى لا يتكرر ولي الأمر نفسه بصيغتين: اليمني 9 أرقام، والسعودي 05…، وغيرهما +المفتاح.
-
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const AR = /[٠-٩]/g, FA = /[۰-۹]/g;
 const ascii = (v) => String(v ?? "").replace(AR, (d) => d.charCodeAt(0) - 0x0660).replace(FA, (d) => d.charCodeAt(0) - 0x06F0);
 
@@ -22,10 +20,6 @@ function codeOf(intl) {
   return null;
 }
 
-/**
- * detectPhone("٠٥٠١٢٣٤٥٦٧") → { intl: "966501234567", country: "SA", label: "سعودي", stored: "0501234567", ok: true }
- * fallbackDial: مفتاح دولة المدرسة لرقم محلي لا تُعرف دولته من شكله.
- */
 export function detectPhone(raw, fallbackDial = "967") {
   let d = ascii(raw).trim().replace(/[^\d+]/g, "");
   if (!d.replace(/\+/g, "")) return null;
@@ -33,7 +27,6 @@ export function detectPhone(raw, fallbackDial = "967") {
   if (d.startsWith("+")) { d = d.slice(1).replace(/\+/g, ""); explicit = true; } else if (d.startsWith("00")) { d = d.slice(2); explicit = true; }
   d = d.replace(/\+/g, "");
 
-  // مفتاح دولة مكتوب (بـ + أو 00 أو 967/966 في أوله)
   const withCode = explicit || (/^(967|966)/.test(d) && d.length === 12);
   if (withCode) {
     const c = codeOf(d);
@@ -42,7 +35,6 @@ export function detectPhone(raw, fallbackDial = "967") {
     if (c?.key === "SA") { const n = national.replace(/^0/, ""); return { intl: `966${n}`, country: "SA", label: c.name, stored: `0${n}`, ok: SA_MOBILE.test(n) }; }
     return { intl: d, country: c?.key || null, label: c?.name || "دولي", stored: `+${d}`, ok: d.length >= 8 && d.length <= 15 };
   }
-  // محلي: الشكل يحدد الدولة
   if (YE_MOBILE.test(d) || (d.length === 10 && YE_MOBILE.test(d.slice(1)) && d.startsWith("0"))) {
     const n = d.length === 10 ? d.slice(1) : d;
     return { intl: `967${n}`, country: "YE", label: "يمني", stored: n, ok: true };
@@ -51,12 +43,10 @@ export function detectPhone(raw, fallbackDial = "967") {
     const n = d.replace(/^0/, "");
     return { intl: `966${n}`, country: "SA", label: "سعودي", stored: `0${n}`, ok: true };
   }
-  // غير معروف الشكل: يُفترض من دولة المدرسة (مثل هاتف ثابت)
   const dial = String(fallbackDial || "").replace(/\D/g, "");
   const n = d.replace(/^0/, "");
   const c = COUNTRY_CODES[dial];
   return { intl: dial ? `${dial}${n}` : d, country: c?.key || null, label: c?.name || null, stored: d, ok: false };
 }
 
-/** الصيغة المحفوظة (أو null) */
 export const storedPhone = (raw, fallbackDial) => detectPhone(raw, fallbackDial)?.stored ?? null;

@@ -1,8 +1,11 @@
-// حساب ولي الأمر في صفحة المدرسة: زر الحساب أعلى الصفحة، والدخول وإنشاء الحساب بالبريد أو الجوال، ولوحة «أبنائي».
-// دخول واحد ← كل الأبناء ← ملف أي ابن، بلا معرّف لكل ابن. الخادم يتحقق من ارتباط كل طالب بالحساب مع كل طلب.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { field, input, btn, notice, dialog, sub, badge, toast, passwordInput, empty, toAsciiDigits } from "../shared/js/ui.js";
+import { field, input, btn, notice, dialog, sub, badge, toast, passwordInput, empty, toAsciiDigits, personAvatar } from "../shared/js/ui.js";
 import { ATTENDANCE, fmtDateTime } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { pushInvite } from "../shared/js/inbox.js";
@@ -13,17 +16,13 @@ const P = `/api/public/${encodeURIComponent(school)}`;
 const studentUrl = (id) => `/${encodeURIComponent(school)}/student?s=${id}`;
 const RELATION = { father: "الأب", mother: "الأم", guardian: "ولي الأمر", other: "" };
 
-/* ======================= زر الحساب أعلى الصفحة ======================= */
-/** زر ثابت في رأس موقع المدرسة: «أبنائي» إن كان الجهاز مسجّلًا، وإلا «حساب ولي الأمر» */
 export function accountButton() {
   const on = parentSignedIn(school);
   return h("a", { class: `ss-acct${on ? " on" : ""}`, href: on ? "#/family" : "#/account" },
     icons.user({ size: 18 }), h("span", {}, on ? "أبنائي" : "حساب ولي الأمر"));
 }
 
-/* ======================= الدخول وإنشاء الحساب ======================= */
 const fmtKey = (el) => el.addEventListener("input", () => {
-  // رابط بطاقة كامل (?k=) يُقبل كما هو، وغيره يُنسَّق XXXX-XXXX
   if (/^https?:/i.test(el.value)) return;
   const v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   el.value = v.length > 4 ? `${v.slice(0, 4)}-${v.slice(4)}` : v;
@@ -33,7 +32,6 @@ const idInput = (props = {}) => input({ type: "text", inputMode: "email", dir: "
 const idValue = (el) => toAsciiDigits(el.value.trim());
 const signedIn = (msg) => { setParentSignedIn(school, true); if (msg) sessionStorage.setItem(`midar_parent_welcome_${school}`, msg); location.hash = "#/family"; };
 
-/** صفوف معرّفات الأبناء: صف لكل ابن، «إضافة ابن آخر»، وتعليم المعرّف الخاطئ */
 function keyRows(initial = 1) {
   const list = h("div", { class: "ac-keys" });
   const rows = [];
@@ -67,7 +65,6 @@ function keyRows(initial = 1) {
   };
 }
 
-/** صفحة الحساب: تبويبان «تسجيل الدخول» و«إنشاء حساب» */
 export function accountPage(shell, mode = "login") {
   if (parentSignedIn(school)) { location.hash = "#/family"; return; }
   document.title = mode === "new" ? "مدار — إنشاء حساب ولي الأمر" : "مدار — دخول ولي الأمر";
@@ -114,7 +111,7 @@ function registerForm() {
     mount(msg);
     [...steps.children].forEach((li, i) => li.classList.toggle("on", i <= n - 1));
     mount(body, n === 1 ? stepOne : stepTwo);
-    (n === 1 ? next : save).before(msg);   // الرسالة فوق الزر مباشرة (ظاهرة دائمًا)
+    (n === 1 ? next : save).before(msg);
     (n === 1 ? name : keys).focus();
   };
   const next = btn("التالي", () => {
@@ -159,7 +156,6 @@ function registerForm() {
     h("p", { class: "ac-switch" }, "لديك حساب؟ ", h("a", { href: "#/account" }, "سجّل الدخول")));
 }
 
-/** نسيت كلمة المرور: البريد أو الجوال + معرّف أحد الأبناء المرتبطين بالحساب */
 function resetDialog(prefill = "") {
   const id = idInput({ value: prefill });
   const key = input({ class: "ltr ss-key", placeholder: "XXXX-XXXX", maxLength: 400, autocomplete: "off" });
@@ -181,12 +177,10 @@ function resetDialog(prefill = "") {
   (prefill ? key : id).focus();
 }
 
-/* ======================= لوحة «أبنائي» ======================= */
 const STATUS = {
   present: ["حاضر", ""], late: ["متأخر", "amber"], absent: ["غائب", "red"], excused: ["غياب بعذر", "gray"],
   permitted: ["مستأذن", "gray"], trip: ["رحلة", ""], activity: ["نشاط خارجي", ""],
 };
-const initials = (n) => String(n || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join(" ");
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0];
 const timeOf = (iso) => new Date(iso).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
 
@@ -204,7 +198,7 @@ export async function familyPage(shell) {
   const statusOf = (k) => (k.today_status ? STATUS[k.today_status] || [ATTENDANCE[k.today_status]?.[0] || k.today_status, "gray"] : ["لم يُسجَّل بعد", "gray"]);
 
   const card = (k) => {
-    const photo = h("span", { class: "fk-photo", "aria-hidden": "true" }, initials(k.name));
+    const photo = h("span", { class: "fk-photo", "aria-hidden": "true" }, personAvatar(k.gender, 52));
     if (k.has_photo) api(`${P}/parent/photo`, { student_id: k.id }).then((r) => { if (r.photo) mount(photo, h("img", { src: r.photo, alt: "" })); }).catch(() => {});
     const [st, tone] = statusOf(k);
     return h("a", { class: "fk-card", href: studentUrl(k.id), onclick: () => openChild(school, { id: k.id, key: null }) },
@@ -236,7 +230,6 @@ export async function familyPage(shell) {
   const pwBanner = d.parent.must_change_password || sessionStorage.getItem(`midar_parent_pw_${school}`)
     ? notice(h("span", {}, "أنت تستخدم كلمة مرور مؤقتة من المدرسة. ", h("button", { type: "button", class: "link", onclick: () => passwordDialog(d) }, "غيّرها الآن")), "warn") : null;
 
-  // الأبناء المحفوظون بمعرّفاتهم على هذا الجهاز (قبل الحساب): ربطهم بالحساب بضغطة
   const known = new Set(d.children.map((k) => k.id));
   const local = rememberedChildren(school).filter((c) => !known.has(c.id));
   const localBox = local.length && d.can.link_by_key ? notice(h("span", {}, `على هذا الجهاز ${local.length} من الأبناء محفوظون بمعرّفاتهم. `,

@@ -1,4 +1,8 @@
-// السلوك (المعلم): طلاب فصوله فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { behaviorBoard } from "../../shared/js/behavior-board.js";
 
 export default async function behavior({ me }) {

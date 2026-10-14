@@ -1,4 +1,8 @@
-// المزامنة والأجهزة (الإدارة): تعارضات تحتاج مراجعة، الأجهزة المسجلة وإيقافها، ومؤشرات المزامنة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, btn, badge, sub, empty, toast, confirmAction, stats, line } from "../../shared/js/ui.js";

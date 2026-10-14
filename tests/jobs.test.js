@@ -1,5 +1,8 @@
-// العمليات الخلفية: الاستيراد يعمل في الخلفية ويظهر تقدمه، والنتيجة لصاحبها فقط وفي مدرسته فقط،
-// وكلمات المرور المؤقتة لا تُحفظ في القاعدة، ولا تعمل عمليتان من النوع نفسه معًا، والفشل يظهر برسالة واضحة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -41,7 +44,6 @@ test("استيراد المعلمين في الخلفية: التقدم، وكل
   assert.equal(start.status, 202, JSON.stringify(start.data));
   const url = `/api/admin/jobs/${start.data.id}`;
 
-  // مدرسة أخرى لا ترى العملية (عزل المدارس)
   assert.equal((await B.admin.get(url)).status, 404);
 
   const done = await waitJob(A.admin, url);
@@ -55,7 +57,6 @@ test("استيراد المعلمين في الخلفية: التقدم، وكل
   assert.ok(!JSON.stringify(row).includes(pw), "لا كلمة مرور في jobs");
   assert.equal((await A.admin.get(url)).data.secret, undefined, "تُسلَّم مرة واحدة");
 
-  // الحسابات أُنشئت فعلًا وتعمل بكلمة المرور المسلَّمة
   const t = client(srv.base);
   assert.equal((await t.post("/api/staff/login", { school: A.id, username: done.data.secret.credentials[0].username, password: pw })).status, 200);
 });
@@ -68,7 +69,6 @@ test("استيراد الطلاب في الخلفية ينجح، والفشل ي
   assert.equal(done.data.status, "done", JSON.stringify(done.data));
   assert.equal(done.data.summary.created, 12);
 
-  // تجاوز حد الباقة (50): تفشل العملية كاملة برسالة الخادم، ولا يُضاف أي طالب
   const many = Array.from({ length: 60 }, (_, i) => ({ "اسم الطالب": `طالب زائد ${i + 1}` }));
   const before = await transaction({ tenantId: A.id }, async (q) => (await q("SELECT count(*)::int AS n FROM students"))[0].n);
   const f = await A.admin.post("/api/admin/import/students/commit", { rows: many });
@@ -84,7 +84,6 @@ test("لا تعمل عمليتان من النوع نفسه للمدرسة نف�
     "INSERT INTO jobs (tenant_id, kind, owner_key, created_by) VALUES (app_tenant(), 'import_students', 'user:0', 'اختبار')"));
   const r = await B.admin.post("/api/admin/import/students/commit", { rows: [{ "اسم الطالب": "طالب" }] });
   assert.equal(r.status, 409);
-  // نوع آخر مسموح
   const t = await B.admin.post("/api/admin/import/teachers/commit", { rows: [{ employee_no: "555", name: "معلم" }] });
   assert.equal(t.status, 202);
   await waitJob(B.admin, `/api/admin/jobs/${t.data.id}`);

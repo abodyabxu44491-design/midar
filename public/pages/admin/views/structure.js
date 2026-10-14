@@ -1,12 +1,14 @@
-// الهيكل الأكاديمي: المراحل ← الصفوف ← الشعب ← المواد، في شاشة واحدة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog,
   notice, confirmAction } from "../../shared/js/ui.js";
 import { A } from "./common.js";
 
-// الشاشة مقسّمة إلى أجزاء يعيد «السجل الأكاديمي» في الإعدادات استخدامها نفسها (لا نسخة ثانية):
-// الهيكل (المراحل والصفوف والشعب)، المواد، ووضع الشعب.
 export const loadStructure = () => api(`${A}/setup`);
 
 export default async function structure({ refresh }) {
@@ -16,7 +18,6 @@ export default async function structure({ refresh }) {
 
 export function sectionsModePanel(d, refresh) {
   const sectionsEnabled = d.structure.sections_enabled;
-  /* ---------- تفعيل/تعطيل نظام الشعب ---------- */
   const sectionsToggle = input({ type: "checkbox", checked: sectionsEnabled });
   return panel("نظام الشعب", null,
     h("label", { class: "f pill" }, sectionsToggle, "هذه المدرسة تستخدم شعبًا متعددة لكل صف"),
@@ -28,7 +29,6 @@ export function sectionsModePanel(d, refresh) {
       try {
         await api(`${A}/setup/sections-mode`, { sections_enabled: want }, "PUT");
       } catch (e) {
-        // تحذير الإيقاف: نعرض التفاصيل ونطلب تأكيدًا صريحًا قبل المتابعة
         if (e.status !== 409 || !confirmAction(`${e.message}\n\nهل تريد المتابعة؟`)) { sectionsToggle.checked = !want; return toast(e.status === 409 ? "لم يتغير شيء" : e.message); }
         await api(`${A}/setup/sections-mode`, { sections_enabled: want, confirm: true }, "PUT");
       }
@@ -43,7 +43,6 @@ export function stagesParts(d, refresh) {
   const naming = d.catalog.naming;
   const allGrades = gradesWithStage(stages);
 
-  /* ---------- إضافة مرحلة ---------- */
   const stageName = input({ placeholder: "اسم المرحلة" });
   const addStage = panel("المراحل", null,
     h("div", { class: "row" }, field("إضافة مرحلة", stageName),
@@ -53,7 +52,6 @@ export function stagesParts(d, refresh) {
       }, "soft")),
     stages.length ? null : empty("لا توجد مراحل بعد. أضف مرحلة أو طبّق قالبًا من معالج الإعداد."));
 
-  /* ---------- شجرة المراحل ---------- */
   const tree = stages.map((st) => {
     const gradeName = input({ placeholder: "اسم الصف" });
     return panel(st.name,
@@ -75,7 +73,6 @@ export function stagesParts(d, refresh) {
         }, "soft")));
   });
 
-  /* ---------- شعب بلا صف ---------- */
   const orphans = (sectionsEnabled && unassigned.length) ? panel("شعب غير مرتبطة بصف", null,
     sub("اربطها بصفّها ليظهر الهيكل مرتبًا."),
     unassigned.map((c) => line(
@@ -92,7 +89,6 @@ export function stagesParts(d, refresh) {
 export function subjectsPanel(d, refresh) {
   const { stages, subjects } = d.structure;
   const allGrades = gradesWithStage(stages);
-  /* ---------- المواد ---------- */
   const sName = input({ placeholder: "اسم المادة" });
   const sCode = input({ class: "ltr", placeholder: "الرمز" });
   const sWeekly = input({ type: "number", min: 0, max: 40, placeholder: "حصص/أسبوع" });
@@ -117,7 +113,6 @@ export function subjectsPanel(d, refresh) {
     }));
 }
 
-// «المرحلة الثانوية كاملة، أول متوسط» بدل عدد مجرد
 function linkedSummary(s, stages) {
   if (!s.grade_ids.length) return "غير مرتبطة بصفوف";
   const ids = new Set(s.grade_ids.map(Number));
@@ -130,7 +125,6 @@ function linkedSummary(s, stages) {
   return parts.join(" · ");
 }
 
-/* ---------- صف مع شعبه ---------- */
 function gradeRow(stage, g, index, refresh, naming, allGrades = [], sectionsEnabled = true) {
   const count = input({ type: "number", min: 1, max: 20, value: 1, style: "max-width:90px" });
   const pattern = select(naming.map((n) => [n.key, n.name]));
@@ -179,7 +173,6 @@ function gradeRow(stage, g, index, refresh, naming, allGrades = [], sectionsEnab
       }, "soft")));
 }
 
-// نسخ مواد صف إلى صف آخر
 function copySubjectsDialog(grade, refresh) {
   const box = h("div");
   const d = dialog(`نسخ مواد ${grade.name}`, box, []);
@@ -202,7 +195,6 @@ function copySubjectsDialog(grade, refresh) {
   });
 }
 
-/* ---------- نوافذ ---------- */
 function renameDialog(label, value, save) {
   const name = input({ value });
   const d = dialog(`تعديل اسم ${label}`, h("div", {}, field("الاسم", name)),
@@ -227,7 +219,6 @@ function subjectDialog(s, grades, refresh) {
     const cb = input({ type: "checkbox", checked: s.grade_ids.includes(Number(g.id)) });
     return { id: g.id, stage_id: g.stage_id, cb, el: h("label", { class: "subject-pick" }, cb, h("span", {}, g.name)) };
   });
-  // الصفوف مجمّعة حسب المرحلة، مع اختيار المرحلة كاملة بضغطة
   const stageIds = [...new Set(grades.map((g) => g.stage_id))];
   const groups = stageIds.map((sid) => {
     const mine = picks.filter((p) => p.stage_id === sid);

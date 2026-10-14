@@ -1,4 +1,8 @@
-// أقسام المنصة: كل مدرسة تُشغّل ما تحتاجه
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z } from "../../core/http/validate.js";
 import { badRequest } from "../../core/http/errors.js";
 
@@ -23,6 +27,7 @@ export const MODULES = [
   { key: "sms", name: "الرسائل النصية", note: "رسائل SMS تلقائية لأولياء الأمور برصيد رسائل" },
   { key: "surveys", name: "الاستبيانات", note: "استبيانات لأولياء الأمور والمعلمين" },
   { key: "meetings", name: "مواعيد أولياء الأمور", note: "حجز موعد مع المعلم أو الإدارة" },
+  { key: "chat", name: "مراسلة المعلمين", note: "محادثة بين ولي الأمر ومعلمي ابنه داخل التطبيق" },
   { key: "calendar", name: "التقويم المدرسي", note: "الاختبارات والإجازات والفعاليات في تقويم واحد" },
   { key: "behavior", name: "السلوك والانضباط", note: "المخالفات والإنجازات بالنقاط" },
   { key: "certificates", name: "الشهادات الرسمية", note: "شهادات الفصل والعام برمز تحقق" },
@@ -37,7 +42,6 @@ export const MODULES = [
   { key: "ai_assistant", name: "المساعد الذكي", note: "اسأل عن بيانات مدرستك" },
 ];
 
-// أقسام لا تعمل بدون غيرها: إيقاف الأساسي يوقفها، وتشغيلها يحتاجه مشغّلًا
 export const REQUIRES = {
   reports: ["exams"], donations: ["finance"], payroll: ["finance"], transfers: ["finance"],
   online_exams: ["exam_papers", "exams"], installments: ["fees"], substitutes: ["timetable"],
@@ -45,7 +49,6 @@ export const REQUIRES = {
 const NAME = (k) => MODULES.find((m) => m.key === k)?.name || k;
 export const KEYS = MODULES.map((m) => m.key);
 
-// القيم الافتراضية إذا لم يُنشأ صف المدرسة بعد
 export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, k !== "donations"]));
 
 export const modulesSchema = z.object(Object.fromEntries(KEYS.map((k) => [k, z.boolean()]))).partial();
@@ -61,11 +64,9 @@ export async function getModules(q) {
 export async function updateModules(q, patch) {
   const cur = await getModules(q);
   patch = { ...patch };
-  // إيقاف قسم أساسي يوقف ما يعتمد عليه
   for (const [child, parents] of Object.entries(REQUIRES)) {
     if (parents.some((p) => patch[p] === false) && patch[child] === undefined && cur[child]) patch[child] = false;
   }
-  // تشغيل قسم يحتاج أساسيًا موقوفًا: رسالة واضحة بدل خطأ القاعدة
   for (const [child, parents] of Object.entries(REQUIRES)) {
     if (patch[child] !== true) continue;
     const off = parents.filter((p) => !(patch[p] ?? cur[p]));
@@ -79,5 +80,4 @@ export async function updateModules(q, patch) {
   return row;
 }
 
-// القسم الفعّال = مفعّل من إدارة المدرسة «و» مشمول في اشتراكها. الحارس يستخدم هذا، فيُرفض القسم غير المشمول في الخادم.
 export const effectiveModules = (toggles, entitled) => Object.fromEntries(KEYS.map((k) => [k, Boolean(toggles[k]) && entitled.has(k)]));

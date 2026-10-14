@@ -1,7 +1,8 @@
-// موقع المدرسة المصغّر (صفحة الطلاب وأولياء الأمور):
-//   الرئيسية ← الطلاب ← المراحل ← الصفوف ← الشعب ← قائمة الطلاب (صفحة بعد صفحة)
-// يستهلك بيانات الطلاب الموجودة في النظام نفسه، مع طبقة نشر تتحكم بها الإدارة:
-// لا يظهر أي عنصر إلا إذا فعّلته المدرسة، وبطاقة الطالب لا تحمل إلا ما سمحت بنشره.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { handle, forbidden, notFound, unauthorized } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
@@ -18,7 +19,6 @@ const r = Router({ mergeParams: true });
 const base = accessSchema;
 const ACTIVE = "s.status = 'active'";
 
-// بطاقة الطالب: الاسم، وحالة السداد فقط إن فعّلت المدرسة إظهارها للجميع
 async function cards(q, rows, settings) {
   if (!settings.public_fee_badges) return rows.map(({ id, name }) => ({ id, name }));
   const sums = await studentSummaries(q, rows.filter((s) => s.fees_enabled).map((s) => s.id));
@@ -28,7 +28,6 @@ async function cards(q, rows, settings) {
   });
 }
 
-/* ---------- الرئيسية ---------- */
 r.post("/home", limits.api, handle(async (req, res) => {
   const b = parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
@@ -49,7 +48,6 @@ r.post("/home", limits.api, handle(async (req, res) => {
   }));
 }));
 
-/* ---------- المراحل والصفوف ---------- */
 r.post("/structure", limits.api, handle(async (req, res) => {
   const b = parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
@@ -70,13 +68,11 @@ r.post("/structure", limits.api, handle(async (req, res) => {
       if (!st) stages.push(st = { id: x.stage_id ?? 0, name: x.stage || "صفوف أخرى", grades: [] });
       st.grades.push({ id: x.grade_id, name: x.grade, sections: x.sections, students: settings.show_class_counts ? x.students : null });
     }
-    // شعب بلا صف (مدارس لم تستخدم المراحل والصفوف): تظهر كصف واحد «شعب أخرى»
     if (loose[0].n) stages.push({ id: -1, name: "صفوف أخرى", grades: [{ id: 0, name: "شعب أخرى", sections: loose[0].n, students: null }] });
     return { stages, counts: settings.show_class_counts };
   }));
 }));
 
-/* ---------- صفحة الصف: شعبه ---------- */
 r.post("/grade", limits.api, handle(async (req, res) => {
   const b = parse(base.extend({ grade_id: z.coerce.number().int().min(0) }), req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
@@ -96,7 +92,6 @@ r.post("/grade", limits.api, handle(async (req, res) => {
   }));
 }));
 
-/* ---------- الشعبة: الطلاب صفحة بعد صفحة، ومعلموها وجدولها إن سُمح ---------- */
 r.post("/section", limits.api, handle(async (req, res) => {
   const b = parse(base.extend({
     class_id: t.id, offset: z.coerce.number().int().min(0).max(100000).default(0),
@@ -120,8 +115,6 @@ r.post("/section", limits.api, handle(async (req, res) => {
       out.total = n;
     }
     if (b.offset === 0 && settings.show_teachers) {
-      // معلم واحد بكل مواده، وصورته إن فعّلت المدرسة نشر صور المعلمين (تُضمَّن في الاستجابة نفسها،
-      // فلا تُتاح صورة لمن لا يملك صلاحية رؤية الشعبة)
       out.teachers = await q(
         `SELECT t.full_name AS teacher, string_agg(sub.name, '، ' ORDER BY sub.sort_order NULLS LAST, sub.name) AS subject,
                 CASE WHEN $2 AND t.photo IS NOT NULL
@@ -137,8 +130,6 @@ r.post("/section", limits.api, handle(async (req, res) => {
   }));
 }));
 
-/* ---------- البحث عن طالب بمعرّفه (يفتح ملفه مباشرة) ---------- */
-// المعرّف سري لكل طالب، والمحاولات الخاطئة تُسجل وتُحسب (مثل فتح الملف تمامًا)
 r.post("/find", limits.studentKey, handle(async (req, res) => {
   const b = parse(base.extend({ key: t.studentKey }), req.body);
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
@@ -149,7 +140,6 @@ r.post("/find", limits.studentKey, handle(async (req, res) => {
     }
     const [s] = await q(`SELECT s.id FROM students s WHERE s.access_key = $1 AND ${ACTIVE}`, [b.key]);
     if (!s) {
-      // التسجيل في معاملة مستقلة: الخطأ يلغي المعاملة الحالية، والمحاولة يجب أن تُحسب
       await transaction({ tenantId: tenant.id, actor: "زائر", ip: req.ip }, (q2) =>
         securityEvent(q2, { kind: "student_key_failed_ip", subject: ipSubject, tenantId: tenant.id, ip: req.ip }));
       throw unauthorized("المعرّف غير صحيح. تأكد منه كما في بطاقة الطالب.");
@@ -158,7 +148,6 @@ r.post("/find", limits.studentKey, handle(async (req, res) => {
   }));
 }));
 
-/* ---------- شعار المدرسة (عام، مثل اسمها) ---------- */
 r.get("/logo", handle(async (req, res) => {
   const img = await inSchool(req, "زائر", async (q) => {
     const id = await logoId(q);
@@ -167,7 +156,6 @@ r.get("/logo", handle(async (req, res) => {
     return row;
   });
   if (!img) throw notFound("لا يوجد شعار");
-  // الرابط يحمل رقم نسخة الشعار (?v=)، فتغييره يظهر فورًا والكاش طويل
   res.set({ "Cache-Control": req.query.v ? "public, max-age=2592000, immutable" : "public, max-age=3600", "X-Content-Type-Options": "nosniff" })
     .type(img.mime).send(img.data);
 }));

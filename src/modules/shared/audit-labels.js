@@ -1,4 +1,8 @@
-// تعريب سجل العمليات: أسماء الحقول وقيمها كما يفهمها مدير المدرسة، مع إخفاء الحقول التقنية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const FIELDS = {
   full_name: "الاسم", name: "الاسم", title: "العنوان", status: "الحالة", note: "ملاحظة", status_note: "سبب تغيير الحالة",
   class_id: "الشعبة", grade_id: "الصف", stage_id: "المرحلة", subject_id: "المادة", teacher_id: "المعلم", term_id: "الفصل الدراسي",
@@ -26,7 +30,6 @@ const SHOW = { show_admissions: "القبول", show_announcements: "الإعل�
   profile_show_grades: "الدرجات في ملف الطالب", profile_show_attendance: "الحضور في ملف الطالب" };
 for (const [k, v] of Object.entries(SHOW)) FIELDS[k] = `إظهار: ${v}`;
 
-// حقول تقنية أو سرية لا معنى لعرضها
 const HIDDEN = new Set(["id", "tenant_id", "updated_at", "created_at", "created_by", "version", "access_key", "photo_type", "photo",
   "password_hash", "initial_password_enc", "password_changed_at", "username_changed_at", "status_changed_at", "archived_at",
   "snapshot", "addons", "source_lead_id", "plan_id", "run_id", "entry_id", "staff_id", "approved_by", "setup_completed_at", "ended_at"]);
@@ -52,7 +55,6 @@ const fmt = (v) => {
   return s.length > 80 ? `${s.slice(0, 80)}…` : s;
 };
 
-// يحوّل تعديلًا خامًا إلى قائمة تغييرات مقروءة
 export function describeChanges(oldData, newData) {
   return Object.keys(newData)
     .filter((k) => !HIDDEN.has(k) && JSON.stringify(oldData[k]) !== JSON.stringify(newData[k]))

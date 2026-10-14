@@ -1,4 +1,8 @@
-// توزيع المعلمين: مصفوفة الشعب × المواد، وكل خلية تختار المعلم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, btn, empty, sub, toast, notice, badge } from "../../shared/js/ui.js";
@@ -18,12 +22,10 @@ export default async function distribution({ refresh }) {
   const msg = h("div");
   const changes = new Map();     // "classId:subjectId" ← teacherId|null
 
-  // الإسناد الحالي: شعبة+مادة ← معلم
   const current = new Map();
   for (const t of teachers) for (const l of t.load) current.set(`${l.class_id}:${l.subject_id}`, t.id);
 
   const teacherOptions = (subjectId) => {
-    // المعلمون الذين يدرّسون هذه المادة في أي شعبة يظهرون أولًا
     const related = teachers.filter((t) => t.load.some((l) => Number(l.subject_id) === Number(subjectId)));
     const others = teachers.filter((t) => !related.includes(t));
     return [["", "— بدون —"], ...related.map((t) => [t.id, `${t.name} ★`]), ...others.map((t) => [t.id, t.name])];

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 import uharfbuzz as hb, sys, io
 from fontTools.ttLib import TTFont
 from fontTools.pens.svgPathPen import SVGPathPen
@@ -12,7 +14,6 @@ def shape(path, text, features=None):
     hb.shape(font, buf, features or {})
     gs=tt.getGlyphSet(); order=tt.getGlyphOrder()
     x=0; parts=[]; B=None
-    # الإزاحات تأتي بترتيب بصري (من اليسار لليمين) في harfbuzz للنصوص RTL
     for info,pos in zip(buf.glyph_infos, buf.glyph_positions):
         name=order[info.codepoint]
         pen=SVGPathPen(gs)

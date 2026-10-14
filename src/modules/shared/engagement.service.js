@@ -1,4 +1,8 @@
-// التواصل التفاعلي: الاستبيانات (لأولياء الأمور أو المنسوبين) ومواعيد أولياء الأمور مع المعلمين والإدارة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import crypto from "node:crypto";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict, forbidden } from "../../core/http/errors.js";
@@ -7,7 +11,6 @@ import { featureSettings } from "./feature-settings.service.js";
 
 const localDay = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
 
-/* ===================== الاستبيانات ===================== */
 const qid = () => `q_${crypto.randomBytes(5).toString("hex")}`;
 export const QTYPES = { rating: "تقييم من 1 إلى 5", yesno: "نعم / لا", choice: "اختيار واحد", multi: "اختيار متعدد", text: "إجابة مكتوبة" };
 const questionSchema = z.object({
@@ -62,7 +65,6 @@ export async function removeSurvey(q, id) {
   if (!r.length) throw notFound("الاستبيان غير موجود");
 }
 
-/** النتائج: لكل سؤال توزيع الإجابات، والمكتوبة كما هي (وأسماء المجيبين إن لم يكن مجهول الهوية) */
 export async function results(q, id) {
   const [s] = await q("SELECT * FROM surveys WHERE id = $1", [id]);
   if (!s) throw notFound("الاستبيان غير موجود");
@@ -116,7 +118,6 @@ export async function respond(q, surveyId, who, answers) {
   return { ok: true };
 }
 
-/** الاستبيانات المتاحة لولي أمر طالب أو لمستخدم من المنسوبين */
 export async function availableFor(q, who) {
   const aud = who.student_id ? ["parents", "all"] : ["staff", "all"];
   const rows = await q(`SELECT s.id, s.title, s.description, s.questions, s.anonymous, s.closes_on::text, s.status,
@@ -126,7 +127,6 @@ export async function availableFor(q, who) {
   return rows.map((s) => ({ ...s, open: isOpen(s) && !s.answered }));
 }
 
-/* ===================== مواعيد أولياء الأمور ===================== */
 export const MODES = { in_person: "حضوري", phone: "اتصال هاتفي", video: "مكالمة مرئية" };
 export const slotsSchema = z.object({
   day: t.date,
@@ -135,13 +135,12 @@ export const slotsSchema = z.object({
   minutes: z.coerce.number().int().min(5).max(180).optional(),
   mode: z.enum(Object.keys(MODES)).default("in_person"),
   location: t.optText(120), note: t.optText(300), class_id: t.optId,
-  teacher_id: t.optId,    // للإدارة: مواعيد معلم محدد، وبدونه مواعيد الإدارة
+  teacher_id: t.optId,
   host_name: t.optText(80),
 });
 const toMin = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
 const toTime = (n) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 
-/** إنشاء فترات متتالية بين وقتين */
 export async function createSlots(q, b, { teacherId = null, hostName, actor }) {
   if (b.day < localDay()) throw badRequest("التاريخ مضى");
   const len = b.minutes || (await featureSettings(q, "meetings")).slot_minutes;
@@ -185,7 +184,6 @@ export async function setBookingStatus(q, bookingId, status, { teacherId = null 
   }
 }
 
-/** المواعيد المتاحة لولي أمر طالب: الإدارة، ومعلمو شعبته */
 export async function slotsForStudent(q, s) {
   return q(`SELECT ms.id, ms.host_name, ms.day::text, ms.start_time::text, ms.minutes, ms.mode, ms.location, ms.note,
       b.id AS booking_id, b.student_id = $1 AS mine, b.topic
@@ -207,7 +205,6 @@ export async function book(q, s, b) {
   try {
     await q("INSERT INTO meeting_bookings (tenant_id, slot_id, student_id, topic) VALUES (app_tenant(), $1, $2, $3)", [slot.id, s.id, b.topic ?? null]);
   } catch (e) { if (e.code === "23505") throw conflict("حُجز هذا الموعد للتو. اختر موعدًا آخر."); throw e; }
-  // إشعار صاحب الموعد
   const users = slot.teacher_id ? await q("SELECT id FROM users WHERE teacher_id = $1", [slot.teacher_id]) : await q("SELECT id FROM users WHERE role = 'admin' AND is_active");
   await notify(q, { event: "meeting", users: users.map((u) => u.id), title: `حجز موعد: ولي أمر ${s.full_name}`,
     body: `${slot.d} الساعة ${String(slot.start_time).slice(0, 5)}${b.topic ? ` — ${b.topic}` : ""}` });

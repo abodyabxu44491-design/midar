@@ -1,11 +1,11 @@
-# نشر مدار على Render (الخطة المجانية)
-# Dashboard ← New ← Blueprint ← اختر المستودع، ثم أدخل قيم قاعدة البيانات والأسرار.
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 services:
   - type: web
     name: midar
     runtime: node
     plan: free
-    region: frankfurt          # الأقرب للسعودية ضمن مناطق Render
+    region: frankfurt
     branch: main
     buildCommand: npm ci
     startCommand: npm run migrate && npm start
@@ -24,12 +24,11 @@ services:
         value: "true"
       - key: FIREBASE_ANALYTICS
         value: "true"
-      # القيم التالية تُدخل يدويًا من لوحة Render (sync: false = لا تُحفظ في Git)
-      - key: DATABASE_URL            # رابط Neon بمستخدم midar_app
+      - key: DATABASE_URL
         sync: false
-      - key: MIGRATION_DATABASE_URL  # رابط Neon بمستخدم المالك (للترحيلات)
+      - key: MIGRATION_DATABASE_URL
         sync: false
-      - key: OWNER_PATH              # رابط لوحتك السري
+      - key: OWNER_PATH
         sync: false
       - key: OWNER_USERNAME
         sync: false
@@ -37,5 +36,9 @@ services:
         sync: false
       - key: OWNER_TOTP_SECRET       # npm run owner:totp
         sync: false
-      - key: PUBLIC_URL              # https://midar.onrender.com أو نطاقك
+      - key: PUBLIC_URL
+        sync: false
+      - key: ANDROID_PACKAGE
+        sync: false
+      - key: ANDROID_SHA256
         sync: false

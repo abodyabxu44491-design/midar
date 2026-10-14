@@ -1,4 +1,8 @@
-// رسوم بسيطة بالـ SVG (بدون أي مكتبة خارجية)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -8,10 +12,6 @@ const el = (tag, attrs = {}) => {
   return n;
 };
 
-/**
- * أعمدة رأسية.
- * data: [{ label, value, color? }]
- */
 export function barChart(data, { height = 170, max = null, suffix = "" } = {}) {
   if (!data.length) return h("p", { class: "empty" }, "لا توجد بيانات كافية.");
   const top = max ?? Math.max(...data.map((d) => Number(d.value) || 0), 1);
@@ -23,7 +23,7 @@ export function barChart(data, { height = 170, max = null, suffix = "" } = {}) {
   data.forEach((d, i) => {
     const v = Number(d.value) || 0;
     const barH = Math.max(2, Math.round((v / top) * (height - 46)));
-    const x = W - (i + 1) * 56 + 10;                       // من اليمين لليسار
+    const x = W - (i + 1) * 56 + 10;
     const y = height - 26 - barH;
     svg.append(el("rect", { x, y, width: 36, height: barH, rx: 6, fill: d.color || "var(--teal)" }));
     const value = el("text", { x: x + 18, y: y - 6, "text-anchor": "middle", class: "chart-value" });
@@ -35,7 +35,6 @@ export function barChart(data, { height = 170, max = null, suffix = "" } = {}) {
   return h("div", { class: "scroll" }, svg);
 }
 
-// شريط أفقي بنسبة مئوية
 export const percentRow = (label, percent, note) => h("div", { style: "padding:6px 0" },
   h("div", { class: "row", style: "justify-content:space-between" },
     h("span", {}, label), h("b", { style: "flex:none" }, percent === null || percent === undefined ? "—" : `${percent}%`)),

@@ -1,4 +1,8 @@
-// استيراد المعلمين: مطابقة الأعمدة، التعرّف على الموجود، الإسناد من الهيكل المركزي، وكلمات المرور المؤقتة. بلا قاعدة بيانات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { suggestMapping, analyze, commit, buildTemplate, exportXlsx, gradeKey } from "../src/modules/shared/import-teachers.service.js";
@@ -34,17 +38,17 @@ test("suggestMapping: يتعرف على العناوين العربية والإ
   assert.equal(m["الجوال"], "phone");
   assert.equal(m["المادة"], "subject");
   assert.equal(m["عمود غريب"], "");
-  assert.equal(m["Full Name"], "");       // الحقل name مأخوذ من عمود سابق
+  assert.equal(m["Full Name"], "");
 });
 
 const rows = [
-  { employee_no: "100", name: "سعد علي", phone: "0500000009", subject: "رياضيات", grade: "الأول", stage: "ابتدائي", section: "أ" },   // موجود: تحديث + إسناد
-  { employee_no: "200", name: "منى ناصر", subject: "علوم، رياضيات", grade: "الأول", stage: "ابتدائي" },                                // جديد: كل شعب الصف
-  { name: "خالد", username: "khaled1", subject: "علوم", grade: "الأول" },                                                             // صف ملتبس
-  { name: "فهد", username: "taken1" },                                                                                                // اسم مستخدم مأخوذ
-  { name: "بلا مفتاح" },                                                                                                              // لا اسم مستخدم ولا رقم وظيفي
-  { employee_no: "200", name: "مكرر", username: "dupe1" },                                                                            // رقم مكرر داخل الملف
-  { employee_no: "300", name: "ليلى", subject: "فيزياء", grade: "الأول", stage: "ابتدائي" },                                          // مادة غير موجودة
+  { employee_no: "100", name: "سعد علي", phone: "0500000009", subject: "رياضيات", grade: "الأول", stage: "ابتدائي", section: "أ" },
+  { employee_no: "200", name: "منى ناصر", subject: "علوم، رياضيات", grade: "الأول", stage: "ابتدائي" },
+  { name: "خالد", username: "khaled1", subject: "علوم", grade: "الأول" },
+  { name: "فهد", username: "taken1" },
+  { name: "بلا مفتاح" },
+  { employee_no: "200", name: "مكرر", username: "dupe1" },
+  { employee_no: "300", name: "ليلى", subject: "فيزياء", grade: "الأول", stage: "ابتدائي" },
   { employee_no: "400", name: "نورة", birth_date: "31/02/1990" },
 ];
 
@@ -53,10 +57,10 @@ test("analyze: تصنيف الأسطر بلا كتابة", async () => {
   const a = await analyze(q, rows);
   assert.deepEqual([a.summary.total, a.summary.valid, a.summary.review, a.summary.errors], [8, 2, 1, 5]);
   assert.equal(a.rows[0].action, "update");
-  assert.equal(a.rows[0].load.length, 1);                  // أ فقط
+  assert.equal(a.rows[0].load.length, 1);
   assert.equal(a.rows[1].action, "create");
-  assert.equal(a.rows[1].username, "t200");                // مُنشأ من الرقم الوظيفي
-  assert.equal(a.rows[1].load.length, 4);                  // مادتان × شعبتان
+  assert.equal(a.rows[1].username, "t200");
+  assert.equal(a.rows[1].load.length, 4);
   assert.ok(a.rows[1].notes.some((n) => /كل شعب/.test(n)));
   assert.equal(a.rows[2].review, "grade");
   assert.equal(a.ambiguities.length, 1);
@@ -90,12 +94,11 @@ test("commit: ينشئ الحسابات بكلمات مؤقتة مُجزّأة �
   assert.equal(r.credentials.length, 1);
   assert.match(r.credentials[0].password, /^[A-Z0-9]{4}-[A-Z0-9]{4}-\d{2}$/);
   const user = writes.find((w) => w.sql.includes("INSERT INTO users"));
-  assert.match(user.p[2], /^scrypt\$/);                      // مُجزّأة، لا نص صريح
+  assert.match(user.p[2], /^scrypt\$/);
   assert.ok(!JSON.stringify(writes).includes(r.credentials[0].password));
-  assert.equal(writes.filter((w) => w.sql.includes("INSERT INTO teacher_assignments")).length, 5);   // 4 للجديد + 1 للموجود
-  // لم يتغير أي حقل للمعلم الموجود (الاسم والجوال كما هما): لا UPDATE بلا داعٍ، ولا مساس بالاسم
+  assert.equal(writes.filter((w) => w.sql.includes("INSERT INTO teacher_assignments")).length, 5);
   assert.ok(!writes.some((w) => w.sql.startsWith("UPDATE teachers") && w.sql.includes("full_name")));
-  assert.ok(!writes.some((w) => w.sql.startsWith("DELETE")));// لا حذف إسناد قائم
+  assert.ok(!writes.some((w) => w.sql.startsWith("DELETE")));
 });
 
 test("القالب والتصدير: xlsx صالح بلا أي سر", async () => {

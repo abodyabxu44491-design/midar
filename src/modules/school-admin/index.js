@@ -1,5 +1,8 @@
-// لوحة إدارة المدرسة — تجميع الأقسام
-// كل قسم في ملف مستقل. لإضافة قسم جديد: أنشئ ملفًا يصدّر Router ثم سجّله هنا.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { requireStaff, requireModule } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
@@ -34,6 +37,7 @@ import customFields from "./custom-fields.js";
 import homework from "./homework.js";
 import admissions from "./admissions.js";
 import communication from "./communication.js";
+import chatAdmin from "./chat.js";
 import { behaviorRouter } from "../shared/behavior.routes.js";
 import certificates from "./certificates.js";
 import { staff as staffAffairs, calendar } from "./staff-affairs.js";
@@ -46,27 +50,28 @@ import { jobsRouter } from "../shared/jobs.routes.js";
 import { staffNotificationsRouter } from "../shared/notifications.routes.js";
 
 const r = Router();
-r.use(logoutRouter("admin"));            // /logout (بدون حارس)
-r.use(requireStaff("admin"));             // كل ما بعده للمدير فقط
+r.use(logoutRouter("admin"));
+r.use(requireStaff("admin"));
 r.post("/password", changePassword);
 r.use(dashboard);
 r.use("/structure", structure);
 r.use("/teachers", teachers);
 r.use("/students", students);
-r.use("/parents", parentsAdmin);          // حسابات أولياء الأمور الموحدة
+r.use("/parents", parentsAdmin);
 r.use("/attendance", requireModule("attendance"), attendance);
 r.use("/exams", requireModule("exams"), exams);
 r.use("/grade-components", requireModule("exams"), gradeComponents);
 r.use("/finance", requireModule("fees"), finance);
 r.use("/ledger", requireModule("finance"), ledger);
 r.use("/users", users);
-r.use("/notifications", staffNotificationsRouter());   // صندوق الإشعارات والإشعار الفوري
-r.use("/jobs", jobsRouter("school"));     // تقدم العمليات الطويلة (الاستيراد)
+r.use("/notifications", staffNotificationsRouter());
+r.use("/jobs", jobsRouter("school"));
 r.use("/password-requests", passwordRequests);
 r.use("/announcements", requireModule("announcements"), announcements);
 r.use("/settings", settings);
-r.use("/communication", communication);   // الإشعارات والرسائل النصية وإعدادات الأقسام الجديدة
-r.use("/subscription", subscription);     // متاح حتى عند توقف الاشتراك (للتجديد)
+r.use("/communication", communication);
+r.use("/chat", requireModule("chat"), chatAdmin);
+r.use("/subscription", subscription);
 r.use("/academic", academic);
 r.use("/analytics", requireModule("analytics"), analytics);
 r.use("/timetable", requireModule("timetable"), timetable);
@@ -75,21 +80,21 @@ r.use("/messaging", requireModule("messaging"), messaging);
 r.use("/homework", requireModule("homework"), homework);
 r.use("/behavior", requireModule("behavior"), behaviorRouter("admin"));
 r.use("/certificates", requireModule("certificates"), certificates);
-r.use("/staff-affairs", staffAffairs);   // كل قسم داخله بحارسه
+r.use("/staff-affairs", staffAffairs);
 r.use("/calendar", requireModule("calendar"), calendar);
-r.use("/engagement", engagement);        // الاستبيانات ومواعيد أولياء الأمور
-r.use("/services", services);            // النقل والمكتبة والمخزون والعيادة (كل قسم بحارسه)
+r.use("/engagement", engagement);
+r.use("/services", services);
 r.use("/admissions", requireModule("admissions"), admissions);
 r.use("/papers", requireModule("exam_papers"), papersRouter("admin"));
 r.use("/online-exams", requireModule("online_exams"), onlineExamsRouter("admin"));
 r.use("/papers-settings", requireModule("exam_papers"), papersAdminSettingsRouter());
-r.use("/sync", adminSyncRouter());         // تعارضات المزامنة والأجهزة
+r.use("/sync", adminSyncRouter());
 r.use("/import", importData);
 r.use("/sheets", sheets);
 r.use("/setup", setup);
 r.use("/custom-fields", customFields);
 r.use("/export", exportData);
 r.use("/audit", audit);
-r.use("/ai", requireModule("ai_assistant"), ai);   // المساعد الذكي (قراءة فقط)
-r.use("/danger", danger);            // منطقة الحذر (حسب صلاحية المدير)
+r.use("/ai", requireModule("ai_assistant"), ai);
+r.use("/danger", danger);
 export default r;

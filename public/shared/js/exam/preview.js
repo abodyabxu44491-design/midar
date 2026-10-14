@@ -1,5 +1,8 @@
-// المعاينة والطباعة: تُعرض الورقة تمامًا كما ستُطبع (نفس محرك الصفحات)، ولا يُرسل أمر الطباعة
-// إلا بزر صريح وبعد الاعتماد. نموذج الإجابة يُجلب من الخادم بصلاحيته المستقلة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../dom.js";
 import { api } from "../api.js";
 import { btn, notice, toast, confirmAction, select, empty } from "../ui.js";
@@ -13,10 +16,6 @@ export const imageUrlFor = (base) => (id) => `${base}/images/${id}`;
 export const logoUrlFor = (base, settings, layout) =>
   (settings?.show_logo && settings?.logo_image_id && withLayoutDefaults(layout).show_logo ? `${base}/images/${settings.logo_image_id}` : null);
 
-/**
- * paper: الاختبار كما يعيده الخادم (مع perms)
- * ctx: { base, school, settings, onChanged(status) }
- */
 export async function previewPanel(paper, ctx) {
   const { base } = ctx;
   const perms = paper.perms;
@@ -30,7 +29,6 @@ export async function previewPanel(paper, ctx) {
   }
   const view = select(views, { value: "v0", "aria-label": "ما تريد معاينته" });
 
-  // خيارات الطباعة لهذه المرة فقط (لا تغيّر تصميم الاختبار المحفوظ)
   const L0 = withLayoutDefaults(paper.layout);
   const opts = { color: L0.color, show_logo: L0.show_logo, show_marks: L0.show_marks, page_numbers: L0.page_numbers, show_version: L0.show_version, fit_one: false };
   const optLabels = { fit_one: "ضغط الاختبار في صفحة واحدة", color: "ملوّن", show_logo: "الشعار", show_marks: "الدرجات", page_numbers: "ترقيم الصفحات", show_version: "رقم النموذج" };
@@ -49,7 +47,7 @@ export async function previewPanel(paper, ctx) {
   let roster = null;
   let rendering = null;
 
-  let squeeze = null;   // تخطيط مضغوط يتسع في صفحة واحدة (عند اختيار «ضغط الاختبار في صفحة واحدة»)
+  let squeeze = null;
   const layout = () => ({ ...paper.layout, ...opts, ...(opts.fit_one && squeeze ? squeeze : {}) });
   const sectionsEnabled = ctx.settings?.sections_enabled !== false;
   const logo = () => logoUrlFor(base, ctx.settings, layout());
@@ -63,10 +61,8 @@ export async function previewPanel(paper, ctx) {
     squeeze = null;
     let out = await make();
     if (!opts.fit_one || out.length === 1) return out;
-    // تصغير تدريجي: المسافات ثم الهوامش ثم الخط، حتى تتسع الورقة في صفحة واحدة (أصغر خط 9)
     const L = withLayoutDefaults(paper.layout);
     const steps = [];
-    // أولًا المسافات والهوامش وأسطر الإجابة والصور بالخط نفسه، ثم الخط تدريجيًا حتى 8.5
     for (const k of [0.9, 0.8, 0.7]) steps.push({ spacing: "compact", margins: Math.min(L.margins, 10), fontSize: L.fontSize, squeeze_k: k });
     for (let fs = L.fontSize - 0.5; fs >= 8.5; fs -= 0.5) {
       steps.push({ spacing: "compact", margins: Math.min(L.margins, fs >= 11 ? 10 : fs >= 9.5 ? 8 : 6), fontSize: fs, squeeze_k: Math.max(0.5, Math.round((fs / L.fontSize - 0.2) * 100) / 100) });
@@ -105,7 +101,6 @@ export async function previewPanel(paper, ctx) {
           roster ??= await api(`${base}/${paper.id}/roster`);
           if (!roster.length) throw new Error("لا يوجد طلاب في هذه الشعبة");
           for (const p of byVersion.flat()) p.remove();
-          // توزيع النماذج على الطلاب بالتناوب (A ثم B ثم C…)، أو النموذج المختار للجميع
           roster.forEach((st, n) => {
             const i = v === "all" ? indexes[n % indexes.length] : indexes[0];
             const copy = personalize(byVersion[i], st);
@@ -130,8 +125,6 @@ export async function previewPanel(paper, ctx) {
     }
   }
 
-  // الملاءمة: «العرض» (افتراضي) تملأ عرض الشاشة، و«صفحة كاملة» تُظهر الصفحة كلها طولًا وعرضًا.
-  // تُعاد تلقائيًا عند تغيير حجم الشاشة أو تدوير الجوال.
   let fitMode = "width";
   const fit = () => {
     if (!pages.length) return;
@@ -160,8 +153,6 @@ export async function previewPanel(paper, ctx) {
 
   const iconBtn = (icon, label, fn) => h("button", { type: "button", class: "btn ghost sm", "aria-label": label, title: label, onclick: fn }, icon);
 
-  // الطباعة: ورقة الطالب تُعلَّم «تمت طباعته» بعد تأكيد المعلم
-  // الصفحات المطبوعة: الكل أو صفحة واحدة محددة
   const range = select([["all", "كل الصفحات"]], { "aria-label": "الصفحات المطبوعة" });
   function paintRange() {
     const keep = range.value;
@@ -182,7 +173,6 @@ export async function previewPanel(paper, ctx) {
       ctx.onChanged?.(r.status);
     }
   }
-  // كل نموذج في ملف مستقل: نافذة طباعة لكل نموذج بالترتيب
   async function printSeparately() {
     const keep = view.value;
     for (let i = 0; i < paper.versions; i++) {
@@ -247,7 +237,6 @@ export async function previewPanel(paper, ctx) {
     status, h("div", { class: "row2" }, actions()));
 
   const root = h("div", { class: "xv" }, bar, hint, stage);
-  // الرسم بعد إضافة اللوحة للصفحة (القياس يحتاج عناصر ظاهرة)
   queueMicrotask(async () => { await waitConnected(root); await render(); if (ctx.autoPrint && official && perms.print) doPrint(); });
   return root;
 }

@@ -1,4 +1,8 @@
-// الحضور (الإدارة تستطيع كل الفصول)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -8,7 +12,7 @@ import { getSettings } from "../shared/public-settings.service.js";
 import gate from "./gate.js";
 
 const r = Router();
-r.use("/gate", gate);     // البوابة الذكية: البوابات والأجهزة والبطاقات والمراجعة واعتماد الغياب
+r.use("/gate", gate);
 
 r.get("/", handle(async (req, res) => {
   const b = parse(attendance.listQuery, req.query);
@@ -30,7 +34,6 @@ r.post("/", handle(async (req, res) => {
     ip: req.ip, device: String(req.get("user-agent") || "").slice(0, 120) })));
 }));
 
-// متابعة يوم: الفصول المسجّلة وغير المسجّلة، والغائبون والمتأخرون، ومن بلغ غيابه الحد
 r.get("/overview", handle(async (req, res) => {
   const { date } = parse(attendance.dayQuery, req.query);
   res.json(await inTenant(req, async (q) => {

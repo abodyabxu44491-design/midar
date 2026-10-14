@@ -1,4 +1,8 @@
-// منطق الاختبارات والدرجات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { notFound } from "../../core/http/errors.js";
 import { notify, adminUserIds } from "./notify.service.js";
@@ -9,7 +13,7 @@ export const createSchema = z.object({
   title: t.shortText("عنوان الاختبار"),
   exam_date: t.optDate,
   max_score: z.coerce.number().positive("الدرجة القصوى غير صحيحة").max(1000).multipleOf(0.25),
-  component_id: t.id.nullable().optional(),   // نوع الدرجة من توزيع الدرجات (بلا اختيار = النوع الافتراضي)
+  component_id: t.id.nullable().optional(),
 });
 export const scoresSchema = z.object({
   scores: z.record(z.string().regex(/^\d+$/),
@@ -48,7 +52,6 @@ export const sheet = (q, exam) => q(
      FROM students st LEFT JOIN scores sc ON sc.student_id = st.id AND sc.exam_id = $1
     WHERE st.class_id = $2 AND st.archived_at IS NULL ORDER BY st.full_name`, [exam.id, exam.class_id]);
 
-// حفظ الدرجات دفعة واحدة؛ قاعدة البيانات ترفض أي درجة أكبر من القصوى أو اختبار غير مسودة
 export async function saveScores(q, exam, scores, actor) {
   const ids = Object.keys(scores).map(Number);
   const valid = new Set((await q("SELECT id FROM students WHERE class_id = $1 AND id = ANY($2::bigint[])", [exam.class_id, ids])).map((r) => Number(r.id)));
@@ -70,7 +73,6 @@ export async function setStatus(q, exam, status) {
   if (status === exam.status) return;
   const [info] = await q(`SELECT e.title, s.name AS subject, c.name AS class_name FROM exams e JOIN subjects s ON s.id = e.subject_id
     JOIN classes c ON c.id = e.class_id WHERE e.id = $1`, [exam.id]);
-  // معلمو المادة في هذه الشعبة (أصحاب الدرجات)
   const teachers = async () => (await q(`SELECT u.id FROM users u JOIN teacher_assignments ta ON ta.teacher_id = u.teacher_id
     WHERE ta.class_id = $1 AND ta.subject_id = $2 AND u.is_active`, [exam.class_id, exam.subject_id])).map((u) => u.id);
   const what = `${info.title} — ${info.subject} — ${info.class_name}`;

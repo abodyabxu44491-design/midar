@@ -1,7 +1,8 @@
-// قارئ رموز QR بالكاميرا (لتطبيق الحارس عند البوابة)
-// القراءة: BarcodeDetector المدمج في المتصفح إن وُجد (أندرويد)، وإلا jsQR (آيفون وغيره).
-
-/** صوت قصير للنتيجة — يعمل بعد أول ضغطة من المستخدم */
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 let ac;
 export function beep(kind) {
   try {
@@ -15,7 +16,7 @@ export function beep(kind) {
       g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + i * 0.13 + 0.12);
       o.connect(g).connect(ac.destination); o.start(ac.currentTime + i * 0.13); o.stop(ac.currentTime + i * 0.13 + 0.14);
     });
-  } catch { /* بلا صوت */ }
+  } catch { /* ignore */ }
   navigator.vibrate?.(kind === "err" ? [80, 60, 80] : 60);
 }
 
@@ -27,7 +28,7 @@ async function makeReader() {
         const det = new window.BarcodeDetector({ formats: ["qr_code"] });
         return async (video) => (await det.detect(video))[0]?.rawValue || null;
       }
-    } catch { /* نجرب jsQR */ }
+    } catch { /* ignore */ }
   }
   const jsQR = (await import("../vendor/jsqr/jsqr.mjs")).default;
   const canvas = document.createElement("canvas");
@@ -43,10 +44,6 @@ async function makeReader() {
   };
 }
 
-/**
- * يشغّل الكاميرا الخلفية على عنصر الفيديو ويستدعي onCode لكل رمز جديد
- * (نفس البطاقة أمام الكاميرا: مرة كل 20 ثانية فقط). يعيد دالة الإيقاف.
- */
 export async function startCamera(video, onCode) {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("الكاميرا غير متاحة في هذا المتصفح");
   let stream;
@@ -69,7 +66,7 @@ export async function startCamera(video, onCode) {
           last = code; lastAt = now; busy = true;
           try { await onCode(code); } finally { busy = false; }
         }
-      } catch { /* إطار غير صالح */ }
+      } catch { /* ignore */ }
       loop();
     }, 200);
   };

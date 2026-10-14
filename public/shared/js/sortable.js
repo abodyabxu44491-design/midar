@@ -1,6 +1,8 @@
-// السحب والإفلات بمؤشر موحّد (فأرة ولمس): يعمل على الجوال والكمبيوتر، وبين أكثر من قائمة في المجموعة نفسها.
-// الاستخدام: sortable(list, { item: ".xb-q", handle: ".xb-handle", group: "questions", onDrop })
-// onDrop يُستدعى بعد الإفلات، والمستدعي يقرأ الترتيب الجديد من الصفحة (data-id) ويحدّث بياناته.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const groups = new Map();
 
 export function sortable(list, { item, handle, group = "default", onDrop }) {
@@ -47,7 +49,6 @@ function start(el, ev, { item, group, onDrop }) {
     const before = siblings.find((c) => { const r = c.getBoundingClientRect(); return y < r.top + r.height / 2; });
     if (before) target.insertBefore(ph, before); else target.append(ph);
   };
-  // تمرير الصفحة تلقائيًا قرب الحافتين
   const autoscroll = () => {
     const edge = 70;
     if (lastY < edge) window.scrollBy(0, -12);

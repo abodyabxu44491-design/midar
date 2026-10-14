@@ -1,5 +1,8 @@
-// طلبات «نسيت كلمة المرور» لمديري المدارس — اعتماد المالك وإصدار الرابط
-// (طلبات المعلمين والمحاسبين تعتمدها إدارة كل مدرسة ولا تصل هنا)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, empty, badge, line, sub, btn, input, dialog, toast, notice, keyText } from "/shared/js/ui.js";

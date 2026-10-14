@@ -1,5 +1,8 @@
-// محرك العرض: يحوّل الاختبار (نموذجًا واحدًا) إلى كتل جاهزة للتقسيم على الصفحات.
-// كل كتلة { el, keep } حيث keep = «لا تفصلني عن الكتلة التالية» (عنوان القسم مع أول سؤال، والسؤال مع أول أسطر إجابته).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "../dom.js";
 import { rich } from "./math.js";
 import {
@@ -8,7 +11,6 @@ import {
 
 const FIELD_LABEL = { name: "اسم الطالب", grade: "الصف", section: "الشعبة", number: "رقم الطالب", date: "التاريخ", score: "الدرجة" };
 
-// أنماط الورقة كمتغيرات CSS على الصفحة
 export function pageVars(layoutIn) {
   const L = withLayoutDefaults(layoutIn);
   const sizes = { A4: [210, 297], A5: [148, 210], Letter: [216, 279] };
@@ -19,7 +21,6 @@ export function pageVars(layoutIn) {
   const gap = { compact: 0.55, normal: 0.9, relaxed: 1.35 }[L.spacing] || 0.9;
   return {
     L, w, h: hh,
-    // --pk: معامل الضغط (1 عادي) يصغّر ما قياسه بالمليمتر (أسطر الإجابة والصور) عند «ضغط الاختبار في صفحة واحدة»
     style: `--pw:${w}mm;--ph:${hh}mm;--pm:${L.margins}mm;--pf:'${font}';--phf:'${head}';--pfs:${L.fontSize}pt;--pgap:${gap}em;--pk:${L.squeeze_k || 1}`,
     cls: `xp-page tpl-${L.template}${L.color ? "" : " xp-bw"} sp-${L.spacing}`,
   };
@@ -48,10 +49,8 @@ function linesEl(n, lined, cls = "") {
   return h("div", { class: `xp-lines ${lined === false ? "plain" : ""} ${cls}` }, Array.from({ length: n }, () => h("div", { class: "xp-line" })));
 }
 
-// عمود الخيارات: تلقائي حسب طول أطول خيار
 export function optionCols(q) {
   if (q.cols) return q.cols;
-  // الخيارات القصيرة في سطر واحد، والمتوسطة في عمودين، والطويلة كل خيار في سطر (السؤال يأخذ مساحته فقط)
   const n = (q.options || []).length;
   const max = Math.max(0, ...(q.options || []).map((o) => String(o.text || "").length));
   const any = (q.options || []).some((o) => /\$/.test(o.text || ""));
@@ -59,17 +58,12 @@ export function optionCols(q) {
   return max <= 32 ? 2 : 1;
 }
 
-/**
- * كتل سؤال واحد.
- * showAnswers: لمعاينة نموذج الإجابة داخل الورقة (المعلم فقط).
- */
 export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   const blocks = [];
   const def = QTYPES[q.type] || QTYPES.custom;
   const img = imageEl(q, imageUrl);
   const side = img && q.image.position === "side";
   const body = h("div", { class: `xp-q t-${q.type}${side ? " has-side" : ""}`, "data-qid": q.id });
-  // عمود الإجابة (صح/خطأ) والدرجة بعرض ثابت في طرف السطر، فتصطف كل الأقواس تحت بعضها
   const tfBox = q.type === "truefalse"
     ? h("span", { class: `xp-tf${showAnswers && typeof q.correct === "boolean" ? " filled" : ""}` },
       h("span", {}, "("), h("span", { class: "xp-tf-in" }, showAnswers && typeof q.correct === "boolean" ? (q.correct ? "✓" : "✗") : ""), h("span", {}, ")"))
@@ -81,7 +75,6 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
       q.type === "multi" ? h("span", { class: "xp-hint" }, " (اختر كل الإجابات الصحيحة)") : null),
     tfBox,
     marksTag(L, q.marks));
-  // الصورة بجانب السؤال: عمود للنص والخيارات وعمود للصورة
   const main = side ? h("div", { class: "xp-q-main" }) : body;
   if (img && q.image.position === "before") body.append(img);
   main.append(head);
@@ -96,8 +89,6 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   }
   if (q.type === "fill" && !/_{3,}/.test(q.text || "")) main.append(linesEl(1, true));
 
-  // التوصيل: عمودان متقابلان بلا جدول. أمام كل عنصر من (أ) قوس لكتابة حرف الإجابة،
-  // ونقطتان متقابلتان لمن يفضّل التوصيل بخط.
   if (q.type === "match") {
     const filled = (p) => String(p.left || "").trim() || String(p.right || "").trim();
     q = { ...q, pairs: (q.pairs || []).filter(filled) };
@@ -129,7 +120,6 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   if (side) body.append(main, img);
   if (showAnswers && def.space && q.answer) body.append(h("div", { class: "xp-model" }, h("b", {}, "الإجابة: "), rich(q.answer)));
 
-  // مساحة الإجابة: أسطر مستقلة قابلة للانتقال للصفحة التالية، والسؤال يبقى مع أول سطرين
   if (def.space && !showAnswers) {
     if (q.space === "page") {
       blocks.push({ el: body, keep: true });
@@ -149,10 +139,6 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   return blocks;
 }
 
-/* ---------- الترويسة ---------- */
-
-// الترويسة المختصرة: المدرسة يمينًا، الشعار في الوسط، وبيانات الاختبار يسارًا في جدول صغير متراصف،
-// ثم سطر العنوان. لا يظهر أي حقل فارغ أو غير مفعّل (الشعبة حين تكون الشعب موقوفة، الزمن بلا قيمة…).
 export function headerBlock(paper, L, { school, logoUrl, versionCode, total, sectionsEnabled = true }) {
   const logo = L.show_logo && logoUrl ? h("img", { class: "xp-logo", src: logoUrl, alt: "" }) : null;
   const gradeText = gradeLabel(paper, sectionsEnabled);
@@ -176,7 +162,6 @@ export function headerBlock(paper, L, { school, logoUrl, versionCode, total, sec
     h("div", { class: "xp-h-grid" }, schoolSide, h("div", { class: "xp-h-logo" }, logo), examSide), titleRow);
 }
 
-// اسم الصف: بلا الشعبة إن كانت الشعب موقوفة في المدرسة
 function gradeLabel(paper, sectionsEnabled) {
   if (!sectionsEnabled) return paper.grade_name || paper.class_name || "";
   return [paper.grade_name, paper.class_name && paper.class_name !== paper.grade_name ? paper.class_name : null].filter(Boolean).join(" — ");
@@ -208,16 +193,11 @@ function sectionHead(s, L) {
     s.instructions ? h("div", { class: "xp-s-ins" }, rich(s.instructions)) : null);
 }
 
-/**
- * كل كتل ورقة الطالب لنموذج واحد.
- * يعيد { blocks, running } حيث running ترويسة مختصرة للصفحات التالية.
- */
 export function paperBlocks({ paper, version, layout, school, logoUrl, imageUrl, showAnswers = false, sectionsEnabled = true }) {
   const L = withLayoutDefaults(layout);
   const total = totals(paper.content).total;
   const blocks = [];
   blocks.push({ el: headerBlock(paper, L, { school, logoUrl, versionCode: paper.versions > 1 ? version.code : null, total, sectionsEnabled }), keep: true });
-  // تاريخ الطالب لا يتكرر إن كان تاريخ الاختبار مطبوعًا في الترويسة
   const st = studentBlock(L, { total: paper.total_marks || total, student: null, sectionsEnabled,
     hide: L.show_date && paper.exam_date ? ["date"] : [] });
   if (st) blocks.push({ el: st, keep: true, student: true });
@@ -236,7 +216,6 @@ export function paperBlocks({ paper, version, layout, school, logoUrl, imageUrl,
   return { blocks, running, L };
 }
 
-/* ---------- نموذج الإجابة: وثيقة منفصلة عن ورقة الطالب ---------- */
 export function answerKeyBlocks({ paper, key, layout, school, logoUrl }) {
   const L = withLayoutDefaults(layout);
   const blocks = [];

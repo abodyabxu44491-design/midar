@@ -1,4 +1,8 @@
-// المسار الكامل مع تفعيل المفتاح: الحفظ المشفّر ثم العرض للمدير ما دام لم يغيّر المعلم كلمته.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -12,14 +16,13 @@ test("عرض بيانات الدخول الأولية بعد الإنشاء", as
   const enc = sealCredential("AB12-CD34-56", "school1");
   const q = async () => [{ id: 1, username: "t100", initial_password_enc: enc, must_change_password: true }];
   assert.deepEqual(await revealInitialCredentials(q, 5, "school1"), { username: "t100", password: "AB12-CD34-56", school: "school1" });
-  await assert.rejects(revealInitialCredentials(q, 5, "school2"), /تعذر فك/);   // مدرسة أخرى لا تفكّها
+  await assert.rejects(revealInitialCredentials(q, 5, "school2"), /تعذر فك/);
 });
 
 test("بعد تغيير المعلم لكلمته (يمسحها الـ trigger) لا تُعرض", async () => {
   const enc = sealCredential("AB12-CD34-56", "school1");
   const cleared = async () => [{ id: 1, username: "t100", initial_password_enc: null, must_change_password: false }];
   await assert.rejects(revealInitialCredentials(cleared, 5, "school1"), /غيّر المعلم/);
-  // حتى لو بقيت نسخة بالخطأ، must_change_password=false يمنع العرض
   const stale = async () => [{ id: 1, username: "t100", initial_password_enc: enc, must_change_password: false }];
   await assert.rejects(revealInitialCredentials(stale, 5, "school1"), /غيّر المعلم/);
 });

@@ -1,5 +1,8 @@
-// منطقة الحذر لمدير المدرسة: جزء محدود من العمليات (الأمان، النسخ الاحتياطي، إعادة ضبط الإعدادات، حذف فئات آمنة)،
-// لمن يملك صلاحية «منطقة الحذر» فقط، وبنفس المراحل والتحقق (كلمة مرور المدير) والتسجيل.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, forbidden } from "../../core/http/errors.js";

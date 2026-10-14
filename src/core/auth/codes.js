@@ -1,21 +1,24 @@
-// توليد الرموز العشوائية الآمنة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import crypto from "node:crypto";
 
-// بدون الحروف المتشابهة (0 O 1 I L)
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 export function randomCode(length) {
   let out = "";
   while (out.length < length) {
     for (const b of crypto.randomBytes(length * 2)) {
-      if (b < 256 - (256 % ALPHABET.length)) out += ALPHABET[b % ALPHABET.length]; // بدون انحياز
+      if (b < 256 - (256 % ALPHABET.length)) out += ALPHABET[b % ALPHABET.length];
       if (out.length === length) break;
     }
   }
   return out;
 }
 
-export const newStudentKey = () => `${randomCode(4)}-${randomCode(4)}`;   // مثال: K7P2-QX9M
+export const newStudentKey = () => `${randomCode(4)}-${randomCode(4)}`;
 export const newDirectoryCode = () => randomCode(8);
 export const newTempPassword = () => `${randomCode(4)}-${randomCode(4)}-${crypto.randomInt(10, 99)}`;
 export const newToken = () => crypto.randomBytes(32).toString("base64url");

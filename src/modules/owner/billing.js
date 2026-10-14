@@ -1,4 +1,8 @@
-// فواتير اشتراكات المدارس والتجديد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, badRequest } from "../../core/http/errors.js";
@@ -26,7 +30,6 @@ r.get("/", handle(async (req, res) => {
               COALESCE(sum(amount) FILTER (WHERE status = 'open'), 0) AS due,
               COALESCE(sum(amount) FILTER (WHERE status = 'paid' AND paid_at > now() - interval '365 days'), 0) AS year_revenue
          FROM subscription_invoices`))[0],
-    // اشتراكات تنتهي قريبًا أو انتهت وهي في مدة السماح
     renewals: await q(
       `SELECT t.id, t.name, t.subscription_end, t.subscription_price, t.grace_days, t.status,
               (t.subscription_end - CURRENT_DATE)::int AS days_left,
@@ -54,7 +57,6 @@ r.post("/invoices", handle(async (req, res) => {
   res.status(201).json(row);
 }));
 
-// تسجيل السداد: يمدد الاشتراك تلقائيًا إلى نهاية المدة ويعيد تفعيل المدرسة
 r.post("/invoices/:id/pay", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(paySchema, req.body);
@@ -69,7 +71,6 @@ r.post("/invoices/:id/pay", handle(async (req, res) => {
               status = CASE WHEN status = 'suspended' AND auto_suspended_at IS NOT NULL THEN 'active' ELSE status END,
               auto_suspended_at = NULL
         WHERE id = $1`, [inv.tenant_id, inv.period_end]);
-    // السداد يمدد الاشتراك الحالي ويعيده فعّالًا (بنفس بيانات المدرسة)
     const [sub] = await q(
       `UPDATE subscriptions s SET ends_on = GREATEST(COALESCE(s.ends_on, CURRENT_DATE), $2::date),
               status = CASE WHEN s.status IN ('expired', 'trial_expired', 'pending_payment', 'trial') THEN 'active' ELSE s.status END,
@@ -91,7 +92,6 @@ r.post("/invoices/:id/void", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// إصدار فواتير التجديد دفعة واحدة لكل الاشتراكات المنتهية خلال 30 يومًا
 r.post("/run-renewals", handle(async (req, res) => {
   const created = await platform(req, async (q) => {
     const due = await q(
@@ -113,7 +113,6 @@ r.post("/run-renewals", handle(async (req, res) => {
   res.json({ created: created.length, invoices: created });
 }));
 
-// إيقاف المدارس التي انتهت مدة سماحها (يُنفَّذ تلقائيًا كل ساعة أيضًا)
 r.post("/suspend-expired", handle(async (req, res) => {
   const rows = await platform(req, (q) => q("SELECT * FROM suspend_expired_tenants()"));
   res.json({ suspended: rows });

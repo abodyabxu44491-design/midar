@@ -1,4 +1,8 @@
-// اختبارات الأداء والإصدارات: التقسيم إلى صفحات، التصفية في الخادم، الضغط، إبطال الكاش، ورقم الإصدار
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -97,7 +101,6 @@ test("الفواتير: صفحات وبحث وفلترة الطالب، والإ
 test("الضغط: الاستجابات النصية مضغوطة", async () => {
   const r = await raw("/api/admin/students", { Cookie: admin.cookie(), "Accept-Encoding": "br" });
   assert.equal(r.headers.get("content-encoding"), "br");
-  // fetch يفك الضغط تلقائيًا: نتحقق من الترويسة ثم من المحتوى المفكوك
   const html = await fetch(`${srv.base}/${s.id}/idara`, { headers: { "Accept-Encoding": "gzip" } });
   assert.equal(html.headers.get("content-encoding"), "gzip");
   assert.ok((await html.text()).includes("app-version"));
@@ -128,7 +131,6 @@ test("الإصدار وإبطال الكاش: روابط بالإصدار، كا
   const plain = await raw("/shared/js/api.js");
   assert.match(plain.headers.get("cache-control"), /max-age=0/);
   assert.ok(plain.headers.get("etag"), "إعادة تحقق سريعة (304)");
-  // طلب HTTP خام (fetch في Node يحوّل الطلب المشروط إلى no-cache حسب المواصفة، بخلاف المتصفح)
   const status304 = await new Promise((resolve, reject) => {
     http.get(`${srv.base}/shared/js/api.js`, { headers: { "If-None-Match": plain.headers.get("etag") } }, (r) => { r.resume(); resolve(r.statusCode); }).on("error", reject);
   });

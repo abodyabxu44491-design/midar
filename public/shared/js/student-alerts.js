@@ -1,4 +1,8 @@
-// تنبيهات الطالب: بطاقة العرض ونافذة الإضافة (تستخدمها الإدارة والمعلم وصفحة ولي الأمر)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 import { field, input, select, textarea, btn, toast, dialog, sub } from "./ui.js";
 import { fmtDateTime } from "./format.js";
@@ -6,7 +10,6 @@ import { fmtDateTime } from "./format.js";
 export const ALERT_KINDS = { note: "ملاحظة", attendance: "الحضور", behavior: "السلوك", academic: "المستوى الدراسي", health: "صحي", praise: "ثناء وتميّز" };
 export const ALERT_LEVELS = { info: "عادي", warning: "تنبيه", urgent: "عاجل", positive: "إيجابي" };
 
-/** بطاقة تنبيه. onAck لولي الأمر (تأكيد الاطلاع)، onDelete للإدارة أو كاتب التنبيه */
 export function alertCard(a, { onAck = null, onDelete = null, staff = false } = {}) {
   return h("div", { class: `sa-card lv-${a.level}` },
     h("div", { class: "sa-top" },
@@ -19,7 +22,7 @@ export function alertCard(a, { onAck = null, onDelete = null, staff = false } = 
       staff ? h("small", {}, [a.created_by ? `بواسطة ${a.created_by}` : null, a.for_parent ? "يظهر لولي الأمر" : "داخلي فقط",
         a.for_parent ? (a.acknowledged_at ? "اطّلع ولي الأمر" : "لم يطّلع بعد") : null].filter(Boolean).join(" · ")) : null,
       onAck && !a.acknowledged_at ? btn("تم الاطلاع", async (e) => {
-        const el = e.currentTarget;   // يصبح null بعد أول await
+        const el = e.currentTarget;
         el.disabled = true;
         try { await onAck(a); a.acknowledged_at = new Date().toISOString(); el.replaceWith(h("small", { class: "ok-text" }, "شكرًا، تم تأكيد الاطلاع")); }
         catch (err) { toast(err.message, true); el.disabled = false; }
@@ -28,7 +31,6 @@ export function alertCard(a, { onAck = null, onDelete = null, staff = false } = 
       onDelete ? btn("حذف", () => onDelete(a), "ghost sm") : null));
 }
 
-/** نافذة إضافة تنبيه لطالب. save(body) ترسل للخادم */
 export function alertDialog(studentName, save, preset = {}) {
   const kind = select(Object.entries(ALERT_KINDS), { value: preset.kind || "note" });
   const level = select(Object.entries(ALERT_LEVELS), { value: preset.level || "info" });
@@ -36,7 +38,6 @@ export function alertDialog(studentName, save, preset = {}) {
   const body = textarea({ rows: 3, placeholder: "تفاصيل تساعد ولي الأمر (اختياري)" });
   if (preset.body) body.value = preset.body;
   const parent = h("input", { type: "checkbox", checked: preset.for_parent ?? true });
-  // اختيار «ثناء» يجعل المستوى إيجابيًا تلقائيًا
   kind.addEventListener("change", () => { if (kind.value === "praise") level.value = "positive"; });
   const d = dialog(`تنبيه للطالب: ${studentName}`, h("div", {},
     h("div", { class: "form-grid" }, field("النوع", kind), field("الأهمية", level)),

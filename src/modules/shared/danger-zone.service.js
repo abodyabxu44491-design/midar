@@ -1,11 +1,9 @@
-// منطقة الحذر: العمليات الاستثنائية على بيانات مدرسة (للمالك، ولمدير المدرسة حسب صلاحيته).
-// الاشتراكات والباقات والفواتير والتجديدات خارجها نهائيًا (لا تُنسخ ولا تُستعاد ولا تُحذف، إلا مع حذف المدرسة كلها).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// لا تنفيذ مباشر. كل عملية تمر بالمراحل:
-//   1) اختيار المدرسة  2) اختيار العملية  3) الشرح  4) ما سيتأثر (بالأرقام الحقيقية)  5) ما لن يتأثر
-//   6) نسخة احتياطية (إلزامية للعمليات المدمّرة، وتلقائية قبلها)  7) المراجعة  8) كتابة رمز المدرسة للتأكيد
-//   9) إعادة التحقق من الهوية (كلمة المرور + رمز التحقق للمالك)  10) التنفيذ داخل معاملة واحدة  11) التسجيل الكامل
-// المراحل 1–5 يعيدها plan()، والتنفيذ يتحقق من كل شرط في الخادم من جديد (لا يُعتمد على الواجهة).
 import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
@@ -23,16 +21,13 @@ import { ensureDefaults } from "./academic.service.js";
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
-// التسجيل: في سجل المدرسة دائمًا، وعمليات المالك أيضًا في سجل المنصة (يراها في «سجل العمليات» بلوحته)
 async function log(q, ctx, tid, action) {
   await logEvent(q, { tenantId: tid, actor: ctx.actor, action });
   if (ctx.scope === "owner") await logEvent(q, { tenantId: null, actor: ctx.actor, action: `${action} — مدرسة ${tid}` });
 }
-const PLAN_TTL_MIN = 20;          // صلاحية العملية المخططة
-const KEEP_BACKUPS = 15;          // النسخ المحفوظة لكل مدرسة (الأقدم يُحذف تلقائيًا)
+const PLAN_TTL_MIN = 20;
+const KEEP_BACKUPS = 15;
 
-/* ---------- فئات البيانات القابلة للحذف ----------
-   الجداول بأسمائها الثابتة هنا فقط، والدالة في قاعدة البيانات تتحقق منها مرة ثانية وترتبها بأمان. */
 export const CATEGORIES = {
   attendance:    { label: "الحضور والغياب", note: "كل سجلات الحضور وأسباب الغياب وأعذار أولياء الأمور", tables: ["attendance"], admin: true },
   announcements: { label: "التعاميم", tables: ["announcements"], admin: true },
@@ -51,13 +46,10 @@ export const CATEGORIES = {
 };
 const SETTINGS_TABLES = ["school_public_settings", "exam_paper_settings", "timetable_settings", "school_messages"];
 const REINIT = ["students", "grades", "homework", "announcements", "alerts", "admissions"];
-const KEEP_ON_RESET = ["school_modules"];   // الأقسام المفعّلة مرتبطة بالاشتراك
+const KEEP_ON_RESET = ["school_modules"];
 
 const ALWAYS_SAFE = "سجل العمليات (لا يُحذف أبدًا)، والاشتراك والباقة والفواتير والتجديدات";
 
-/* ---------- العمليات ----------
-   severity: medium | high | critical. backup: none | auto (نسخة تلقائية إلزامية قبل التنفيذ).
-   reauth: إعادة التحقق من الهوية. scopes: من يستطيعها (owner / admin). */
 export const OPERATIONS = {
   sessions_kill: {
     label: "إيقاف جميع جلسات المستخدمين", severity: "medium", backup: "none", reauth: false, scopes: ["owner", "admin"], group: "الأمان",
@@ -150,7 +142,6 @@ export function catalog(scope) {
   };
 }
 
-/* ---------- الأرقام الحقيقية ---------- */
 const TABLE_LABEL = {
   students: "الطلاب", attendance: "سجلات الحضور", scores: "الدرجات المرصودة", exams: "الاختبارات", invoices: "الفواتير", payments: "الدفعات",
   payment_claims: "إشعارات التحويل", fee_adjustments: "تعديلات الرسوم", student_alerts: "تنبيهات الطلاب", student_years: "السجل الأكاديمي السنوي",
@@ -169,7 +160,7 @@ const TABLE_LABEL = {
   sync_changes: "تغييرات المزامنة", sync_devices: "أجهزة المزامنة", sync_operations: "عمليات المزامنة",
   notifications: "الإشعارات", push_subscriptions: "اشتراكات الإشعار الفوري", school_notify: "إعدادات الإشعارات",
   notification_prefs: "اختيارات الإشعارات", notification_deliveries: "سجل تسليم الإشعارات",
-  attendance_credentials: "بطاقات الحضور", gates: "البوابات", gate_devices: "أجهزة البوابة", gate_join_codes: "رموز ربط جوالات البوابة", attendance_events: "سجل مسح البوابة",
+  attendance_credentials: "بطاقات الحضور", gates: "البوابات", gate_devices: "أجهزة البوابة", gate_join_codes: "رموز ربط جوالات البوابة", chat_threads: "محادثات أولياء الأمور والمعلمين", chat_messages: "رسائل المحادثات", testimonials: "آراء المدارس المنشورة", attendance_events: "سجل مسح البوابة",
   attendance_days: "حالة أيام الحضور", attendance_audit: "سجل تعديلات الحضور", attendance_stage_hours: "أوقات الحضور للمراحل",
   parents: "حسابات أولياء الأمور", parent_students: "ربط أولياء الأمور بالأبناء", parent_link_requests: "طلبات ربط الأبناء",
   school_feature_settings: "إعدادات الأقسام", behavior_categories: "تصنيفات السلوك", behavior_records: "سجلات السلوك",
@@ -187,14 +178,13 @@ export const tableLabel = (t) => TABLE_LABEL[t] || t;
 async function counts(q, tid, tables) {
   const out = [];
   for (const t of tables) {
-    const [r] = await q(`SELECT count(*)::int AS n FROM ${t} WHERE tenant_id = $1`, [tid]);   // أسماء ثابتة من هذا الملف فقط
+    const [r] = await q(`SELECT count(*)::int AS n FROM ${t} WHERE tenant_id = $1`, [tid]);
     if (r.n) out.push({ table: t, label: TABLE_LABEL[t] || t, count: r.n });
   }
   return out;
 }
 const dataTables = async (q, kinds = ["data"]) => (await q("SELECT name FROM danger_tables() WHERE kind = ANY($1) ORDER BY depth DESC, name", [kinds])).map((r) => r.name);
 
-// الجداول التي تحذفها كل عملية (القائمة نفسها تُعرض في «ما سيتأثر» وتُمرر للتنفيذ)
 async function tablesFor(q, op, params) {
   switch (op) {
     case "data_purge": return [...new Set((params.categories || []).flatMap((c) => CATEGORIES[c].tables))];
@@ -206,7 +196,6 @@ async function tablesFor(q, op, params) {
   }
 }
 
-/* ---------- المرحلة 1–5: التخطيط ---------- */
 export async function plan(ctx, tid, b) {
   const o = OPERATIONS[b.op];
   if (!o.scopes.includes(ctx.scope)) throw forbidden("هذه العملية لمالك المنصة فقط");
@@ -220,7 +209,6 @@ export async function plan(ctx, tid, b) {
   return transaction({ tenantId: tid, actor: ctx.actor, ip: ctx.ip, platform: true }, async (q) => {
     const [t] = await q("SELECT id, name, status, emergency_locked_at FROM tenants WHERE id = $1", [tid]);
     if (!t) throw notFound("المدرسة غير موجودة");
-    // شروط كل عملية قبل أن تبدأ
     const pre = {
       archive: () => t.status === "archived" && "المدرسة مؤرشفة مسبقًا",
       unarchive: () => t.status !== "archived" && "المدرسة ليست مؤرشفة",
@@ -277,7 +265,6 @@ async function loadOp(q, ctx, id, token, tid) {
   return op;
 }
 
-/* ---------- النسخ الاحتياطي ---------- */
 export async function createBackup(ctx, tid, reason, q0 = null) {
   const run = async (q) => {
     await q("SET LOCAL statement_timeout = '180s'");
@@ -292,7 +279,6 @@ export async function createBackup(ctx, tid, reason, q0 = null) {
       `INSERT INTO tenant_backups (tenant_id, tenant_name, reason, created_by, scope, schema_version, tables, size_bytes, sha256, data)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, size_bytes`,
       [tid, t.name, reason.slice(0, 200), ctx.actor, ctx.scope, v, tables, packed.length, sha(packed), packed]);
-    // الاحتفاظ بآخر النسخ فقط (النسخة المرتبطة بعملية حذف المدرسة لا تُحذف لأن المدرسة لم تعد تنشئ نسخًا)
     await q(`DELETE FROM tenant_backups WHERE tenant_id = $1 AND id NOT IN (SELECT id FROM tenant_backups WHERE tenant_id = $1 ORDER BY id DESC LIMIT ${KEEP_BACKUPS})`, [tid]);
     await log(q, ctx, tid, `منطقة الحذر: نسخة احتياطية #${row.id} (${reason})`);
     return { ...row, tables };
@@ -322,7 +308,6 @@ export async function stepBackup(ctx, tid, id, token) {
   });
 }
 
-/* ---------- إعادة التحقق من الهوية ---------- */
 async function reauth(ctx, tid, b) {
   const fail = async (msg) => {
     await transaction({ tenantId: tid, actor: ctx.actor, ip: ctx.ip, platform: true }, async (q) => {
@@ -345,25 +330,20 @@ async function reauth(ctx, tid, b) {
   }
 }
 
-/* ---------- المرحلة 8–11: التأكيد والتحقق والتنفيذ والتسجيل ---------- */
 export async function execute(ctx, tid, id, b) {
-  // 1) فحص الطلب والتأكيد قبل أي عمل ثقيل
   const op = await transaction({ tenantId: tid, platform: true }, async (q) => loadOp(q, ctx, id, b.token, tid));
   const o = OPERATIONS[op.op];
   if (o.severity !== "low" && b.confirm !== tid) throw badRequest(`اكتب رمز المدرسة «${tid}» كما هو للتأكيد`);
   if (o.reauth) await reauth(ctx, tid, b);
-  // 2) النسخة الاحتياطية الإلزامية: إن لم تُنشأ في مرحلتها تُنشأ الآن تلقائيًا
   let backupId = op.backup_id;
   if (o.backup === "auto" && !backupId) backupId = (await stepBackup(ctx, tid, id, b.token)).id;
-  // 3) الموافقة ثم التنفيذ في معاملة واحدة (تفشل كلها أو تنجح كلها)
   try {
     const result = await transaction({ tenantId: tid, actor: ctx.actor, ip: ctx.ip, platform: true }, async (q) => {
       await q("SET LOCAL statement_timeout = '300s'");
-      // الموافقة مرة واحدة فقط: ضغطتان متزامنتان لا تنفذان العملية مرتين
       const ok = await q("UPDATE danger_operations SET status = 'approved', approved_at = now(), backup_id = $2 WHERE id = $1 AND status = 'planned' AND expires_at > now() RETURNING id", [op.id, backupId]);
       if (!ok.length) throw conflict("هذه العملية نُفذت أو أُلغيت أو انتهت صلاحيتها");
       const out = await run(q, ctx, tid, op, b.token);
-      const { credentials, ...stored } = out;   // كلمات المرور الجديدة تُعرض مرة واحدة ولا تُحفظ في سجل العملية
+      const { credentials, ...stored } = out;
       void credentials;
       await q("UPDATE danger_operations SET status = 'executed', executed_at = now(), result = $2 WHERE id = $1", [op.id, stored]);
       await log(q, ctx, tid, `منطقة الحذر: نُفذت «${o.label}» (#${op.id})${backupId ? ` — نسخة احتياطية #${backupId}` : ""}${out.deleted ? ` — حُذف ${Object.values(out.deleted).reduce((a, n) => a + n, 0)} سجل` : ""}`);
@@ -423,7 +403,7 @@ async function run(q, ctx, tid, op, token) {
     case "data_reinit": return { deleted: await del(await tablesFor(q, op.op, params)) };
     case "school_reset": {
       const deleted = await del(await tablesFor(q, op.op, params), { keepAdmins: true });
-      await ensureDefaults(q);   // سنة دراسية وفصولها كما عند إنشاء مدرسة جديدة
+      await ensureDefaults(q);
       await q("INSERT INTO school_profile (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO UPDATE SET setup_completed_at = NULL", [tid]);
       await killSessions();
       return { deleted };
@@ -453,14 +433,13 @@ export const history = (q, tid) => q(
           result - 'credentials' AS result, impact
      FROM danger_operations WHERE ($1::text IS NULL OR tenant_id = $1) ORDER BY id DESC LIMIT 100`, [tid]);
 
-// ملخص المدرسة لشاشة البداية: الحالة وأرقام الفئات والنسخ
 export async function summary(tid) {
   return transaction({ tenantId: tid, platform: true }, async (q) => {
     const [t] = await q("SELECT id, name, status, emergency_locked_at, emergency_reason, created_at FROM tenants WHERE id = $1", [tid]);
     if (!t) throw notFound("المدرسة غير موجودة");
     const cats = {};
     for (const [k, c] of Object.entries(CATEGORIES)) {
-      const main = c.main || c.tables[c.tables.length - 1];   // الجدول الذي يمثل الفئة في العدّ
+      const main = c.main || c.tables[c.tables.length - 1];
       const [r] = await q(`SELECT count(*)::int AS n FROM ${main} WHERE tenant_id = $1`, [tid]);
       cats[k] = r.n;
     }

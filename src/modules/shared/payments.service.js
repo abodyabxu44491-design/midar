@@ -1,10 +1,13 @@
-// الحسابات البنكية وإشعارات التحويل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { currencySymbol } from "../../core/currency.js";
 import { recordPayment } from "./finance.service.js";
 
-// الآيبان اختياري: البنوك والمحافظ في اليمن غالبًا تستخدم رقم الحساب فقط (أحدهما مطلوب)
 const iban = z.string().optional().nullable().transform((v) => (v ? v.replace(/[\s-]/g, "").toUpperCase() : null))
   .pipe(z.string().regex(/^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$/, "رقم الآيبان غير صحيح").nullable());
 
@@ -28,11 +31,10 @@ export const claimSchema = z.object({
 });
 export const reviewSchema = z.object({
   decision: z.enum(["confirm", "reject"]),
-  amount: t.money.optional(),          // المبلغ الذي وصل فعليًا (عند التأكيد)
+  amount: t.money.optional(),
   note: t.optText(300),
 });
 
-/* ---------- الحسابات ---------- */
 export const listAccounts = (q, { activeOnly = false } = {}) => q(
   `SELECT id, bank_name, account_holder, iban, account_number, is_active FROM payment_accounts
     ${activeOnly ? "WHERE is_active" : ""} ORDER BY id`);
@@ -49,7 +51,6 @@ export async function setAccountActive(q, id, active) {
   if (!rows.length) throw notFound("الحساب غير موجود");
 }
 
-/* ---------- الإشعارات ---------- */
 const CLAIM_SELECT = `SELECT c.id, c.invoice_id, c.student_id, c.amount, c.transfer_date, c.sender_name, c.bank_reference,
     c.status, c.review_note, c.reviewed_by, c.reviewed_at, c.created_at,
     i.title AS invoice_title, i.amount AS invoice_amount, invoice_net_paid(i.id) AS invoice_paid,
@@ -99,7 +100,6 @@ export async function createClaim(q, student, b) {
   return row;
 }
 
-// مراجعة الإشعار: التأكيد يسجل دفعة "تحويل" بإيصال، والإشعار والدفعة في معاملة واحدة
 export async function reviewClaim(q, id, b, actor) {
   const [c] = await q("SELECT * FROM payment_claims WHERE id = $1 FOR UPDATE", [id]);
   if (!c) throw notFound("الإشعار غير موجود");

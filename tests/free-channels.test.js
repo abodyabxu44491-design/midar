@@ -1,4 +1,8 @@
-// القنوات المجانية: بوابة رسائل المدرسة (جوالها بشريحتها) بلا رصيد، وقائمة واتساب للإرسال المتتابع، والعزل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, readySchool, endPool } from "./helpers.js";
@@ -22,7 +26,6 @@ before(async () => {
 after(async () => { setTransport(null); await srv.close(); await endPool(); });
 
 test("بوابة المدرسة (جوال أندرويد): تُحفظ بيانات الدخول مشفّرة ولا تُعاد، والإرسال بلا رصيد", async () => {
-  // بلا بوابة ولا رصيد: الإرسال مرفوض برسالة تدل على الحل المجاني
   const no = await A.admin.post(`${C}/sms/send`, { target: "all", message: "تجربة" });
   assert.equal(no.status, 400);
   assert.equal((await A.admin.put(`${C}/sms/gateway`, { enabled: true, preset: "android" })).status, 400, "يلزم اسم المستخدم وكلمة المرور");
@@ -51,7 +54,6 @@ test("بوابة المدرسة (جوال أندرويد): تُحفظ بيانا
   assert.equal(d.balance, before, "لا خصم من الرصيد");
   assert.ok(d.messages.every((x) => x.via === "school" && x.status === "sent"));
 
-  // فشل الجوال: تُسجل الرسالة فاشلة ولا يُضاف رصيد
   smsFails = true;
   await A.admin.post(`${C}/sms/send`, { target: "students", student_ids: [A.students[0].id], message: "رسالة ثانية" });
   await new Promise((r) => setTimeout(r, 400));
@@ -60,7 +62,6 @@ test("بوابة المدرسة (جوال أندرويد): تُحفظ بيانا
   assert.equal(after.messages[0].status, "failed");
   assert.equal(after.balance, before);
 
-  // B لا يرى بوابة A ولا يرسل عبرها
   assert.equal((await B.admin.get(`${C}/sms/gateway`)).data.gateway.enabled, false);
   assert.equal((await B.admin.post(`${C}/sms/send`, { target: "all", message: "تجربة" })).status, 400);
 });
@@ -81,7 +82,6 @@ test("قائمة واتساب: تجهيز بمتغيرات، رقم واحد ل�
   w = (await A.admin.get(`${C}/wa`)).data;
   assert.equal(w.counts.pending, r.data.added - 1);
   assert.equal(w.counts.sent_7d, 1);
-  // B لا يرى قائمة A ولا يعدّلها
   assert.equal((await B.admin.get(`${C}/wa`)).data.pending.length, 0);
   assert.equal((await B.admin.post(`${C}/wa/${w.pending[0].id}/done`, { status: "sent" })).status, 404);
   assert.equal((await A.admin.post(`${C}/wa/clear`, { scope: "pending" })).data.removed, r.data.added - 1);
@@ -95,7 +95,6 @@ test("واتساب تلقائي من الأحداث: الغياب يضيف رس�
   let w = (await A.admin.get(`${C}/wa`)).data;
   assert.equal(w.pending.length, 1);
   assert.equal(w.pending[0].kind, "absence");
-  // تذكير المتأخرين بالمبلغ
   assert.equal((await A.admin.post(`${C}/wa/compose`, { target: "absent_today", message: "ابنكم {الطالب} غائب اليوم" })).data.added, 1);
   await A.admin.put("/api/admin/settings/modules", { messaging: false });
   assert.equal((await A.admin.get(`${C}/wa`)).status, 400);

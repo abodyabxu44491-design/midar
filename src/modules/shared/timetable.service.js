@@ -1,4 +1,8 @@
-// الجدول الدراسي: حصص الصفوف، مع منع تعارض المعلمين من قاعدة البيانات نفسها
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { conflict, badRequest } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
@@ -10,7 +14,7 @@ export const slotSchema = z.object({
   class_id: t.id,
   day: z.coerce.number().int().min(0).max(6),
   period: z.coerce.number().int().min(1).max(10),
-  subject_id: t.optId,          // فارغ = حذف الحصة
+  subject_id: t.optId,
   teacher_id: t.optId,
   room: t.optText(30),
 });
@@ -29,8 +33,6 @@ export const forToday = (q, teacherId) => q(
    ORDER BY s.period`, [teacherId]);
 export const forAllClasses = (q) => q(`${SELECT} ORDER BY c.id, s.day, s.period`);
 
-// حفظ حصة واحدة (أو حذفها عند عدم إرسال المادة)
-// تغيّر جدول شعبة: إشعار واحد لأولياء أمورها ولمعلميها المتأثرين (تعديلات متتالية خلال نصف ساعة تُدمج في إشعار واحد)
 export async function notifyChange(q, classId, teacherIds) {
   const [c] = await q("SELECT name FROM classes WHERE id = $1", [classId]);
   if (!c) return;
@@ -48,7 +50,6 @@ export async function setSlot(q, b) {
     return { deleted: true };
   }
   if (b.teacher_id) {
-    // تحقق مبكر برسالة واضحة (والقيد في القاعدة هو الضمان الأخير)
     const [clash] = await q(
       `SELECT c.name FROM timetable_slots s JOIN classes c ON c.id = s.class_id
         WHERE s.teacher_id = $1 AND s.day = $2 AND s.period = $3 AND s.class_id <> $4`,

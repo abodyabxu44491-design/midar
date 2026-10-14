@@ -1,4 +1,8 @@
-// تبويب السجل: تصفية وبحث، وكل تعديل مع القيم قبل وبعد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, line, sub } from "../../shared/js/ui.js";

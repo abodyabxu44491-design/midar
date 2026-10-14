@@ -1,5 +1,8 @@
-// الإعلانات والرسائل الجماعية: لكل أولياء الأمور، أو مرحلة، أو صف، أو شعبة، أو طلاب محددين، أو المعلمين، أو كل المنسوبين.
-// الإرسال يمر بخطوتين: معاينة (كم مستلمًا) ثم تأكيد بنفس العدد، فلا يُرسل شيء بالخطأ أو لفئة تغيّرت بعد المعاينة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
@@ -11,15 +14,14 @@ const TYPES = ["all", "stage", "grade", "class", "students", "teachers", "staff"
 const schema = z.object({
   title: t.shortText("العنوان"),
   body: t.optText(2000),
-  kind: z.enum(["announcement", "message"]).default("announcement"),   // إعلان (يبقى في صفحة الإعلانات) أو رسالة (إشعار فقط)
-  class_id: t.optId,                                                    // الطريقة القديمة: شعبة واحدة
+  kind: z.enum(["announcement", "message"]).default("announcement"),
+  class_id: t.optId,
   target: z.object({ type: z.enum(TYPES), ids: z.array(t.id).max(2000).default([]) }).optional(),
   dry_run: z.boolean().default(false),
-  expected: z.number().int().min(0).optional(),                         // العدد الذي رآه المرسل في المعاينة
+  expected: z.number().int().min(0).optional(),
 });
 const STAFF_TYPES = new Set(["teachers", "staff"]);
 
-/** المستلمون حسب الفئة. @returns {{ students: number[], users: number[] }} */
 async function recipients(q, target) {
   const { type, ids } = target;
   if (type !== "all" && !STAFF_TYPES.has(type) && !ids.length) throw badRequest("اختر من يصله الإرسال");
@@ -43,7 +45,6 @@ r.get("/", handle(async (req, res) => {
     FROM announcements a LEFT JOIN classes c ON c.id = a.class_id ORDER BY a.id DESC LIMIT 200`)));
 }));
 
-// الفئات المتاحة للإرسال: المراحل والصفوف والشعب والطلاب
 r.get("/targets", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({
     stages: await q("SELECT id, name FROM stages ORDER BY sort_order, id"),

@@ -1,4 +1,8 @@
-// التقويم المدرسي: فعاليات تضيفها الإدارة، ويُجمع معها تلقائيًا: الإجازات، والاختبارات، والاختبارات الإلكترونية، وبداية الفصول ونهايتها
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
@@ -47,10 +51,6 @@ export async function remove(q, id) {
   if (!rows.length) throw notFound("الفعالية غير موجودة");
 }
 
-/**
- * عناصر التقويم في فترة.
- * @param {{ view: "admin"|"staff"|"parent", classIds?: number[]|null }} who
- */
 export async function feed(q, { from, to }, { view, classIds = null }) {
   const aud = view === "parent" ? ["all", "parents"] : view === "staff" ? ["all", "staff"] : ["all", "staff", "parents"];
   const events = await q(`SELECT id, title, kind, starts_on::text AS start, ends_on::text AS end, time_text, audience, class_id, description

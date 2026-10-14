@@ -1,11 +1,13 @@
-// مدرسة تجريبية كاملة للعرض والتجربة: npm run seed:demo
-// لا تستخدمه على قاعدة بيانات الإنتاج الحقيقية.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { transaction, closePool } from "../src/core/db/pool.js";
 import { hashPassword } from "../src/core/auth/password.js";
 import * as students from "../src/modules/shared/students.service.js";
 import * as finance from "../src/modules/shared/finance.service.js";
 
-// حماية: هذا السكربت ينشئ مدرسة بكلمات مرور معروفة للجميع، فلا يعمل على الإنتاج إلا بطلب صريح
 if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
   console.error("رُفض التنفيذ: بيئة الإنتاج. هذا السكربت ينشئ حسابات بكلمات مرور معروفة (للعرض فقط).");
   process.exit(1);

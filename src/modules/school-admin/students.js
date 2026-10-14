@@ -1,4 +1,8 @@
-// الطلاب: إضافة، استيراد، تعديل، أرشفة، معرّفات، تفعيل الرسوم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound, badRequest } from "../../core/http/errors.js";
@@ -10,16 +14,11 @@ import * as alerts from "../shared/student-alerts.service.js";
 
 const r = Router();
 
-// قائمة الطلاب.
-//   بدون limit: القائمة كاملة (للتوافق مع التصدير والواجهات القديمة)
-//   مع limit: صفحة واحدة مع التصفية والبحث في الخادم، والعدد الكلي في X-Total-Count
-//   summary=1: أعداد الطلاب لكل شعبة فقط (بطاقات المراحل والصفوف) بدل تنزيل القائمة كلها
-//   fields=basic: الاسم والشعبة فقط (قوائم الاختيار في الحضور والكشوف)
 const listQuery = z.object({
   status: z.enum(["active", "inactive", "all"]).default("active"),
-  st: z.enum(students.STATUSES).optional(),          // حالة محددة (متخرج، منقول، منسحب...)
+  st: z.enum(students.STATUSES).optional(),
   stats: z.enum(["1"]).optional(),
-  since: z.string().datetime({ offset: true }).optional(),   // المضافون أو المحدَّثون منذ وقت (عرض الطلاب المستوردين)
+  since: z.string().datetime({ offset: true }).optional(),
   class_id: t.optId,
   class_ids: z.string().regex(/^\d+(,\d+)*$/).max(4000).optional(),
   q: z.string().trim().max(80).optional(),
@@ -29,7 +28,6 @@ const listQuery = z.object({
   summary: z.enum(["1"]).optional(),
   fields: z.enum(["basic"]).optional(),
 });
-// حالة الرسوم محسوبة في قاعدة البيانات (للتصفية في الخادم)
 const FEE_BALANCE = `(SELECT COALESCE(SUM(i.amount - invoice_net_paid(i.id)), 0) FROM invoices i WHERE i.student_id = s.id AND i.status = 'open')`;
 const FEE_TOTAL = `(SELECT COALESCE(SUM(i.amount), 0) FROM invoices i WHERE i.student_id = s.id AND i.status = 'open')`;
 
@@ -69,7 +67,6 @@ r.get("/", handle(async (req, res) => {
       for (const x of rows) delete x._total;
     }
     if (f.fields !== "basic") {
-      // ملخص الرسوم للصفحة المعروضة فقط (وليس لكل طلاب المدرسة)
       const summaries = await studentSummaries(q, rows.filter((x) => x.fees_enabled).map((x) => x.id));
       for (const x of rows) x.fees = x.fees_enabled ? summaries.get(Number(x.id)) : null;
     }
@@ -77,7 +74,6 @@ r.get("/", handle(async (req, res) => {
   }));
 }));
 
-// بحث بجوال ولي الأمر: يملأ الاسم ويكشف الإخوة المسجلين
 r.get("/guardian", handle(async (req, res) => {
   const phone = parse(z.string().max(20), req.query.phone || "");
   res.json(await inTenant(req, (q) => students.guardianByPhone(q, phone)));
@@ -89,7 +85,6 @@ r.post("/", handle(async (req, res) => {
   res.status(201).json(created);
 }));
 
-// الاستيراد يتم كاملًا أو لا يتم أبدًا (لا يبقى نصف الملف)
 r.post("/import", handle(async (req, res) => {
   const b = parse(students.importSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => students.create(q, req.tenant, b.students)));
@@ -106,17 +101,12 @@ r.post("/:id/regenerate-key", handle(async (req, res) => {
   res.json({ access_key: await inTenant(req, (q) => students.regenerateKey(q, id)) });
 }));
 
-// لا يوجد حذف نهائي: تتغير حالة الطالب فقط وتبقى سجلاته
 r.post("/:id/status", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(students.statusSchema, req.body);
   res.json(await inTenant(req, (q) => students.setStatus(q, req.tenant, id, b)));
 }));
 
-/**
- * إجراء واحد على عدة طلاب: نقل لشعبة، تغيير الحالة، تفعيل/إيقاف الرسوم.
- * يتم كاملًا داخل معاملة واحدة، ويُسجَّل في سجل التدقيق لكل طالب.
- */
 const bulkSchema = z.object({
   ids: z.array(t.id).min(1, "اختر طالبًا واحدًا على الأقل").max(2000),
   action: z.enum(["move_class", "status", "fees"]),
@@ -156,13 +146,11 @@ r.post("/bulk", handle(async (req, res) => {
   }));
 }));
 
-// ملف الطالب الكامل للإدارة: نفس ما يراه ولي الأمر، لكن بدون معرّف الدخول وبكل الأقسام
 r.get("/:id/profile", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   res.json(await inTenant(req, async (q) => buildProfile(q, req.tenant, await students.get(q, id, { includeArchived: true }), { admin: true })));
 }));
 
-// الصورة: تُخدم من الخادم بصلاحية الإدارة فقط، وتُخزَّن مؤقتًا حسب رقم النسخة (?v=)
 r.get("/:id/photo", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const p = await inTenant(req, (q) => students.getPhoto(q, id));
@@ -181,7 +169,6 @@ r.delete("/:id/photo", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// تنبيهات الطالب (سلوك، حضور، مستوى، صحة، ثناء) — ما حُدد لولي الأمر يظهر في ملف الطالب
 r.get("/alerts/recent", handle(async (req, res) => res.json(await inTenant(req, (q) => alerts.recent(q)))));
 r.get("/:id/alerts", handle(async (req, res) => {
   const { id } = parse(z.object({ id: t.id }), req.params);

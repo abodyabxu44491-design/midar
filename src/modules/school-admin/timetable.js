@@ -1,4 +1,8 @@
-// الجدول الدراسي (الإدارة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -27,7 +31,6 @@ r.delete("/class/:id", handle(async (req, res) => {
   res.json({ deleted: await inTenant(req, (q) => timetable.clearClass(q, id)) });
 }));
 
-/* ---------- إعدادات الجدول ---------- */
 r.get("/settings", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({ settings: await gen.getSettings(q), times: gen.periodTimes(await gen.getSettings(q)) })));
 }));
@@ -37,7 +40,6 @@ r.put("/settings", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => gen.saveSettings(q, b)));
 }));
 
-/* ---------- نسخ جدول شعبة إلى أخرى ---------- */
 r.post("/copy", handle(async (req, res) => {
   const b = parse(z.object({ from_class_id: t.id, to_class_id: t.id, keep_teachers: z.boolean().default(false) }), req.body);
   if (b.from_class_id === b.to_class_id) throw notFound("اختر شعبتين مختلفتين");
@@ -49,7 +51,6 @@ r.post("/copy", handle(async (req, res) => {
     await q("DELETE FROM timetable_slots WHERE class_id = $1", [b.to_class_id]);
     let copied = 0, skipped = 0;
     for (const s of source) {
-      // المعلم يُنسخ فقط إذا كان متفرغًا في ذلك الوقت، وإلا تُترك الحصة بلا معلم
       let teacher = b.keep_teachers ? s.teacher_id : null;
       if (teacher) {
         const [busy] = await q(
@@ -66,10 +67,9 @@ r.post("/copy", handle(async (req, res) => {
   }));
 }));
 
-/* ---------- التوليد التلقائي ---------- */
 r.post("/generate", handle(async (req, res) => {
   const b = parse(gen.generateSchema, req.body);
-  res.json(await inTenant(req, (q) => gen.generate(q, b)));     // مسودة فقط، لا تُحفظ
+  res.json(await inTenant(req, (q) => gen.generate(q, b)));
 }));
 
 r.post("/apply", handle(async (req, res) => {

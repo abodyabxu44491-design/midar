@@ -1,20 +1,19 @@
-// محرك الصفحات: يوزّع الكتل على صفحات بحجم الورق الحقيقي (مم)، فالمعاينة هي نفسها الطباعة.
-//   * لا ينقسم السؤال بين صفحتين: إن لم يتسع ينتقل كاملًا للصفحة التالية.
-//   * عنوان القسم لا يبقى وحيدًا أسفل الصفحة، والسؤال يبقى مع أول سطرين من مساحة إجابته.
-//   * أسطر الإجابة الطويلة وحدها تكمل في الصفحة التالية.
-//   * «صفحة كاملة» تملأ ما تبقى من الصفحة (أو صفحة جديدة إن كان المتبقي قليلًا).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "../dom.js";
 import { pageVars } from "./render.js";
 import { FONTS, withLayoutDefaults } from "./engine.js";
 
-// انتظار الخطوط والصور حتى تكون المقاسات صحيحة
 export async function ready(root, layout) {
   const L = withLayoutDefaults(layout);
   const fams = new Set([FONTS[L.font]?.[0], L.heading_font !== "same" ? FONTS[L.heading_font]?.[0] : null].filter(Boolean));
   try {
     await Promise.all([...fams].flatMap((f) => [document.fonts.load(`400 12pt "${f}"`, "ابت"), document.fonts.load(`700 12pt "${f}"`, "ابت")]));
     await document.fonts.ready;
-  } catch { /* الخط الاحتياطي */ }
+  } catch { /* ignore */ }
   const imgs = [...root.querySelectorAll("img")].filter((i) => !i.complete);
   await Promise.all(imgs.map((i) => new Promise((r) => { i.onload = r; i.onerror = r; })));
 }
@@ -34,14 +33,9 @@ const usedHeight = (body) => {
   return last ? last.offsetTop + last.offsetHeight - body.offsetTop : 0;
 };
 
-/**
- * يرسم الكتل في host كصفحات، ويعيد مصفوفة عناصر الصفحات.
- * blocks: [{ el, keep?, fillPage? }]
- */
 export async function paginate(host, { blocks, running, layout, footerText = "", watermark = null }) {
   const vars = pageVars(layout);
   const L = vars.L;
-  // قياس الصور والخطوط قبل التوزيع: نضع الكتل في صفحة قياس مؤقتة
   const probe = newPage(host, vars, { pageIndex: 0 });
   for (const b of blocks) probe.body.append(b.el);
   await ready(probe.page, L);
@@ -65,7 +59,7 @@ export async function paginate(host, { blocks, running, layout, footerText = "",
     if (overflows(cur.body) && cur.body.children.length > 1) {
       b.el.remove();
       next();
-      cur.body.append(b.el);        // كتلة أطول من صفحة كاملة تبقى وحدها (نادر: صورة ضخمة)
+      cur.body.append(b.el);
     }
   };
 
@@ -83,12 +77,11 @@ export async function paginate(host, { blocks, running, layout, footerText = "",
         for (const b of chain) cur.body.append(b.el);
         if (overflows(cur.body)) { for (const b of chain) b.el.remove(); chain.forEach(placeOne); }
       } else {
-        chain.forEach(placeOne);   // السلسلة أطول من صفحة: توزَّع كتلة كتلة
+        chain.forEach(placeOne);
       }
     }
     i += chain.length;
   }
-  // إزالة صفحة أخيرة فارغة إن وُجدت
   if (!cur.body.children.length && pages.length > 1) { cur.page.remove(); pages.pop(); }
 
   const n = pages.length;
@@ -99,7 +92,6 @@ export async function paginate(host, { blocks, running, layout, footerText = "",
   return pages.map((p) => p.page);
 }
 
-// نسخة الصفحات لطالب محدد: الاسم والصف والشعبة والرقم تُكتب في الحقول (التخطيط لا يتغير لأن الحقول بعرض ثابت)
 export function personalize(pages, student) {
   const copy = pages.map((p) => p.cloneNode(true));
   const values = { name: student.name, grade: student.grade_name || "", section: student.class_name || "", number: String(student.number) };
@@ -114,8 +106,6 @@ export function personalize(pages, student) {
   return copy;
 }
 
-/* ---------- الطباعة ---------- */
-// @page يُضبط عبر CSSOM (مسموح في سياسة الحماية، بخلاف عناصر style المضمنة)
 function setPageRule(layout) {
   const { w, h: hh } = pageVars(layout);
   const sheet = [...document.styleSheets].find((s) => (s.href || "").endsWith("/shared/css/exam.css"));
@@ -124,14 +114,6 @@ function setPageRule(layout) {
   sheet.insertRule(`@page { size: ${w}mm ${hh}mm; margin: 0; }`, sheet.cssRules.length);
 }
 
-/**
- * يطبع الصفحات المعطاة وحدها: تُنقل مؤقتًا إلى جذر طباعة، وكل ما عداها مخفي.
- * يعيد وعدًا يتحقق بعد إغلاق نافذة الطباعة.
- *
- * جذر الطباعة يبقى حتى يعود المستخدم للصفحة (لمس أو ضغطة زر): في الجوال (Chrome/Android)
- * تُعاد صياغة معاينة الطباعة عند تغيير الورق أو الطابعة بعد أن تُرجع window.print()، ولو أُزيل الجذر
- * مبكرًا لطُبعت واجهة المنصة بدل الاختبار (أوراق كثيرة عشوائية).
- */
 let cleanup = null;
 export function printPages(pages, layout) {
   cleanup?.();
@@ -158,9 +140,7 @@ export function printPages(pages, layout) {
     const onAfter = () => { printed = true; resolve(); };
     cleanup = remove;
     window.addEventListener("afterprint", onAfter);
-    // العودة للصفحة بعد الطباعة تزيل الجذر (بعد لحظة حتى لا تلتقط لمسة إغلاق نافذة الطباعة نفسها)
     setTimeout(() => { for (const ev of ["pointerdown", "keydown", "scroll"]) window.addEventListener(ev, onBack, true); }, 800);
-    // انتظار تحميل صور النسخة والخطوط قبل فتح نافذة الطباعة
     const imgs = [...root.querySelectorAll("img")].filter((i) => !i.complete);
     Promise.all([document.fonts?.ready, ...imgs.map((i) => new Promise((r) => { i.onload = r; i.onerror = r; }))])
       .then(() => setTimeout(() => { window.print(); }, 60));

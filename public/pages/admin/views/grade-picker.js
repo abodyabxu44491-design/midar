@@ -1,13 +1,11 @@
-// منتقي واحد «المرحلة ← الصف ← الشعبة»: زر يفتح تصفّحًا متدرجًا بدل 3 قوائم منفصلة في صف الفلاتر.
-// نفس فكرة تصفّح الصفوف الموجودة عندك أصلًا، بمكوّن واحد يُعاد استخدامه في الطلاب والمعلمين.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { dialog, btn } from "../../shared/js/ui.js";
 
-/**
- * @param {object} structure  هيكل المدرسة (stages → grades → sections) من /setup
- * @param {object} opts       { sectionsOn, onChange(state) } — تُستدعى onChange بعد أي اختيار
- * @returns {{ el, stageId, gradeId, classId, classIds, reset }}
- */
 export function gradePicker(structure, { sectionsOn = true, onChange } = {}) {
   const state = { stageId: "", gradeId: "", classId: "" };
   const btnEl = h("button", { type: "button", class: "picker-btn" });
@@ -15,7 +13,6 @@ export function gradePicker(structure, { sectionsOn = true, onChange } = {}) {
   const stageOf = () => structure.stages.find((s) => String(s.id) === state.stageId);
   const gradeOf = () => stageOf()?.grades.find((g) => String(g.id) === state.gradeId);
 
-  // كل الشعب ضمن نطاق الاختيار الحالي (تُستخدم للتصفية الفعلية في القوائم)
   const classIds = () => {
     if (state.classId) return [Number(state.classId)];
     const grades = state.gradeId ? [gradeOf()].filter(Boolean)

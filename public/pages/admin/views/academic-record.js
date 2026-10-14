@@ -1,6 +1,8 @@
-// السجل الأكاديمي في الإعدادات: كل ما يخص بنية المدرسة في مكان واحد.
-// لا منطق خاص به: يعرض نفس أجزاء «الهيكل الأكاديمي» و«السنة الدراسية» ويستدعي نفس الواجهات البرمجية
-// التي يحفظ فيها معالج أول دخول، فأي تعديل هنا يظهر في المعالج والنظام كله، والعكس.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, input, btn, sub, empty, notice, toast, confirmAction, line, badge, stats } from "../../shared/js/ui.js";
@@ -17,7 +19,7 @@ const PARTS = [
   ["system", "إعدادات النظام الأكاديمي"],
 ];
 
-let remembered = "structure";   // يبقى القسم المفتوح بعد الحفظ
+let remembered = "structure";
 
 export default async function academicRecord() {
   const chips = h("div", { class: "xb-chips ar-chips", role: "tablist" });
@@ -52,7 +54,6 @@ export default async function academicRecord() {
   return [sub("مصدر واحد لبنية المدرسة: ما يُعدَّل هنا يظهر في الطلاب والمعلمين والجداول والاختبارات والتقارير والصفحة العامة."), chips, box];
 }
 
-// ملخص سريع أعلى الهيكل
 function summary(d) {
   const st = d.structure;
   const grades = st.stages.flatMap((x) => x.grades);
@@ -62,7 +63,6 @@ function summary(d) {
     ["المواد", st.subjects.filter((x) => x.is_active).length], ["الطلاب", students]].filter(Boolean));
 }
 
-// نمط تسمية الصفوف: نفس الصفوف (نفس المعرّفات) بأسماء عرض جديدة
 function namingPanel(d, refresh) {
   const sets = d.catalog.grade_sets;
   const catalogStages = d.structure.stages.filter((s) => s.code && sets[0].names[s.code]);
@@ -106,7 +106,6 @@ function wizardPanel(d) {
     }, "ghost"));
 }
 
-// توزيع الدرجات: أنواع الدرجات التي يرصدها المعلم ووزن كل نوع من 100، لكل المدرسة أو لصف بعينه
 let gradingScope = "";
 async function gradingPanel(refresh) {
   const d = await api(`${A}/grade-components`);

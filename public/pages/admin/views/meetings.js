@@ -1,4 +1,8 @@
-// مواعيد أولياء الأمور (الإدارة): فترات للإدارة أو لأي معلم، والحجوزات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast } from "../../shared/js/ui.js";

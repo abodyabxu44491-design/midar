@@ -1,0 +1,67 @@
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
+import { Router } from "express";
+import { inTenant } from "../../core/db/pool.js";
+import { handle, forbidden } from "../../core/http/errors.js";
+import { parse, t, z } from "../../core/http/validate.js";
+import { sendMessage, threadFor, openThread, teacherTeachesStudent, hoursSchema, hoursLabel } from "../shared/chat.service.js";
+
+const r = Router();
+
+r.get("/", handle(async (req, res) => {
+  res.json(await inTenant(req, async (q) => {
+    const threads = await q(
+      `SELECT th.id, th.student_id, s.full_name AS student_name, c.name AS class_name, th.last_message_at, th.last_preview,
+              th.teacher_unread AS unread, (th.closed_at IS NOT NULL) AS closed
+         FROM chat_threads th JOIN students s ON s.id = th.student_id LEFT JOIN classes c ON c.id = s.class_id
+        WHERE th.teacher_id = $1 ORDER BY th.last_message_at DESC LIMIT 200`, [req.user.teacher_id]);
+    const [t] = await q("SELECT chat_enabled, chat_hours FROM teachers WHERE id = $1", [req.user.teacher_id]);
+    return { threads, unread: threads.reduce((n, x) => n + x.unread, 0), enabled: Boolean(t?.chat_enabled),
+      hours: t?.chat_hours || null, hours_label: hoursLabel(t?.chat_hours) };
+  }));
+}));
+
+r.post("/start", handle(async (req, res) => {
+  const b = parse(z.object({ student_id: t.id, text: z.string().max(2000) }), req.body);
+  res.status(201).json(await inTenant(req, async (q) => {
+    if (!(await teacherTeachesStudent(q, req.user.teacher_id, b.student_id))) throw forbidden("الطالب ليس في فصولك");
+    return sendMessage(q, { studentId: b.student_id, teacherId: req.user.teacher_id, sender: "teacher", senderName: req.user.full_name, body: b.text });
+  }));
+}));
+
+r.put("/hours", handle(async (req, res) => {
+  const hrs = parse(z.object({ hours: hoursSchema }), req.body).hours;
+  res.json(await inTenant(req, async (q) => {
+    await q("UPDATE teachers SET chat_hours = $2 WHERE id = $1", [req.user.teacher_id, hrs ? JSON.stringify(hrs) : null]);
+    return { hours: hrs, hours_label: hoursLabel(hrs) };
+  }));
+}));
+
+async function mine(q, req) {
+  const th = await threadFor(q, { id: parse(t.id, req.params.id) });
+  if (Number(th.teacher_id) !== Number(req.user.teacher_id)) throw forbidden("هذه المحادثة ليست لك");
+  return th;
+}
+
+r.get("/:id", handle(async (req, res) => {
+  const before = req.query.before ? parse(t.id, req.query.before) : null;
+  res.json(await inTenant(req, async (q) => {
+    const th = await mine(q, req);
+    return { thread: { id: th.id, student_id: th.student_id, student_name: th.student_name, class_name: th.class_name,
+      closed: Boolean(th.closed_at), close_reason: th.close_reason || null },
+      ...(await openThread(q, th, "teacher", before)) };
+  }));
+}));
+
+r.post("/:id", handle(async (req, res) => {
+  const b = parse(z.object({ text: z.string().max(2000) }), req.body);
+  res.status(201).json(await inTenant(req, async (q) => {
+    const th = await mine(q, req);
+    return sendMessage(q, { studentId: th.student_id, teacherId: th.teacher_id, sender: "teacher", senderName: req.user.full_name, body: b.text });
+  }));
+}));
+
+export default r;

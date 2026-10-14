@@ -1,5 +1,8 @@
-// الحضور في الإدارة: متابعة اليوم، التسجيل، أعذار أولياء الأمور، التقارير، والإعدادات.
-// كل الأقسام تقرأ نفس سجل الحضور الذي يسجله المعلمون، وما يُكتب هنا (السبب، قبول العذر، التنبيه) يظهر لولي الأمر.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { attendanceBoard } from "../../shared/js/attendance-board.js";
@@ -20,7 +23,6 @@ export default async function attendance({ me }) {
   const [classes, templates] = await Promise.all([loadClasses(), optional(api(`${A}/messaging/templates`), null)]);
   state.date ??= today();
 
-  // واتساب لولي الأمر بقالب الغياب أو التأخر من إعدادات الرسائل
   const wa = (row, label) => {
     if (!row?.guardian_phone || !templates) return null;
     return waButton({ phone: row.guardian_phone, countryCode: templates.country_code,
@@ -41,7 +43,6 @@ export default async function attendance({ me }) {
   };
   const goRecord = (classId, date) => { state.classId = classId; state.date = date; show("record"); };
 
-  /* ---------- متابعة اليوم ---------- */
   async function todayView() {
     const d = await api(`${A}/attendance/overview?date=${state.date}`);
     const T = d.totals;
@@ -116,7 +117,6 @@ export default async function attendance({ me }) {
     ];
   }
 
-  // سبب الغياب: يُحفظ في سجل الحضور ويظهر لولي الأمر، ويمكن تحويل الغياب إلى «بعذر»
   function reasonDialog(p, date, done) {
     const text = input({ maxLength: 200, value: p.excuse || "", placeholder: "مثال: مراجعة طبية" });
     const status = select([["", `إبقاء الحالة (${ATTENDANCE[p.status][0]})`], ...(p.status === "absent" ? [["excused", "تحويله إلى غياب بعذر"]] : []),
@@ -132,10 +132,8 @@ export default async function attendance({ me }) {
     text.focus();
   }
 
-  /* ---------- التسجيل ---------- */
   const recordView = () => attendanceBoard(`${A}/attendance`, classes, wa, state.classId, state.date);
 
-  /* ---------- الأعذار ---------- */
   async function excusesView() {
     const list = await api(`${A}/attendance/excuses`);
     const decide = async (x, accept) => {
@@ -156,7 +154,6 @@ export default async function attendance({ me }) {
         : empty("لا توجد أعذار بانتظار المراجعة."));
   }
 
-  /* ---------- التقارير ---------- */
   const monthStart = () => `${today().slice(0, 8)}01`;
   let rep = { from: null, to: null, class_id: "" };
   async function reportsView() {
@@ -211,7 +208,6 @@ export default async function attendance({ me }) {
     ];
   }
 
-  /* ---------- الإعدادات ---------- */
   async function settingsView() {
     const st = await api(`${A}/settings/public-page`);
     const s = st.settings || st;

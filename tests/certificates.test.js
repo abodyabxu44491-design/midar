@@ -1,4 +1,8 @@
-// الشهادات: النتيجة من الدرجات المنشورة، الإصدار والاستبدال، التحقق العام برمز QR، الإلغاء، وطباعة ولي الأمر، والعزل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -11,7 +15,6 @@ before(async () => {
   setTransport({ push: async () => {}, sms: async () => {} });
   A = await readySchool(srv.base, { prefix: "ce", students: 3 });
   B = await readySchool(srv.base, { prefix: "cb", students: 1 });
-  // اختبار منشور: الأول 18/20 ناجح، الثاني 6/20 دور ثانٍ، الثالث بلا درجة
   const e = await A.teacher.post("/api/teacher/exams", { class_id: A.c1.id, subject_id: A.math.id, title: "النهائي", max_score: 20 });
   const [s1, s2] = A.students;
   await A.teacher.put(`/api/teacher/exams/${e.data.id}/scores`, { scores: { [s1.id]: 18, [s2.id]: 6 } });
@@ -45,10 +48,8 @@ test("الإصدار: شهادة لكل طالب له درجات، برمز تح
   assert.equal(v.data.result, "ناجح");
   assert.equal(Object.keys(v.data).sort().join(","), "class_name,issued_at,percent,result,revoked,school,student,title", "التحقق لا يكشف بيانات أخرى");
   assert.equal((await client(srv.base).get("/api/public/verify/AAAAAAAAAA")).status, 404);
-  // صفحة التحقق نفسها
   const page = await fetch(`${srv.base}/verify/${issued.code}`);
   assert.equal(page.status, 200);
-  // الطباعة فيها رابط التحقق وصورة QR
   const pr = await A.admin.post("/api/admin/certificates/print", { ids: [issued.id] });
   assert.ok(pr.data[0].verify_url.endsWith(`/verify/${issued.code}`));
   assert.match(pr.data[0].qr, /^data:image\/svg\+xml;base64,/);
@@ -88,11 +89,9 @@ test("شهادة مخصصة، والإعدادات (حد النجاح والمو
   const p = await A.admin.post("/api/admin/certificates/issue", { class_id: A.c1.id, kind: "term", dry_run: true });
   assert.equal(p.data.students.find((x) => x.id === A.students[1].id).result, "ناجح", "6/20 = 30% ناجح بحد 25");
   assert.equal((await A.admin.put("/api/admin/communication/features/certificates", { pass_mark: 150 })).status, 400);
-  // العزل
   assert.equal((await B.admin.post("/api/admin/certificates/print", { ids: [c.data.id] })).data.length, 0);
   assert.equal((await B.admin.post(`/api/admin/certificates/${c.data.id}/revoke`, { reason: "عبث" })).status, 404);
   assert.equal((await B.admin.post("/api/admin/certificates/custom", { student_id: s3.id, title: "x شهادة", body: "نص تجريبي" })).status, 404);
-  // الإيقاف
   await A.admin.put("/api/admin/settings/modules", { certificates: false });
   assert.equal((await A.admin.get("/api/admin/certificates")).status, 404);
   assert.equal((await client(srv.base).post(`/api/public/${A.id}/student`, A.parent(s3))).data.features.certificates, undefined);

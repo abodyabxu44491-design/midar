@@ -1,5 +1,8 @@
-// اختبارات المزامنة (سيناريوهات القبول في وثيقة المعمارية، جانب الخادم):
-// عدم التكرار، التعارض بدل الكتابة الصامتة، نفس قواعد العمل، النطاق والعزل، التغييرات منذ آخر نقطة، وإيقاف الأجهزة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -79,7 +82,6 @@ test("عملية حضور بدون اتصال تُطبَّق مرة واحدة �
 });
 
 test("تعديل على نسخة قديمة: تعارض يُراجَع بدل الكتابة الصامتة، ثم حله", async () => {
-  // الإدارة غيّرت الحالة بعد أن رآها الجهاز
   assert.equal((await s.A.admin.post("/api/admin/attendance", { date: today, reason: "تصحيح من الإدارة", entries: [{ student_id: s.st1.id, status: "late" }] })).status, 200);
   const stale = op("attendance.mark", { student_id: s.st1.id, day: today, status: "present" }, s.attVersion);
   const r = await push(s.t, [stale]);
@@ -103,7 +105,6 @@ test("الدرجات: تعارض على نسخة قديمة، ونفس قواع�
   const a = await push(s.t, [op("score.set", { exam_id: s.exam, student_id: s.st2.id, score: 15 }, 0)]);
   assert.equal(a.data.results[0].status, "applied");
   const v = a.data.results[0].version;
-  // جهاز آخر (أو الشاشة) عدّل الدرجة
   assert.equal((await s.t.put(`/api/teacher/exams/${s.exam}/scores`, { scores: { [s.st2.id]: 18 } })).status, 200);
   const c = await push(s.t, [op("score.set", { exam_id: s.exam, student_id: s.st2.id, score: 12 }, v)]);
   assert.equal(c.data.results[0].status, "conflict");
@@ -141,7 +142,6 @@ test("التغييرات منذ آخر نقطة: ما يخص فصول المعل
   assert.ok(ch.data.cursor > s.cursor);
   const again = await s.t.get(`/api/teacher/sync/changes?since=${ch.data.cursor}`);
   assert.equal(again.data.attendance.length, 0, "لا شيء جديد");
-  // تغييرات قديمة حُذفت من السجل: الجهاز يُطلب منه إعادة اللقطة
   await transaction({ platform: true }, (q) => q("DELETE FROM sync_changes WHERE tenant_id = $1 AND seq <= $2", [s.A.id, ch.data.cursor]));
   await s.A.admin.post("/api/admin/attendance", { date: today, reason: "x", entries: [{ student_id: s.st2.id, status: "late" }] });
   const old = await s.t.get(`/api/teacher/sync/changes?since=1`);

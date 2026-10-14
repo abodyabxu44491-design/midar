@@ -1,5 +1,8 @@
-// المرفقات: صورة الفاتورة أو الإيصال، محفوظة داخل قاعدة البيانات
-// لا تحتاج حساب تخزين خارجي، وتُنسخ احتياطيًا مع بقية البيانات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 
@@ -20,7 +23,6 @@ export const listForEntities = (q, entityType, ids) => (ids.length ? q(
   `SELECT id, entity_id, filename, mime, size_bytes FROM attachments
     WHERE entity_type = $1 AND entity_id = ANY($2::bigint[]) ORDER BY id`, [entityType, ids]) : []);
 
-// نوع الملف يُتحقق منه من محتواه وليس مما يعلنه المرسل، حتى لا يُخزَّن ملف آخر بصفة صورة
 const SIGNATURES = {
   "image/jpeg": (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
   "image/png": (b) => b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),

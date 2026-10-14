@@ -1,7 +1,8 @@
-// المساعد الذكي (الإدارة):
-//   1) تقارير ذكية فورية ومجانية للجميع (بلا ذكاء اصطناعي ولا تكلفة)
-//   2) أسئلة حرة بلغتك عبر Claude — تعمل بمفتاح Anthropic الخاص بالمدرسة (التكلفة على المدرسة) أو مفتاح المنصة إن وُجد
-// القراءة فقط، والإجابات تُبنى من الأرقام الفعلية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, btn, textarea, toast, sub, empty, select, input, field, passwordInput, confirmAction, badge, notice } from "../../shared/js/ui.js";
@@ -18,7 +19,6 @@ const SUGGESTIONS = [
   "أعطني ملخص المدرسة اليوم",
 ];
 
-/* تحويل نص الإجابة (Markdown مبسط) إلى عناصر آمنة بلا innerHTML */
 function inline(text) {
   const out = [];
   const re = /\*\*([^*]+)\*\*/g;
@@ -61,7 +61,6 @@ export default async function ai() {
   let state = await api(`${A}/ai`);
   const root = h("div", { class: "ai-page" });
 
-  /* ---------- 1) التقارير الذكية المجانية ---------- */
   const reportOut = h("div", { class: "ai-report-out", "aria-live": "polite" });
   const classSel = select([["", "كل الفصول"], ...state.classes.map((c) => [c, c])]);
   const nameIn = input({ placeholder: "اسم الطالب", maxLength: 80 });
@@ -90,7 +89,6 @@ export default async function ai() {
     h("span", { class: "ai-card-icon" }, (icons[rep.icon] || icons.sparkle)({ size: 20 })),
     h("span", {}, h("b", {}, rep.title), h("small", {}, rep.hint)))));
 
-  /* ---------- 2) الأسئلة الحرة ---------- */
   function askPanel() {
     if (!state.ready) return null;
     const history = [];
@@ -131,7 +129,6 @@ export default async function ai() {
       h("small", { class: "sub ai-privacy" }, "لمعالجة السؤال تُرسل الأرقام المطلوبة إلى خدمة Claude من Anthropic، بدون أرقام هواتف أو بيانات دخول."));
   }
 
-  /* ---------- 3) مفتاح المدرسة ---------- */
   function keyPanel() {
     const keyIn = passwordInput({ placeholder: "sk-ant-…", autocomplete: "off" });
     const has = state.source === "school";
@@ -165,7 +162,6 @@ export default async function ai() {
   return root;
 }
 
-/** عرض تقرير ذكي: جمل ثم جداول ثم نصائح */
 export function renderReport(r) {
   return h("div", { class: "ai-answer ai-report" },
     h("h3", { class: "sec-title" }, r.title),

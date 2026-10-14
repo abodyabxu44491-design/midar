@@ -1,11 +1,11 @@
-// محرك الاختبارات: منطق خالص بلا واجهة، يستخدمه الخادم والمتصفح معًا
-// حتى يُحسب المجموع والنماذج ونموذج الإجابة بالطريقة نفسها في المكانين.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-//   أنواع الأسئلة ← الأقسام ← محرك الدرجات ← النماذج المتعددة (ترتيب ثابت بالبذرة) ← نموذج الإجابة
 //
-// إضافة نوع سؤال جديد: أضفه في QTYPES هنا، وفي مخطط التحقق على الخادم، وفي محرر الأسئلة والعارض.
 
-/* ---------- أنواع الأسئلة ---------- */
 export const QTYPES = {
   mcq:       { label: "اختيار من متعدد", short: "اختيار", options: true, space: false },
   multi:     { label: "اختيار أكثر من إجابة", short: "متعدد", options: true, space: false },
@@ -24,14 +24,12 @@ export const QTYPE_KEYS = Object.keys(QTYPES);
 
 export const DIFFICULTY = { easy: "سهل", medium: "متوسط", hard: "صعب" };
 
-// عنوان القسم الافتراضي لكل نوع (في الإنشاء السريع والترتيب التلقائي واللصق)
 export const SECTION_TITLES = {
   mcq: "اختر الإجابة الصحيحة", multi: "اختر جميع الإجابات الصحيحة", truefalse: "ضع كلمة (صح) أمام العبارة الصحيحة وكلمة (خطأ) أمام الخاطئة",
   fill: "أكمل الفراغات التالية", short: "أجب عن الأسئلة التالية بإيجاز", essay: "أجب عمّا يلي", match: "صِل العمود (أ) بما يناسبه من العمود (ب)",
   order: "رتّب ما يلي ترتيبًا صحيحًا", image: "تأمل الشكل ثم أجب", table: "أجب مستعينًا بالجدول", math: "حل المسائل التالية", custom: "أجب عمّا يلي",
 };
 
-// الأنواع الأساسية لكل مدرسة، ويضيف المعلم أنواعه من الإعدادات
 export const DEFAULT_EXAM_TYPES = [
   "اختبار قصير", "اختبار أسبوعي", "اختبار شهري", "اختبار منتصف الفصل", "اختبار نهاية الفصل",
   "اختبار نهائي", "اختبار تجريبي", "واجب تقويمي", "تقييم قصير", "اختبار شفهي", "اختبار عملي", "اختبار مخصص",
@@ -42,14 +40,12 @@ export const STATUS = {
   printed: ["تمت طباعته", "blue"], archived: ["مؤرشف", "gray"],
 };
 
-// مساحة الإجابة بعدد الأسطر (الصفحة الكاملة تُحسب عند التقسيم على الصفحات)
 export const ANSWER_SPACE = {
   none: ["بدون مساحة", 0], small: ["صغيرة", 3], medium: ["متوسطة", 6], large: ["كبيرة", 11], page: ["صفحة كاملة", -1], auto: ["تلقائية", null],
 };
 export function spaceLines(q) {
   const key = q.space || "auto";
   if (key !== "auto") return ANSWER_SPACE[key]?.[1] ?? 0;
-  // تلقائية: حسب الدرجة ونوع السؤال
   const base = q.type === "essay" ? 5 : q.type === "short" || q.type === "math" ? 2 : 3;
   return Math.min(14, base + Math.round(Number(q.marks || 1) * (q.type === "essay" ? 1 : 0.5)));
 }
@@ -61,7 +57,6 @@ export const ORDINALS = ["الأول", "الثاني", "الثالث", "الرا
 
 export const uid = (p = "q") => `${p}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-3)}`;
 
-/* ---------- إنشاء سؤال جديد بقيم افتراضية ---------- */
 export function newQuestion(type = "mcq", marks = 1) {
   const q = { id: uid("q"), type, marks, text: "", difficulty: "medium" };
   switch (type) {
@@ -93,7 +88,6 @@ export function newTable(rows = 3, cols = 3) {
 
 export const newSection = (title = "") => ({ id: uid("s"), title, instructions: "", questions: [] });
 
-/* ---------- محرك الدرجات ---------- */
 const round2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
 export function totals(content) {
@@ -115,7 +109,6 @@ export function totals(content) {
   };
 }
 
-// وصف القسم مثل: «10 أسئلة × 1 = 10 درجات» إذا كانت الدرجات متساوية
 export function sectionSummary(section) {
   const qs = section.questions || [];
   if (!qs.length) return "بدون أسئلة";
@@ -128,7 +121,6 @@ export function sectionSummary(section) {
 export const fmtNum = (n) => String(round2(n)).replace(/\.0+$/, "");
 export const marksWord = (n) => (Number(n) === 1 ? "درجة" : Number(n) === 2 ? "درجتان" : Number(n) >= 3 && Number(n) <= 10 && Number.isInteger(Number(n)) ? "درجات" : "درجة");
 
-// تنبيهات قبل الاعتماد: لا تمنع الحفظ، لكنها تظهر للمعلم وتمنع الاعتماد إن كانت حرجة
 export function checkPaper(paper) {
   const t = totals(paper.content);
   const issues = [];
@@ -154,8 +146,6 @@ export function checkPaper(paper) {
   return { totals: t, issues, blocking: issues.some((i) => i.level === "error") };
 }
 
-/* ---------- النماذج المتعددة: عشوائية ثابتة بالبذرة ---------- */
-// نفس البذرة = نفس الترتيب في كل مرة، فالنموذج B المطبوع اليوم هو نفسه غدًا
 export function rng(seed) {
   let a = (Number(seed) >>> 0) || 1;
   return () => {
@@ -172,7 +162,6 @@ export function shuffled(arr, rand) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
-// خلط يضمن أن الناتج يختلف عن الأصل إن أمكن (مهم للتوصيل والترتيب: لا يُطبع الحل جاهزًا)
 function derange(arr, rand) {
   if (arr.length < 2) return arr.slice();
   for (let tries = 0; tries < 8; tries++) {
@@ -182,11 +171,6 @@ function derange(arr, rand) {
   return [...arr.slice(1), arr[0]];
 }
 
-/**
- * بناء نموذج من الاختبار.
- * النموذج A (index 0) يحافظ على ترتيب المعلم، والنماذج التالية تُخلط حسب الإعدادات.
- * الأعمدة في التوصيل والعناصر في الترتيب تُخلط دائمًا (حتى في A) لأن ترتيبها الأصلي هو الحل.
- */
 export function buildVersion(paper, index = 0) {
   const seed = Number(paper.seed || 1);
   const shuffleQ = paper.shuffle_questions !== false && index > 0;
@@ -207,7 +191,6 @@ export function buildVersion(paper, index = 0) {
   return { code: VERSION_CODES[index] || "A", index, sections };
 }
 
-// ترقيم الأسئلة: متصل عبر الأقسام أو يبدأ من 1 في كل قسم
 export function numbered(version, mode = "continuous") {
   let n = 0;
   return version.sections.map((s) => {
@@ -216,7 +199,6 @@ export function numbered(version, mode = "continuous") {
   });
 }
 
-/* ---------- نموذج الإجابة ---------- */
 export function answerOf(q) {
   const opts = q.options || [];
   const letterOf = (id) => OPTION_LETTERS[opts.findIndex((o) => o.id === id)] ?? "?";
@@ -255,7 +237,6 @@ export function answerKey(paper, index = 0, numbering = "continuous") {
   };
 }
 
-// إزالة كل ما يكشف الإجابة (لأي عرض لا يملك صلاحية نموذج الإجابة)
 export function stripAnswers(content) {
   return {
     ...content,
@@ -266,7 +247,6 @@ export function stripAnswers(content) {
   };
 }
 
-/* ---------- تخطيط الورقة: القيم الافتراضية ---------- */
 export const PAPER_TEMPLATES = {
   formal:   { label: "رسمي", note: "بسيط ومناسب للاختبارات الرسمية" },
   modern:   { label: "حديث", note: "تصميم عصري ومنظم" },

@@ -1,13 +1,14 @@
-// قياس الأداء لكل طلب: الزمن الكلي، وزمن قاعدة البيانات، وعدد الرحلات إليها.
-// يظهر في ترويسة Server-Timing (أدوات المطور في المتصفح ← Network ← Timing)،
-// والطلبات البطيئة تُسجَّل في سجل الخادم بمسارها وأرقامها، لتحديد سبب البطء بالقياس لا بالتخمين.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { performance } from "node:perf_hooks";
 
 export const perfStore = new AsyncLocalStorage();
 const SLOW_MS = Number(process.env.SLOW_REQUEST_MS || 400);
 
-// يُستدعى من طبقة قاعدة البيانات لكل رحلة
 export function recordQuery(ms) {
   const s = perfStore.getStore();
   if (s) { s.q += 1; s.db += ms; }

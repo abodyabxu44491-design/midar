@@ -1,4 +1,8 @@
-// التواصل: قواعد الإشعارات، والرسائل النصية (بوابة المدرسة أو رصيد المنصة)، وقائمة واتساب المجانية، وإعدادات الأقسام الجديدة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, badRequest, notFound } from "../../core/http/errors.js";
@@ -11,7 +15,6 @@ import { getFeatureSettings, updateFeatureSettings, SECTIONS } from "../shared/f
 
 const r = Router();
 
-/* ---------- قواعد الإشعارات ---------- */
 r.get("/notify", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({
     events: Object.entries(EVENTS).map(([key, e]) => ({ key, name: e.name, audience: e.audience, category: e.category,
@@ -29,13 +32,11 @@ r.put("/notify", handle(async (req, res) => {
   const b = parse(rulesSchema, req.body);
   res.json(await inTenant(req, (q) => updateRules(q, b)));
 }));
-// ساعات الهدوء: الإشعارات غير العاجلة خلالها تُؤجَّل لنهايتها، والعاجلة (كالغياب) تصل فورًا
 r.put("/notify/quiet", handle(async (req, res) => {
   const b = parse(quietSchema, req.body);
   res.json(await inTenant(req, (q) => setQuiet(q, b)));
 }));
 
-// سجل الإشعارات للتشخيص: ماذا أُرسل، ولمن، وهل وصل لمزوّد الإشعارات، وسبب الفشل
 r.get("/notify/log", handle(async (req, res) => {
   const kind = req.query.kind && EVENTS[req.query.kind] ? req.query.kind : null;
   const status = ["sent", "failed", "pending", "retrying", "skipped", "none"].includes(req.query.status) ? req.query.status : null;
@@ -65,12 +66,10 @@ r.get("/notify/log", handle(async (req, res) => {
   })));
 }));
 
-// إشعار تجريبي لأجهزة المدير نفسه
 r.post("/notify/test", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => notify(q, { event: "system", users: [req.user.id], dedupKey: `test-${Date.now()}`, title: "إشعار تجريبي من مدار", body: "وصلك هذا الإشعار، فالإشعارات تعمل على هذا الجهاز." })));
 }));
 
-/* ---------- الرسائل النصية ---------- */
 r.get("/sms", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({
     enabled: Boolean(req.modules?.sms),
@@ -113,8 +112,6 @@ r.post("/sms/send", handle(async (req, res) => {
   }));
 }));
 
-
-/* ---------- بوابة المدرسة الخاصة: جوال أندرويد بشريحة المدرسة (أو أي مزوّد للمدرسة) ---------- */
 const smsOn = (req) => { if (!req.modules?.sms) throw badRequest("قسم الرسائل النصية موقوف"); };
 r.get("/sms/gateway", handle(async (req, res) => {
   smsOn(req);
@@ -125,13 +122,12 @@ r.get("/sms/gateway", handle(async (req, res) => {
 const gwSchema = z.object({
   enabled: z.boolean(),
   preset: z.enum(["android", "custom"]),
-  // android: اسم المستخدم وكلمة المرور من التطبيق
   username: z.string().trim().max(120).optional(), password: z.string().max(200).optional(),
   // custom
   url: z.string().trim().max(500).refine((v) => v === "" || /^https:\/\//.test(v), "رابط البوابة يجب أن يبدأ بـ https://").optional(),
   method: z.enum(["GET", "POST"]).optional(), content_type: z.enum(["json", "form"]).optional(),
   body_template: z.string().max(2000).optional(), sender: z.string().trim().max(20).optional(), success_match: z.string().max(100).optional(),
-  headers: z.string().max(3000).optional(),   // custom: ترويسات JSON (فارغ = إبقاء الحالية، "-" = حذفها)
+  headers: z.string().max(3000).optional(),
 });
 r.put("/sms/gateway", handle(async (req, res) => {
   smsOn(req);
@@ -171,7 +167,6 @@ r.post("/sms/gateway/test", handle(async (req, res) => {
   res.json({ ok: true, segments: smsSegments(b.message) });
 }));
 
-/* ---------- قائمة واتساب: رسائل جاهزة تُرسل من جوال الإداري واحدة تلو الأخرى (مجانًا) ---------- */
 const waOn = (req) => { if (!req.modules?.messaging) throw badRequest("قسم رسائل واتساب موقوف"); };
 r.get("/wa", handle(async (req, res) => {
   waOn(req);
@@ -230,7 +225,6 @@ r.post("/wa/clear", handle(async (req, res) => {
   res.json({ removed: rows.length });
 }));
 
-/* ---------- إعدادات الأقسام الجديدة ---------- */
 r.get("/features", handle(async (req, res) => res.json(await inTenant(req, getFeatureSettings))));
 r.put("/features/:section", handle(async (req, res) => {
   const section = parse(z.enum(Object.keys(SECTIONS)), req.params.section);

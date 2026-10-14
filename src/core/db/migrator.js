@@ -1,5 +1,8 @@
-// منفّذ الترحيلات: يطبق ملفات db/migrations بالترتيب، مرة واحدة فقط،
-// ويرفض التشغيل إذا تغير ملف سبق تطبيقه (حماية من العبث بالأساس).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -9,7 +12,7 @@ export async function migrate({ connectionString, dir, ssl = false, log = consol
   const client = new pg.Client({ connectionString, ssl: ssl ? { rejectUnauthorized: true } : false });
   await client.connect();
   try {
-    await client.query("SELECT pg_advisory_lock(727274)"); // يمنع تشغيل ترحيلين معًا
+    await client.query("SELECT pg_advisory_lock(727274)");
     await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       filename text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
     const applied = new Map((await client.query("SELECT filename, checksum FROM schema_migrations")).rows.map((r) => [r.filename, r.checksum]));

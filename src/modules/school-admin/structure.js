@@ -1,4 +1,8 @@
-// الفصول والمواد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound, badRequest } from "../../core/http/errors.js";
@@ -27,7 +31,6 @@ for (const [path, table] of [["classes", "classes"], ["subjects", "subjects"]]) 
     res.json({ ok: true });
   }));
 
-  // الحذف مسموح فقط إذا لم يرتبط بطلاب أو اختبارات (تمنعه قاعدة البيانات تلقائيًا)
   r.delete(`/${path}/:id`, handle(async (req, res) => {
     const rows = await inTenant(req, (q) => q(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [parse(t.id, req.params.id)]));
     if (!rows.length) throw notFound();
@@ -35,7 +38,6 @@ for (const [path, table] of [["classes", "classes"], ["subjects", "subjects"]]) 
   }));
 }
 
-// ترحيل طلاب فصل كامل إلى فصل آخر
 r.post("/promote", handle(async (req, res) => {
   const b = parse(promoteSchema, req.body);
   const moved = await inTenant(req, async (q) => {

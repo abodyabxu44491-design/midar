@@ -1,6 +1,8 @@
-// صفحة المدرسة العامة: محتواها يتحدد من إعدادات الإدارة
-//   - الصفوف، أسماء الطلاب، البحث، جدول المعلمين، الأعداد، الإعلانات، شارات السداد
-// لا يُعرض أي عنصر إلا إذا فعّلته المدرسة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { handle, forbidden } from "../../core/http/errors.js";
 import { parse, z } from "../../core/http/validate.js";
@@ -14,7 +16,6 @@ const r = Router({ mergeParams: true });
 const openSchema = accessSchema;
 const searchSchema = openSchema.extend({ q: z.string().trim().min(2, "اكتب حرفين على الأقل").max(60) });
 
-// حالة السداد تُحسب فقط إذا فعّلت المدرسة إظهارها للجميع، وباستعلام واحد لكل الطلاب
 async function withBadges(q, students, settings) {
   if (!settings.public_fee_badges) return students.map(({ id, name }) => ({ id, name }));
   const summaries = await studentSummaries(q, students.filter((s) => s.fees_enabled).map((s) => s.id));
@@ -29,7 +30,6 @@ const classTeachers = (q) => q(
      FROM teacher_assignments a JOIN teachers t ON t.id = a.teacher_id JOIN subjects sub ON sub.id = a.subject_id
     ORDER BY sub.name`);
 
-/* محتوى الصفحة حسب الإعدادات */
 r.post("/page", limits.api, handle(async (req, res) => {
   const b = parse(openSchema, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
@@ -76,7 +76,6 @@ r.post("/page", limits.api, handle(async (req, res) => {
   }));
 }));
 
-/* البحث عن طالب بالاسم (يعمل حتى لو كانت القوائم مخفية) */
 r.post("/search", limits.studentKey, handle(async (req, res) => {
   const b = parse(searchSchema, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {

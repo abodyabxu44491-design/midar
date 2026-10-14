@@ -1,6 +1,11 @@
-// تبويب الطلاب: صفحة رئيسية بسيطة (إحصائيات + بحث + قائمة بطاقات). كل العمليات التفصيلية تُفتح في نوافذ.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
+import { personAvatar } from "../../shared/js/ui.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
   showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
@@ -14,16 +19,14 @@ import { gradePicker } from "./grade-picker.js";
 import { studentParents } from "./parents.js";
 
 const PAGE = 60;
-let importedSince = null;   // «عرض الطلاب المستوردين»: يبقى بعد إعادة رسم التبويب
+let importedSince = null;
 
 const GENDER = { male: "ذكر", female: "أنثى" };
 const photoUrl = (s) => `${A}/students/${s.id}/photo?v=${s.version || 0}`;
-const initial = (name) => [...(name || "؟")][0];
 const avatar = (s, big = false) => (s.has_photo
   ? h("img", { class: `s-photo${big ? " lg" : ""}`, src: photoUrl(s), alt: "", loading: "lazy" })
-  : h("span", { class: `s-photo ph${big ? " lg" : ""}`, "aria-hidden": "true" }, initial(s.name)));
+  : personAvatar(s.gender, big ? 84 : 46, "s-photo"));
 
-// نافذة كبيرة مناسبة للجوال (تملأ الشاشة) ولسطح المكتب
 const bigDialog = (title, body, actions) => { const d = dialog(title, body, actions); d.classList.add("dialog-lg"); return d; };
 
 export default async function students({ me, refresh }) {
@@ -36,7 +39,6 @@ export default async function students({ me, refresh }) {
   const perClass = new Map(summary.map((r) => [Number(r.class_id), r.n]));
   const countIn = (ids) => ids.reduce((a, id) => a + (perClass.get(Number(id)) || 0), 0);
 
-  // خريطة الفصل ← المرحلة/الصف/الشعبة (تُعرض في البطاقات بلا استعلام إضافي)
   const info = new Map();
   for (const stg of structure.stages) for (const g of stg.grades) for (const c of g.sections) {
     const short = c.name.replace(g.name, "").replace(/^[\s\-–—]+/, "").trim();
@@ -44,7 +46,6 @@ export default async function students({ me, refresh }) {
   }
   const afterChange = () => { refresh(); };
 
-  /* ---------- الإحصائيات ---------- */
   const byStage = structure.stages.map((s) => [s, countIn(s.grades.flatMap((g) => g.sections.map((c) => c.id)))]);
   const byGrade = structure.stages.flatMap((s) => s.grades.map((g) => [g, countIn(g.sections.map((c) => c.id))]));
   const chips = (items, kind) => h("div", { class: "chips" }, items.filter(([, n]) => n > 0).map(([o, n]) =>
@@ -59,14 +60,12 @@ export default async function students({ me, refresh }) {
       h("div", { class: "sub" }, "حسب المرحلة"), chips(byStage, "stage"),
       h("div", { class: "sub" }, "حسب الصف"), chips(byGrade, "grade")) : null);
 
-  /* ---------- البحث والفلاتر ---------- */
   const q = rememberField("students-q", input({ placeholder: "ابحث عن طالب بالاسم أو رقم الطالب…", type: "search", "aria-label": "بحث" }));
   const picker = gradePicker(structure, { sectionsOn, onChange: () => load() });
   const statusSel = select([["active", "نشط"], ["graduated", "متخرج"], ["transferred", "منقول"], ["withdrawn", "منسحب"], ["all", "كل الحالات"]]);
   const feeFilter = rememberField("students-fees", select([["", "كل الحالات المالية"], ["unpaid", "عليه رسوم متبقية"], ["paid", "مسدد"], ["off", "الرسوم موقوفة"]]), { event: "change" });
   for (const el of [statusSel, feeFilter]) el.addEventListener("change", () => load());
 
-  /* ---------- القائمة ---------- */
   let list = [], total = 0, seq = 0, loadingMore = false, selectMode = false;
   const selected = new Set();
   const box = h("div", { class: "s-list" });
@@ -118,7 +117,6 @@ export default async function students({ me, refresh }) {
     drawBulk();
   }
 
-  // بطاقة الطالب: صورة، الاسم، رقم الطالب، المرحلة، الصف، الشعبة، الحالة. الضغط يفتح ملفه.
   function card(s) {
     const loc = info.get(Number(s.class_id));
     const pick = input({ type: "checkbox", "aria-label": `تحديد ${s.name}`, "data-id": s.id });
@@ -151,7 +149,6 @@ export default async function students({ me, refresh }) {
   }
   const toggleSelect = () => { selectMode = !selectMode; selected.clear(); load(); };
 
-  /* ---------- ملف الطالب (نفس ما يراه ولي الأمر، بلا رمز) ---------- */
   async function openFile(s) {
     const holder = h("div", {}, skeleton(4));
     const d = bigDialog("ملف الطالب", holder);
@@ -178,7 +175,6 @@ export default async function students({ me, refresh }) {
         }, "ghost sm"),
         btn("تغيير الحالة", () => { d.close(); statusDialog(s, afterChange); }, "danger sm"),
         btn("طباعة", () => window.print(), "ghost sm"));
-      // التنبيهات: بعد الإضافة يُعاد رسم الملف على تبويب التنبيهات
       const draw = (tab) => {
         const f = studentFile(data, { toolbar, photo: s.has_photo ? photoUrl(s) : null, actions });
         mount(holder, f.el);
@@ -202,8 +198,6 @@ export default async function students({ me, refresh }) {
     } catch (e) { mount(holder, notice(e.message, "err")); }
   }
 
-  /* ---------- الأزرار العلوية ---------- */
-  // تصدير: خيار واحد يفتح ما يريده المستخدم — كل البيانات أو المعرّفات فقط (بدل زرّين متفرقين)
   const exportMenu = () => {
     const d = dialog("تصدير الطلاب", h("div", { class: "more-list" },
       btn("كل بيانات الطلاب (CSV)", async () => { d.close(); const all = await api(`${A}/students`); exportStudents(all, info); }),
@@ -212,7 +206,6 @@ export default async function students({ me, refresh }) {
         csv("معرفات_الطلاب.csv", [["الطالب", "الفصل", "ولي الأمر", "الجوال", "المعرّف"], ...all.map((s) => [s.name, s.class_name, s.guardian_name, s.guardian_phone, s.access_key])]);
       }, "ghost")));
   };
-  // المزيد: فقط لما فيه فعلًا إجراءات ثانوية غير مكرّرة مع بقية الأزرار
   const moreMenu = () => {
     const d = dialog("المزيد", h("div", { class: "more-list" },
       btn(selectMode ? "إنهاء التحديد المتعدد" : "تحديد متعدد (نقل، رسوم، حالة)", () => { d.close(); toggleSelect(); }, "ghost"),
@@ -242,7 +235,6 @@ export default async function students({ me, refresh }) {
   ];
 }
 
-/* ---------- نافذة إضافة/تعديل طالب: أقسام مرتبة ومتجاوبة ---------- */
 async function resizePhoto(file) {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("اختر صورة JPG أو PNG أو WebP");
   const bmp = await createImageBitmap(file);
@@ -273,14 +265,13 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   const drawPhoto = () => mount(preview,
     photoData ? h("img", { class: "s-photo lg", src: photoData, alt: "" })
       : s?.has_photo && !photoRemoved ? h("img", { class: "s-photo lg", src: photoUrl(s), alt: "" })
-      : h("span", { class: "s-photo lg ph" }, initial(f.name.value || s?.name)));
+      : personAvatar(f.gender?.value || s?.gender, 84, "s-photo"));
   const file = input({ type: "file", accept: "image/jpeg,image/png,image/webp", hidden: true });
   file.addEventListener("change", async () => {
     try { photoData = await resizePhoto(file.files[0]); photoRemoved = false; drawPhoto(); } catch (e) { toast(e.message, true); }
   });
   drawPhoto();
 
-  // الشعبة: مرحلة ← صف ← شعبة، وتُملأ من فصل الطالب عند التعديل
   const gradesOf = () => structure.stages.find((x) => String(x.id) === f.stage.value)?.grades || [];
   const fillG = () => mount(f.grade, h("option", { value: "" }, "اختر الصف"), gradesOf().map((g) => h("option", { value: g.id }, g.name)));
   const fillS = () => { const g = gradesOf().find((x) => String(x.id) === f.grade.value);
@@ -315,7 +306,6 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
     } catch { mount(hint); }
   });
 
-  // الحقول الإضافية التي عرّفتها المدرسة
   const extra = h("div"), custom = { fields: [], inputs: new Map() };
   Promise.all([api(`${A}/custom-fields?entity=student`), editing ? api(`${A}/custom-fields/values/student/${s.id}`) : {}]).then(([fields, values]) => {
     custom.fields = fields.filter((x) => x.is_active && x.show_admin);
@@ -396,7 +386,6 @@ export const STATUS_LABEL = {
 const STATUS_TONE = { active: "", graduated: "", transferred: "gray", withdrawn: "red" };
 export const statusBadge = (status) => badge(STATUS_LABEL[status] || status, STATUS_TONE[status] ?? "gray");
 
-// تغيير حالة الطالب: تخرّج، نقل لمدرسة أخرى، انسحاب، أو إعادة للقيد
 function statusDialog(s, refresh) {
   const status = select(Object.entries(STATUS_LABEL), { value: s.status || "active" });
   const note = input({ placeholder: "السبب أو الملاحظة (اختياري)", value: s.status_note || "" });
@@ -409,7 +398,6 @@ function statusDialog(s, refresh) {
   })]);
 }
 
-/* ---------- الإجراءات الجماعية ---------- */
 async function runBulk(body, refresh) {
   const r = await api(`${A}/students/bulk`, body);
   toast(`تم على ${r.done} طالبًا`);

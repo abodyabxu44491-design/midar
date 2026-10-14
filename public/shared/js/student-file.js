@@ -1,7 +1,10 @@
-// عرض «ملف الطالب» الكامل: مصدر واحد تستخدمه صفحة ولي الأمر ونافذة الإدارة.
-// الفرق الوحيد: الإدارة ترى كل الأقسام بلا معرّف دخول، وولي الأمر يرى ما تفعّله المدرسة ويستطيع الدفع.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
-import { empty, badge, line, sub, teacherCards, btn, dialog, field, textarea, toast } from "./ui.js";
+import { empty, badge, line, sub, teacherCards, btn, dialog, field, textarea, toast, personAvatar, sheetMenu } from "./ui.js";
 import { money, fmtDate, fmtDay, ATTENDANCE } from "./format.js";
 import { attendanceCard, printCards } from "./attendance-card.js";
 import { alertCard } from "./student-alerts.js";
@@ -11,12 +14,17 @@ import { featureSections } from "./student-file-features.js";
 
 export const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 export const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
-export const gradeLine = (g) => line(
-  h("div", {}, h("b", {}, g.subject), sub(`${g.component && g.component !== g.title ? `${g.component} — ` : ""}${g.title}${g.exam_date ? ` — ${fmtDate(g.exam_date)}` : ""}`)),
-  h("b", {}, `${g.score} / ${g.max_score}`));
+export const gradeLine = (g) => {
+  const bar = h("i");
+  bar.style.width = `${g.max_score ? Math.max(0, Math.min(100, (g.score / g.max_score) * 100)) : 0}%`;
+  return h("div", { class: "g-line" },
+    h("div", { class: "g-top" },
+      h("div", {}, h("b", {}, g.subject), sub(`${g.component && g.component !== g.title ? `${g.component} — ` : ""}${g.title}${g.exam_date ? ` — ${fmtDate(g.exam_date)}` : ""}`)),
+      h("b", { class: "g-score" }, `${g.score}`, h("small", {}, ` / ${g.max_score}`))),
+    h("div", { class: "g-bar", "aria-hidden": "true" }, bar));
+};
 const GENDER = { male: "ذكر", female: "أنثى" };
 
-/** عرض الرسوم للقراءة فقط (الإدارة). ولي الأمر يمرّر دالته الخاصة التي فيها زر الدفع. */
 export function feesReadOnly(f, compact = false) {
   const open = f.invoices.filter((i) => i.status === "open");
   return section("الرسوم والسداد",
@@ -30,12 +38,7 @@ export function feesReadOnly(f, compact = false) {
         : empty("لا توجد فواتير.")]);
 }
 
-/**
- * @param {object} d بيانات الملف من الخادم
- * @param {{fees?: (f, compact) => Node, toolbar?: Node|Node[], photo?: string|null}} opts
- * @returns {{ el: HTMLElement, open: (key:string)=>void }}
- */
-export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [] } = {}) {
+export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [], appNav = false, afterHead = null, teachersView = null } = {}) {
   const s = d.student, f = d.fees;
   const avg = d.grades_percent !== undefined && d.grades_percent !== null ? Math.round(d.grades_percent)
     : d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
@@ -43,10 +46,8 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   const alerts = d.alerts || [];
   const unread = alerts.filter((a) => a.for_parent && !a.acknowledged_at).length;
   const recorded = d.attendance.length;
-  // الغياب بعذر لا يُحسب على الطالب
   const counted = recorded - count("excused");
   const rate = counted > 0 ? Math.round(((count("present") + count("late")) / counted) * 100) : null;
-  // التنبيهات أعلى الملف: غياب بلغ الحد، وتنبيهات لم يطّلع عليها ولي الأمر
   const banners = () => [
     d.absence_warning ? h("div", { class: "sub-banner warn", role: "alert" }, icons.alert({ size: 20 }),
       h("div", {}, h("b", {}, "تنبيه غياب"),
@@ -66,16 +67,14 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     ...(d.homework?.length ? [{ key: "homework", name: "الواجبات", note: `${d.homework.length} واجب` }] : []),
     ...(d.timetable?.length ? [{ key: "timetable", name: "الجدول الدراسي", note: "حصص الأسبوع" }] : []),
     ...(f ? [{ key: "fees", name: "الرسوم والسداد", note: f.status === "unpaid" ? money(f.remaining) : "مسدد" }] : []),
-    ...(d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
+    ...(teachersView ? [{ key: "teachers", name: "المعلمون والمراسلة", note: teachersView.note || "" }]
+      : d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
     ...(d.announcements.length ? [{ key: "news", name: "التعاميم", note: `${d.announcements.length}` }] : []),
-    // أقسام إضافية (الإشعارات، السلوك، الصحة، النقل، الاختبارات الإلكترونية، الشهادات…) كل منها يأتي بعرضه
     ...featureSections(d, actions),
     ...extra.map(({ key, name, note }) => ({ key, name, note })),
   ];
 
-  const views = {
-    overview: () => [
-      banners(),
+  const basicInfo = () => [
       section("البيانات الأساسية",
         info("اسم الطالب", s.name),
         d.admin ? info("رقم الطالب", s.student_no) : null,
@@ -83,9 +82,12 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
         d.admin ? [info("تاريخ الميلاد", s.birth_date ? fmtDate(s.birth_date) : ""), info("الجنس", GENDER[s.gender]), info("جوال الطالب", s.student_phone, "ltr")] : null,
         info("ولي الأمر", s.guardian_name), info("جوال ولي الأمر", s.guardian_phone, "ltr"), info("تاريخ التسجيل", fmtDate(s.since)),
         ...(d.custom || []).map((c) => info(c.label, c.value))),
-      d.settings.profile_show_grades && d.grades.length ? section("آخر الدرجات", d.grades.slice(0, 4).map(gradeLine)) : null,
-      f ? fees(f, true) : null,
-    ],
+  ];
+  const recentGrades = () => (d.settings.profile_show_grades && d.grades.length ? section("آخر الدرجات", d.grades.slice(0, 4).map(gradeLine)) : null);
+
+  const views = {
+    overview: () => (d.admin ? [banners(), basicInfo(), recentGrades(), f ? fees(f, true) : null]
+      : [banners(), recentGrades(), f ? fees(f, true) : null, basicInfo()]),
     grades: () => section(d.academic?.term_name ? `الدرجات — ${d.academic.term_name}` : "الدرجات",
       d.grades.length ? d.grades.map(gradeLine) : empty("لم تُنشر درجات بعد.")),
     attendance: () => attendanceView(),
@@ -104,14 +106,13 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
         ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
         : h("span", { class: "muted" }, "—")) })),
     fees: () => fees(f, false),
-    teachers: () => section("المعلمون والمواد", teacherCards(d.teachers)),
+    teachers: () => (teachersView ? teachersView.view() : section("المعلمون والمواد", teacherCards(d.teachers))),
     news: () => section("التعاميم", d.announcements.map((a) => line(
       h("div", {}, h("b", {}, a.title), sub(fmtDate(a.created_at)), a.body ? sub(a.body) : null)))),
     ...Object.fromEntries(featureSections(d, actions).map((x) => [x.key, x.view])),
     ...Object.fromEntries(extra.map((x) => [x.key, () => x.view({ reopen: () => open(x.key, true) })])),
   };
 
-  // الحضور: ملخص، ونسبة، وتصفية، وسبب كل غياب أو تأخر، وإرسال عذر من ولي الأمر
   let attFilter = "absences";
   function attendanceView() {
     const FILTERS = [["absences", "الغياب والتأخر"], ["absent", "غياب"], ["late", "تأخر"], ["excused", "بعذر"], ["all", "كل الأيام"]];
@@ -143,7 +144,6 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
             ? btn(a.parent_excuse_state === "rejected" ? "إعادة إرسال عذر" : "إرسال عذر", () => excuseDialog(a), "ghost sm") : null))))
         : empty(recorded ? "لا توجد أيام بهذا التصنيف." : "لا توجد سجلات حضور بعد."));
   }
-  // إحصاءات كل شهر: أيام الحضور، الغياب، التأخر، النسبة، ومتوسط التأخر بالدقائق
   function monthly() {
     const by = new Map();
     for (const a of d.attendance) {
@@ -188,34 +188,66 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   }
 
   const body = h("div", { class: "profile-body" });
-  const nav = h("nav", { class: "profile-nav" });
+  const nav = h("nav", { class: "profile-nav", "aria-label": "أقسام الملف" });
+  const SHORT = { overview: "الرئيسية", grades: "الدرجات", attendance: "الحضور", fees: "الرسوم", teachers: "المعلمون" };
+  const ICON = { overview: icons.home, grades: icons.chart, attendance: icons.calendar, fees: icons.wallet, alerts: icons.alert, homework: icons.clipboard,
+    timetable: icons.grid, teachers: icons.users, news: icons.megaphone, inbox: icons.bell, chat: icons.message,
+    "online-exams": icons.monitor, certificates: icons.award, calendar: icons.calendar, transport: icons.bus, health: icons.heart,
+    library: icons.book, surveys: icons.poll, meetings: icons.clock, behavior: icons.star };
+  const pinned = appNav ? ["overview", "grades", "attendance", "teachers", "fees"].filter((k) => sections.some((x) => x.key === k)) : [];
+  const bnav = appNav ? h("nav", { class: "bnav sf-bnav", "aria-label": "التنقل" }) : null;
+  let current = null, elRef = null;
   const open = (key, stay = false) => {
+    current = key;
     nav.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
+    if (bnav) {
+      bnav.querySelectorAll("button[data-k]").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
+      bnav.querySelector(".bnav-more")?.classList.toggle("on", !pinned.includes(key));
+    }
     mount(body, views[key]());
+    if (elRef) elRef.dataset.view = key;
     if (scrollTop && !stay) window.scrollTo({ top: 0, behavior: "smooth" });
   };
   mount(nav, sections.map((sec) => h("button", { type: "button", "data-k": sec.key, onclick: () => open(sec.key) },
     h("span", {}, sec.name), sec.note ? h("small", {}, sec.note) : null)));
+  if (bnav) {
+    const rest = sections.filter((x) => !pinned.includes(x.key));
+    mount(bnav, pinned.map((k) => h("button", { type: "button", class: "bnav-item", "data-k": k, onclick: () => open(k) },
+      (ICON[k] || icons.list)({ size: 20 }), h("span", { class: "tab-label" }, SHORT[k]),
+      k === "teachers" && /جديد/.test(sections.find((x) => x.key === k)?.note || "") ? h("span", { class: "nav-badge" }, (sections.find((x) => x.key === k).note.match(/\d+/) || ["•"])[0]) : null)),
+    rest.length ? h("button", { type: "button", class: "bnav-item bnav-more", "aria-haspopup": "dialog",
+      onclick: () => sheetMenu("أقسام الملف", [{ title: "", items: rest.map((x) => ({ key: x.key, name: x.name, note: x.note, icon: ICON[x.key] })) }], { current, onPick: open }) },
+      icons.grid({ size: 20 }), h("span", { class: "tab-label" }, "المزيد"),
+      rest.some((x) => /جديد/.test(x.note || "")) ? h("span", { class: "nav-badge" }, "•") : null) : null);
+    document.body.classList.add("has-bnav");
+  }
 
-  const avatar = d.admin
-    ? (photo ? h("img", { class: "s-photo lg", src: photo, alt: "" }) : h("span", { class: "s-photo lg ph", "aria-hidden": "true" }, [...s.name][0] || "؟"))
-    : null;
-  const el = h("div", { class: "student-file" },
+  const avatar = photo ? h("img", { class: "sf-avatar", src: photo, alt: "" }) : personAvatar(s.gender, 72, "sf-avatar");
+  const todayRec = d.attendance.find((a) => a.day === new Date().toLocaleDateString("en-CA"));
+  const tile = (tone, label, value) => h("div", { class: `sf-kpi ${tone}` }, h("span", {}, label), h("b", {}, value));
+  const el = h("div", { class: `student-file${appNav ? " app" : ""}` },
     toolbar,
-    h("div", { class: "profile-head" },
-      h("div", { class: "ph-row" }, avatar, h("div", {},
+    h("div", { class: "sf-head" },
+      avatar,
+      h("div", { class: "sf-id" },
         h("h1", {}, s.name),
-        h("div", { style: "opacity:.85" }, [s.class_name, d.admin && s.student_no ? `رقم ${s.student_no}` : null].filter(Boolean).join(" — ")))),
-      h("div", { class: "kpis" },
-        d.settings.profile_show_grades ? h("div", {}, h("b", {}, avg === null ? "—" : `${avg}%`), "متوسط الدرجات") : null,
-        d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("absent")), "أيام الغياب") : null,
-        d.settings.profile_show_attendance ? h("div", {}, h("b", {}, count("late")), "مرات التأخر") : null,
-        d.settings.profile_show_attendance && rate !== null ? h("div", {}, h("b", {}, `${rate}%`), "نسبة الحضور") : null,
-        f ? h("div", {}, h("b", {}, f.status === "paid" ? "مسدد" : f.status === "unpaid" ? money(f.remaining) : "—"),
-          f.status === "unpaid" ? "رسوم متبقية" : "حالة الرسوم") : null)),
-    h("div", { class: "profile-layout" }, nav, body));
-  const first = scrollTop;
+        h("div", { class: "sub" }, [s.class_name, d.admin && s.student_no ? `رقم ${s.student_no}` : null].filter(Boolean).join(" · ")),
+        h("div", { class: "sf-chips" },
+          todayRec ? h("span", { class: `stu-today s-${todayRec.status}` }, `اليوم: ${ATTENDANCE[todayRec.status]?.[0] || todayRec.status}`) : null,
+          avg !== null && d.settings.profile_show_grades ? badge(avg >= 90 ? "ممتاز" : avg >= 75 ? "جيد جدًا" : avg >= 60 ? "جيد" : "يحتاج متابعة", avg >= 60 ? "violet" : "amber") : null,
+          f && f.status === "unpaid" ? badge("عليه رسوم", "amber") : null),
+        !d.admin && d.has_gate && actions.attendanceCard ? h("div", { class: "sf-acts" },
+          btn([icons.print({ size: 16 }), "طباعة باركود الدخول"], () => cardDialog(), "soft sm")) : null)),
+    h("div", { class: "sf-kpis" },
+      d.settings.profile_show_attendance && rate !== null ? tile("teal", "نسبة الحضور", `${rate}%`) : null,
+      d.settings.profile_show_grades ? tile("violet", "متوسط الدرجات", avg === null ? "—" : `${avg}%`) : null,
+      d.settings.profile_show_attendance ? tile("red", "أيام الغياب", String(count("absent"))) : null,
+      d.settings.profile_show_attendance ? tile("amber", "مرات التأخر", String(count("late"))) : null,
+      f ? tile("navy", f.status === "unpaid" ? "رسوم متبقية" : "الرسوم", f.status === "paid" ? "مسددة" : f.status === "unpaid" ? money(f.remaining) : "—") : null),
+    afterHead,
+    h("div", { class: "profile-layout" }, nav, body),
+    bnav);
+  elRef = el;
   open("overview");
-  void first;
   return { el, open };
 }

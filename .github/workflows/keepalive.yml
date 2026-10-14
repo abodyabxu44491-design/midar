@@ -1,7 +1,5 @@
-# إبقاء الخادم المجاني مستيقظًا: الخطة المجانية في Render تُنيم الخادم بعد 15 دقيقة خمول،
-# وأول زائر بعدها ينتظر قرابة دقيقة. نوقظه كل 10 دقائق طوال اليوم (زوار التسويق يأتون مساءً أيضًا).
-# الفحص /healthz لا يلمس قاعدة البيانات، فلا يستهلك ساعات حوسبة Neon. ساعات Render المجانية (750) تكفي الشهر كاملًا.
-# رابط الموقع من متغيّر المستودع SITE_URL إن وُجد، وإلا الرابط الحالي.
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 name: Keep alive
 on:
   schedule:

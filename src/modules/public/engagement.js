@@ -1,4 +1,8 @@
-// ولي الأمر: الاستبيانات، ومواعيده مع المعلمين والإدارة (بمعرّف الطالب)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { handle, badRequest } from "../../core/http/errors.js";
 import { limits } from "../../core/rate-limit.js";

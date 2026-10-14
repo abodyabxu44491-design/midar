@@ -1,20 +1,19 @@
-// التذكيرات التلقائية (تعمل كل ساعة، وكل تذكير يُرسل مرة واحدة فقط):
-//   • قسط يستحق بعد N أيام، وقسط فات موعده ولم يُسدد (الأقساط وخصم الإخوة)
-//   • كتاب تأخر إرجاعه (المكتبة)
-//   • موعد ولي أمر غدًا (مواعيد أولياء الأمور)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { transaction } from "../../core/db/pool.js";
 import { notify, activeModules } from "./notify.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 
 const localDay = (offset = 0) => new Date(Date.now() + offset * 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
 
-// يسجل المفتاح؛ يعيد false إذا أُرسل سابقًا
 const once = async (q, key) => (await q("INSERT INTO reminder_log (tenant_id, key) VALUES (app_tenant(), $1) ON CONFLICT DO NOTHING RETURNING key", [key])).length > 0;
 
 export async function remindersFor(q) {
   const mods = await activeModules(q);
   const sent = { due: 0, overdue: 0, library: 0, meetings: 0, homework: 0 };
-  // واجب يُسلَّم غدًا ولم يُسجَّل تسليمه بعد
   if (mods.homework !== false) {
     const tomorrow = localDay(1);
     const due = await q(`SELECT a.id, a.title, s.id AS student_id, sub.name AS subject FROM assignments a
@@ -76,7 +75,6 @@ export async function remindersFor(q) {
   return sent;
 }
 
-/** كل المدارس الفعالة (من صيانة الخادم كل ساعة) */
 export async function runReminders() {
   const tenants = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT id FROM tenants WHERE status = 'active' AND emergency_locked_at IS NULL"));
   let total = 0;

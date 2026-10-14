@@ -1,4 +1,8 @@
-// مدرسة العرض التجريبي (للقراءة فقط) + الصفحات العامة: الخصوصية والشروط ومحركات البحث
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -9,7 +13,6 @@ let srv, A, B;
 
 before(async () => {
   srv = await startServer();
-  // لا مدرسة عرض من اختبارات سابقة
   await transaction({ platform: true }, (q) => q("UPDATE tenants SET is_demo = false WHERE is_demo"));
   forgetDemoCache();
   A = await readySchool(srv.base, { prefix: "demo", students: 2 });
@@ -60,9 +63,7 @@ test("مدرسة العرض للقراءة فقط: يُرفض كل تعديل، 
   assert.equal(w.status, 403);
   assert.equal(w.data.code, "demo_readonly");
   assert.equal((await adm.post("/api/admin/password", { current: "x", next: "NewPass#2026x" })).data.code, "demo_readonly");
-  // تقارير القراءة (POST) مسموحة
   assert.notEqual((await adm.post("/api/admin/ai/report/summary", {})).data?.code, "demo_readonly");
-  // الخروج مسموح
   assert.equal((await adm.post("/api/admin/logout", {})).status, 200);
 
   const tch = visitor();
@@ -70,7 +71,6 @@ test("مدرسة العرض للقراءة فقط: يُرفض كل تعديل، 
   const e = await tch.post("/api/teacher/exams", { class_id: A.c1.id, subject_id: A.math.id, title: "تجربة", max_score: 10 });
   assert.equal(e.data.code, "demo_readonly");
 
-  // المدير الحقيقي للمدرسة نفسها أيضًا لا يعدّل ما دامت للعرض
   assert.equal((await A.admin.post("/api/admin/students", { name: "طالب من المدير", class_id: A.c1.id })).data.code, "demo_readonly");
   assert.equal((await A.admin.get("/api/admin/students")).status, 200);
 });
@@ -89,7 +89,6 @@ test("صفحة ولي الأمر في مدرسة العرض: القراءة تع
 test("المدارس الأخرى لا تتأثر، ومدرسة عرض واحدة فقط", async () => {
   const add = await B.admin.post("/api/admin/students", { name: "طالب مدرسة حقيقية", class_id: B.c1.id });
   assert.equal(add.status, 201, JSON.stringify(add.data));
-  // تحويل العرض لمدرسة أخرى يلغي الأولى تلقائيًا
   assert.equal((await B.owner.patch(`/api/owner/tenants/${B.id}`, { is_demo: true })).status, 200);
   const [a] = await transaction({ platform: true }, (q) => q("SELECT is_demo FROM tenants WHERE id = $1", [A.id]));
   assert.equal(a.is_demo, false);
@@ -111,12 +110,14 @@ test("الصفحات العامة: الخصوصية والشروط ومحركا�
   const html = await home.text();
   assert.ok(html.includes(`<link rel="canonical" href="${srv.base}/">`));
   assert.ok(!html.includes("__ORIGIN__"));
-  // صفحة المدرسة (فيها أسماء طلاب) تبقى مخفية عن محركات البحث
   assert.equal((await fetch(`${srv.base}/${B.id}`)).headers.get("x-robots-tag"), "noindex, nofollow");
   const robots = await (await fetch(`${srv.base}/robots.txt`)).text();
   assert.match(robots, /Disallow: \//);
   assert.match(robots, /Sitemap: .*\/sitemap\.xml/);
   assert.match(await (await fetch(`${srv.base}/sitemap.xml`)).text(), /<loc>.*\/privacy<\/loc>/);
+  const links = await fetch(`${srv.base}/.well-known/assetlinks.json`);
+  assert.equal(links.status, 200);
+  assert.deepEqual(await links.json(), []);
   for (const code of ["privacy", "terms", "demo"]) {
     assert.equal((await A.owner.post("/api/owner/tenants", { id: code, name: "محجوز" })).status, 400);
   }
@@ -138,7 +139,6 @@ test("الصفحات التعريفية لمحركات البحث: HTML كامل
     assert.ok(sitemap.includes(`/${p.slug}</loc>`));
     assert.equal((await A.owner.post("/api/owner/tenants", { id: p.slug, name: "محجوز" })).status, 400);
   }
-  // الرئيسية: بيانات منظمة صالحة (المنظمة والأسئلة الشائعة) وروابط الصفحات التعريفية
   const home = await (await fetch(`${srv.base}/`)).text();
   const lds = [...home.matchAll(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
   assert.ok(lds.some((o) => o["@type"] === "Organization"));
@@ -153,7 +153,6 @@ test("التجهيز التلقائي مرة واحدة: يحترم مدرسة �
   assert.equal(await ensureDemoSchool({ log: () => {} }), A.id);
   const [s] = await transaction({ platform: true }, (q) => q("SELECT demo_provisioned_at FROM platform_settings WHERE id"));
   assert.ok(s.demo_provisioned_at);
-  // بعد التجهيز لا يعود أبدًا، حتى لو أوقف المالك العرض
   await A.owner.patch(`/api/owner/tenants/${A.id}`, { is_demo: false });
   assert.equal(await ensureDemoSchool({ log: () => {} }), null);
   const [d] = await transaction({ platform: true }, (q) => q("SELECT count(*)::int AS n FROM tenants WHERE is_demo"));

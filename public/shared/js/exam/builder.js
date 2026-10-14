@@ -1,5 +1,8 @@
-// مصمم الاختبار: معلومات ← الأسئلة ← تصميم الورقة ← المعاينة والطباعة
-// كل تغيير يُحفظ تلقائيًا بعد لحظات من التوقف عن الكتابة، مع حماية من التعديل المتزامن من جهازين.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../dom.js";
 import { api, ApiError } from "../api.js";
 import { panel, field, input, textarea, select, btn, badge, notice, toast, confirmAction, dialog, empty, sub } from "../ui.js";
@@ -30,13 +33,12 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
   const stepsEl = h("nav", { class: "xb-steps" });
   const body = h("div");
   let current = step;
-  let pending = {};            // meta / content / layout بانتظار الحفظ
+  let pending = {};
   let timer = null;
   let saving = null;
   let conflict = false;
   const openEditors = new Set();
 
-  /* ---------- الحفظ التلقائي ---------- */
   const queue = (part) => {
     if (!paper.perms.edit) return;
     pending[part] = true;
@@ -84,7 +86,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
 
   const reload = async () => { await flush(); paper = await api(`${base}/${paper.id}`); drawTop(); show(current); };
 
-  /* ---------- الشريط العلوي ---------- */
   function updateTotals() {
     const t = totals(paper.content);
     const declared = Number(paper.total_marks || 0);
@@ -129,14 +130,12 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       }, "soft") : null,
       paper.perms.unarchive ? btn("استعادة من الأرشيف", async () => { await api(`${base}/${paper.id}/status`, { action: "unarchive" }); reload(); }, "soft") : null)));
 
-  /* ======================= 1) معلومات الاختبار ======================= */
   async function info() {
     const ro = !paper.perms.edit;
     const on = (el, fn, ev = "input") => { el.disabled = ro; el.addEventListener(ev, fn); return el; };
     const setMeta = (k, v) => { paper[k] = v; queue("meta"); };
 
     const title = on(input({ value: paper.title }), (e) => setMeta("title", e.target.value));
-    // الصف والشعبة والمادة من إسناد المعلم (تعبئة تلقائية)
     const pairs = [];
     const seenGrade = new Set();
     for (const l of ctx.load) {
@@ -225,14 +224,12 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
     ];
   }
 
-  /* ======================= 2) الأسئلة ======================= */
   async function questions() {
     const ro = !paper.perms.edit;
     if (paperNeedsMath(paper.content)) await loadMath();
     const wrap = h("div");
     const S = () => paper.content.sections;
     const checkBox = h("div");
-    // طريقتا الإدخال: «على الورقة» (تكتب في الصفحة نفسها) أو «قائمة» (بطاقات قابلة للسحب). يُتذكر اختيار المعلم.
     let view = "sheet";
     try { view = localStorage.getItem("midar_q_view") || "sheet"; } catch { /* */ }
     let sheetApi = null;
@@ -247,7 +244,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       }) : startEl(),
       ro || !S().length ? null : h("div", { class: "xb-add xb-add-section" },
         btn("+ قسم جديد", () => { S().push(newSection(`السؤال ${ORDINALS[S().length] || S().length + 1}`)); queue("content"); redraw(); scrollToLast(); }, "ghost")));
-      // السحب والإفلات بين الأسئلة وبين الأقسام
       if (!ro) for (const list of wrap.querySelectorAll(".xb-qlist")) {
         sortable(list, { item: ".xb-q", handle: ".xb-handle", group: `q-${paper.id}`, onDrop: () => { syncFromDom(); queue("content"); redraw(); } });
       }
@@ -255,7 +251,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
     };
     const scrollToLast = () => requestAnimationFrame(() => wrap.querySelector(".xb-section:last-of-type")?.scrollIntoView({ behavior: "smooth", block: "center" }));
 
-    // تنبيهات المراجعة تتحدث مع كل تعديل
     const drawCheck = () => {
       const c = checkPaper(paper);
       mount(checkBox, !c.issues.length ? null : h("details", { class: "xb-check" },
@@ -263,7 +258,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
         c.issues.map((i) => notice(i.text, i.level === "error" ? "err" : "warn"))));
     };
 
-    // بداية فارغة: ثلاث طرق واضحة
     const startEl = () => (ro ? empty("لا توجد أسئلة.") : h("div", { class: "xb-start" },
       h("b", {}, "كيف تريد إضافة الأسئلة؟"),
       h("div", { class: "xb-start-grid" },
@@ -282,7 +276,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       }
     };
 
-    // إضافة سؤال لقسم؛ القسم الذي بلا عنوان وصفي يأخذ عنوان نوع أول سؤال فيه
     const addQuestion = (s, type, afterFocus = true) => {
       const last = s.questions[s.questions.length - 1];
       const q = newQuestion(type, last ? last.marks : 1);
@@ -309,7 +302,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       const mv = (d) => { const j = si + d; if (j < 0 || j >= S().length) return; [S()[si], S()[j]] = [S()[j], S()[si]]; queue("content"); redraw(); };
       const list = h("div", { class: "xb-qlist" }, s.questions.map((q) => questionCard(q, s, nextNo(), sum)));
       const lastType = s.questions[s.questions.length - 1]?.type;
-      // قسم فيه أسئلة: زر واحد لسؤال من نفس النوع، وباقي الأنواع في قائمة. قسم فارغ: كل الأنواع الأساسية ظاهرة.
       const more = select([["", lastType ? "نوع آخر…" : "أنواع أخرى…"], ...Object.entries(QTYPES).filter(([k]) => lastType || !MAIN_TYPES.includes(k)).map(([k, v]) => [k, v.label])], { disabled: ro });
       more.addEventListener("change", () => { if (more.value) addQuestion(s, more.value); });
       const insBox = h("div", { class: s.instructions ? "" : "hidden", style: "flex:1;min-width:180px;display:flex" }, ins);
@@ -408,7 +400,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       })]);
     }
 
-    // ترتيب تلقائي: كل نوع في قسم مستقل بعنوان جاهز، بنفس ترتيب ظهور الأنواع
     function autoArrange() {
       const all = S().flatMap((s) => s.questions);
       if (!all.length) return toast("لا توجد أسئلة", true);
@@ -419,7 +410,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       queue("content"); redraw(); toast("رُتبت الأسئلة حسب النوع");
     }
 
-    /* ----- لصق أسئلة جاهزة أو ملف Word ----- */
     function pasteDialog(target) {
       const where = select([
         ...(target ? [["here", `إلى القسم: ${target.title || "الحالي"}`]] : []),
@@ -430,7 +420,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
         fields: field("إضافة", where),
         onAdd: (parsed) => {
           if (where.value === "new") {
-            // الأسئلة بلا عنوان قسم تُقسّم حسب النوع
             const secs = [];
             for (const sec of parsed.sections) {
               if (sec.title) { secs.push({ section: { ...newSection(sec.title), questions: sec.questions } }); continue; }
@@ -456,7 +445,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       });
     }
 
-    /* ----- البنك ----- */
     const bankIds = () => S().flatMap((s) => s.questions).map((q) => q.bank_id).filter(Boolean);
     async function replaceFromBank(q, s) {
       const r = await api(`${base}/bank/pick`, { subject_id: paper.subject_id, grade_id: paper.grade_id || undefined, difficulty: q.difficulty || "mixed",
@@ -585,7 +573,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       h("div", { class: "row spaced", style: "justify-content:space-between" }, btn("السابق", () => show("info"), "ghost"), btn("التالي: تصميم الورقة", () => show("design")))];
   }
 
-  /* ======================= 3) تصميم الورقة ======================= */
   async function design() {
     const ro = !paper.perms.edit;
     const L = withLayoutDefaults(paper.layout);
@@ -597,7 +584,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       type: "button", class: `xb-tpl${L.template === k ? " on" : ""}`, disabled: ro,
       onclick: (e) => { tpls.querySelectorAll(".xb-tpl").forEach((b) => b.classList.remove("on")); e.currentTarget.classList.add("on"); set("template", k); },
     }, h("b", {}, t.label), h("small", {}, t.note))));
-    // حقل «الشعبة» لا يظهر إن كانت الشعب موقوفة في المدرسة
     const fields = h("div", { class: "xb-toggles" }, STUDENT_FIELDS.filter(([k]) => k !== "section" || ctx.settings.sections_enabled !== false).map(([k, label]) => h("label", {},
       h("input", { type: "checkbox", checked: L.student_fields.includes(k), disabled: ro, onchange: (e) => {
         const cur = new Set(L.student_fields);
@@ -614,7 +600,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       ? (ctx.settings.show_logo ? "شعار المدرسة يُضاف تلقائيًا من إعدادات الإدارة." : "الإدارة أوقفت إظهار الشعار في الاختبارات.")
       : "لم ترفع الإدارة شعار المدرسة بعد (من الإعدادات ← الاختبارات الورقية).";
 
-    // معاينة مصغرة للصفحة الأولى
     const mini = h("div", { class: "xb-mini-box" });
     let t;
     const miniRender = () => {
@@ -657,7 +642,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
     return h("div", { class: "xb-design" }, form, h("div", { class: "xb-mini" }, panel("معاينة الصفحة الأولى", null, mini)));
   }
 
-  /* ======================= 4) المعاينة والطباعة ======================= */
   async function preview() {
     await flush();
     paper = await api(`${base}/${paper.id}`);
@@ -718,7 +702,6 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
   return root;
 }
 
-// سؤال البنك ← سؤال داخل الورقة (نسخة مستقلة بمعرّف جديد)
 const BODY = ["text", "options", "correct", "answers", "answer", "pairs", "items", "table", "image", "space", "lined", "cols", "solution", "notes"];
 export const fromBankRow = (r) => ({
   ...Object.fromEntries(BODY.filter((k) => r[k] !== undefined && r[k] !== null).map((k) => [k, structuredClone(r[k])])),

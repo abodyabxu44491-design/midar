@@ -1,12 +1,13 @@
-// هوية المدرسة: الشعار وبيانات المدرسة. الشعار يظهر في الشريط العلوي لكل البوابات، وصفحة المدرسة،
-// وملف الطالب، والأوراق المطبوعة (كشوف الدرجات، الإيصالات، البطاقات)، وورقة الاختبار.
-// نفس المسارات التي يستخدمها معالج أول دخول (/setup/profile و/setup/logo).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, toast, confirmAction, schoolLogoUrl } from "../../shared/js/ui.js";
 import { A, countryField } from "./common.js";
 
-// تصغير الشعار في المتصفح: حتى 600 بكسل للطباعة، ومصغّرة 160 بكسل للشريط العلوي. PNG يحفظ الشفافية.
 async function prepareLogo(file) {
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("اختر صورة PNG أو JPG أو WebP");
   const bmp = await createImageBitmap(file);
@@ -23,7 +24,6 @@ async function prepareLogo(file) {
   return { ...draw(600, mime, 0.9), thumb: draw(160, mime, 0.9) };
 }
 
-/** لوحة الشعار (تُستخدم في الإعدادات ومعالج الإعداد) */
 export function logoPanel({ me, profile, onChange }) {
   let logo = profile?.logo_image_id || me?.school?.logo || null;
   const schoolId = me?.school?.id;
@@ -67,7 +67,6 @@ export default async function schoolIdentity({ me }) {
     email: input({ class: "ltr", type: "email", value: p.email || "" }),
     phone: input({ class: "ltr", inputMode: "tel", value: p.phone || "" }),
   };
-  // الشريط العلوي يتحدث فورًا بالشعار الجديد
   const refreshTopbar = (logo) => {
     const slot = document.querySelector(".topbar .school");
     if (!slot) return;

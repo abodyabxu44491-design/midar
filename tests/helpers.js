@@ -1,4 +1,8 @@
-// أدوات الاختبار: تشغيل التطبيق على منفذ عشوائي + متصفح مبسط بكوكيز
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { createApp } from "../src/app.js";
 import { closePool } from "../src/core/db/pool.js";
 
@@ -41,10 +45,6 @@ export const ownerPassword = process.env.TEST_OWNER_PASSWORD;
 export const ownerPath = process.env.OWNER_PATH;
 export const endPool = () => closePool();
 
-/**
- * مدرسة جاهزة للاختبار: هيكل ابتدائي بشعبتين، ومادة الرياضيات، ومعلم مسند، وطالبان.
- * تعيد عملاء مسجلين (المالك والمدير والمعلم) ومعرّفات العناصر.
- */
 export async function readySchool(base, { prefix = "t", name = "مدرسة الاختبار", students = 2 } = {}) {
   const { currentTotp } = await import("../src/core/auth/totp.js");
   const { transaction } = await import("../src/core/db/pool.js");

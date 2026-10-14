@@ -1,4 +1,8 @@
-// معالج إعداد المدرسة والهيكل الأكاديمي
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -10,7 +14,6 @@ import { imageSchema, saveImage } from "../shared/exam-papers.service.js";
 
 const r = Router();
 
-// حالة الإعداد: الملف + الهيكل + الكتالوج المقترح
 r.get("/", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({
     profile: await S.getProfile(q),
@@ -29,10 +32,6 @@ r.post("/template", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => S.applyTemplate(q, b)));
 }));
 
-/**
- * إنهاء المعالج دفعة واحدة (كلها في معاملة واحدة: إما تنجح كلها أو لا يُحفظ شيء).
- * يستخدم نفس الخدمات التي تستخدمها شاشات الإعدادات، فلا يوجد نظام ثانٍ.
- */
 const finishSchema = z.object({
   sections_enabled: z.boolean().default(true),
   template: S.templateSchema,
@@ -64,13 +63,11 @@ r.post("/reopen", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- وضع الشعب (نعم/لا) ---------- */
 r.put("/sections-mode", handle(async (req, res) => {
   const { sections_enabled, confirm } = parse(S.sectionsModeSchema, req.body);
   res.json(await inTenant(req, (q) => S.setSectionsMode(q, sections_enabled, { confirm })));
 }));
 
-/* ---------- شعار المدرسة ---------- */
 r.post("/logo", handle(async (req, res) => {
   const file = parse(imageSchema, req.body);
   res.json(await inTenant(req, (q) => S.setLogo(q, file, req.actor, saveImage)));
@@ -80,13 +77,11 @@ r.delete("/logo", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- نمط تسمية الصفوف ---------- */
 r.post("/rename-grades", handle(async (req, res) => {
   const { grade_set } = parse(S.renamePatternSchema, req.body);
   res.json(await inTenant(req, (q) => S.renameGradesByPattern(q, grade_set)));
 }));
 
-/* ---------- المراحل ---------- */
 r.post("/stages", handle(async (req, res) => {
   const b = parse(S.stageSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => S.addStage(q, b)));
@@ -103,7 +98,6 @@ r.delete("/stages/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- الصفوف ---------- */
 r.post("/grades", handle(async (req, res) => {
   const b = parse(S.gradeSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => S.addGrade(q, b)));
@@ -126,7 +120,6 @@ r.post("/stages/:id/reorder", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- الشعب ---------- */
 r.post("/grades/:id/sections", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(S.sectionsSchema, req.body);
@@ -141,8 +134,6 @@ r.patch("/sections/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- النسخ ---------- */
-// نسخ مواد صف إلى صف آخر (نفس الإعدادات، ثم عدّل الفروق)
 r.post("/grades/:id/copy-subjects", handle(async (req, res) => {
   const from = parse(t.id, req.params.id);
   const { to_grade_id: to, replace } = parse(
@@ -159,7 +150,6 @@ r.post("/grades/:id/copy-subjects", handle(async (req, res) => {
   }));
 }));
 
-/* ---------- المواد ---------- */
 r.post("/subjects", handle(async (req, res) => {
   const b = parse(S.subjectSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => S.addSubject(q, b)));

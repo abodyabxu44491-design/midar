@@ -1,5 +1,8 @@
-// ربط أي جوال بالبوابة برمز من 6 أرقام: يعمل فورًا أو بانتظار الموافقة، بعدد وصلاحية محددين،
-// مع قفل التخمين، والعزل بين المدارس، وإلغاء الرمز.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, readySchool, endPool } from "./helpers.js";
@@ -35,7 +38,6 @@ test("رمز يعمل فورًا لثلاثة جوالات: كل جوال يصي
   assert.ok(r.data.link.endsWith(`/${A.id}/gate#j=${r.data.code}`));
   assert.ok(r.data.qr.startsWith("data:image/"));
   for (const [i, name] of ["جوال الحارس", "جوال المناوب", "تابلت البوابة"].entries()) {
-    // الرمز يُقبل بمسافة وبالأرقام العربية
     const code = i === 1 ? r.data.code.replace(/\d/g, (d) => String.fromCharCode(0x0660 + Number(d))) : `${r.data.code.slice(0, 3)} ${r.data.code.slice(3)}`;
     const j = await join(A.id, { code, name, info: { ua: "test" } }, `10.0.1.${i}`);
     assert.equal(j.status, 200, JSON.stringify(j.data));
@@ -48,7 +50,6 @@ test("رمز يعمل فورًا لثلاثة جوالات: كل جوال يصي
   assert.equal(full.status, 401);
   const devs = (await A.admin.get(`${G}/devices`)).data.filter((d) => d.status === "active");
   assert.equal(devs.length, 3);
-  // الرمز المكتمل لا يظهر في الرموز الصالحة
   assert.equal((await A.admin.get(`${G}/join-codes`)).data.length, 0);
 });
 
@@ -66,7 +67,6 @@ test("رمز بموافقة: الجوال بانتظار الموافقة حتى
   const dev = (await A.admin.get(`${G}/devices`)).data.find((d) => d.name === "جوال الحارس الجديد");
   assert.equal((await A.admin.post(`${G}/devices/${dev.id}/approve`)).status, 200);
   assert.equal((await call("status", {})).data.status, "active");
-  // إلغاء الرمز: لا يُقبل بعدها
   assert.equal((await A.admin.post(`${G}/join-codes/${c.id}/revoke`)).status, 200);
   assert.equal((await join(A.id, { code: r.data.code, name: "متأخر" }, "10.0.2.2")).status, 401);
 });
@@ -79,11 +79,8 @@ test("العزل وقفل التخمين: رمز مدرسة لا يعمل في �
   await transaction({ platform: true }, (q) => q("DELETE FROM rate_limits"));
   const locked = await join(A.id, { code: r.data.code, name: "تخمين" }, "10.0.3.2");
   assert.equal(locked.status, 429);
-  // جهاز آخر غير مقفل
   assert.equal((await join(A.id, { code: r.data.code, name: "جوال سليم" }, "10.0.3.3")).status, 200);
-  // المعلم لا يستطيع إنشاء رموز
   assert.equal((await A.teacher.post(`${G}/join-codes`, {})).status, 401);
-  // مدخلات خاطئة
   assert.equal((await join(A.id, { code: "12", name: "x" })).status, 400);
 });
 

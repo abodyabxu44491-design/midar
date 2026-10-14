@@ -1,4 +1,8 @@
-// الدخول للعرض التجريبي من الصفحة الرئيسية: بلا تسجيل، في مدرسة العرض (للقراءة فقط)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -17,14 +21,12 @@ r.post("/start", limits.demo, handle(async (req, res) => {
   if (!school) throw notFound("العرض التجريبي غير متاح حاليًا");
   const out = await transaction({ tenantId: school.id, actor: ACTOR, ip: req.ip }, async (q) => {
     if (role === "parent") {
-      // طالب له بيانات كاملة: الأكثر درجات منشورة
       const [s] = await q(
         `SELECT s.access_key FROM students s WHERE s.status = 'active'
           ORDER BY (SELECT count(*) FROM scores sc WHERE sc.student_id = s.id) DESC, s.id LIMIT 1`);
       if (!s) throw notFound("العرض التجريبي غير متاح حاليًا");
       return { url: `/${school.id}?k=${encodeURIComponent(s.access_key)}` };
     }
-    // المعلم: صاحب أكثر الفصول والمواد حتى يظهر التطبيق ممتلئًا
     const [u] = await q(
       `SELECT u.id FROM users u WHERE u.role = $1 AND u.is_active
         ORDER BY (SELECT count(*) FROM teacher_assignments ta WHERE ta.teacher_id = u.teacher_id) DESC, u.id LIMIT 1`, [role]);

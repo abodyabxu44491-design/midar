@@ -1,5 +1,8 @@
-// قائمة واتساب (مجانية): تجهيز رسائل لأولياء الأمور بمتغيرات، ثم إرسالها من جوال الإداري واحدة تلو الأخرى.
-// المنصة لا ترسل شيئًا ولا تحتاج اشتراكًا: كل ضغطة تفتح محادثة واتساب جاهزة، وتنتقل تلقائيًا للتالية.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, textarea, btn, empty, badge, sub, stats, toast, confirmAction } from "../../shared/js/ui.js";
@@ -16,7 +19,6 @@ const SAMPLES = {
 export default async function whatsappQueue({ nav }) {
   const [d, classes] = await Promise.all([api(`${A}/communication/wa`), api(`${A}/structure/classes`).catch(() => [])]);
 
-  /* ---------- تجهيز الرسائل ---------- */
   const target = select(TARGETS);
   const cls = select(classes.map((c) => [c.id, c.name]));
   const clsField = field("الشعبة", cls);
@@ -40,7 +42,6 @@ export default async function whatsappQueue({ nav }) {
       } catch (e) { toast(e.message, true); }
     }, "primary"));
 
-  /* ---------- الإرسال المتتابع ---------- */
   const queue = d.pending.slice();
   let i = 0, done = 0;
   const stage = h("div", { class: "wa-stage", "aria-live": "polite" });

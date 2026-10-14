@@ -1,4 +1,8 @@
-// الشهادات (الإدارة): معاينة وإصدار لشعبة، وشهادة مخصصة، والطباعة، والإلغاء
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { env } from "../../config/env.js";
 import { inTenant } from "../../core/db/pool.js";

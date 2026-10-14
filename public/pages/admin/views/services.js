@@ -1,4 +1,8 @@
-// الخدمات: النقل المدرسي، المكتبة، العهد والمخزون، العيادة المدرسية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast, notice, switchBtn, dialog, confirmAction } from "../../shared/js/ui.js";
@@ -34,7 +38,6 @@ export default async function services({ me }) {
   return partsView(parts, (p, nav) => ({ transport, library, inventory, clinic })[p](nav));
 }
 
-/* ===================== النقل ===================== */
 async function transport(nav) {
   const list = await api(`${S()}/transport`);
   const busForm = (b) => {
@@ -106,7 +109,6 @@ async function setSwitch(section, key) {
   return switchBtn(s[key], key, async (v) => { await api(`${A}/communication/features/${section}`, { [key]: v }, "PUT"); toast("تم الحفظ"); return true; });
 }
 
-/* ===================== المكتبة ===================== */
 async function library(nav) {
   const [booksList, loansList] = await Promise.all([api(`${S()}/library/books`), api(`${S()}/library/loans`)]);
   const { cls, st } = await studentPicker();
@@ -154,7 +156,6 @@ async function libSettings() {
     sub("يصل تذكير لولي الأمر عند تأخر الإرجاع."));
 }
 
-/* ===================== المخزون ===================== */
 async function inventory(nav) {
   const [list, custody, staffBoard] = await Promise.all([api(`${S()}/inventory/items`), api(`${S()}/inventory/custody`), api(`${A}/staff-affairs/attendance`).catch(() => ({ staff: [] }))]);
   const staff = staffBoard.staff;
@@ -190,7 +191,6 @@ async function inventory(nav) {
   ];
 }
 
-/* ===================== العيادة ===================== */
 async function clinic(nav) {
   const [list, pick] = await Promise.all([api(`${S()}/clinic/visits`), studentPicker()]);
   const { cls, st } = pick;

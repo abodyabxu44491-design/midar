@@ -1,9 +1,9 @@
-// محرك المزامنة (الجهاز): القراءة من القاعدة المحلية أولًا، والكتابة كعمليات في طابور تُرسل عند توفر الاتصال.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-//   الكتابة: العملية + التغيير المحلي في معاملة محلية واحدة ← «محفوظ على الجهاز» ← إرسال بالخلفية
-//   الإرسال: دفعات مرتبة، إعادة المحاولة بتباعد متزايد، ونتيجة لكل عملية (طُبّقت / تعارض / رُفضت)
-//   الاستلام: التغييرات منذ آخر نقطة فقط (Delta)، ولا تُكتب فوق تغيير محلي لم يُرسل بعد
-//   الحذف: عند تسجيل الخروج، أو بعد 7 أيام بلا مزامنة ناجحة (حماية بيانات جهاز مفقود)
 import { openDb, deleteDb, dbName } from "./db.js";
 
 const BASE = "/api/teacher/sync";
@@ -17,7 +17,6 @@ let engine = null;
 export const getSync = () => engine;
 export const onSyncChange = (fn) => { listeners.add(fn); if (engine) fn(engine.state); return () => listeners.delete(fn); };
 
-// هوية الجهاز: معرّف عشوائي ثابت لهذا المتصفح (ليس بيانات تشغيلية)
 function deviceId() {
   let id = localStorage.getItem("midar_device_id");
   if (!id) { id = crypto.randomUUID(); localStorage.setItem("midar_device_id", id); }
@@ -55,7 +54,6 @@ export async function startSync({ tenantId, userId, me }) {
     set({ pending: all.filter((o) => o.status === "pending" || o.status === "syncing").length, conflicts: all.filter((o) => o.status === "conflict").length });
   };
 
-  /* ---------- اللقطة الأولى ---------- */
   async function bootstrap() {
     const b = await http(`${BASE}/bootstrap`);
     const pendingKeys = await pendingEntityKeys();
@@ -70,13 +68,11 @@ export async function startSync({ tenantId, userId, me }) {
       s.meta.put({ key: "lastSync", value: Date.now() });
     });
   }
-  // ما له عملية لم تُرسل بعد: لا نكتب فوقه قيمة الخادم (العرض يبقى على ما سجله المستخدم)
   async function pendingEntityKeys() {
     const q = await db.all("queue");
     return new Set(q.filter((o) => o.status !== "rejected").map((o) => `${o.type === "attendance.mark" ? "att" : "score"}:${keyOf(o)}`));
   }
 
-  /* ---------- التغييرات منذ آخر نقطة ---------- */
   async function pull() {
     let cursor = (await db.meta("cursor")) ?? 0;
     for (let i = 0; i < 20; i++) {
@@ -100,13 +96,11 @@ export async function startSync({ tenantId, userId, me }) {
       cursor = ch.cursor;
       if (!ch.has_more) break;
     }
-    // حدود الاحتفاظ: الحضور الأقدم من 30 يومًا لا يبقى على الجهاز
     const cutoff = new Date(Date.now() - 31 * 86400000).toISOString().slice(0, 10);
     const old = (await db.all("attendance")).filter((a) => a.day < cutoff);
     if (old.length) await db.tx("attendance", "readwrite", (s) => { for (const a of old) s.attendance.delete(a.k); });
   }
 
-  /* ---------- الإرسال ---------- */
   let flushing = null;
   async function flush() {
     if (flushing) return flushing;
@@ -115,7 +109,6 @@ export async function startSync({ tenantId, userId, me }) {
       const ops = (await db.all("queue")).filter((o) => o.status === "pending" && !o.after && (o.next_attempt || 0) <= now)
         .sort((a, b) => a.client_seq - b.client_seq).slice(0, BATCH);
       if (!ops.length) return;
-      // أثناء الإرسال: لا تُستبدل هذه العمليات بتعديلات جديدة (تُربط بها وترث إصدارها)
       await db.tx("queue", "readwrite", (s) => { for (const o of ops) s.queue.put({ ...o, status: "syncing" }); });
       set({ syncing: true });
       try {
@@ -133,7 +126,6 @@ export async function startSync({ tenantId, userId, me }) {
               const store = o.type === "attendance.mark" ? "attendance" : "scores";
               const k = keyOf(o);
               const later = waiting.filter((x) => x.after === o.operation_id);
-              // تعديل أحدث لنفس السجل ينتظر: يرث الإصدار الجديد، والقيمة المعروضة تبقى الأحدث
               for (const x of later) s.queue.put({ ...x, base_version: res.version, after: null });
               if (!later.length && !waiting.some((x) => keyOf(x) === k)) {
                 s[store].put(o.type === "attendance.mark"
@@ -153,12 +145,11 @@ export async function startSync({ tenantId, userId, me }) {
         if (rejected.length) set({ error: `رُفضت ${rejected.length} عملية: ${rejected[0].error}` });
         else if (state.error && state.error.startsWith("رُفضت")) set({ error: null });
         set({ online: true });
-        if (rejected.length) await pull().catch(() => {});   // استعادة القيمة الصحيحة من الخادم
+        if (rejected.length) await pull().catch(() => {});
       } catch (e) {
         if (e.status === 0) set({ online: false });
         else if (e.status === 401) set({ error: "انتهت الجلسة. سجّل الدخول لإكمال المزامنة (عملياتك محفوظة على الجهاز)." });
         else if (e.status === 403) set({ error: e.message });
-        // إعادة المحاولة بتباعد متزايد: 2 ث، 4، 8… حتى 5 دقائق
         await db.tx("queue", "readwrite", (s) => {
           for (const o of ops) {
             const retry = (o.retry_count || 0) + 1;
@@ -168,7 +159,6 @@ export async function startSync({ tenantId, userId, me }) {
       } finally { set({ syncing: false }); await countQueue(); }
     })();
     try { await flushing; } finally { flushing = null; }
-    // إن بقيت دفعات أخرى جاهزة
     const more = (await db.all("queue")).some((o) => o.status === "pending" && (o.next_attempt || 0) <= Date.now());
     if (more && state.online) return flush();
   }
@@ -186,22 +176,19 @@ export async function startSync({ tenantId, userId, me }) {
     await countQueue();
   }
 
-  /* ---------- الكتابة المحلية ---------- */
-  // العملية والتغيير المحلي معًا في معاملة واحدة: إما الاثنان أو لا شيء
   async function enqueue(type, payload) {
     const seq = ((await db.meta("seq")) || 0) + 1;
     const isAtt = type === "attendance.mark";
     const k = isAtt ? `${payload.student_id}|${payload.day}` : `${payload.exam_id}|${payload.student_id}`;
     const store = isAtt ? "attendance" : "scores";
     const cur = await db.get(store, k);
-    // عملية سابقة لنفس السجل لم تُرسل بعد: نستبدلها (آخر قيمة أرادها المستخدم، على نفس الإصدار الأساسي)
     const all = await db.all("queue");
     const queued = all.find((o) => o.status === "pending" && o.type === type && keyOf(o) === k);
     const inflight = all.find((o) => o.status === "syncing" && o.type === type && keyOf(o) === k);
     const op = {
       operation_id: crypto.randomUUID(), type, payload,
       base_version: queued ? queued.base_version : (cur?.version ?? 0),
-      after: queued ? queued.after : (inflight ? inflight.operation_id : null),   // يرث إصدار العملية الجارية عند تأكيدها
+      after: queued ? queued.after : (inflight ? inflight.operation_id : null),
       client_seq: seq, client_time: new Date().toISOString(), status: "pending", retry_count: 0,
     };
     await db.tx(["queue", "meta", store], "readwrite", (s) => {
@@ -216,7 +203,6 @@ export async function startSync({ tenantId, userId, me }) {
     return op;
   }
 
-  /* ---------- التعارضات ---------- */
   async function conflicts() { return (await db.all("queue")).filter((o) => o.status === "conflict"); }
   async function resolveConflict(operationId, choice) {
     await http(`${BASE}/conflicts/${operationId}/resolve`, { choice });
@@ -224,13 +210,11 @@ export async function startSync({ tenantId, userId, me }) {
     await syncNow();
   }
 
-  /* ---------- التهيئة ---------- */
   const lastSync = await db.meta("lastSync");
   if (lastSync && Date.now() - lastSync > RETENTION_DAYS * 86400000 && !(await db.count("queue"))) {
-    await db.clear(["load", "students", "attendance", "exams", "scores", "meta"]);   // بيانات قديمة: تُمسح وتُعاد من الخادم
+    await db.clear(["load", "students", "attendance", "exams", "scores", "meta"]);
   }
   await db.meta("me", me);
-  // عمليات كانت قيد الإرسال عند إغلاق التطبيق: تعود للطابور (الخادم لا يكررها بفضل هوية العملية)
   const stuck = (await db.all("queue")).filter((o) => o.status === "syncing");
   if (stuck.length) await db.tx("queue", "readwrite", (s) => { for (const o of stuck) s.queue.put({ ...o, status: "pending" }); });
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
@@ -259,19 +243,15 @@ export async function startSync({ tenantId, userId, me }) {
   return engine;
 }
 
-// تسجيل الخروج: حذف القاعدة المحلية لهذا المستخدم بالكامل (لا تبقى بيانات على الجهاز)
 export async function wipeLocal(tenantId, userId) {
   if (engine) { engine.db.close(); await engine.stop(); }
   await deleteDb(dbName(tenantId, userId));
   localStorage.removeItem("midar_offline_profile");
 }
 
-// الملف المحفوظ للتشغيل بدون اتصال: من هو المستخدم وأي قاعدة (بلا كلمات مرور ولا رموز جلسة)
 export const offlineProfile = () => { try { return JSON.parse(localStorage.getItem("midar_offline_profile") || "null"); } catch { return null; } };
 export const saveOfflineProfile = (p) => localStorage.setItem("midar_offline_profile", JSON.stringify(p));
 
-// تجهيز ملفات البوابة للعمل بدون اتصال: تحميل وحدات المعلم كلها في الخلفية (يحفظها عامل الخدمة)
-// حتى الأقسام التي لم تُفتح بعد تعمل لاحقًا بدون إنترنت.
 export function warmOfflineShell(prefixes = ["/teacher/", "/shared/js/"]) {
   const vprefix = (import.meta.url.match(/^(.*?\/v\/[^/]+)\//) || [])[1];
   if (!vprefix || !navigator.onLine || !("serviceWorker" in navigator)) return;
@@ -283,6 +263,5 @@ export function warmOfflineShell(prefixes = ["/teacher/", "/shared/js/"]) {
     for (const u of urls) { try { await fetch(`${vprefix}${u}`, { credentials: "same-origin" }); } catch { return; } }
   };
   (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(() => run());
-  // حفظ قشرة الصفحة نفسها لفتح التطبيق بدون اتصال
   navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: "midar:cache-page", url: location.pathname })).catch(() => {});
 }

@@ -1,5 +1,8 @@
-// لوحة السلوك المشتركة بين الإدارة والمعلم: تسجيل سريع لطالب أو للفصل كله، والملخص، والسجل،
-// وللإدارة: بنود السلوك وإعداداته.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { panel, field, input, select, textarea, btn, empty, line, sub, toast, notice, confirmAction, switchBtn, dialog, badge } from "./ui.js";

@@ -1,4 +1,8 @@
-// التقويم (المعلم): فعاليات المدرسة والمنسوبين، واختبارات فصوله، والإجازات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { api } from "../../shared/js/api.js";
 import { toast } from "../../shared/js/ui.js";
 import { calendarView } from "../../shared/js/calendar-view.js";

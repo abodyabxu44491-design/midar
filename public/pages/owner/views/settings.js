@@ -1,4 +1,8 @@
-// إعدادات المنصة: الصفحة الرسمية، التواصل، التجربة المجانية، وسياسة الاشتراكات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, field, select, input, textarea, btn, sub, toast, notice } from "/shared/js/ui.js";
@@ -9,7 +13,6 @@ export default async function settings() {
   const chk = (v, label, hint) => { const el = h("input", { type: "checkbox", checked: !!v, style: "width:18px;height:18px;flex:none;margin-top:3px" });
     return [el, h("label", { class: "row", style: "align-items:flex-start;gap:8px;margin-bottom:10px;cursor:pointer" }, el, h("div", {}, h("b", {}, label), hint ? sub(hint) : null))]; };
 
-  // الصفحة الرسمية والتواصل
   const mode = select([["blank", "فاضية (الشعار فقط)"], ["marketing", "الصفحة الرسمية: الباقات والتجربة والتواصل"]], { value: s.landing_mode });
   const headline = input({ value: s.site_headline || "", placeholder: "إدارة مدرستك كاملة في مكان واحد" });
   const subhead = textarea({ rows: 2, value: s.site_subheadline || "" });
@@ -19,7 +22,6 @@ export default async function settings() {
   const support = input({ class: "ltr", inputMode: "tel", value: s.support_whatsapp || "" });
   const supportNote = input({ value: s.support_note || "", placeholder: "سطر يظهر للمدارس في صفحة اشتراكها" });
 
-  // إعدادات التجربة المجانية
   const [tOn, tOnL] = chk(s.trial_enabled, "التجربة المجانية متاحة");
   const days = input({ type: "number", min: 1, max: 365, value: s.trial_days });
   const [tAll, tAllL] = chk(s.trial_all_plans, "التجربة متاحة لكل الباقات", "إذا ألغيتها يُطبَّق خيار «تتيح تجربة مجانية» في كل باقة على حدة");
@@ -29,7 +31,6 @@ export default async function settings() {
   const tGrace = input({ type: "number", min: 0, max: 30, value: s.trial_grace_days });
   const [tExt, tExtL] = chk(s.trial_owner_extend, "يمكنني تمديد التجربة يدويًا");
   const [showPlans, showPlansL] = chk(s.show_plans_after_expiry, "تظهر الباقات للمدرسة بعد انتهاء التجربة أو الاشتراك", "مع إمكانية إرسال طلب اشتراك من داخل حسابها");
-  // سياسة الاشتراكات
   const grace = input({ type: "number", min: 0, max: 60, value: s.default_grace_days });
   const reqMode = select([["request", "زر «طلب هذه الميزة»"], ["upgrade", "زر «طلب ترقية الباقة»"], ["hidden", "بدون أزرار (تظهر مقفلة فقط)"]], { value: s.feature_request_mode });
 
@@ -70,7 +71,6 @@ export default async function settings() {
   ];
 }
 
-// فحص بيئة التشغيل: ما يراه الخادم فعليًا بعد النشر (مثلًا على Render)
 function diagnosticsPanel() {
   const box = h("div");
   const run = async () => {

@@ -1,4 +1,8 @@
-// صلاحيات المعلم: ما أُسند له فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export const teachesClass = async (q, teacherId, classId) =>
   (await q("SELECT 1 FROM teacher_assignments WHERE teacher_id = $1 AND class_id = $2 LIMIT 1", [teacherId, classId])).length > 0;
 

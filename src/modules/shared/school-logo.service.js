@@ -1,5 +1,8 @@
-// شعار المدرسة: من ملف المدرسة، وإلا شعار الاختبارات الورقية (للمدارس التي رفعته قبل وجود شعار المدرسة).
-// الرابط العام /api/public/<المدرسة>/logo?v=<رقم الصورة>: الرقم يتغير مع كل شعار جديد فيظهر فورًا مع كاش طويل.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export async function logoId(q) {
   const [row] = await q(
     `SELECT COALESCE(p.logo_image_id, CASE WHEN s.show_logo THEN s.logo_image_id END) AS id

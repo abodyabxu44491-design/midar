@@ -1,5 +1,8 @@
-// اليمن السوق الأساسية: عملة ورمز اتصال افتراضيان، الدولة تضبطهما، أسماء الصفوف والمراحل اليمنية،
-// الأرقام العربية في الجوال، والحساب البنكي أو المحفظة بلا آيبان.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -36,7 +39,6 @@ test("الدولة تضبط رمز الاتصال والعملة (قبل أي ح
   assert.equal((await admin.put("/api/admin/setup/profile", { country: "اليمن" })).status, 200);
   assert.equal((await admin.get("/api/admin/messaging/templates")).data.country_code, "967");
   assert.equal((await one("SELECT currency FROM tenants WHERE id = $1", [id])).currency, "YER");
-  // دولة أخرى: لا تغيّر العملة ولا الرمز
   await admin.put("/api/admin/setup/profile", { country: "ماليزيا" });
   assert.equal((await admin.get("/api/admin/messaging/templates")).data.country_code, "967");
   await admin.put("/api/admin/setup/profile", { country: "اليمن" });
@@ -51,7 +53,6 @@ test("أسماء الصفوف اليمنية بلا «الأساسي»، وال�
   assert.ok(!grades.some((g) => g.includes("الأساسي")));
   const stages = (await transaction({ tenantId: id }, (q) => q("SELECT name FROM stages ORDER BY sort_order"))).map((s) => s.name);
   assert.deepEqual(stages, ["الأساسي (1–6)", "الأساسي (7–9)", "الثانوي"]);
-  // الرجوع لنمط آخر يعيد أسماء المراحل الافتراضية أيضًا
   await admin.post("/api/admin/setup/rename-grades", { grade_set: "arabic_full" });
   assert.equal((await one("SELECT name FROM stages ORDER BY sort_order LIMIT 1")).name, "المرحلة الابتدائية");
   await admin.post("/api/admin/setup/rename-grades", { grade_set: "yemen" });
@@ -88,7 +89,6 @@ test("الجوال: الدولة من الرقم نفسه (يمني ومغترب
   const rows = parseList("محمد علي أحمد العريقي 777123456\nأحمد صالح ناجي الشميري 0501234567");
   assert.deepEqual(rows.map((r) => [r.phone, r.phone_country, r.phone_ok]), [["777123456", "YE", true], ["0501234567", "SA", true]]);
 
-  // الخادم يحفظ بالصيغة نفسها: المغترب بصيغة سعودية، واليمني 9 أرقام
   const a = await admin.post("/api/admin/students", { name: "سالم أحمد علي الصبري", guardian_phone: "+966 50 123 4567" });
   const b = await admin.post("/api/admin/students", { name: "خالد أحمد علي الصبري", guardian_phone: "00967777000111" });
   assert.equal((await one("SELECT guardian_phone FROM students WHERE id = $1", [a.data.id])).guardian_phone, "0501234567");

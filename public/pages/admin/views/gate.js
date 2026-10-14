@@ -1,9 +1,8 @@
-// البوابة الذكية — شاشة الإدارة:
-//   اليوم: الأرقام، المباشر، «لم يسجل حضور» والاستثناءات، واعتماد الغياب
-//   الأجهزة: «ربط جوال» برمز من 6 أرقام (أو QR) لأي عدد من الجوالات، أو رابط خاص بجهاز واحد ← إيقاف أو إلغاء فوري
-//   البطاقات: طباعة بطاقات الحضور لشعبة كاملة، وإعادة إصدار أو تعطيل بطاقة
-//   الإعدادات: أوقات الحضور والإشعارات والأيام الاستثنائية
-//   المراجعة: المسح المشبوه وسجل التعديلات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, notice, sub, toast, dialog, badge, switchBtn, confirmAction } from "../../shared/js/ui.js";
@@ -34,10 +33,8 @@ export async function gateView({ me }) {
     try { mount(box, await VIEWS[k]()); } catch (e) { mount(box, notice(e.message, "err")); }
   };
 
-  /* ---------- اليوم والمراجعة ---------- */
   async function dayView() {
     let [s, devices] = await Promise.all([api(`${G()}/summary?date=${date}`), api(`${G()}/devices`)]);
-    // «اليوم» بتوقيت المدرسة (لا بتوقيت جهاز المدير)
     if (!userDate && s.today !== date) { date = s.today; s = await api(`${G()}/summary?date=${date}`); }
     const c = s.counts;
     const dateIn = input({ type: "date", value: date, max: s.today });
@@ -66,7 +63,7 @@ export async function gateView({ me }) {
             r.suspicious ? badge("مشبوه", "red") : null, r.offline ? badge("بدون اتصال", "gray") : null,
             h("small", {}, r.message ? `${r.message} · ${r.time}` : r.time)))));
         while (feedBox.children.length > 60) feedBox.lastChild.remove();
-      } catch { /* يُعاد لاحقًا */ }
+      } catch { /* ignore */ }
     };
     await loadFeed();
     if (date === s.today) feedTimer = setInterval(() => { if (box.isConnected && part === "day") loadFeed(); else clearInterval(feedTimer); }, 5000);
@@ -132,7 +129,6 @@ export async function gateView({ me }) {
       h("div", { class: "row" }, finalize));
   }
 
-  /* ---------- أجهزة الحراس ---------- */
   async function devicesView() {
     const [devices, gates, codes] = await Promise.all([api(`${G()}/devices`), api(`${G()}/gates`), api(`${G()}/join-codes`)]);
     const left = (iso) => {
@@ -140,7 +136,6 @@ export async function gateView({ me }) {
       return m >= 60 ? `${Math.floor(m / 60)} ساعة${m % 60 ? ` و${m % 60} دقيقة` : ""}` : `${m} دقيقة`;
     };
     const spaced = (c) => `${c.slice(0, 3)} ${c.slice(3)}`;
-    // شاشة الرمز: أرقام كبيرة + QR + من انضم الآن (تتحدث كل 3 ثوانٍ)
     const codeDialog = (c) => {
       const joined = h("div", { class: "gj-joined" });
       const counter = h("small", { class: "sub" });
@@ -167,7 +162,7 @@ export async function gateView({ me }) {
           const now = (await api(`${G()}/join-codes`)).find((x) => x.id === c.id);
           if (now) paint(now);
           else { clearInterval(timer); toast(c.max_devices > 1 ? "اكتمل الربط أو انتهى الرمز" : "رُبط الجوال"); d.close(); }
-        } catch { /* المحاولة التالية */ }
+        } catch { /* ignore */ }
       }, 3000);
       d.addEventListener("close", () => { clearInterval(timer); show("devices"); });
     };
@@ -288,7 +283,6 @@ export async function gateView({ me }) {
     ];
   }
 
-  /* ---------- بطاقات الحضور ---------- */
   async function cardsView() {
     const classes = await loadClasses();
     const cls = select([["", "اختر الشعبة"], ...classes.map((c) => [String(c.id), c.name])]);
@@ -328,7 +322,6 @@ export async function gateView({ me }) {
       field("الشعبة", cls), out);
   }
 
-  /* ---------- الإعدادات ---------- */
   async function settingsView() {
     const s = await api(`${G()}/settings`);
     const t = (k) => input({ type: "time", value: s[k] });
@@ -398,7 +391,6 @@ export async function gateView({ me }) {
     ];
   }
 
-  /* ---------- السجلات (تصفية) ---------- */
   async function recordsView() {
     const F = await api(`${G()}/filters`);
     const dateIn = input({ type: "date", value: date, max: today() });
@@ -411,7 +403,6 @@ export async function gateView({ me }) {
     const qName = input({ placeholder: "اسم الطالب", maxLength: 60 });
     const offline = h("input", { type: "checkbox" });
     const out = h("div");
-    // الصفوف والشعب حسب المرحلة والصف المختارين
     const narrow = () => {
       for (const o of grade.options) o.hidden = Boolean(o.value && stage.value && String(F.grades.find((g) => String(g.id) === o.value)?.stage_id) !== stage.value);
       for (const o of cls.options) {
@@ -451,7 +442,6 @@ export async function gateView({ me }) {
       out);
   }
 
-  /* ---------- المشبوه والتعديلات ---------- */
   async function reviewView() {
     const [sus, audit] = await Promise.all([api(`${G()}/suspicious?date=${date}`), api(`${G()}/audit?date=${date}`)]);
     const dateIn = input({ type: "date", value: date, max: today() });

@@ -1,4 +1,8 @@
-// الاشتراكات: الإحصاءات، القائمة بالتصفية، وصفحة كل مدرسة (الاشتراك الحالي، العمليات، السجل، التجارب، الأسعار الخاصة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, field, input, select, btn, badge, sub, notice, toast, dialog, empty, stats, confirmAction } from "/shared/js/ui.js";
@@ -43,7 +47,6 @@ export default async function subscriptions({ refresh }) {
   return root;
 }
 
-/* ---------- صفحة اشتراك مدرسة ---------- */
 async function detail(tenantId, root, back) {
   const [d, refs] = await Promise.all([api(`/api/owner/subscriptions/${tenantId}`), loadRefs()]);
   const c = d.current;

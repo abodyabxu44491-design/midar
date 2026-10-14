@@ -1,4 +1,8 @@
-// الاختبارات: الاعتماد والنشر (الإدارة) — الإنشاء وإدخال الدرجات للمعلم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";
@@ -14,7 +18,6 @@ r.get("/:id/scores", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => exams.sheet(q, await exams.get(q, id))));
 }));
 
-// published = اعتماد ونشر | draft = إرجاع للمعلم أو إلغاء النشر
 r.post("/:id/status", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const { status } = parse(z.object({ status: z.enum(["published", "draft"]) }), req.body);

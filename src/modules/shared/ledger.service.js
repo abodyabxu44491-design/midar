@@ -1,5 +1,8 @@
-// النظام المالي: الحسابات والتصنيفات وسجل الحركات
-// كل حركة لها رقم وسبب وحساب وتصنيف ومصدر. لا حركة مجهولة، ولا حذف.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 
@@ -48,7 +51,7 @@ export const transferSchema = z.object({
   amount: money,
   occurred_on: t.date,
   reason: t.shortText("سبب التحويل", 300),
-  rate: z.coerce.number().positive().max(1_000_000).optional(),   // عند اختلاف العملتين
+  rate: z.coerce.number().positive().max(1_000_000).optional(),
   reference: t.optText(80),
 }).refine((b) => b.from_account_id !== b.to_account_id, { message: "اختر حسابين مختلفين", path: ["to_account_id"] });
 
@@ -57,7 +60,6 @@ export const reviewSchema = z.object({ decision: z.enum(["approve", "reject"]), 
 
 export const ensureDefaults = (q) => q("SELECT seed_finance_defaults()");
 
-/* ---------- الحسابات ---------- */
 export async function listAccounts(q) {
   const accounts = await q(
     `SELECT a.id, a.name, a.kind, a.currency, a.opening_balance, a.low_balance, a.note, a.is_active,
@@ -107,7 +109,6 @@ export async function setAccountActive(q, id, active) {
   if (!rows.length) throw notFound("الحساب غير موجود");
 }
 
-/* ---------- التصنيفات ---------- */
 export const listCategories = (q) => q(
   "SELECT id, direction, name, code, is_active FROM finance_categories ORDER BY direction, name");
 
@@ -135,18 +136,12 @@ async function accountForMethod(q, method) {
   return any ? Number(any.id) : null;
 }
 
-/* ---------- الحركات ---------- */
 async function nextEntryNo(q) {
   const [r] = await q("SELECT next_counter('finance') AS n");
   return `F-${String(r.n).padStart(6, "0")}`;
 }
 
-/**
- * تسجيل حركة مالية. المصادر التلقائية (الرسوم، التبرعات، الرواتب) تُسجَّل معتمدة،
- * والحركات اليدوية الحساسة (سحب/مصروف) يمكن أن تبدأ بانتظار الاعتماد.
- */
 export async function addEntry(q, b, { actor, sourceType = "manual", sourceId = null, status = "approved" }) {
-  // المصروف يقفل صف الحساب حتى لا يتجاوزه تحويل متزامن يفحص الرصيد في اللحظة نفسها
   const [account] = await q(
     `SELECT id, is_active, currency FROM finance_accounts WHERE id = $1 ${b.direction === "expense" ? "FOR UPDATE" : ""}`, [b.account_id]);
   if (!account) throw notFound("الحساب غير موجود");
@@ -155,7 +150,6 @@ export async function addEntry(q, b, { actor, sourceType = "manual", sourceId = 
   if (!category) throw notFound("التصنيف غير موجود");
   if (category.direction !== b.direction) throw badRequest("التصنيف لا يطابق نوع الحركة");
 
-  // عملة الحساب: إن اختلفت عن عملة المدرسة نحتاج سعر تحويل
   const base = await baseCurrency(q);
   const rate = account.currency === base ? 1 : Number(b.rate || 0);
   if (!(rate > 0)) throw badRequest(`اكتب سعر تحويل ${account.currency} إلى ${base}`);
@@ -173,18 +167,16 @@ export async function addEntry(q, b, { actor, sourceType = "manual", sourceId = 
   return row;
 }
 
-// حركة تلقائية من مصدر داخل المنصة (رسوم، استرداد، تبرع، راتب)
 export async function addSystemEntry(q, { direction, amount, method, occurredOn, reason, beneficiary, reference,
   categoryCode, sourceType, sourceId, actor }) {
   let categoryId = await categoryByCode(q, categoryCode);
   let accountId = await accountForMethod(q, method || "cash");
   if (!categoryId || !accountId) {
-    await ensureDefaults(q);                          // أول عملية مالية تُجهّز الحسابات والتصنيفات
+    await ensureDefaults(q);
     categoryId = await categoryByCode(q, categoryCode);
     accountId = await accountForMethod(q, method || "cash");
   }
   if (!categoryId || !accountId) {
-    // لا نبتلع الخطأ: تسجيل دفعة أو راتب بدون قيد مالي يجعل الدفتر لا يطابق الواقع
     throw badRequest(`لا يوجد حساب نشط بعملة المدرسة (${await baseCurrency(q)}) أو تصنيف مناسب. فعّل حسابًا أو أنشئ حسابًا من الحسابات المالية ثم أعد المحاولة.`);
   }
   return addEntry(q, {
@@ -218,7 +210,6 @@ export const listEntriesRaw = (q, f = {}) => q(
   [f.from ?? null, f.to ?? null, f.direction ?? null, f.account_id ?? null, f.category_id ?? null,
    f.status ?? null, f.source_type ?? null]);
 
-// الحركات مع عدد مرفقات كل حركة
 export async function listEntries(q, f = {}) {
   const rows = await listEntriesRaw(q, f);
   if (!rows.length) return rows;
@@ -250,7 +241,6 @@ export async function voidEntry(q, id, reason, actor) {
     throw badRequest("حركة الراتب مرتبطة بمسير الرواتب ولا تُلغى منفردة. صحّحها بحركة إيراد عكسية مع ذكر السبب.");
   }
 
-  // التحويل حركتان: يُلغيان معًا أو لا يُلغى أي منهما، وإلا اختل رصيد الحسابين
   if (e.source_type === "transfer") {
     if (!e.transfer_group) throw badRequest("هذه الحركة جزء من تحويل غير مكتمل الربط. تواصل مع الدعم.");
     const legs = await q(
@@ -265,12 +255,7 @@ export async function voidEntry(q, id, reason, actor) {
   return { voided: 1 };
 }
 
-/**
- * تحويل بين حسابين: حركة صادرة من الأول وواردة للثاني، مرتبطتان برقم واحد.
- * عند اختلاف العملتين يُطلب سعر التحويل بين الحسابين.
- */
 export async function transfer(q, b, actor) {
-  // قفل الحسابين بترتيب ثابت (يمنع الجمود) قبل فحص الرصيد، فلا يتجاوز تحويلان متزامنان الرصيد معًا
   const locked = await q(
     "SELECT id, name, currency, is_active FROM finance_accounts WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE",
     [[b.from_account_id, b.to_account_id]]);
@@ -297,7 +282,7 @@ export async function transfer(q, b, actor) {
     return prev ? Number(prev.rate) : 1;
   };
 
-  const [{ n: group }] = await q("SELECT next_counter('transfer_group') AS n");   // معرّف فريد لكل تحويل (بدل الوقت الذي قد يتكرر)
+  const [{ n: group }] = await q("SELECT next_counter('transfer_group') AS n");
   const outEntry = await addEntry(q, {
     direction: "expense", amount: b.amount, account_id: from.id, category_id: out_id,
     occurred_on: b.occurred_on, reason: `${b.reason} — إلى ${to.name}`, beneficiary: to.name,
@@ -315,7 +300,6 @@ export async function transfer(q, b, actor) {
            received: { entry_no: inEntry.entry_no, amount: received, currency: to.currency } };
 }
 
-/* ---------- الملخص والتقارير ---------- */
 export async function summary(q, { from, to }) {
   const [totals] = await q(
     `SELECT
@@ -345,11 +329,9 @@ export async function summary(q, { from, to }) {
 
   const accounts = await listAccounts(q);
   const base = await baseCurrency(q);
-  // الرصيد الإجمالي بالعملة الأساسية: حسابات العملة نفسها فقط، والبقية تُعرض كل واحد بعملته
   const balance = accounts.filter((a) => a.is_active && a.currency === base)
     .reduce((sum, a) => sum + Number(a.balance), 0);
 
-  // الرسوم غير المسددة (من الفواتير المفتوحة)
   const [unpaid] = await q(
     `SELECT COALESCE(SUM(amount - invoice_net_paid(id)), 0) AS remaining,
             count(*) FILTER (WHERE due_date < CURRENT_DATE AND amount > invoice_net_paid(id))::int AS overdue

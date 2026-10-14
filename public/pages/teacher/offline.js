@@ -1,5 +1,8 @@
-// المعلم بدون إنترنت: مصدر بيانات محلي للحضور والدرجات، ومؤشر الاتصال والمزامنة.
-// القراءة من القاعدة المحلية أولًا، والكتابة عمليات تُحفظ على الجهاز فورًا ثم تُرسل — بنفس المسار متصلًا أو لا.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../shared/js/dom.js";
 import { btn, dialog, notice, sub, badge, empty, toast } from "../shared/js/ui.js";
 import { ATTENDANCE } from "../shared/js/format.js";
@@ -7,7 +10,6 @@ import { getSync, onSyncChange } from "../shared/js/offline/sync.js";
 
 const noData = () => new Error("لا توجد بيانات على هذا الجهاز بعد. اتصل بالإنترنت مرة واحدة لتجهيز العمل بدون اتصال.");
 
-/* ---------- الحضور ---------- */
 export const attendanceSource = {
   offline: true,
   async list(classId, date) {
@@ -35,7 +37,6 @@ export const attendanceSource = {
   },
 };
 
-/* ---------- الدرجات ---------- */
 export async function localExam(examId) {
   const s = getSync();
   return s && (await s.hasData()) ? s.db.get("exams", Number(examId)) : null;
@@ -58,7 +59,6 @@ export async function saveScoresLocal(exam, values) {
   }
   return n;
 }
-// قبل الإرسال للاعتماد: كل درجات هذا الاختبار يجب أن تكون وصلت الخادم
 export async function examSynced(examId) {
   const s = getSync();
   if (!s) return true;
@@ -67,7 +67,6 @@ export async function examSynced(examId) {
   return !q.some((o) => o.type === "score.set" && Number(o.payload.exam_id) === Number(examId));
 }
 
-/* ---------- مؤشر الاتصال والمزامنة (دائم أعلى الصفحة) ---------- */
 export function syncIndicator() {
   const pill = h("button", { type: "button", class: "sync-pill", "aria-live": "polite" });
   onSyncChange((st) => {
@@ -77,7 +76,6 @@ export function syncIndicator() {
       : st.pending ? ["busy", `بانتظار المزامنة (${st.pending})`]
       : st.error ? ["warn", "تنبيه مزامنة"]
       : ["ok", "متصل · تمت المزامنة"];
-    // نص كامل للشاشات الواسعة، ومختصر للجوال (شريط علوي ضيق)
     const short = st.conflicts ? `تعارض (${st.conflicts})` : !st.online ? `غير متصل${st.pending ? ` · ${st.pending}` : ""}`
       : st.syncing || st.pending ? `مزامنة${st.pending ? ` · ${st.pending}` : ""}` : st.error ? "تنبيه" : "متزامن";
     pill.className = `sync-pill ${cls}`;

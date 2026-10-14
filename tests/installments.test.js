@@ -1,4 +1,8 @@
-// الأقساط وخصم الإخوة: الخصم التلقائي عند تطبيق قالب الرسوم، وتذكير القسط قبل استحقاقه وبعد فواته مرة واحدة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -13,7 +17,6 @@ before(async () => {
   srv = await startServer();
   setTransport({ push: async () => {}, sms: async () => {} });
   A = await readySchool(srv.base, { prefix: "in", students: 0 });
-  // ثلاثة إخوة بنفس الجوال (بصيغتين مختلفتين) وطالب آخر
   kids = [];
   for (const [i, ph] of ["771111111", "+967771111111", "0771111111"].entries()) {
     kids.push((await A.admin.post("/api/admin/students", { name: `أخ رقم ${i + 1} العمودي`, class_id: A.c1.id, guardian_phone: ph })).data);
@@ -40,7 +43,6 @@ test("خصم الإخوة: موقوف افتراضيًا، وعند تفعيله
   const inv = (await A.admin.get(`/api/admin/finance/invoices?student_id=${kids[1].id}`)).data;
   const rows = inv.invoices || inv;
   assert.equal(rows.filter((x) => x.student_id === kids[1].id).reduce((a, x) => a + Number(x.amount), 0), 900);
-  // إيقاف قسم الأقساط يوقف الخصم التلقائي
   await A.admin.put("/api/admin/settings/modules", { installments: false });
   pr = (await A.admin.post(`/api/admin/finance/plans/${planId}/apply`, { dry_run: true })).data;
   assert.ok(pr.preview.every((x) => !x.sibling));
@@ -48,14 +50,12 @@ test("خصم الإخوة: موقوف افتراضيًا، وعند تفعيله
 });
 
 test("التذكير: قبل الاستحقاق بالأيام المحددة، وبعد فواته، ومرة واحدة فقط، ولا تذكير لقسط مسدد", async () => {
-  // كل الدفعة الأولى تستحق بعد 3 أيام (الإعداد الافتراضي)
   const r1 = await transaction({ tenantId: A.id }, remindersFor);
   assert.equal(r1.due, 4);
   const again = await transaction({ tenantId: A.id }, remindersFor);
   assert.equal(again.due, 0, "لا يتكرر");
   const inbox = (await client(srv.base).post(`/api/public/${A.id}/student/inbox`, A.parent(kids[0]))).data;
   assert.ok(inbox.items.some((n) => /تذكير: قسط يستحق/.test(n.title)));
-  // قسط فات موعده أمس: يُسدد لطالب، ويبقى لآخر
   await transaction({ tenantId: A.id }, (q) => q("UPDATE invoices SET due_date = $1 WHERE installment_no = 1", [day(-1)]));
   const first = (await A.admin.get(`/api/admin/finance/invoices?student_id=${other.id}`)).data;
   const open = (first.invoices || first).find((x) => x.student_id === other.id && Number(x.amount) === 500 && x.due_date === day(-1));

@@ -1,5 +1,8 @@
-// معالج استيراد المعلمين: ملف ← مطابقة الأعمدة ← فحص ← معاينة وتأكيد ← نتيجة.
-// لا يُكتب شيء قبل «تأكيد الاستيراد». كلمات المرور المؤقتة تظهر في النتيجة مرة واحدة فقط.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, sub, notice, badge, dialog, toast } from "../../shared/js/ui.js";
@@ -11,7 +14,6 @@ import { readTable, problemsTable } from "./student-import.js";
 const MAX = 200;
 const download = (url) => { location.href = url; };
 
-/** قسم «قالب المعلمين»: فارغ أو جاهز (مرحلة/مادة اختياريتان)، والقوائم من الهيكل الأكاديمي الحالي */
 export function teacherTemplateSection(structure, subjects) {
   const stage = select([["", "كل المراحل"], ...structure.stages.map((s) => [s.id, s.name])]);
   const subject = select([["", "كل المواد"], ...subjects.map((s) => [s.id, s.name])]);
@@ -48,7 +50,6 @@ export async function openTeacherImport({ onDone } = {}) {
     h("li", { class: i + 1 === n ? "on" : i + 1 < n ? "done" : "" }, t)));
   const payload = () => ({ rows, grade_map: gradeMap });
 
-  /* 1) اختيار الملف */
   const stepFile = () => {
     const msg = h("div");
     const pick = (method) => {
@@ -72,7 +73,6 @@ export async function openTeacherImport({ onDone } = {}) {
       chooser, msg, sub(`الحد ${MAX} معلم في المرة.`), teacherTemplateSection(structure, subjects));
   };
 
-  /* 2) قراءة الأعمدة ومطابقتها */
   function stepMap() {
     const sample = (h2) => { const r = table.rows.find((x) => String(x[h2] ?? "").trim()); return r ? String(r[h2]).slice(0, 30) : ""; };
     const sels = table.headers.filter(Boolean).map((hd) => {
@@ -99,7 +99,6 @@ export async function openTeacherImport({ onDone } = {}) {
       })));
   }
 
-  /* 3) فحص الملف: أخطاء، تكرار، التباس الصف */
   async function stepAnalyze() {
     set(steps(3), notice("جارٍ تحليل الملف…"));
     const a = await api(`${A}/import/teachers/analyze`, payload());
@@ -130,7 +129,6 @@ export async function openTeacherImport({ onDone } = {}) {
     if (!s.valid || a.capacity.exceeded) next.disabled = true;
   }
 
-  /* 4) معاينة وتأكيد */
   function stepPreview(a) {
     const s = a.summary, good = a.rows.filter((r) => r.status === "ok"), total = s.create + s.update;
     set(steps(4), h("h3", { class: "sec-title" }, "معاينة البيانات"),
@@ -153,7 +151,6 @@ export async function openTeacherImport({ onDone } = {}) {
         })));
   }
 
-  /* 5) النتيجة */
   function stepResult(r) {
     const saveCreds = () => csv("بيانات-دخول-المعلمين.csv", [["المعلم", "رمز المدرسة", "اسم المستخدم", "كلمة المرور المؤقتة"], ...r.credentials.map((c) => [c.name, c.school, c.username, c.password])]);
     set(steps(5), h("h2", { class: "wiz-done" }, "تم الاستيراد بنجاح"),

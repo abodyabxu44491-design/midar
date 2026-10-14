@@ -1,8 +1,13 @@
-// المالية: لوحة التحكم، الحركات، الحسابات، التبرعات، الرواتب، التقارير
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast,
-  dialog, notice, confirmAction, docLogo } from "../../shared/js/ui.js";
+  dialog, notice, confirmAction, docLogo, kpiCard, kpiGrid } from "../../shared/js/ui.js";
+import { icons } from "../../shared/js/icons.js";
 import { barChart } from "../../shared/js/charts.js";
 import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
 import { A } from "./common.js";
@@ -14,7 +19,6 @@ const STATUS = { pending: ["بانتظار الاعتماد", "amber"], approved
 const monthName = (ym) => new Date(`${ym}-15`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "short", year: "2-digit" });
 const monthStart = () => today().slice(0, 8) + "01";
 
-// الفترات الجاهزة
 function periodRange(key) {
   const d = new Date(); const iso = (x) => x.toISOString().slice(0, 10);
   if (key === "today") return { from: today(), to: today() };
@@ -23,13 +27,11 @@ function periodRange(key) {
   return { from: monthStart(), to: today() };
 }
 
-// أقسام المالية بالترتيب: كل ما يحتاجه المحاسب والمدير في شريط واحد، بلا قوائم متداخلة
 const PARTS = {
   overview: "نظرة عامة", fees: "الرسوم", staff: "الموظفون", payroll: "الرواتب",
   money: "مصروف أو إيراد", entries: "سجل الحركات", donations: "التبرعات", accounts: "الحسابات",
 };
-// فتح قسم معيّن من خارج المالية (مثل «فواتير متأخرة» في الرئيسية)
-export const openFinancePart = (part) => { try { sessionStorage.setItem("midar_finance_part", part); } catch { /* تجاهل */ } };
+export const openFinancePart = (part) => { try { sessionStorage.setItem("midar_finance_part", part); } catch { /* ignore */ } };
 
 export default async function ledgerView({ refresh, me }) {
   const perms = me?.permissions || { approve: true, payroll: true, accounts: true };
@@ -42,14 +44,13 @@ export default async function ledgerView({ refresh, me }) {
   if (perms.accounts) list.push("accounts");
 
   let part = "overview";
-  try { const want = sessionStorage.getItem("midar_finance_part"); if (want && list.includes(want)) part = want; sessionStorage.removeItem("midar_finance_part"); } catch { /* تجاهل */ }
+  try { const want = sessionStorage.getItem("midar_finance_part"); if (want && list.includes(want)) part = want; sessionStorage.removeItem("midar_finance_part"); } catch { /* ignore */ }
   const chips = h("div", { class: "xb-chips fin-parts", role: "tablist" });
   const box = h("div");
   const views = {
     overview: (ctx) => overview(ctx), fees: async () => (await import("./finance.js")).default({ refresh: () => show("fees"), me }),
     staff: (ctx) => staffView(ctx), payroll: (ctx) => payrollView(ctx), money: (ctx) => expenses(ctx), entries: (ctx) => entries(ctx),
     donations: (ctx) => donationsView(ctx),
-    // التحويل بين الحسابات ثم الحسابات والتصنيفات (كل دالة تعيد عنصرًا أو قائمة عناصر)
     accounts: async (ctx) => [mods.transfers !== false ? await transfer(ctx) : null, await accounts(ctx)].flat(),
   };
   const show = async (next = part) => {
@@ -64,7 +65,6 @@ export default async function ledgerView({ refresh, me }) {
   return [chips, box];
 }
 
-/* ---------------- نظرة عامة ---------------- */
 async function overview({ show, go }) {
   const range = select([["today", "اليوم"], ["week", "هذا الأسبوع"], ["month", "هذا الشهر"], ["year", "هذا العام"], ["custom", "فترة مخصصة"]], { value: "month" });
   const from = input({ type: "date", value: monthStart() });
@@ -81,21 +81,28 @@ async function overview({ show, go }) {
     const payState = !p ? null : !p.run ? ["لم يُنشأ مسير هذا الشهر", "amber", "إنشاء المسير"]
       : p.run.status === "draft" ? ["مسودة بانتظار الاعتماد", "amber", "مراجعة واعتماد"]
       : p.run.status === "approved" ? ["معتمد، بانتظار الصرف", "amber", "صرف الرواتب"] : ["مصروف", "", "عرض المسير"];
+    const label = { today: "اليوم", week: "هذا الأسبوع", month: "هذا الشهر", year: "هذا العام" }[range.value] || "الفترة";
+    const quick = (icon, text, tone, key) => h("button", { type: "button", class: `quick-act ${tone}`, onclick: () => go(key) },
+      h("span", { class: "qa-ic" }, icons[icon]({ size: 20 })), h("span", {}, text));
     mount(box,
-      stats([
-        ["الرصيد الحالي", money(d.balance), "مجموع الحسابات"],
-        ["المداخيل", money(d.income), "في الفترة"],
-        ["المصروفات", money(d.expense), "في الفترة"],
-        ["الصافي", money(d.net)],
-      ]),
+      h("div", { class: "bal-hero" },
+        h("span", { class: "bal-k" }, "الرصيد الحالي في كل الحسابات"),
+        h("b", { class: "bal-v" }, money(d.balance)),
+        h("span", { class: "bal-k" }, `صافي ${label}: `, h("b", {}, money(d.net)))),
+      kpiGrid(
+        kpiCard({ icon: "up", tone: "teal", label: "المداخيل", value: money(d.income), note: label }),
+        kpiCard({ icon: "down", tone: "red", label: "المصروفات", value: money(d.expense), note: label }),
+        kpiCard({ icon: "wallet", tone: "amber", label: "رسوم غير مسددة", value: money(d.unpaid_fees), note: d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", onClick: () => go("fees") }),
+        d.staff ? kpiCard({ icon: "users", tone: "navy", label: "الرواتب الشهرية", value: money(d.staff.monthly), note: `${d.staff.count} موظفًا`, onClick: () => go("staff") }) : null),
+      h("div", { class: "quick-acts" },
+        quick("plus", "قبض رسوم", "teal", "fees"), quick("minus", "تسجيل مصروف", "red", "money"),
+        d.staff ? quick("users", "الرواتب", "navy", "payroll") : null, quick("list", "سجل الحركات", "violet", "entries")),
       d.pending ? notice(`${d.pending} حركة بانتظار الاعتماد في «سجل الحركات».`, "warn") : null,
       low.length ? notice(`رصيد منخفض: ${low.map((a) => `${a.name} (${money(a.balance)})`).join("، ")}`, "err") : null,
 
       h("div", { class: "fin-cards" },
         finCard("الرسوم", [["المحصّل في الفترة", money(d.fees)], ["غير المسدد", money(d.unpaid_fees)]],
-          d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", "go", () => go("fees")),
-        d.staff ? finCard("الموظفون والرواتب", [["الموظفون", String(d.staff.count)], ["الرواتب الشهرية", money(d.staff.monthly)]],
-          d.staff.no_salary ? `${d.staff.no_salary} بلا راتب محدد` : d.staff.types.map((x) => `${x.name} ${x.count}`).join(" · "), "go", () => go("staff")) : null,
+          d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", "فتح الرسوم", () => go("fees")),
         p ? finCard(`رواتب ${monthLabel}`, [["الإجمالي", money(p.run ? p.run.total : p.total)], ["الحالة", payState[0]]],
           p.run?.paid_at ? `صُرفت في ${fmtDate(p.run.paid_at)}` : null, payState[2], () => go("payroll"), payState[1]) : null,
         finCard("المصروفات", [["الرواتب في الفترة", money(d.salaries)], ["التشغيلية", money(d.operating + d.withdrawals)]],
@@ -131,11 +138,16 @@ async function overview({ show, go }) {
   range.addEventListener("change", applyRange);
   from.addEventListener("change", load);
   to.addEventListener("change", load);
+  const custom = h("div", { class: "row fin-range", hidden: true }, field("من", from), field("إلى", to));
+  const seg = h("div", { class: "seg-tabs fin-period", role: "tablist", "aria-label": "الفترة" });
+  const drawSeg = () => mount(seg, [["today", "اليوم"], ["week", "الأسبوع"], ["month", "الشهر"], ["year", "العام"], ["custom", "مخصصة"]].map(([k, t]) =>
+    h("button", { type: "button", role: "tab", class: range.value === k ? "on" : "", "aria-selected": String(range.value === k),
+      onclick: () => { range.value = k; custom.hidden = k !== "custom"; drawSeg(); applyRange(); } }, t)));
+  drawSeg();
   await load();
-  return [h("div", { class: "row fin-range" }, field("الفترة", range), field("من", from), field("إلى", to)), box];
+  return [seg, custom, box];
 }
 
-// بطاقة مختصرة في النظرة العامة: رقمان وسطر وزر ينقل للقسم
 function finCard(title, rows, note, action, onClick, tone = "") {
   return h("section", { class: `panel fin-card${tone ? ` ${tone}` : ""}` },
     h("h3", {}, title),
@@ -144,7 +156,6 @@ function finCard(title, rows, note, action, onClick, tone = "") {
     btn(action === "go" ? "فتح" : action, onClick, "soft sm"));
 }
 
-// تقرير مالي مختصر جاهز للطباعة أو الحفظ PDF
 function printReport(d) {
   const row = (label, value, cls = "") => line(h("span", {}, label), h("b", { class: cls }, value));
   return panel("تقرير الفترة", btn("طباعة / حفظ PDF", () => window.print(), "ghost sm"),
@@ -164,7 +175,6 @@ function printReport(d) {
       h("div", { class: "sign" }, h("span", {}, "المحاسب: ......................"), h("span", {}, "مدير المدرسة: ......................"))));
 }
 
-/* ---------------- سجل الحركات ---------------- */
 async function entries({ show }) {
   const [accounts, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
   const from = input({ type: "date", value: monthStart() });
@@ -235,7 +245,6 @@ function entryRow(e, reload) {
       }, "ghost sm") : null));
 }
 
-/* ---------------- مصروف أو سحب ---------------- */
 async function expenses({ show }) {
   const [accounts, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
   const expenseCats = categories.filter((c) => c.direction === "expense");
@@ -288,7 +297,6 @@ async function expenses({ show }) {
   ];
 }
 
-// إظهار سعر التحويل فقط إذا اختلفت عملة الحساب عن عملة المدرسة
 function rateRow(f, accounts) {
   const wrap = h("div", { class: "hidden" });
   const sync = () => {
@@ -307,7 +315,6 @@ function rateRow(f, accounts) {
   return wrap;
 }
 
-// رفع المرفق بعد إنشاء الحركة
 async function uploadFile(fileInput, entryId) {
   const file = fileInput.files?.[0];
   if (!file) return;
@@ -321,7 +328,6 @@ async function uploadFile(fileInput, entryId) {
   await api(`${A}/ledger/entries/${entryId}/attachments`, { filename: file.name, mime: file.type, data });
 }
 
-/* ---------------- تحويل بين الحسابات ---------------- */
 async function transfer({ show }) {
   const list = (await api(`${A}/ledger/accounts`)).filter((a) => a.is_active);
   if (list.length < 2) return panel("تحويل بين الحسابات", null, empty("تحتاج حسابين نشطين على الأقل."));
@@ -366,7 +372,6 @@ async function transfer({ show }) {
     }));
 }
 
-/* ---------------- التبرعات ---------------- */
 async function donationsView({ show }) {
   const list = await api(`${A}/ledger/donations`);
   const f = {
@@ -405,9 +410,6 @@ async function donationsView({ show }) {
   ];
 }
 
-/* ---------------- الرواتب ---------------- */
-/* ---------------- الموظفون ---------------- */
-// كل من يعمل في المدرسة: المعلمون تلقائيًا من قائمة المعلمين، وبقية الأنواع تُضاف هنا. الراتب يُعدَّل من السطر مباشرة.
 let staffFilter = "all";
 async function staffView({ show }) {
   const { staff, summary, categories } = await api(`${A}/ledger/staff`);
@@ -485,7 +487,6 @@ function staffDialog(categories, show, s = null) {
   })]);
 }
 
-/* ---------------- الرواتب: مسير لكل شهر ---------------- */
 let payMonth = null;
 async function payrollView({ show, go }) {
   payMonth ??= today().slice(0, 7);
@@ -571,7 +572,6 @@ function historyPanel(runs, show) {
       btn("فتح", () => { payMonth = r.period.slice(0, 7); show(); }, "ghost sm")))));
 }
 
-/* ---------------- الحسابات والتصنيفات ---------------- */
 async function accounts({ show }) {
   const [list, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
   const f = { name: input(), kind: select(Object.entries(KINDS)),
@@ -625,7 +625,6 @@ async function accounts({ show }) {
   ];
 }
 
-/* ---------------- تصدير ---------------- */
 function exportRows(name, rows, columns) {
   const header = columns.map((c) => c[0]);
   const data = rows.map((r) => columns.map(([, key]) => (typeof key === "function" ? key(r) : r[key] ?? "")));

@@ -1,9 +1,12 @@
-// أدوات مشتركة بين تبويبات الإدارة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { api } from "../../shared/js/api.js";
 import { h } from "../../shared/js/dom.js";
 import { select, input } from "../../shared/js/ui.js";
 
-// مسار الواجهة يتغير حسب الدور: مدير المدرسة أو المحاسب
 export let A = "/api/admin";
 export const setApiBase = (role) => { A = role === "accountant" ? "/api/accountant" : "/api/admin"; };
 export const loadClasses = () => api(`${A}/structure/classes`);
@@ -12,30 +15,20 @@ export const classOptions = (classes, emptyLabel) => [...(emptyLabel ? [["", emp
 export const directoryLink = (me) => `${location.origin}/${me.school.id}`;
 export const staffLink = (me) => `${location.origin}/${me.school.id}/idara`;
 
-/** طلب لقسم قد يكون موقوفًا: يعيد القيمة البديلة بدل أن يتعطل التبويب */
 export const optional = (promise, fallback) => promise.catch(() => fallback);
 
-/**
- * يحفظ آخر قيمة لحقل بحث/فلتر خلال هذي الجلسة (تختفي عند إغلاق المتصفح)،
- * حتى لا يفقد المستخدم بحثه أو فلتره كل ما ينتقل بين الأقسام أو يحدّث الشاشة.
- * الاستخدام: rememberField("students-search", q) بعد إنشاء عنصر الإدخال مباشرة.
- */
 export function rememberField(key, el, { event = "input" } = {}) {
   const full = `midar_filter_${key}`;
   try {
     const saved = sessionStorage.getItem(full);
     if (saved !== null) { if (el.type === "checkbox") el.checked = saved === "1"; else el.value = saved; }
-  } catch { /* التخزين غير متاح (وضع خاص مثلًا) — نكمل بدون حفظ */ }
+  } catch { /* ignore */ }
   el.addEventListener(event, () => {
-    try { sessionStorage.setItem(full, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value); } catch { /* تجاهل */ }
+    try { sessionStorage.setItem(full, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value); } catch { /* ignore */ }
   });
   return el;
 }
 
-/**
- * حقل الدولة: قائمة (اليمن أولًا) و«دولة أخرى» باسم يُكتب. اختيار الدولة يضبط في الخادم رمز الاتصال لرسائل واتساب والعملة.
- * countries من الكتالوج: [{ key, name, ... }]. الاسم الفارغ = اليمن (السوق الأساسية).
- */
 export function countryField(countries, current, { onChange } = {}) {
   const known = countries.filter((c) => c.key !== "OTHER");
   const cur = String(current || "").trim();

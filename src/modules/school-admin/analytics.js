@@ -1,4 +1,8 @@
-// التحليلات والتنبيهات: أرقام تُحسب من البيانات مباشرة، بدون أي إدخال يدوي
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
@@ -6,8 +10,6 @@ import { parse, t, z } from "../../core/http/validate.js";
 
 const r = Router();
 
-/* ---------- تنبيهات تحتاج تدخّل المدير ---------- */
-// الفواتير المتأخرة: المدفوع يُجمع مرة واحدة للفواتير المرشحة فقط (بدل استدعاء دالة لكل فاتورة)
 const OVERDUE = `SELECT d.id, d.amount - COALESCE(p.net, 0) AS remaining
    FROM (SELECT id, amount FROM invoices WHERE status = 'open' AND due_date < CURRENT_DATE) d
    LEFT JOIN (SELECT invoice_id, SUM(CASE WHEN kind = 'payment' THEN amount ELSE -amount END) AS net
@@ -37,7 +39,6 @@ r.get("/alerts", handle(async (req, res) => {
       (SELECT count(*) FROM (SELECT student_id FROM attendance
           WHERE status = 'absent' AND day > CURRENT_DATE - 30 GROUP BY student_id HAVING count(*) >= 3) x)::int AS frequent_absentees`);
 
-    // الطلاب كثيرو الغياب خلال 30 يومًا
     const absentees = await q(
       `SELECT s.id, s.full_name AS name, c.name AS class_name, count(*)::int AS absences, s.guardian_phone
          FROM attendance a JOIN students s ON s.id = a.student_id LEFT JOIN classes c ON c.id = s.class_id
@@ -45,7 +46,6 @@ r.get("/alerts", handle(async (req, res) => {
         GROUP BY s.id, s.full_name, c.name, s.guardian_phone HAVING count(*) >= 3
         ORDER BY count(*) DESC LIMIT 20`);
 
-    // الفواتير المتأخرة
     const overdue = await q(
       `SELECT o.id, i.title, o.remaining, i.due_date,
               s.id AS student_id, s.full_name AS student_name, s.guardian_phone, c.name AS class_name
@@ -56,14 +56,11 @@ r.get("/alerts", handle(async (req, res) => {
   }));
 }));
 
-/* ---------- تحليلات الأداء ---------- */
-// التحليلات بيانات تاريخية: تُحسب مرة وتُخزَّن 5 دقائق لكل مدرسة (لا تُعاد مع كل فتح للصفحة)
 const analyticsCache = new Map();
 const ANALYTICS_TTL = 5 * 60 * 1000;
 
 r.get("/", handle(async (req, res) => {
   const months = parse(z.coerce.number().int().min(1).max(24).default(6), req.query.months || undefined);
-  // term_id=current: الفصل الحالي يُحدد في الخادم (تطلب الواجهة التحليلات وبيانات السنة معًا بدل واحد بعد الآخر)
   const termId = req.query.term_id === "current"
     ? (await inTenant(req, (q) => q("SELECT id FROM terms WHERE is_current ORDER BY id DESC LIMIT 1")))[0]?.id ?? null
     : req.query.term_id ? parse(t.id, req.query.term_id) : null;
@@ -72,7 +69,6 @@ r.get("/", handle(async (req, res) => {
   if (hit && hit.until > Date.now() && req.query.fresh !== "1") return res.json(hit.data);
 
   const data = await inTenant(req, async (q) => {
-    // الحضور: مرور واحد على السجلات بدل مرورين (حسب الشهر وحسب الفصل معًا)
     const att = await q(
       `SELECT a.month, c.id AS class_id, c.name AS class_name,
               SUM(a.present)::int AS present, SUM(a.absent)::int AS absent,
@@ -93,7 +89,6 @@ r.get("/", handle(async (req, res) => {
       .sort((x, y) => Number(x.class_id) - Number(y.class_id))
       .map((r) => ({ class_name: r.class_name, records: r.total, attended: r.present + r.late }));
 
-    // الدرجات: مرور واحد (حسب الفصل والمادة والطالب معًا)
     const sc = await q(
       `SELECT p.class_id, c.name AS class_name, p.subject_id, sub.name AS subject, p.student_id, s.full_name AS name, sc_cls.name AS student_class, s.archived_at,
               SUM(p.score) AS score, SUM(p.max) AS max, count(DISTINCT p.student_id)::int AS students,
@@ -118,7 +113,6 @@ r.get("/", handle(async (req, res) => {
       .map((r) => ({ id: r.student_id, name: r.name, class_name: r.student_class, average: pct(r) }))
       .sort((x, y) => y.average - x.average);
 
-    // الرسوم: تجميع واحد بدل استدعاء دالة لكل فاتورة
     const [fees] = await q(
       `SELECT COALESCE(SUM(i.amount), 0) AS billed, COALESCE(SUM(p.net), 0) AS collected
          FROM invoices i
@@ -150,7 +144,6 @@ r.get("/", handle(async (req, res) => {
   res.json(data);
 }));
 
-/* ---------- بحث سريع شامل ---------- */
 r.get("/search", handle(async (req, res) => {
   const q2 = parse(z.string().trim().min(2, "اكتب حرفين على الأقل").max(60), req.query.q);
   res.json(await inTenant(req, async (q) => ({
@@ -171,10 +164,6 @@ r.get("/search", handle(async (req, res) => {
   })));
 }));
 
-/**
- * مركز التنبيهات: كل ما يحتاج انتباه المدير في قائمة واحدة مرتبة بالأهمية،
- * ومع كل تنبيه وجهته داخل اللوحة.
- */
 r.get("/notifications", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const [c] = await q(`SELECT
@@ -211,7 +200,6 @@ r.get("/notifications", handle(async (req, res) => {
                AND NOT EXISTS (SELECT 1 FROM attendance a WHERE a.student_id = s.id AND a.day = CURRENT_DATE))
        ELSE 0 END::int AS attendance_missing`);
 
-    // تعارضات الجدول (معلم في مكانين)
     const conflicts = await q(
       `SELECT count(*)::int AS n FROM (
          SELECT teacher_id, day, period FROM timetable_slots WHERE teacher_id IS NOT NULL

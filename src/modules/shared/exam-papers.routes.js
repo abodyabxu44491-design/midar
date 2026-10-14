@@ -1,5 +1,8 @@
-// مسارات مصمم الاختبارات: مصنع واحد يُركَّب في بوابة المعلم ولوحة الإدارة
-// الفرق بين الدورين في «who» فقط، والصلاحيات كلها تُحسب في exam-papers.service.js
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, forbidden } from "../../core/http/errors.js";
@@ -11,7 +14,6 @@ import { answerKey } from "../../../public/shared/js/exam/engine.js";
 const whoOf = (req, role) => (role === "teacher" ? { role, teacherId: req.user.teacher_id } : { role: "admin" });
 const idParam = (req) => parse(t.id, req.params.id);
 
-// الصورة لا تتغير أبدًا بعد رفعها (التعديل = صورة جديدة بمعرّف جديد): كاش دائم في جهاز المستخدم فقط (private)
 function sendImage(res, img) {
   res.set("Cache-Control", "private, max-age=31536000, immutable").type(img.mime).send(img.data);
 }
@@ -21,7 +23,6 @@ export function papersRouter(role) {
   const who = (req) => whoOf(req, role);
   const tid = (req) => (role === "teacher" ? req.user.teacher_id : null);
 
-  /* ---------- السياق والإحصاءات ---------- */
   r.get("/context", handle(async (req, res) => res.json(await inTenant(req, (q) => papers.context(q, who(req))))));
 
   r.get("/stats", handle(async (req, res) => res.json(await inTenant(req, async (q) => ({
@@ -29,7 +30,6 @@ export function papersRouter(role) {
     bank: await bank.stats(q, tid(req)),
   })))));
 
-  /* ---------- الأنواع والتعليمات المحفوظة ---------- */
   r.post("/types", handle(async (req, res) => {
     const b = parse(papers.typeSchema, req.body);
     res.status(201).json(await inTenant(req, (q) => papers.addType(q, b.name, req.actor)));
@@ -45,14 +45,12 @@ export function papersRouter(role) {
     }));
   }
 
-  /* ---------- الصور ---------- */
   r.post("/images", handle(async (req, res) => {
     const b = parse(papers.imageSchema, req.body);
     res.status(201).json(await inTenant(req, (q) => papers.saveImage(q, { teacherId: tid(req), file: b, actor: req.actor })));
   }));
   r.get("/images/:id", handle(async (req, res) => sendImage(res, await inTenant(req, (q) => papers.readImage(q, idParam(req), req.query.size === "thumb" ? "thumb" : "full")))));
 
-  /* ---------- بنك الأسئلة ---------- */
   r.get("/bank", handle(async (req, res) => {
     const f = parse(bank.listSchema, req.query);
     res.json(await inTenant(req, (q) => bank.list(q, tid(req), f)));
@@ -88,7 +86,6 @@ export function papersRouter(role) {
     await inTenant(req, (q) => bank.archive(q, idParam(req), tid(req)));
     res.json({ ok: true });
   }));
-  // سحب أسئلة عشوائية حسب المواصفات (لا يحفظ شيئًا: المعلم يراجع ثم يضيف)
   r.post("/bank/pick", handle(async (req, res) => {
     const b = parse(bank.pickSchema, req.body);
     res.json(await inTenant(req, async (q) => {
@@ -106,7 +103,6 @@ export function papersRouter(role) {
     res.status(201).json({ saved });
   }));
 
-  /* ---------- الاختبارات ---------- */
   r.get("/", handle(async (req, res) => {
     const f = parse(papers.listFilter, req.query);
     res.json(await inTenant(req, (q) => papers.list(q, who(req), f)));
@@ -164,7 +160,6 @@ export function papersRouter(role) {
     res.status(201).json(await inTenant(req, (q) => papers.saveTemplate(q, who(req), idParam(req), b.name, req.actor)));
   }));
 
-  // نموذج الإجابة: مسار مستقل بصلاحية مستقلة يُتحقق منها هنا في الخادم
   r.get("/:id/answer-key", handle(async (req, res) => {
     const v = parse(z.object({ v: z.coerce.number().int().min(0).max(3).default(0) }), req.query);
     res.json(await inTenant(req, async (q) => {
@@ -192,7 +187,6 @@ export function papersRouter(role) {
   return r;
 }
 
-/* ---------- إعدادات الإدارة فقط ---------- */
 export function papersAdminSettingsRouter() {
   const r = Router();
   r.get("/", handle(async (req, res) => res.json(await inTenant(req, papers.getSettings))));
@@ -200,7 +194,6 @@ export function papersAdminSettingsRouter() {
     const b = parse(papers.settingsSchema, req.body);
     res.json(await inTenant(req, (q) => papers.updateSettings(q, b)));
   }));
-  // شعار المدرسة: يُرفع مرة واحدة ويستخدمه كل المعلمين تلقائيًا
   r.post("/logo", handle(async (req, res) => {
     const b = parse(papers.imageSchema, req.body);
     res.status(201).json(await inTenant(req, async (q) => {

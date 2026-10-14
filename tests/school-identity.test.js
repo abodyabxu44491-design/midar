@@ -1,5 +1,8 @@
-// هوية المدرسة: الشعار (رفع وفحص وظهوره في البوابات وورقة الاختبار والصفحة العامة)،
-// وصور المعلمين (للإدارة دائمًا، وللزوار وولي الأمر فقط إن فعّلت المدرسة نشرها)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -7,7 +10,6 @@ import { currentTotp } from "../src/core/auth/totp.js";
 
 let srv, owner, A, B;
 const s = {};
-// PNG حقيقية 1×1، وملف مزيف بامتداد صورة
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 const FAKE = Buffer.from("<script>alert(1)</script>").toString("base64");
 

@@ -1,4 +1,8 @@
-// الاستبيانات (الإدارة): إنشاء استبيان بأسئلة متنوعة، ونتائج مجمعة، وإغلاق
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, confirmAction, dialog } from "../../shared/js/ui.js";

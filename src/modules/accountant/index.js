@@ -1,4 +1,8 @@
-// بوابة المحاسب: المالية والرسوم فقط. لا وصول للطلاب ولا الدرجات ولا الإعدادات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { logoId } from "../shared/school-logo.service.js";
 import { accessSummary } from "../shared/subscription.service.js";
@@ -31,18 +35,16 @@ r.get("/me", handle(async (req, res) => {
   });
 }));
 r.post("/password", changePassword);
-// بيانات للقراءة فقط يحتاجها تبويب الرسوم (بدون درجات ولا حضور ولا إعدادات)
 r.get("/structure/classes", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => q("SELECT id, name FROM classes ORDER BY id")));
 }));
 
-// الهيكل (المراحل والصفوف والشعب) لقوالب الرسوم حسب الصف — قراءة فقط، بلا إعدادات المدرسة
 r.get("/setup", handle(async (req, res) => {
   res.json({ structure: await inTenant(req, structure) });
 }));
 
 r.get("/students", handle(async (req, res) => {
-  const classId = req.query.class_id ? parse(t.id, req.query.class_id) : null;   // اختيار طالب من شعبة عند إصدار فاتورة
+  const classId = req.query.class_id ? parse(t.id, req.query.class_id) : null;
   res.json(await inTenant(req, async (q) => {
     const rows = await q(
       `SELECT s.id, s.full_name AS name, s.class_id, c.name AS class_name, s.guardian_name, s.guardian_phone, s.fees_enabled

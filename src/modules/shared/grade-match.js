@@ -1,11 +1,11 @@
-// التعرف على الصف والشعبة من نص حر (بدون تخمين خطير):
-//   «الأول» / «الصف الأول» / «1» / «Grade 1» / «أول ابتدائي» / «الأول - أ»
-// النتيجة دائمًا: مطابقة واحدة مؤكدة، أو عدة احتمالات تُعرض للمستخدم ليختار، أو لا شيء.
-
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const DIACRITICS = /[\u064B-\u065F\u0670\u0640]/g;
 const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 
-/** توحيد الحروف: ألف/همزات، ياء/ألف مقصورة، تاء مربوطة، الأرقام الهندية، المسافات */
 export function norm(v) {
   return String(v ?? "")
     .replace(/[٠-٩]/g, (d) => String(ARABIC_DIGITS.indexOf(d)))
@@ -31,7 +31,6 @@ const ORDINALS = new Map([
 const WORD_TO_NUM = new Map();
 for (const [n, words] of ORDINALS) for (const w of words) WORD_TO_NUM.set(w, n);
 
-// كلمات المراحل: كل مجموعة تشير لمرحلة واحدة
 const STAGE_WORDS = [
   ["primary", ["ابتدائي", "ابتدائيه", "الابتدائي", "الابتدائيه", "primary", "elementary"]],
   ["middle", ["متوسط", "المتوسط", "المتوسطه", "اعدادي", "الاعدادي", "الاعداديه", "middle", "intermediate"]],
@@ -42,10 +41,8 @@ const STAGE_OF_WORD = new Map();
 for (const [key, words] of STAGE_WORDS) for (const w of words) STAGE_OF_WORD.set(w, key);
 const NOISE = new Set(["الصف", "صف", "grade", "class", "year", "المرحله", "مرحله", "stage", "ال", "شعبه", "الشعبه", "فصل", "الفصل"]);
 
-/** تحليل نص حر إلى { number, stage, tail } — tail الجزء المتبقي (غالبًا الشعبة) */
 export function parseGradeText(text) {
   let tokens = norm(text).split(" ").filter(Boolean);
-  // «الحادي عشر» / «ثاني عشر» كلمة واحدة
   const joined = [];
   for (let i = 0; i < tokens.length; i++) {
     const two = `${tokens[i]} ${tokens[i + 1] || ""}`.trim();
@@ -64,16 +61,11 @@ export function parseGradeText(text) {
   return { number, stage, tail: rest.join(" ") };
 }
 
-/** المرحلة التي ينتمي لها اسم مرحلة/صف في النظام (من كلماته) */
 function stageKeyOf(text) {
   for (const tk of norm(text).split(" ")) if (STAGE_OF_WORD.has(tk)) return STAGE_OF_WORD.get(tk);
   return null;
 }
 
-/**
- * يبني فهرسًا من هيكل المدرسة: كل صف برقمه ومرحلته وشعبه.
- * structure = ما يعيده structure() : stages[].grades[].sections[]
- */
 export function buildIndex(structure) {
   const grades = [];
   for (const st of structure.stages) {
@@ -90,23 +82,17 @@ export function buildIndex(structure) {
   return grades;
 }
 
-// «الأول - أ» ← «ا» (الجزء الذي يميّز الشعبة عن اسم الصف)
 function sectionShort(className, gradeName) {
   const c = norm(className), g = norm(gradeName);
   return c.startsWith(g) ? c.slice(g.length).trim() : c;
 }
 
-/**
- * مطابقة نص الصف (وقد يأتي معه مرحلة وشعبة في أعمدة مستقلة).
- * @returns {{ status:'exact'|'ambiguous'|'none', candidates:Array<{grade_id,label}>, grade?:object, section_text:string }}
- */
 export function matchGrade(index, { grade, stage = "", section = "" }) {
   const raw = String(grade ?? "").trim();
   if (!raw) return { status: "none", candidates: [], section_text: norm(section) };
   const n = norm(raw);
   const label = (g) => `${g.grade_name} — ${g.stage_name}`;
 
-  // 1) تطابق حرفي مع اسم صف أو «مرحلة + صف» أو اسم شعبة كاملة (مثل «الأول - أ»)
   const stageHint = stage ? (stageKeyOf(stage) || norm(stage)) : null;
   const byStage = (g) => !stageHint || g.stage_key === stageHint || g.stage_norm === norm(stage) || g.stage_norm.includes(norm(stage));
   const classHit = index.filter((g) => byStage(g) && g.sections.some((s) => s.key === n));
@@ -115,7 +101,6 @@ export function matchGrade(index, { grade, stage = "", section = "" }) {
     return { status: "exact", grade: g, candidates: [{ grade_id: g.grade_id, label: label(g) }], section_text: g.sections.find((s) => s.key === n).short, class_id: g.sections.find((s) => s.key === n).id };
   }
   const literal = index.filter((g) => byStage(g) && (g.key === n || norm(`${g.grade_name} ${g.stage_name}`) === n));
-  // اسم صف بلا كلمة مرحلة («الأول») قد يوجد مثله في مراحل أخرى: لا نعتبره مؤكدًا إلا إذا كان رقمه فريدًا في المدرسة
   const literalSafe = literal.length === 1 && (
     stageKeyOf(literal[0].grade_name) !== null || stageHint !== null
     || index.filter((g) => g.number !== null && g.number === literal[0].number).length <= 1);
@@ -123,7 +108,6 @@ export function matchGrade(index, { grade, stage = "", section = "" }) {
     return { status: "exact", grade: literal[0], candidates: [{ grade_id: literal[0].grade_id, label: label(literal[0]) }], section_text: norm(section) };
   }
 
-  // 2) تحليل ذكي: رقم + مرحلة (من النص أو من عمود المرحلة) + شعبة ملحقة
   const p = parseGradeText(raw);
   const sectionText = norm(section) || p.tail;
   if (p.number === null) return { status: "none", candidates: [], section_text: sectionText };
@@ -132,14 +116,13 @@ export function matchGrade(index, { grade, stage = "", section = "" }) {
   if (wantedStage) {
     const narrowed = pool.filter((g) => g.stage_key === wantedStage || g.stage_norm === wantedStage);
     if (narrowed.length) pool = narrowed;
-    else if (stage) pool = [];   // ذكر المستخدم مرحلة صراحة ولا صف بهذا الرقم فيها: لا نقفز لمرحلة أخرى
+    else if (stage) pool = [];
   }
   if (pool.length === 1) return { status: "exact", grade: pool[0], candidates: [{ grade_id: pool[0].grade_id, label: label(pool[0]) }], section_text: sectionText };
   if (pool.length > 1) return { status: "ambiguous", candidates: pool.map((g) => ({ grade_id: g.grade_id, label: label(g) })), section_text: sectionText };
   return { status: "none", candidates: [], section_text: sectionText };
 }
 
-/** يحدد class_id من الصف المطابق والشعبة المكتوبة. مدرسة بلا شعب: الشعبة الوحيدة للصف. */
 export function pickSection(grade, sectionText, sectionsEnabled) {
   if (!grade) return { status: "none" };
   const secs = grade.sections;

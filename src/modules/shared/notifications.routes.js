@@ -1,5 +1,8 @@
-// مركز الإشعارات وتسجيل الأجهزة للإشعار الفوري — للمنسوبين (الإدارة والمعلم والمحاسب)
-// والدوال المشتركة مع صفحة ولي الأمر (نفس المركز بنفس التصنيفات، لكن بمعرّف الطالب)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";
@@ -19,7 +22,6 @@ export const filterSchema = z.object({
   before: t.id.optional(),
 });
 
-/** قائمة مركز الإشعارات (غير المؤرشفة) مع التصفية والبحث والتحميل المتتابع */
 export async function inboxQuery(q, col, id, f = {}, limit = 50) {
   const items = await q(
     `SELECT id, kind, category, priority, title, body, link, read_at, created_at, updated_at, repeats FROM notifications
@@ -31,7 +33,6 @@ export async function inboxQuery(q, col, id, f = {}, limit = 50) {
     [id, f.category ?? null, Boolean(f.unread), f.q ? f.q.replace(/[%_\\]/g, "\\$&") : null, f.before ?? null, limit + 1]);
   return { items: items.slice(0, limit), more: items.length > limit };
 }
-/** أعداد غير المقروء: الإجمالي ولكل تصنيف (أرقام أزرار التصفية) */
 export async function unreadCounts(q, col, id) {
   const rows = await q(`SELECT category, count(*)::int AS n FROM notifications WHERE ${col} = $1 AND read_at IS NULL AND archived_at IS NULL GROUP BY 1`, [id]);
   const by = Object.fromEntries(rows.map((r) => [r.category, r.n]));
@@ -41,7 +42,6 @@ export const unreadCount = async (q, col, id) => (await unreadCounts(q, col, id)
 export const markRead = (q, col, id, b) => q(
   `UPDATE notifications SET read_at = now() WHERE ${col} = $1 AND read_at IS NULL AND ($2::bigint[] IS NULL OR id = ANY($2))`,
   [id, b.all ? null : (b.ids?.length ? b.ids : [0])]);
-// الأرشفة تُخفي الإشعار من المركز لهذا المستلم فقط (يبقى في سجل المدرسة للتشخيص)
 export const archive = (q, col, id, b) => q(
   `UPDATE notifications SET archived_at = now(), read_at = COALESCE(read_at, now()) WHERE ${col} = $1 AND id = ANY($2) AND archived_at IS NULL RETURNING id`,
   [id, b.ids]);
@@ -55,7 +55,6 @@ export async function savePush(q, target, sub) {
      DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, failures = 0`,
     [target.student_id ?? null, target.user_id ?? null, sub.endpoint, sub.keys.p256dh, sub.keys.auth]);
 }
-/** عدد الأجهزة المسجّلة لهذا المستلم (يظهر في الإعدادات: «الإشعارات تصل إلى جهازين») */
 export const deviceCount = async (q, col, id) =>
   (await q(`SELECT count(*)::int AS n FROM push_subscriptions WHERE ${col} = $1`, [id]))[0].n;
 

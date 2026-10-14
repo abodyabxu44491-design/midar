@@ -1,4 +1,8 @@
-// إنشاء الاختبارات وإدخال الدرجات وإرسالها للاعتماد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, confirmAction } from "../../shared/js/ui.js";
@@ -10,7 +14,6 @@ const T = "/api/teacher/exams";
 
 export default async function exams({ me, refresh }) {
   if (!me.load.length) return empty("لا توجد مواد مسندة لك.");
-  // القائمة من الخادم، وعند انقطاع الاتصال من الجهاز (مسودات الاختبارات المحفوظة محليًا)
   let list, offline = false;
   try { list = await api(T); } catch (e) {
     if (e.code !== "network" && e.code !== "timeout") throw e;
@@ -24,7 +27,6 @@ export default async function exams({ me, refresh }) {
   const title = input({ placeholder: "مثال: اختبار شهري، مشاركة الأسبوع الثالث" });
   const date = input({ type: "date", value: today() });
   const max = input({ type: "number", value: 20, min: 0.25, step: "0.25" });
-  // نوع الدرجة من «توزيع الدرجات» الذي حددته الإدارة لصف هذا الفصل
   const kind = select([]);
   const kindField = field("نوع الدرجة", kind, "يُحسب في نتيجة الشهادة حسب وزنه");
   kindField.hidden = true;
@@ -68,7 +70,6 @@ function examRow(e, refresh) {
   const box = h("div", { class: "hidden", style: "background:var(--bg);border-radius:8px;padding:10px;margin-top:8px;width:100%" });
   const toggle = btn(e.status === "draft" ? "إدخال الدرجات" : "عرض الدرجات", async () => {
     if (!box.classList.contains("hidden")) return box.classList.add("hidden");
-    // الدرجات من الجهاز أولًا إن كان الاختبار محفوظًا محليًا (يعمل بدون إنترنت)، وإلا من الخادم
     const local = await localExam(e.id);
     const rows = local ? await localScoreRows(local) : await api(`${T}/${e.id}/scores`);
     const locked = e.status !== "draft";
@@ -97,7 +98,6 @@ function examRow(e, refresh) {
           const scores = collect();
           const missing = Object.values(scores).filter((v) => v === null).length;
           if (!confirmAction(missing ? `هناك ${missing} طالب بدون درجة. إرسال للاعتماد؟` : "إرسال الدرجات للإدارة؟ لن تستطيع تعديلها بعد ذلك.")) return;
-          // الإرسال للاعتماد يحتاج اتصالًا: كل الدرجات يجب أن تصل الخادم أولًا
           if (!navigator.onLine) return toast("الإرسال للاعتماد يحتاج اتصالًا. درجاتك محفوظة على الجهاز، أرسلها عند عودة الاتصال.", true);
           if (local) {
             await saveScoresLocal(local, scores);

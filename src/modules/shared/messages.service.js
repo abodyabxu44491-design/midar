@@ -1,5 +1,8 @@
-// قوالب رسائل واتساب: النظام يجهز الرسالة ورابط المحادثة، والإرسال يتم من جوال المستخدم
-// (بدون أي اشتراك في مزود رسائل)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 
 export const templateSchema = z.object({

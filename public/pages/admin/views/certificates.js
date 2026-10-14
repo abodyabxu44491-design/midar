@@ -1,4 +1,8 @@
-// الشهادات الرسمية: إصدار شهادات الفصل أو العام لشعبة كاملة بنتيجتها، وشهادات مخصصة، وطباعة برمز تحقق QR
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn, confirmAction } from "../../shared/js/ui.js";

@@ -1,5 +1,8 @@
-// بوابة مِدار الذكية (المراحل 2–4): قائمة الجهاز للعمل بلا اتصال، الحماية بالشبكة والموقع، الانصراف،
-// أوقات المراحل، السجلات بالتصفية، صلاحيات المعلم، تنبيه انقطاع الجهاز، NFC، والأداء (500 طالب).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -97,7 +100,6 @@ test("الحماية بالشبكة: «رفض» يرفض المسح من خار�
   const f = await dev.scan(cards.get(s1.id));
   assert.equal(f.data.result, "present");
   assert.equal(f.data.suspicious, "outside_network");
-  // شبكة الاختبار نفسها مسموحة: لا اشتباه
   await A.admin.put(`${G}/settings`, { allowed_networks: "127.0.0.0/8, ::1" });
   assert.equal((await dev.scan(cards.get(s1.id))).data.suspicious, null);
 });
@@ -112,7 +114,6 @@ test("الحماية بالموقع: جهاز بعيد عن البوابة يظ�
   const d = (await A.admin.get(`${G}/devices`)).data.find((x) => x.id === dev.id);
   assert.equal(d.outside, true);
   assert.ok(d.distance_m > 10000);
-  // عاد للمدرسة
   assert.equal((await dev.status({ geo: { lat: 12.8001, lng: 45.0301, accuracy: 15 } })).data.place_warning, null);
   await A.admin.put(`${G}/settings`, { location_mode: "off", allowed_networks: "" });
 });
@@ -171,7 +172,6 @@ test("المعلم: يرى وقت البوابة، ولا يعدّل سجل ال
   await A.admin.put(`${G}/settings`, { teacher_can_edit: false });
   const no = await A.teacher.post("/api/teacher/attendance", { date: today(), reason: "خطأ", entries: [{ student_id: s1.id, status: "absent" }] });
   assert.equal(no.status, 403);
-  // طالب لم يسجله أحد: المعلم يسجله عاديًا
   assert.equal((await A.teacher.post("/api/teacher/attendance", { date: today(), entries: [{ student_id: s4.id, status: "absent" }] })).status, 200);
   assert.equal((await A.teacher.patch("/api/teacher/attendance/excuse", { student_id: s4.id, date: today(), excuse: "مريض" })).status, 200);
   await A.admin.put(`${G}/settings`, { teacher_can_excuse: false });

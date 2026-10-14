@@ -1,4 +1,8 @@
-// طلبات الالتحاق: يرسلها ولي الأمر من صفحة المدرسة، وتراجعها الإدارة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { notFound, badRequest } from "../../core/http/errors.js";
 import * as students from "./students.service.js";
@@ -13,7 +17,7 @@ export const requestSchema = z.object({
 });
 export const reviewSchema = z.object({
   decision: z.enum(["contacted", "accepted", "rejected"]),
-  class_id: t.optId,          // عند القبول: الفصل الذي يُسجَّل فيه
+  class_id: t.optId,
   note: t.optText(300),
 });
 
@@ -23,7 +27,6 @@ export const list = (q) => q(
      FROM admissions a LEFT JOIN students s ON s.id = a.student_id
     ORDER BY a.status = 'new' DESC, a.id DESC LIMIT 300`);
 
-// القبول ينشئ ملف الطالب مباشرة بمعرّفه، ويربطه بالطلب
 export async function review(q, id, b, tenant, actor) {
   const [a] = await q("SELECT * FROM admissions WHERE id = $1 FOR UPDATE", [id]);
   if (!a) throw notFound("الطلب غير موجود");

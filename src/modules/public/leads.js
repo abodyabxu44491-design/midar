@@ -1,4 +1,8 @@
-// طلب تجربة المنصة من الصفحة التسويقية (يصل إلى لوحة المالك)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
@@ -16,27 +20,56 @@ const leadSchema = z.object({
   note: t.optText(1000),
   kind: z.enum(["trial", "subscription", "contact"]).default("trial"),
   plan_id: z.union([z.coerce.number().int().positive(), z.literal(""), z.null()]).optional().transform((v) => v || null),
-  // مدة الاشتراك: تقبل غيابها أو قيمة فارغة أو null (التجربة والتواصل ليس فيهما مدة)،
-  // وتُحسم بعد التحقق حسب نوع الطلب (انظر normalize أدناه) — لا تُرفض ولا تُخمَّن
   billing_cycle: z.union([z.enum(["monthly", "yearly"]), z.literal(""), z.null()]).optional(),
   months: z.union([z.coerce.number().int().min(1).max(36), z.literal(""), z.null()]).optional().transform((v) => v || null),
   try_plan: z.boolean().nullable().optional().transform((v) => v ?? true),
   addon_keys: z.array(z.string().max(40)).max(30).nullable().optional().transform((v) => v ?? []),
+  details: z.object({
+    short_name: t.optText(60),
+    org_type: z.enum(["private", "public", "international", "institute", "other"]).optional(),
+    country: z.enum(["YE", "SA", "OTHER"]).optional(),
+    region: t.optText(60), address: t.optText(200),
+    school_phone: z.string().trim().regex(/^[0-9+ ]{6,20}$/, "هاتف المدرسة غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
+    school_email: z.string().trim().email("بريد المدرسة غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
+    website: z.string().trim().url("رابط الموقع غير صحيح").max(200).optional().or(z.literal("")).transform((v) => v || null),
+    license_no: t.optText(60),
+    stages: z.array(z.enum(["kg", "primary", "middle", "secondary"])).max(4).optional(),
+    classes_count: z.union([z.coerce.number().int().min(1).max(2000), z.literal(""), z.null()]).optional().transform((v) => v || null),
+    academic_year: t.optText(20),
+    manager: z.object({
+      first: t.optText(40), second: t.optText(40), third: t.optText(40), family: t.optText(40),
+      title: t.optText(60), preferred: z.enum(["whatsapp", "call", "email"]).optional(),
+    }).optional(),
+  }).optional().default({}),
 });
 
-// توحيد القيم حسب نوع الطلب (نفس القيم المسموحة في قاعدة البيانات):
-//   اشتراك: المدة شهري أو سنوي، والافتراضي سنوي إن لم يُختر شيء
-//   تجربة/تواصل: لا مدة ولا عدد أشهر ولا إضافات (مجانية أو استفسار)
 function normalize(b) {
   if (b.kind === "subscription") return { ...b, billing_cycle: b.billing_cycle || "yearly" };
   return { ...b, billing_cycle: null, months: null, addon_keys: b.kind === "contact" ? [] : b.addon_keys,
     plan_id: b.kind === "contact" ? null : b.plan_id };
 }
 
+const STATUS = {
+  new: "وصل طلبك وينتظر المراجعة", reviewing: "قيد المراجعة، وسنتواصل معك قريبًا", approved: "تمت الموافقة، ونجهّز مدرستك",
+  awaiting_payment: "بانتظار إتمام الدفع", active: "مدرستك جاهزة، ووصلتك بيانات الدخول", rejected: "اعتذرنا عن الطلب",
+  canceled: "أُلغي الطلب", expired: "انتهت صلاحية الطلب",
+};
+const KIND = { trial: "تجربة مجانية", subscription: "اشتراك", contact: "رسالة تواصل" };
+
 r.post("/", limits.login, handle(async (req, res) => {
   const b = normalize(parse(leadSchema, req.body));
-  await transaction({ actor: "زائر", ip: req.ip }, (q) => q("SELECT submit_lead($1::jsonb)", [JSON.stringify(b)]));
-  res.status(201).json({ ok: true });
+  const m = b.details.manager;
+  if (m && (m.first || m.family)) b.contact_name = [m.first, m.second, m.third, m.family].filter(Boolean).join(" ") || b.contact_name;
+  const [{ id }] = await transaction({ actor: "زائر", ip: req.ip }, (q) => q("SELECT submit_lead($1::jsonb) AS id", [JSON.stringify(b)]));
+  res.status(201).json({ ok: true, id: Number(id), status: "new", status_label: STATUS.new });
+}));
+
+r.post("/status", limits.login, handle(async (req, res) => {
+  const b = parse(z.object({ id: z.coerce.number().int().positive("رقم الطلب غير صحيح"), phone: z.string().trim().regex(/^[0-9+ ]{6,20}$/, "رقم الجوال غير صحيح") }), req.body);
+  const [row] = await transaction({ ip: req.ip }, (q) => q("SELECT * FROM lead_status($1, $2)", [b.id, b.phone]));
+  if (!row) return res.status(404).json({ error: "لم نجد طلبًا بهذا الرقم وهذا الجوال. تأكد من البيانات." });
+  res.json({ id: Number(row.id), kind: KIND[row.kind] || row.kind, status: row.status, status_label: STATUS[row.status] || row.status,
+    school_name: row.school_name, created_at: row.created_at, updated_at: row.updated_at });
 }));
 
 export default r;

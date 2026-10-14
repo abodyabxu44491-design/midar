@@ -1,4 +1,8 @@
-// الرسائل النصية من لوحة المالك: ضبط المزوّد، ورصيد كل مدرسة، والسجل، ورسالة تجريبية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, badRequest, notFound } from "../../core/http/errors.js";
@@ -37,7 +41,6 @@ const gatewaySchema = z.object({
   body_template: z.string().max(2000),
   sender: z.string().trim().max(20),
   success_match: z.string().max(100),
-  // الترويسات (فيها المفتاح السري) ككائن JSON. فارغ = إبقاء الحالية، "-" = حذفها
   headers: z.string().max(3000).optional(),
 }).partial();
 

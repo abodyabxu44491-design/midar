@@ -1,5 +1,8 @@
-// البوابة الذكية — جهة الإدارة: البوابات، أجهزة الحراس (رابط ← موافقة)، بطاقات الحضور،
-// متابعة اليوم، «لم يسجل حضور» والاستثناءات واعتماد الغياب، والمسح المشبوه، وسجل التعديلات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";
@@ -16,15 +19,12 @@ const reasonBody = z.object({ reason: t.optText(200) });
 const pairLink = (req, d) => `${baseUrl(req)}/${req.tenantId}/gate#p=${d.public_id}.${d.code}`;
 const device = (req) => String(req.get("user-agent") || "").slice(0, 120);
 
-/* ---------- الإعدادات ---------- */
 r.get("/settings", handle(async (req, res) => res.json(await inTenant(req, async (q) => (await getFeatureSettings(q)).gate))));
 r.put("/settings", handle(async (req, res) => res.json(await inTenant(req, async (q) => {
-  // عناوين الشبكة: كل عنوان أو نطاق يجب أن يكون صالحًا
   if (typeof req.body?.allowed_networks === "string") gate.networkList(req.body.allowed_networks);
   return updateFeatureSettings(q, "gate", req.body || {});
 }))));
 
-/* ---------- اليوم ---------- */
 r.get("/summary", handle(async (req, res) => {
   const { date } = parse(dateQ, req.query);
   res.json(await inTenant(req, (q) => gate.daySummary(q, date)));
@@ -50,7 +50,6 @@ r.put("/day-mode", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => gate.setDayMode(q, b)));
 }));
 
-// قوائم التصفية: المراحل والصفوف والشعب والبوابات
 r.get("/filters", handle(async (req, res) => res.json(await inTenant(req, async (q) => ({
   stages: await q("SELECT id, name FROM stages ORDER BY sort_order, id"),
   grades: await q("SELECT id, stage_id, name FROM grades ORDER BY sort_order, id"),
@@ -61,7 +60,6 @@ r.get("/records", handle(async (req, res) => {
   const b = parse(gate.recordsQuery, req.query);
   res.json(await inTenant(req, (q) => gate.records(q, b)));
 }));
-// أوقات خاصة لكل مرحلة
 r.get("/stage-hours", handle(async (req, res) => res.json(await inTenant(req, gate.listStageHours))));
 r.put("/stage-hours", handle(async (req, res) => {
   const b = parse(gate.stageHoursBody, req.body);
@@ -72,7 +70,6 @@ r.delete("/stage-hours/:id", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => gate.clearStageHours(q, id)));
 }));
 
-/* ---------- المسح المشبوه وسجل التعديلات ---------- */
 r.get("/suspicious", handle(async (req, res) => {
   const { date } = parse(dateQ, req.query);
   res.json(await inTenant(req, (q) => gate.suspiciousList(q, date)));
@@ -92,7 +89,6 @@ r.get("/audit", handle(async (req, res) => {
       ORDER BY a.id DESC LIMIT 300`, [b.student_id ?? null, b.date ?? null])));
 }));
 
-/* ---------- البوابات ---------- */
 r.get("/gates", handle(async (req, res) => res.json(await inTenant(req, gate.listGates))));
 r.post("/gates", handle(async (req, res) => {
   const b = parse(gate.gateBody, req.body);
@@ -108,9 +104,7 @@ r.delete("/gates/:id", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => gate.deleteGate(q, id)));
 }));
 
-/* ---------- أجهزة الحراس ---------- */
 r.get("/devices", handle(async (req, res) => res.json(await inTenant(req, gate.listDevices))));
-// جهاز جديد ← رابط لمرة واحدة يُرسل للحارس (واتساب أو QR)، صالح 24 ساعة، ثم تُطلب الموافقة
 r.post("/devices", handle(async (req, res) => {
   const b = parse(z.object({ name: z.string().trim().min(2).max(60), gate_id: t.id.optional() }), req.body);
   res.json(await inTenant(req, async (q) => {
@@ -120,7 +114,6 @@ r.post("/devices", handle(async (req, res) => {
     return { id: d.id, link, qr: qrDataUrl(link), hours: gate.PAIR_HOURS };
   }));
 }));
-// رمز ربط: يُظهره المدير، وأي جوال يكتبه في صفحة البوابة يصير جهاز بوابة
 const joinLink = (req, code) => `${baseUrl(req)}/${req.tenantId}/gate#j=${code}`;
 const withJoinLink = (req, c) => ({ ...c, link: c.code ? joinLink(req, c.code) : null, qr: c.code ? qrDataUrl(joinLink(req, c.code)) : null,
   page: `${baseUrl(req)}/${req.tenantId}/gate` });
@@ -155,7 +148,6 @@ r.post("/devices/:id/:action(approve|disable|enable|revoke)", handle(async (req,
   res.json(await inTenant(req, (q) => gate.setDeviceState(q, id, req.params.action, { actor: req.actor })));
 }));
 
-/* ---------- بطاقات الحضور ---------- */
 r.get("/cards", handle(async (req, res) => {
   const b = parse(z.object({ class_id: t.id.optional(), student_id: t.id.optional() }), req.query);
   if (!b.class_id && !b.student_id) throw badRequest("اختر الشعبة أو الطالب");

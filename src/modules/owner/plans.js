@@ -1,4 +1,8 @@
-// لوحة المالك: كتالوج المميزات والباقات والأسعار الخاصة — كلها بلا أي تعديل في الكود
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, badRequest, conflict } from "../../core/http/errors.js";
@@ -12,7 +16,6 @@ const money = z.union([z.coerce.number().min(0).max(10_000_000), z.literal(""), 
 const optInt = (max) => z.union([z.coerce.number().int().min(1).max(max), z.literal(""), z.null()]).optional()
   .transform((v) => (v === "" ? null : v));
 
-/* ---------- كتالوج المميزات ---------- */
 const featureSchema = z.object({
   key: z.string().trim().regex(/^[a-z][a-z0-9_]{1,39}$/, "المفتاح: حروف إنجليزية صغيرة وأرقام و _"),
   name: t.shortText("اسم الميزة", 80),
@@ -32,7 +35,6 @@ r.get("/catalog", handle(async (req, res) => {
   }));
 }));
 
-// الميزة الجديدة من اللوحة تكون «خدمة» (دعم، تدريب…). الأقسام البرمجية تظهر هنا تلقائيًا عند إضافتها للمنصة.
 r.post("/catalog", handle(async (req, res) => {
   const b = parse(featureSchema, req.body);
   res.status(201).json(await platform(req, async (q) => {
@@ -59,7 +61,6 @@ r.patch("/catalog/:key", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- الباقات ---------- */
 const planSchema = z.object({
   code: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,29}$/, "رمز الباقة: حروف إنجليزية صغيرة وأرقام"),
   name: t.shortText("اسم الباقة", 60),
@@ -67,27 +68,28 @@ const planSchema = z.object({
   currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
   monthly_price: money, yearly_price: money,
   setup_fee: z.coerce.number().min(0).max(10_000_000).default(0),
-  // الخصم (اختياري): نسبة، أو مبلغ يُخصم، أو سعر نهائي لكل مدة — مع بداية ونهاية اختيارية
   discount_kind: z.enum(["none", "percent", "amount", "price"]).default("none"),
   discount_value: money,
   sale_monthly_price: money, sale_yearly_price: money,
   discount_starts_at: t.optDate, discount_ends_at: t.optDate,
-  promo_label: t.optText(60),                     // نص اختياري يظهر مع العرض (مثل «عرض الافتتاح»)
+  promo_label: t.optText(60),
   contact_only: z.boolean().default(false),
   max_students: optInt(100000), max_teachers: optInt(10000),
+  first_year_price: money, audience: t.optText(400),
+  max_schools: z.coerce.number().int().min(1).max(100).default(1), extra_school_price: money,
   trial_enabled: z.boolean().default(true),
   is_public: z.boolean().default(true),
   highlight: z.boolean().default(false),
   sort: z.coerce.number().int().min(0).max(1000).default(100),
-  features: z.array(z.string().max(40)).max(200).default([]),          // بالترتيب المطلوب في الصفحة
+  features: z.array(z.string().max(40)).max(200).default([]),
 })
   .refine((p) => p.discount_kind !== "percent" || (p.discount_value >= 1 && p.discount_value <= 90), "نسبة الخصم بين 1 و90")
   .refine((p) => p.discount_kind !== "amount" || p.discount_value > 0, "حدد مبلغ الخصم")
   .refine((p) => p.discount_kind !== "price" || p.sale_monthly_price != null || p.sale_yearly_price != null, "حدد السعر بعد الخصم")
   .refine((p) => p.discount_kind !== "price" || p.sale_monthly_price == null || p.monthly_price == null || p.sale_monthly_price < p.monthly_price, "السعر الشهري بعد الخصم يجب أن يكون أقل من الأصلي")
   .refine((p) => p.discount_kind !== "price" || p.sale_yearly_price == null || p.yearly_price == null || p.sale_yearly_price < p.yearly_price, "السعر السنوي بعد الخصم يجب أن يكون أقل من الأصلي")
-  .refine((p) => !p.discount_starts_at || !p.discount_ends_at || p.discount_ends_at >= p.discount_starts_at, "نهاية العرض قبل بدايته");
-// التعديل: نفس الحقول + أين يُطبَّق التغيير
+  .refine((p) => !p.discount_starts_at || !p.discount_ends_at || p.discount_ends_at >= p.discount_starts_at, "نهاية العرض قبل بدايته")
+  .refine((p) => p.first_year_price == null || p.yearly_price == null || p.first_year_price <= p.yearly_price, "سعر السنة الأولى يجب ألا يزيد عن السعر السنوي");
 const planUpdate = z.object({
   plan: z.any(),
   apply: z.enum(["new", "existing", "tenant"]).default("new"),
@@ -105,7 +107,6 @@ async function listPlans(q) {
   return plans.map((p) => ({ ...p, features: feats.filter((f) => f.plan_id === p.id).map((f) => f.feature_key) }));
 }
 
-// كل المميزات تدخل في كل باقة تلقائيًا، والاختيار للخدمات فقط (الدعم والتدريب…)
 async function writeFeatures(q, planId, chosen) {
   const all = (await q("SELECT key FROM features WHERE kind IN ('core', 'module') AND is_active ORDER BY sort, key")).map((r) => r.key);
   const keys = [...new Set([...all, ...chosen])];
@@ -117,7 +118,7 @@ async function writeFeatures(q, planId, chosen) {
 
 const PLAN_COLS = ["code", "name", "tagline", "description", "badge", "currency", "monthly_price", "yearly_price", "setup_fee",
   "discount_kind", "discount_value", "sale_monthly_price", "sale_yearly_price", "discount_starts_at", "discount_ends_at",
-  "promo_label", "contact_only", "max_students", "max_teachers",
+  "promo_label", "contact_only", "max_students", "max_teachers", "first_year_price", "audience", "max_schools", "extra_school_price",
   "trial_enabled", "is_public", "highlight", "sort"];
 
 r.get("/plans", handle(async (req, res) => res.json(await platform(req, listPlans))));
@@ -134,10 +135,6 @@ r.post("/plans", handle(async (req, res) => {
   }));
 }));
 
-/**
- * تعديل الباقة. التطبيق الافتراضي على الاشتراكات الجديدة فقط (اللقطات القديمة لا تتغير).
- * «existing» يحدّث لقطات كل الاشتراكات الحالية على الباقة، و«tenant» مدرسة واحدة، ويحتاج confirm.
- */
 r.put("/plans/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const u = parse(planUpdate, req.body);
@@ -156,7 +153,6 @@ r.put("/plans/:id", handle(async (req, res) => {
   }));
 }));
 
-// الحالة: فعّالة / موقوفة مؤقتًا (لا تُباع) / مؤرشفة. الاشتراكات القائمة عليها لا تتأثر.
 r.post("/plans/:id/status", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(z.object({ status: z.enum(["active", "paused", "archived"]) }), req.body);
@@ -167,7 +163,6 @@ r.post("/plans/:id/status", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- سعر خاص لمدرسة ---------- */
 r.get("/prices/:tenant", handle(async (req, res) => {
   const tenant = parse(z.string().max(30), req.params.tenant);
   res.json(await platform(req, (q) => q(

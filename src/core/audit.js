@@ -1,4 +1,8 @@
-// تسجيل الأحداث التي لا تمر عبر تعديل جدول (دخول، خروج، محاولات فاشلة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export async function logEvent(q, { tenantId = null, actor, action }) {
   await q(
     "INSERT INTO audit_log (tenant_id, actor, action, ip) VALUES ($1, $2, $3, NULLIF(current_setting('app.ip', true), '')::inet)",
@@ -18,7 +22,6 @@ export async function recentFailures(q, kind, subject, minutes) {
   return r.n;
 }
 
-// فك قفل الدخول لحساب (عند إعادة تعيين كلمة المرور): يمسح عدّادات المحاولات الخاطئة لكل العناوين
 export async function clearLoginFailures(q, tenantId, username) {
   await q("DELETE FROM security_events WHERE kind = 'staff_login_failed' AND starts_with(subject, $1)", [`${tenantId}:${username}:`]);
   await q("DELETE FROM security_events WHERE kind = 'staff_login_failed_all' AND subject = $1", [`${tenantId}:${username}`]);

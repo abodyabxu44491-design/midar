@@ -1,4 +1,8 @@
-// بيانات المعلم، فصوله، والإعلانات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { logoId } from "../shared/school-logo.service.js";
 import { accessSummary } from "../shared/subscription.service.js";
@@ -23,14 +27,12 @@ r.get("/me", handle(async (req, res) => {
     photo: photo?.has ? `/api/teacher/photo?v=${photo.v}` : null, ...data });
 }));
 
-// صورة المعلم نفسه (يرفعها المدير من ملف المعلم)
 r.get("/photo", handle(async (req, res) => {
   const [p] = await inTenant(req, (q) => q("SELECT photo, photo_type FROM teachers WHERE id = $1 AND photo IS NOT NULL", [req.user.teacher_id]));
   if (!p) return res.status(404).json({ error: "لا توجد صورة" });
   res.set({ "Content-Type": p.photo_type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" }).send(p.photo);
 }));
 
-// ملف المعلم كاملًا لصفحة «حسابي» (بلا أي سر: لا كلمة مرور ولا hash)
 r.get("/profile", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const [p] = await q(
@@ -48,7 +50,6 @@ r.get("/profile", handle(async (req, res) => {
   }));
 }));
 
-// المعلم يحدّث بيانات التواصل فقط؛ البيانات الوظيفية والشخصية تعدّلها الإدارة
 const contactSchema = z.object({
   phone: t.phone, address: t.optText(200), emergency_name: t.optText(120), emergency_phone: t.phone,
   email: z.string().trim().email("البريد غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
@@ -61,7 +62,6 @@ r.patch("/profile", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// طلاب فصل مسند للمعلم مع ملخص حضورهم في السنة الحالية (بلا بيانات تواصل أولياء الأمور)
 r.get("/students", handle(async (req, res) => {
   const { class_id } = parse(z.object({ class_id: t.id }), req.query);
   res.json(await inTenant(req, async (q) => {
@@ -81,7 +81,6 @@ r.get("/students", handle(async (req, res) => {
   }));
 }));
 
-// تنبيهات طلاب فصوله: يرى كل تنبيهات الطالب، ويضيف، ويحذف ما كتبه فقط
 const ownStudent = async (q, teacherId, studentId) => {
   const [s] = await q("SELECT class_id FROM students WHERE id = $1 AND archived_at IS NULL", [studentId]);
   if (!s || !(await teachesClass(q, teacherId, s.class_id))) throw forbidden("هذا الطالب ليس ضمن فصولك");

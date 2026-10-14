@@ -1,5 +1,8 @@
-// «اشتراكي»: الباقة والحالة والتواريخ والاستخدام، ومميزات الاشتراك (الفعّالة والمقفلة)، والترقية والتجديد،
-// وطلبات المدرسة وسجل الاشتراك. نفس الصفحة تظهر كشاشة وحيدة عند توقف الاشتراك (والبيانات محفوظة).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, badge, sub, notice, toast, dialog, empty, line, topbar, footer } from "../../shared/js/ui.js";
@@ -13,10 +16,8 @@ const REQ = { feature: "طلب ميزة", upgrade: "طلب ترقية", renewal:
 const RSTATUS = { new: ["بانتظار الرد", "amber"], reviewing: ["قيد المراجعة", "blue"], approved: ["تمت الموافقة", ""], awaiting_payment: ["بانتظار الدفع", "amber"],
   active: ["منفّذ", ""], rejected: ["مرفوض", "gray"], canceled: ["ملغي", "gray"], expired: ["منتهي", "gray"] };
 
-// تاريخ عربي مختصر مثل «17 أكتوبر»
 const dayMonth = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString("ar", { day: "numeric", month: "long" }) : "");
 
-/* ---------- الشريط أعلى اللوحة ---------- */
 export function accessBanner(access, goTo) {
   if (!access || access.locked) return null;
   const go = goTo ? btn("اشتراكي", () => goTo("subscription"), "ghost sm") : null;
@@ -40,14 +41,12 @@ export function accessBanner(access, goTo) {
   return null;
 }
 
-/* ---------- شاشة الاشتراك المتوقف ---------- */
 export async function lockScreen(me, root) {
   mount(root,
     topbar({ school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`, onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
     h("main", {}, await mySubscription({ me, show: () => location.reload() })), footer());
 }
 
-/* ---------- الصفحة ---------- */
 export async function mySubscription({ me, show }) {
   const d = await api(A);
   const s = d.subscription;
@@ -87,7 +86,6 @@ export async function mySubscription({ me, show }) {
       btn("ترقية الباقة", () => document.getElementById("sub-plans")?.scrollIntoView({ behavior: "smooth" }), "soft"),
       btn("تواصل مع إدارة المنصة", () => requestDialog("contact", {}, show), "ghost")) : null) : null;
 
-  // المميزات: الفعّالة، ثم المقفلة مع زر الطلب حسب إعداد المنصة
   const cats = [...new Set(d.features.map((f) => f.category))];
   const features = panel("مميزات اشتراكك", null,
     cats.map((c) => [h("div", { class: "sub", style: "margin:10px 0 4px;font-weight:700" }, c),

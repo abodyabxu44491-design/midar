@@ -1,9 +1,9 @@
-// الاختبارات الإلكترونية: نشر ورقة من مصمم الاختبارات، حل الطالب من جواله، تصحيح تلقائي، ورصد الدرجة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// الأمان:
-//  • الإجابات الصحيحة لا تخرج من الخادم أثناء الاختبار (تُحذف من نسخة الطالب).
-//  • ترتيب الأسئلة والخيارات يختلف لكل طالب، ومعرّفات عمود التوصيل مشفّرة لكل محاولة فلا تكشف الإجابة.
-//  • الوقت يحسبه الخادم: موعد الانتهاء = أقرب الأمرين (بداية الطالب + المدة، أو موعد الإغلاق).
 import crypto from "node:crypto";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
@@ -12,7 +12,7 @@ import { notify } from "./notify.service.js";
 import { resolveForExam } from "./grade-components.service.js";
 
 const AUTO = new Set(["mcq", "multi", "truefalse", "fill", "match", "order"]);
-const GRACE_MS = 60_000;   // تأخر الشبكة عند التسليم
+const GRACE_MS = 60_000;
 const r2 = (n) => Math.round(n * 100) / 100;
 
 export const publishSchema = z.object({
@@ -27,20 +27,16 @@ export const publishSchema = z.object({
   link_exam: z.boolean().default(true),
 });
 
-/* ---------- أدوات ---------- */
 const questionsOf = (content) => (content.sections || []).flatMap((s) => s.questions || []);
-// توزيع ثابت لكل محاولة (نفس الترتيب عند إعادة فتح الصفحة)
 function seeded(seed) {
   let s = parseInt(crypto.createHash("sha256").update(String(seed)).digest("hex").slice(0, 8), 16) || 1;
   return () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
 }
 function shuffle(arr, rnd) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 const token = (attemptId, id) => crypto.createHash("sha256").update(`${attemptId}:${id}`).digest("base64url").slice(0, 10);
-// مقارنة نص الفراغ: بلا تشكيل ومع توحيد الهمزات والتاء المربوطة والمسافات
 export const normAr = (s) => String(s ?? "").trim().toLowerCase()
   .replace(/[ً-ْـ]/g, "").replace(/[إأآا]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ");
 
-/** نسخة الطالب: بلا إجابات، ومرتّبة لهذه المحاولة */
 export function studentContent(content, attemptId, doShuffle) {
   const rnd = seeded(`${attemptId}`);
   return {
@@ -65,7 +61,6 @@ export function studentContent(content, attemptId, doShuffle) {
   };
 }
 
-/** درجة سؤال واحد آليًا (null = يحتاج تصحيح المعلم) */
 export function gradeQuestion(q, ans, attemptId) {
   const m = Number(q.marks || 0);
   if (!AUTO.has(q.type)) return null;
@@ -85,7 +80,6 @@ export function gradeQuestion(q, ans, attemptId) {
       const want = q.answers || [];
       if (!want.length) return null;
       const got = Array.isArray(ans) ? ans : [ans];
-      // كل فراغ قد يقبل أكثر من إجابة مكتوبة بـ / مثل «الرياض / الرياض العاصمة»
       const ok = want.filter((w, i) => String(w).split("/").map(normAr).filter(Boolean).includes(normAr(got[i]))).length;
       return r2(m * (ok / want.length));
     }
@@ -105,7 +99,6 @@ export function gradeQuestion(q, ans, attemptId) {
   }
 }
 
-/** تصحيح المحاولة كاملة: الدرجات الآلية + ما صححه المعلم يدويًا */
 export function gradeAttempt(content, answers, attemptId, manual = {}) {
   const marks = {};
   let auto = 0, total = 0, pending = false;
@@ -120,7 +113,6 @@ export function gradeAttempt(content, answers, attemptId, manual = {}) {
   return { marks, auto_score: r2(auto), score: r2(total), needs_grading: pending };
 }
 
-/* ---------- المعلم والإدارة ---------- */
 export async function publish(q, who, b, actor) {
   const { paper } = await getFor(q, who, b.paper_id);
   if (!["approved", "printed"].includes(paper.status)) throw badRequest("اعتمد الاختبار أولًا ثم انشره إلكترونيًا");
@@ -138,7 +130,6 @@ export async function publish(q, who, b, actor) {
   const title = b.title || paper.title;
   let examId = null;
   if (b.link_exam) {
-    // الدرجة تُرصد على النوع الافتراضي في توزيع الدرجات (إن وُجد)
     const component = await resolveForExam(q, classId, null);
     const [e] = await q(`INSERT INTO exams (tenant_id, class_id, subject_id, title, exam_date, max_score, created_by, component_id)
       VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`,
@@ -194,7 +185,6 @@ export async function attemptDetail(q, who, id, attemptId) {
   return { student: st?.full_name, attempt: a, questions: reviewQuestions(x.content, a, true) };
 }
 
-// للمراجعة: السؤال، وإجابة الطالب، والصحيح، والدرجة
 function reviewQuestions(content, a, withKey) {
   return questionsOf(content).map((qq) => {
     const out = { id: qq.id, type: qq.type, text: qq.text, marks: qq.marks, options: qq.options, items: qq.items, table: qq.table, image: qq.image,
@@ -223,13 +213,11 @@ export async function setMarks(q, who, id, attemptId, manual, actor) {
   return g;
 }
 
-// نتيجة الاختبار الإلكتروني لولي الأمر (مرة واحدة، وتُحدَّث إن عُدّل التصحيح)
 async function resultNotice(q, x, studentId, score) {
   await notify(q, { event: "exam_result", students: [studentId], title: `نتيجة اختبار: ${x.title}`,
     body: `الدرجة ${score} من ${x.max_score}`, link: "online-exams", dedupKey: `oe-${x.id}`, dedupMinutes: 60 * 24 * 30 });
 }
 
-/** رصد الدرجات في اختبار «رصد الدرجات» المرتبط (ما دام مسودة) */
 export async function syncScores(q, who, id, actor) {
   const x = await own(q, who, id);
   if (!x.exam_id) throw badRequest("هذا الاختبار غير مرتبط بالرصد");
@@ -260,7 +248,6 @@ export async function remove(q, who, id) {
   if (x.exam_id) await q("DELETE FROM exams WHERE id = $1 AND status = 'draft' AND NOT EXISTS (SELECT 1 FROM scores WHERE exam_id = $1)", [x.exam_id]);
 }
 
-// المحاولات التي انتهى وقتها ولم تُسلَّم: تُسلَّم بما حُفظ منها
 async function closeExpired(q, onlineExamId, force = false) {
   const [x] = await q("SELECT content FROM online_exams WHERE id = $1", [onlineExamId]);
   const open = await q(`SELECT * FROM online_attempts WHERE online_exam_id = $1 AND submitted_at IS NULL
@@ -272,7 +259,6 @@ async function closeExpired(q, onlineExamId, force = false) {
   }
 }
 
-/* ---------- الطالب ---------- */
 export async function forStudent(q, s) {
   const rows = await q(
     `SELECT o.id, o.title, sub.name AS subject, o.opens_at, o.closes_at, o.duration_min, o.max_score, o.show_result, o.status,
@@ -328,7 +314,6 @@ export async function save(q, s, id, answers, { submit = false } = {}) {
   if (!a) throw badRequest("ابدأ الاختبار أولًا");
   if (a.submitted_at) throw badRequest("سلّمت هذا الاختبار من قبل");
   const late = Date.now() > new Date(a.deadline_at).getTime() + GRACE_MS;
-  // بعد انتهاء الوقت: لا تُقبل إجابات جديدة، ويُسلَّم ما حُفظ
   const finalAnswers = late ? a.answers : answers;
   if (!late) await q("UPDATE online_attempts SET answers = $2 WHERE id = $1", [a.id, JSON.stringify(answers)]);
   if (!submit && !late) return { saved: true };
@@ -349,7 +334,6 @@ export async function review(q, s, id) {
   return { title: x.title, score: a.needs_grading ? null : a.score, max_score: x.max_score, questions: reviewQuestions(x.content, a, true) };
 }
 
-/** صورة سؤال داخل اختبار الطالب فقط */
 export async function imageFor(q, s, id, imageId) {
   const x = await studentExam(q, s, id);
   const used = questionsOf(x.content).some((qq) => Number(qq.image?.id) === Number(imageId));

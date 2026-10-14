@@ -1,4 +1,8 @@
-// منطقة الحذر في لوحة المالك: عمليات استثنائية على مدرسة، بمراحل وتحقق وتسجيل كامل.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
@@ -47,7 +51,6 @@ r.get("/backups", handle(async (req, res) => {
   const tid = req.query.tenant ? parse(code, req.query.tenant) : null;
   res.json(await transaction({ platform: true }, (q) => dz.listBackups(q, tid)));
 }));
-// تنزيل النسخة (للمالك فقط): ملف JSON مضغوط كما هو محفوظ، مع البصمة في الترويسة
 r.get("/backups/:id/download", handle(async (req, res) => {
   const id = idParam(req);
   const b = await transaction({ platform: true, actor: "مالك المنصة", ip: req.ip }, async (q) => {

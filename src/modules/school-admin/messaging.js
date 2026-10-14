@@ -1,4 +1,8 @@
-// رسائل واتساب: قوالب المدرسة + تجهيز روابط المحادثة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -15,7 +19,6 @@ r.put("/templates", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => updateTemplates(q, b)));
 }));
 
-// بيانات جاهزة لبناء رسالة لطالب معيّن (الرسالة تُفتح في واتساب من جهاز المستخدم)
 r.get("/student/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const kind = parse(z.enum(["absence", "late", "fees", "general"]).default("general"), req.query.kind || undefined);

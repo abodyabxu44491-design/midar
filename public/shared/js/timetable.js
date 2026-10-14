@@ -1,4 +1,8 @@
-// عرض الجدول الدراسي (مشترك: الإدارة، المعلم، الطالب، الصفحة العامة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 
 export const DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
@@ -6,7 +10,6 @@ export const WORK_DAYS = [0, 1, 2, 3, 4];
 export const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
 export const todayIndex = () => new Date().getDay() % 7;
 
-// جدول للعرض فقط. cell(day, period) تُعيد محتوى الخانة.
 export function timetableGrid(slots, { periods = PERIODS, days = WORK_DAYS, cell, highlightToday = true } = {}) {
   const at = (d, p) => slots.find((s) => s.day === d && s.period === p);
   const today = todayIndex();

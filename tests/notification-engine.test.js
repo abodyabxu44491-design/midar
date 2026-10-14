@@ -1,5 +1,8 @@
-// محرك الإشعارات: منع التكرار، اختيارات ولي الأمر والإلزامي، ساعات الهدوء، طابور التسليم وإعادة المحاولة،
-// حذف الجهاز الملغى، أكثر من ابن على جهاز واحد، الإرسال الجماعي بفئات وتأكيد، مركز الإشعارات، حد الإرسال، والعزل بين المدارس
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -9,7 +12,7 @@ import { transaction } from "../src/core/db/pool.js";
 
 let srv, A, B;
 const pushes = [];
-const fail = new Map();   // نهاية رابط الجهاز → رمز الخطأ الذي يرده المزوّد
+const fail = new Map();
 const today = new Date().toISOString().slice(0, 10);
 const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 const sub = (n) => ({ endpoint: `https://push.example.com/send/${n}`, keys: { p256dh: "B".repeat(87), auth: "a".repeat(22) } });
@@ -72,7 +75,6 @@ test("اختيارات ولي الأمر: يكتم التأخر فلا يصل ل
   await A.admin.post("/api/admin/attendance", { date: today, entries: [{ student_id: s2.id, status: "absent" }] });
   await settle();
   assert.equal(pushesTo("pref2").length, 1, "الغياب إلزامي من المدرسة فيصل رغم الكتم");
-  // المدرسة تلغي الإلزام: يصبح الكتم نافذًا
   await A.admin.put("/api/admin/communication/notify", { absence: { mandatory: false } });
   const p1 = (await anon.post(`/api/public/${A.id}/student/notify-prefs`, A.parent(s2))).data;
   assert.equal(p1.topics.absence.mandatory, false);
@@ -84,7 +86,6 @@ test("ساعات الهدوء: غير العاجل يتأجل لنهايتها،
   assert.equal(quietDelayMinutes({ quiet_start: "22:00", quiet_end: "06:00", timezone: "UTC" }, new Date("2026-01-01T12:00:00Z")), 0);
   assert.equal(quietDelayMinutes({ quiet_start: "13:00", quiet_end: "14:00", timezone: "UTC" }, new Date("2026-01-01T13:15:00Z")), 45);
   assert.equal(quietDelayMinutes({ quiet_start: null, quiet_end: null }), 0);
-  // نافذة هدوء تغطي الآن بتوقيت المدرسة
   const hm = (d) => new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Aden", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
   const start = hm(new Date(Date.now() - 60 * 60000)), end = hm(new Date(Date.now() + 60 * 60000));
   assert.equal((await A.admin.put("/api/admin/communication/notify/quiet", { quiet_start: start, quiet_end: end })).status, 200);
@@ -101,7 +102,6 @@ test("ساعات الهدوء: غير العاجل يتأجل لنهايتها،
   await A.admin.post("/api/admin/attendance", { date: today, entries: [{ student_id: s3.id, status: "absent" }] });
   await settle();
   assert.equal(pushesTo("quiet3").length, 1, "الغياب (عاجل) وصل فورًا");
-  // انتهاء ساعات الهدوء: العامل الدوري يرسل المؤجل
   await transaction({ tenantId: A.id }, (q) => q("UPDATE notification_deliveries SET next_attempt_at = now() WHERE status = 'pending'"));
   await processDeliveries();
   assert.equal(pushesTo("quiet3").length, 2);
@@ -110,7 +110,6 @@ test("ساعات الهدوء: غير العاجل يتأجل لنهايتها،
 
 test("طابور التسليم: خطأ مؤقت يُعاد بانتظار متزايد، والدائم يفشل بسبب واضح، والجهاز الملغى يُحذف", async () => {
   assert.deepEqual([1, 2, 3, 6, 9].map(backoffSeconds), [30, 60, 120, 960, 3600]);
-  // خطأ مؤقت ثم نجاح
   assert.equal((await A.admin.post("/api/admin/notifications/push", sub("flaky"))).status, 200);
   fail.set("flaky", 503);
   await A.admin.post("/api/admin/communication/notify/test", {});
@@ -131,7 +130,6 @@ test("طابور التسليم: خطأ مؤقت يُعاد بانتظار مت�
   assert.equal(d.attempts, 2);
   assert.equal(pushesTo("flaky").length, 1);
 
-  // يفشل دائمًا: بعد آخر محاولة تصبح الحالة «فشل»
   fail.set("flaky", 500);
   await A.admin.post("/api/admin/communication/notify/test", {});
   await settle();
@@ -144,7 +142,6 @@ test("طابور التسليم: خطأ مؤقت يُعاد بانتظار مت�
   assert.equal(d.attempts, MAX_ATTEMPTS);
   fail.delete("flaky");
 
-  // الجهاز ألغى الاشتراك (410): يُحذف فورًا، والتسليم «فشل» بسبب مفهوم
   assert.equal((await A.admin.post("/api/admin/notifications/push", sub("gone"))).status, 200);
   fail.set("gone", 410);
   await A.admin.post("/api/admin/communication/notify/test", {});
@@ -168,7 +165,6 @@ test("ولي أمر لديه ابنان على نفس الجهاز: إشعار �
   assert.equal(fam.length, 1);
   assert.match(fam[0].title, /حمزة/);
   assert.ok(fam[0].url.includes(`s=${sib.id}`), "يفتح ملف الابن الصحيح");
-  // إعلان لكل المدرسة: تنبيه واحد للجهاز، وإشعار في مركز كل ابن
   pushes.length = 0;
   const r = await A.admin.post("/api/admin/announcements", { title: "إجازة يوم الخميس", body: "بمناسبة اليوم الوطني", target: { type: "all", ids: [] } });
   assert.equal(r.status, 201, JSON.stringify(r.data));
@@ -189,21 +185,18 @@ test("الإرسال الجماعي: معاينة العدد لكل فئة، و�
   assert.equal((await dry({ type: "teachers", ids: [] })).data.recipients.staff, 1);
   assert.equal((await dry({ type: "staff", ids: [] })).data.recipients.staff, 2);
   assert.equal((await dry({ type: "class", ids: [] })).status, 400, "لا بد من اختيار الشعبة");
-  // العدد تغيّر بعد المعاينة: يُرفض
   const bad = await A.admin.post("/api/admin/announcements", { title: "رحلة الصف", target: { type: "class", ids: [A.c2.id] }, expected: 99 });
   assert.equal(bad.status, 409);
   const ok = await A.admin.post("/api/admin/announcements", { title: "رحلة الشعبة ب", target: { type: "class", ids: [A.c2.id] }, expected: 1 });
   assert.equal(ok.status, 201);
-  const [s1] = A.students;   // في الشعبة أ
+  const [s1] = A.students;
   const prof = (await client(srv.base).post(`/api/public/${A.id}/student`, A.parent(s1))).data;
   assert.ok(!prof.announcements.some((a) => a.title === "رحلة الشعبة ب"), "لا يظهر لشعبة أخرى");
-  // إعلان للمعلمين فقط: لا يظهر لأولياء الأمور، ويصل لمركز المعلم
   await A.admin.post("/api/admin/announcements", { title: "اجتماع المعلمين", target: { type: "teachers", ids: [] } });
   const prof2 = (await client(srv.base).post(`/api/public/${A.id}/student`, A.parent(s1))).data;
   assert.ok(!prof2.announcements.some((a) => a.title === "اجتماع المعلمين"));
   assert.ok((await A.teacher.get("/api/teacher/announcements")).data.some((a) => a.title === "اجتماع المعلمين"));
   assert.ok((await A.teacher.get("/api/teacher/notifications")).data.items.some((n) => /اجتماع المعلمين/.test(n.title)));
-  // رسالة (إشعار فقط) لطالب محدد: لا تُحفظ إعلانًا
   const before = (await A.admin.get("/api/admin/announcements")).data.length;
   const m = await A.admin.post("/api/admin/announcements", { title: "راجعنا بخصوص الزي", kind: "message", target: { type: "students", ids: [s1.id] } });
   assert.equal(m.status, 201);
@@ -227,10 +220,8 @@ test("مركز الإشعارات: التصفية بالتصنيف وغير ال
   assert.ok(!unread.items.some((n) => n.id === found.items[0].id));
   assert.equal((await anon.post(`/api/public/${A.id}/student/inbox/archive`, { ...A.parent(s1), ids: [found.items[0].id] })).data.archived, 1);
   assert.equal((await inbox(A, s1, { q: "الزي" })).data.items.length, 0, "المؤرشف لا يظهر");
-  // ولي أمر طالب آخر لا يستطيع أرشفة إشعار ليس له
   const other = A.students[1];
   assert.equal((await anon.post(`/api/public/${A.id}/student/inbox/archive`, { ...A.parent(other), ids: [all.items[0].id] })).data.archived, 0);
-  // المنسوب: نفس المركز
   const staff = (await A.admin.get("/api/admin/notifications?category=system")).data;
   assert.ok(staff.items.every((n) => n.category === "system"));
   assert.equal((await A.admin.put("/api/admin/notifications/prefs", { muted: ["system"] })).status, 200);
@@ -264,7 +255,6 @@ test("العزل بين المدارس: لا جهاز ولا سجل ولا إع�
   const seen = await transaction({ tenantId: B.id }, (q) => q(`SELECT
     (SELECT count(*) FROM notification_deliveries)::int AS d, (SELECT count(*) FROM notifications WHERE title LIKE '%مدرسة أ%')::int AS n`));
   assert.deepEqual(seen[0], { d: 0, n: 0 });
-  // معرّف طالب من مدرسة أ على مدرسة ب
   assert.equal((await client(srv.base).post(`/api/public/${B.id}/student/notify-prefs`, A.parent(A.students[0]))).status, 401);
   assert.equal((await B.admin.get("/api/admin/communication/notify/log")).data.items.length, 0);
 });
@@ -279,14 +269,12 @@ test("أحداث جديدة: اعتماد الدرجات للإدارة والم
   assert.equal((await A.admin.post(`/api/admin/exams/${ex.id}/status`, { status: "published" })).status, 200);
   assert.ok((await A.teacher.get("/api/teacher/notifications")).data.items.some((n) => /اعتُمدت/.test(n.title)), "المعلم عرف بالاعتماد");
   assert.ok((await inbox(A, A.students[0], { category: "grades" })).data.items.some((n) => /9 من 10/.test(n.body)), "ولي الأمر وصلته الدرجة");
-  // تعديلات متتالية على جدول شعبة: إشعار واحد
   for (const period of [1, 2, 3]) {
     await A.admin.put("/api/admin/timetable/slot", { class_id: A.c1.id, day: 0, period, subject_id: A.math.id, teacher_id: A.teacherId });
   }
   const tt = (await inbox(A, A.students[0], { category: "timetable" })).data.items;
   assert.equal(tt.length, 1);
   assert.ok(tt[0].repeats >= 2);
-  // الحضور: معطّل افتراضيًا
   await A.admin.post("/api/admin/attendance", { date: yesterday, entries: [{ student_id: A.students[3].id, status: "present" }] });
   assert.ok(!(await inbox(A, A.students[3])).data.items.some((n) => n.kind === "present"));
   await A.admin.put("/api/admin/communication/notify", { present: { push: true } });

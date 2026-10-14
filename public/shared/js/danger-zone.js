@@ -1,6 +1,8 @@
-// منطقة الحذر: واجهة واحدة للمالك (يختار المدرسة) ولمدير المدرسة (مدرسته فقط، حسب صلاحيته).
-// لا زر ينفذ مباشرة: المدرسة ← العملية ← الشرح وما سيتأثر وما لن يتأثر ← النسخة الاحتياطية ← المراجعة والتأكيد
-// برمز المدرسة وإعادة التحقق ← التنفيذ ← النتيجة. الخادم يعيد فحص كل شرط، والواجهة تشرح وتوجّه فقط.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { btn, field, input, select, notice, toast, badge, empty, sub, passwordInput } from "./ui.js";
@@ -43,7 +45,6 @@ export async function dangerZone({ base, scope }) {
     catch (e) { mount(box, notice(e.message, "err")); }
   };
 
-  /* ================= المعالج ================= */
   async function wizard() {
     const st = { step: 0, school: null, summary: null, op: null, params: {}, plan: null, backup: null, result: null };
     const wrap = h("div", { class: "dz-wizard" });
@@ -56,17 +57,16 @@ export async function dangerZone({ base, scope }) {
       mount(body, empty("جارٍ التحميل…"));
       try {
         const out = await [stepSchool, stepOp, stepImpact, stepBackup, stepReview, stepResult][i]();
-        if (st.step === i) mount(body, out);   // خطوة انتقلت بنفسها لغيرها (المدير يتخطى اختيار المدرسة) لا تمسح التالية
+        if (st.step === i) mount(body, out);
       } catch (e) { if (st.step === i) mount(body, notice(e.message, "err"), btn("رجوع", () => go(Math.max(0, i - 1)), "ghost")); }
       wrap.scrollIntoView({ block: "start", behavior: "smooth" });
     };
     const tenantBody = (extra = {}) => (owner ? { tenant: st.school.id, ...extra } : extra);
     const cancelPlan = async () => {
-      if (st.plan && !st.result) { try { await api(`${base}/${st.plan.id}/cancel`, tenantBody({ token: st.plan.token })); } catch { /* انتهت أو نُفذت */ } }
+      if (st.plan && !st.result) { try { await api(`${base}/${st.plan.id}/cancel`, tenantBody({ token: st.plan.token })); } catch { /* ignore */ } }
       st.plan = null; st.backup = null;
     };
 
-    // 1) المدرسة
     async function stepSchool() {
       if (!owner) {
         st.summary = await api(`${base}/summary`);
@@ -92,7 +92,6 @@ export async function dangerZone({ base, scope }) {
       return [h("h3", { class: "dz-h" }, "اختر المدرسة"), q, list];
     }
 
-    // 2) العملية
     async function stepOp() {
       const s = st.summary;
       st.op = null; st.params = {};
@@ -106,7 +105,6 @@ export async function dangerZone({ base, scope }) {
       });
       next.disabled = true;
       const groups = [...new Set(cat.operations.map((o) => o.group))];
-      // عمليات لا تناسب حالة المدرسة الآن تظهر معطلة مع السبب
       const sc = s.school;
       const why = {
         archive: sc.status === "archived" && "المدرسة مؤرشفة مسبقًا",
@@ -177,7 +175,6 @@ export async function dangerZone({ base, scope }) {
           st.summary ? h("small", {}, `${num(st.summary.accounts)} حساب · ${num(st.summary.sessions)} جلسة مفتوحة · ${num(st.summary.backups?.length)} نسخة`) : null));
     };
 
-    // 3) الشرح وما سيتأثر وما لن يتأثر
     async function stepImpact() {
       const p = st.plan;
       const restore = p.op === "backup_restore";
@@ -203,7 +200,6 @@ export async function dangerZone({ base, scope }) {
       ];
     }
 
-    // 4) النسخة الاحتياطية (إلزامية للعمليات المدمّرة)
     async function stepBackup() {
       const p = st.plan;
       const out = h("div");
@@ -228,7 +224,6 @@ export async function dangerZone({ base, scope }) {
         h("div", { class: "dz-nav" }, btn("رجوع", () => go(2), "ghost"), next)];
     }
 
-    // 5) المراجعة والتأكيد وإعادة التحقق
     async function stepReview() {
       const p = st.plan;
       const confirm = input({ class: "ltr", placeholder: p.confirm_text || "", autocomplete: "off", spellcheck: false });
@@ -271,7 +266,6 @@ export async function dangerZone({ base, scope }) {
         h("div", { class: "dz-nav" }, btn("إلغاء العملية", async () => { await cancelPlan(); toast("أُلغيت العملية ولم يتغير شيء"); go(1); }, "ghost"), runBtn)];
     }
 
-    // 6) النتيجة
     async function stepResult() {
       const r = st.result;
       const res = r.result || {};
@@ -305,7 +299,6 @@ export async function dangerZone({ base, scope }) {
     return wrap;
   }
 
-  /* ================= السجل ================= */
   async function historyView() {
     const rows = await api(`${base}/history`);
     const opLabel = Object.fromEntries(cat.operations.map((o) => [o.key, o.label]));
@@ -324,7 +317,6 @@ export async function dangerZone({ base, scope }) {
               : r.result?.accounts !== undefined ? `${num(r.result.accounts)} حساب` : "—")))))) : empty("لا توجد عمليات بعد.");
   }
 
-  /* ================= النسخ الاحتياطية (المالك) ================= */
   async function backupsView() {
     const rows = await api(`${base}/backups`);
     if (!rows.length) return empty("لا توجد نسخ احتياطية بعد.");

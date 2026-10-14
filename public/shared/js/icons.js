@@ -1,4 +1,8 @@
-// أيقونات SVG (لا تُستخدم رموز أو إيموجي في الواجهة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const NS = "http://www.w3.org/2000/svg";
 
 function svg(paths, { size = 18, stroke = 2, fill = "none" } = {}) {
@@ -71,7 +75,6 @@ export const icons = {
   megaphone: (o) => svg(["M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1z", "M15 9a3 3 0 010 6", "M18 7a6 6 0 010 10"], o),
   key: (o) => svg(["M15 7a4 4 0 11-3.5 6H9v2H7v2H4v-3l6.5-6.5A4 4 0 0115 7z"], o),
   print: (o) => svg(["M7 8V3h10v5", "M7 18H5a2 2 0 01-2-2v-4a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2h-2", "M7 14h10v7H7z"], o),
-  // أيقونات أقسام التنقل
   home: (o) => svg(["M3 11l9-7 9 7", "M5 10v10h14V10", "M10 20v-6h4v6"], o),
   user: (o) => svg(["M12 12a4 4 0 100-8 4 4 0 000 8", "M4 21a8 8 0 0116 0"], o),
   userPlus: (o) => svg(["M15 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2", "M8.5 11a4 4 0 100-8 4 4 0 000 8", "M19 8v6", "M22 11h-6"], o),

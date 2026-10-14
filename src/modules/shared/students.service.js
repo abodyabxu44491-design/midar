@@ -1,11 +1,14 @@
-// منطق الطلاب
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, conflict, notFound } from "../../core/http/errors.js";
 import { newStudentKey } from "../../core/auth/codes.js";
 import { resolveClassForGrade } from "./structure.service.js";
 import { storedPhone } from "../../../public/shared/js/phone.js";
 
-// حقول الطالب الأساسية الجديدة (كلها اختيارية). "" أو null تعني المسح عند التعديل.
 const blankToNull = (v) => (v === undefined ? undefined : v || null);
 export const profileFields = {
   student_no: z.string().trim().max(30).optional().nullable().transform(blankToNull),
@@ -17,7 +20,7 @@ export const studentSchema = z.object({
   ...profileFields,
   name: t.name("اسم الطالب"),
   class_id: t.optId,
-  grade_id: t.optId,   // بديل عن class_id في وضع "بدون شعب": يُحل تلقائيًا لشعبة الصف الافتراضية
+  grade_id: t.optId,
   guardian_name: t.optText(120),
   guardian_phone: t.phone,
   fees_enabled: z.boolean().optional().default(false),
@@ -34,11 +37,8 @@ export const updateSchema = z.object({
   fees_enabled: z.boolean().optional(),
 });
 
-/* ---------- تسهيلات الإدخال ---------- */
-// تنظيف الاسم: مسافات زائدة وتطويل وحروف غير عربية/لاتينية
 export const cleanName = (v) => String(v || "").replace(/\u0640/g, "").replace(/\s+/g, " ").trim();
 
-// اسم ولي الأمر من اسم الطالب: يوسف محمد علي ← محمد علي
 export function guardianFromStudent(fullName) {
   const parts = cleanName(fullName).split(" ").filter(Boolean);
   if (parts.length < 2) return null;
@@ -46,13 +46,6 @@ export function guardianFromStudent(fullName) {
   return rest.length >= 2 ? rest.join(" ") : null;
 }
 
-/**
- * توحيد صيغة الجوال لأي دولة:
- *   +967 77 123 4567 / 00967771234567 → +967771234567
- *   0501234567 (محلي) → يبقى كما هو، ويُكمَّل برمز الدولة عند إرسال واتساب
- * تُحذف المسافات والرموز فقط، ولا يُفرض رمز دولة معيّن.
- */
-// صيغة واحدة للحفظ، والدولة من الرقم: يمني 9 أرقام، سعودي 05…، وغيرهما +المفتاح (نفس منطق الواجهة)
 export function normalizePhone(v) {
   const raw = asciiDigits(String(v || "")).trim();
   if (!raw) return null;
@@ -70,12 +63,10 @@ async function ensureCapacity(q, tenant, adding) {
   if (r.n + adding > tenant.max_students) throw badRequest(`تجاوزت حد الباقة (${tenant.max_students} طالب). تواصل مع إدارة المنصة للترقية.`);
 }
 
-// إنشاء طالب مع معرّف فريد (يُعاد التوليد تلقائيًا في حالة التصادم النادر)
 async function insertOne(q, s) {
   const classId = s.class_id ?? (s.grade_id ? await resolveClassForGrade(q, s.grade_id) : null);
   const name = cleanName(s.name);
   const phone = normalizePhone(s.guardian_phone);
-  // اسم ولي الأمر: المكتوب، أو من سجل أخ له بنفس الجوال، أو من اسم الطالب
   let guardian = cleanName(s.guardian_name) || null;
   if (!guardian && phone) {
     const [sibling] = await q(
@@ -99,7 +90,6 @@ async function insertOne(q, s) {
   throw conflict("تعذر إنشاء معرّف فريد، أعد المحاولة");
 }
 
-// بيانات ولي أمر مسجّل مسبقًا بنفس الجوال (لربط الإخوة)
 export async function guardianByPhone(q, phone) {
   const p = normalizePhone(phone);
   if (!p) return { phone: null, guardian_name: null, siblings: [] };
@@ -111,7 +101,6 @@ export async function guardianByPhone(q, phone) {
 }
 
 export async function create(q, tenant, list, onEach = null) {
-  // قفل صف المدرسة حتى لا تتجاوز عمليتان متزامنتان حد الباقة
   await q("SELECT id FROM tenants WHERE id = app_tenant() FOR UPDATE");
   await ensureCapacity(q, tenant, list.length);
   await ensureStudentNos(q, list.map((x) => x.student_no));
@@ -120,7 +109,6 @@ export async function create(q, tenant, list, onEach = null) {
   return out;
 }
 
-/** رقم الطالب لا يتكرر داخل المدرسة (وداخل الدفعة نفسها) */
 export async function ensureStudentNos(q, numbers, exceptId = null) {
   const list = numbers.filter(Boolean);
   if (new Set(list).size !== list.length) throw badRequest("رقم الطالب مكرر داخل البيانات المرسلة");
@@ -177,7 +165,6 @@ export const statusSchema = z.object({
   note: t.optText(300),
 });
 
-// تغيير حالة الطالب: الأرشفة تتبع الحالة تلقائيًا في قاعدة البيانات
 export async function setStatus(q, tenant, id, { status, note }) {
   const s = await get(q, id, { includeArchived: true });
   if (status === "active" && s.status !== "active") {
@@ -188,8 +175,6 @@ export async function setStatus(q, tenant, id, { status, note }) {
   return { status };
 }
 
-
-/* ---------- الصورة ---------- */
 const MAGIC = [
   ["image/jpeg", (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff],
   ["image/png", (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))],
@@ -197,7 +182,6 @@ const MAGIC = [
 ];
 export const photoSchema = z.object({ data_url: z.string().max(220_000, "الصورة كبيرة").regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "صيغة الصورة غير مدعومة") });
 
-/** تُحفظ الصورة المصغّرة فقط (تُصغَّر في المتصفح إلى ≈ 320px). التحقق من نوعها الحقيقي من محتواها لا من اسمها. */
 export async function setPhoto(q, id, dataUrl) {
   await get(q, id);
   const buf = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
@@ -216,7 +200,6 @@ export async function getPhoto(q, id) {
   return r;
 }
 
-/* ---------- إحصائيات الصفحة الرئيسية ---------- */
 export async function stats(q) {
   const [r] = await q(
     `SELECT count(*)::int AS total,

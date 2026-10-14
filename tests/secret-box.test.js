@@ -1,4 +1,8 @@
-// تشفير كلمات المرور المؤقتة: ذهابًا وإيابًا، الكشف عن العبث، ربط المدرسة، وغياب المفتاح. بلا قاعدة بيانات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -13,7 +17,7 @@ test("seal/open ذهابًا وإيابًا، والنص الصريح لا يظ�
   assert.match(blob, /^v1\./);
   assert.ok(!blob.includes("K7P2"));
   assert.equal(box.open(blob, "school1"), "K7P2-QX9M-42");
-  assert.notEqual(box.seal("K7P2-QX9M-42", "school1"), blob);   // iv عشوائي
+  assert.notEqual(box.seal("K7P2-QX9M-42", "school1"), blob);
 });
 test("مدرسة أخرى أو مفتاح آخر أو عبث بالبيانات: لا فك", () => {
   const blob = box.seal("secret-pass", "school1");
@@ -32,7 +36,6 @@ test("بلا مفتاح: الميزة معطلة ولا يُحفظ شيء", () =
   }
 });
 
-// reveal يعتمد على المفتاح الافتراضي للبيئة (غير مضبوط في الاختبار): نتحقق من مساراته دون مفتاح
 test("reveal: رفض عندما لا توجد نسخة محفوظة أو غيّر المعلم كلمته", async () => {
   const mk = (row) => async (sql) => (sql.includes("FROM users WHERE teacher_id") ? (row ? [row] : []) : []);
   await assert.rejects(revealInitialCredentials(mk(null), 1, "s"), /المعلم غير موجود/);

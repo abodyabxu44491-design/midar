@@ -1,4 +1,8 @@
-// الواجبات: المعلم ينشئها ويرصد التسليم، وولي الأمر يتابعها في ملف الطالب
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { notFound } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
@@ -68,7 +72,6 @@ export async function markSubmissions(q, assignment, entries, actor) {
        DO UPDATE SET submitted = EXCLUDED.submitted, note = EXCLUDED.note, marked_by = EXCLUDED.marked_by`,
       [assignment.id, e.student_id, e.submitted, e.note, actor]);
   }
-  // بعد موعد التسليم: ولي أمر من لم يسلّم يُبلَّغ مرة واحدة لكل واجب
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
   const missing = entries.filter((e) => !e.submitted).map((e) => e.student_id);
   if (missing.length && assignment.due_date && String(assignment.due_date) <= today) {

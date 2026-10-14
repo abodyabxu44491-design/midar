@@ -1,3 +1,8 @@
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { api } from "/shared/js/api.js";
 import { panel, field, input, select, btn, dialog, line, sub, keyText, notice, toast, brandLogo } from "/shared/js/ui.js";
 import { h } from "/shared/js/dom.js";
@@ -20,7 +25,6 @@ export default async function create({ refresh }) {
     })), showcasePanel(refresh)];
 }
 
-// مدرسة عرض جاهزة: مجمع بنين كامل (ابتدائي ومتوسط وثانوي) ببيانات فصل دراسي حتى اليوم
 function showcasePanel(refresh) {
   const f = { name: input({ value: "مدارس الرواد الأهلية للبنين" }), id: input({ class: "ltr", value: "alrowad-aden" }) };
   return panel("مدرسة عرض كاملة", null,
@@ -42,7 +46,6 @@ function showcasePanel(refresh) {
     }));
 }
 
-// بطاقة تسليم: كل ما تحتاجه المدرسة في صفحة واحدة قابلة للطباعة
 export function handoverCard(r, extra = []) {
   const site = location.origin;
   const publicLink = `${site}/${r.credentials.school}`;

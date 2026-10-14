@@ -1,4 +1,8 @@
-// استيراد الطلاب: مطابقة الصف الذكية، قواعد التحليل، القالب. بلا قاعدة بيانات (q مزيّف).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildIndex, matchGrade, pickSection, norm } from "../src/modules/shared/grade-match.js";
@@ -45,7 +49,6 @@ test("الشعبة من نص الصف أو من عمود مستقل", () => {
   assert.equal(pickSection(b.grade, "", true).status, "need_section");
 });
 
-/* ---------- التحليل بقاعدة مزيّفة ---------- */
 const existing = [{ id: 900, student_no: "1001", full_name: "سالم أحمد", class_id: 111, guardian_name: "أحمد", guardian_phone: "0500000001",
   birth_date: null, gender: null, student_phone: null, fees_enabled: false, status: "active", access_key: "ABCD-EFGH" }];
 function fakeDb() {
@@ -81,12 +84,12 @@ test("analyze: تصنيف الصحيح والمراجعة والخطأ بلا أ
   const { q, writes } = fakeDb();
   const a = await analyze(q, tenant, rows);
   assert.deepEqual([a.summary.total, a.summary.valid, a.summary.review, a.summary.errors], [7, 2, 2, 3]);
-  assert.equal(a.rows[0].action, "update");           // رقم الطالب 1001 موجود: تحديث لا تكرار
+  assert.equal(a.rows[0].action, "update");
   assert.equal(a.rows[1].action, "create");
-  assert.equal(a.rows[2].review, "grade");            // «الأول» ملتبس
+  assert.equal(a.rows[2].review, "grade");
   assert.equal(a.ambiguities.length, 1);
-  assert.equal(a.rows[3].review, "duplicate");        // نفس الاسم وجوال ولي الأمر بلا رقم طالب
-  assert.match(a.rows[5].errors[0], /مكرر/);          // رقم طالب مكرر داخل الملف
+  assert.equal(a.rows[3].review, "duplicate");
+  assert.match(a.rows[5].errors[0], /مكرر/);
   assert.match(a.rows[6].errors[0], /غير موجود في التقويم/);
   assert.equal(writes.length, 0);
 });
@@ -108,7 +111,6 @@ test("commit: يكتب الصحيح فقط ويتجاوز الباقي مع تق
   assert.equal(r.skipped, 5);
   assert.equal(r.problems.length, 5);
   assert.ok(writes.some((w) => w.sql.startsWith("UPDATE students SET") && w.p[0] === 900));
-  // لا يمسح ما لم يُرسَل: الاسم والصف غير مغيّرين فلا يظهران في التحديث
   const upd = writes.find((w) => w.sql.startsWith("UPDATE students SET"));
   assert.ok(!upd.sql.includes("full_name"));
 });

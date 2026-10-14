@@ -1,4 +1,8 @@
-// لوحة مالك المنصة — نقطة البداية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { topbar, footer, tabs, loginScreen, toast } from "/shared/js/ui.js";
@@ -11,6 +15,7 @@ import subscriptions from "./views/subscriptions.js";
 import requests from "./views/requests.js";
 import passwordRequests from "./views/password-requests.js";
 import settings from "./views/settings.js";
+import testimonials from "./views/testimonials.js";
 import billing from "./views/billing.js";
 import danger from "./views/danger.js";
 import sms from "./views/sms.js";
@@ -30,24 +35,23 @@ async function start() {
       points: ["إنشاء المدارس والاشتراكات", "إدارة الباقات والفوترة", "المؤشرات العامة وسجل العمليات"],
     }));
   }
-  const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"],
-    ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["billing", "الفواتير"], ["passwords", "طلبات كلمات المرور"],
-    ["sms", "الرسائل النصية"], ["settings", "إعدادات المنصة والتجربة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, audit, danger }, {});
-  // عدّاد «طلب جديد» على تبويب الطلبات، مع تنبيه عند وصول طلب جديد
+  const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
+    [null, "المدارس والاشتراكات"], ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
+    [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
+    [null, "المنصة"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "آراء العملاء"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
+    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, testimonials, audit, danger }, {},
+    { primary: ["overview", "requests", "schools", "subscriptions"] });
   let lastUnseen = null;
   const badgeTick = async () => {
     try {
       const b = await api(`${API}/requests/badge`);
-      // النص فقط: الأيقونة داخل الزر تبقى
-      const label = t.el.querySelector('[data-k="requests"] .tab-label');
-      if (label) label.textContent = b.unseen ? `الطلبات (${b.unseen} جديد)` : "الطلبات";
+      t.setBadge("requests", b.unseen);
       if (lastUnseen !== null && b.unseen > lastUnseen && b.latest) {
         const kinds = { trial: "طلبت تجربة مجانية", subscription: "طلبت اشتراكًا", feature: "طلبت ميزة", contact: "أرسلت رسالة تواصل", upgrade: "طلبت ترقية", renewal: "طلبت تجديدًا" };
         toast(`طلب جديد: ${b.latest.school} ${kinds[b.latest.kind] || ""}`);
       }
       lastUnseen = b.unseen;
-    } catch { /* خارج الجلسة */ }
+    } catch { /* ignore */ }
   };
   badgeTick();
   setInterval(badgeTick, 60000);

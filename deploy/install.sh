@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 # =====================================================================
-# مدار | MIDAR — تجهيز سيرفر جديد بأمر واحد (Ubuntu 24.04)
 #
 #   curl -fsSL https://raw.githubusercontent.com/abodyabxu44491-design/midar/main/deploy/install.sh -o install.sh
 #   sudo bash install.sh midar.example.com you@example.com
 #
-# يثبّت: Node 22 + PostgreSQL + nginx + شهادة HTTPS + جدار حماية + تحديثات أمنية تلقائية
-#        + نسخة احتياطية يومية مشفرة + خدمة دائمة تعود وحدها بعد أي إعادة تشغيل.
-# يُعاد تشغيله بأمان: ما جُهّز من قبل لا يُعاد (كلمات المرور وقاعدة البيانات تبقى كما هي).
-# متغيرات اختيارية: REPO (رابط المستودع)، BRANCH (main)، OWNER_USERNAME، OWNER_PASSWORD، SKIP_TLS=1
 # =====================================================================
 set -euo pipefail
 
@@ -56,7 +53,6 @@ cd "$APP"
 npm ci --omit=dev --no-audit --no-fund --loglevel=error
 
 say "5/9 قاعدة البيانات (على نفس السيرفر، لا تُفتح للإنترنت)"
-# ضبط مناسب لسيرفر 4 جيجابايت
 PGCONF=$(sudo -u postgres psql -Atc "SHOW config_file"); PGDIR=$(dirname "$PGCONF")/conf.d
 mkdir -p "$PGDIR"
 cat > "$PGDIR/midar.conf" <<'EOF'

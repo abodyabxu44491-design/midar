@@ -1,4 +1,5 @@
-# خدمة مدار الدائمة (يثبّتها deploy/install.sh): تبدأ مع السيرفر وتعود وحدها إن توقفت
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 [Unit]
 Description=MIDAR school platform
 After=network.target postgresql.service
@@ -12,7 +13,6 @@ ExecStart=/usr/bin/node src/server.js
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
-# المتغيرات تُقرأ من /opt/midar/.env
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full

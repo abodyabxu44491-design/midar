@@ -1,20 +1,22 @@
-// التنسيقات المشتركة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export const CURRENCIES = {
   SAR: { name: "ريال سعودي", symbol: "ر.س" },
   YER: { name: "ريال يمني", symbol: "ر.ي" },
   USD: { name: "دولار أمريكي", symbol: "$" },
 };
 
-// عملة المدرسة الحالية (تُضبط عند فتح اللوحة)
 let currentCurrency = "SAR";
 export const setCurrency = (code) => { if (CURRENCIES[code]) currentCurrency = code; };
 export const getCurrency = () => currentCurrency;
 
-/** تنسيق مبلغ. يمكن تمرير عملة مختلفة للحسابات ذات العملة الخاصة. */
 export const money = (n, code) => {
   const c = CURRENCIES[code || currentCurrency] || CURRENCIES.SAR;
   const value = Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  return `${value} ${c.symbol}`;
+  return `${value}\u00A0${c.symbol}`;
 };
 export const fmtDate = (d) => (d ? new Date(String(d).length === 10 ? `${d}T12:00:00` : d)
   .toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric" }) : "");
@@ -38,7 +40,6 @@ export function csv(filename, rows) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-/** قراءة ملف CSV بسيط (يدعم الاقتباس والفواصل داخل النص وسطور Windows) */
 export function parseCsv(text) {
   const clean = String(text || "").replace(/^\uFEFF/, "");
   const rows = [];
@@ -64,10 +65,6 @@ export function parseCsv(text) {
   };
 }
 
-/**
- * العدد مع المعدود بالعربية: arCount(1, STUDENTS) ← «طالب واحد»، 2 ← «طالبان»، 5 ← «5 طلاب»، 12 ← «12 طالبًا».
- * forms = [مفرد, مثنى, جمع (3–10), تمييز (11+)]
- */
 export function arCount(n, [one, two, few, many]) {
   const x = Number(n) || 0;
   const r = x % 100;

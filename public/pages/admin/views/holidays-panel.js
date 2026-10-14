@@ -1,4 +1,8 @@
-// لوحة الإجازات والعطل: نفس الجدول الذي يكتبه معالج الإعداد الأول
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, badge, line, empty, toast, confirmAction } from "../../shared/js/ui.js";

@@ -1,4 +1,8 @@
-// أدوات مشتركة للواجهة العامة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { transaction } from "../../core/db/pool.js";
 import { notFound, unauthorized } from "../../core/http/errors.js";
 import { safeEqual } from "../../core/auth/codes.js";
@@ -8,35 +12,24 @@ import { accessContext } from "../shared/subscription.service.js";
 import { sessionParent, linkedStudent } from "../shared/parents.service.js";
 
 const schoolParam = z.string().toLowerCase().regex(/^[a-z0-9-]{3,30}$/);
-// 10 محاولات خاطئة من العنوان الواحد لكل طالب خلال 30 دقيقة، وسقف 100 لكل طالب من كل العناوين.
-// (مساحة المعرّف 31^8 فالتخمين مستحيل عمليًا، والسقف العام لا يُستخدم لحرمان ولي الأمر من ملف ابنه)
 const MAX_KEY_FAILS_IP = 10, MAX_KEY_FAILS_ALL = 100;
 
-// تنفيذ داخل سياق المدرسة بعد التأكد أنها مفعّلة
 export async function inSchool(req, actor, fn) {
   const r = schoolParam.safeParse(req.params.school);
   if (!r.success) throw notFound("المدرسة غير موجودة");
   return transaction({ tenantId: r.data, actor, ip: req.ip }, async (q) => {
     const [tenant] = await q("SELECT id, name, status, currency, emergency_locked_at FROM tenants WHERE id = $1", [r.data]);
     if (!tenant || tenant.status !== "active" || tenant.emergency_locked_at) throw notFound("المدرسة غير متاحة");
-    // اشتراك متوقف: صفحات المدرسة العامة غير متاحة (والبيانات محفوظة)
     if ((await accessContext(q)).access.locked) throw notFound("المدرسة غير متاحة");
     return fn(q, tenant);
   });
 }
 
-// صفحة المدرسة مفتوحة للجميع بلا رمز. الحقل مقبول ومُتجاهل حتى لا تتعطل نسخة قديمة من الواجهة ما زالت ترسله
 export const accessSchema = z.object({ access: z.string().max(40).optional() });
 
 export const studentAuthSchema = z.object({ student_id: t.id, key: t.studentKey });
 
-/**
- * التحقق من معرّف الطالب. المحاولات الخاطئة تُسجل وتُحسب،
- * وبعد 10 محاولات يُقفل فتح ملف هذا الطالب 30 دقيقة.
- * ملاحظة: التسجيل يتم في معاملة مستقلة حتى لا يُلغى مع رسالة الخطأ.
- */
 export async function verifyStudent(req, tenant, q, body) {
-  // حساب ولي الأمر: بلا معرّف، والخادم يتحقق أن الطالب مرتبط فعلًا بولي الأمر المسجّل (وإلا 403 بلا بيانات)
   if (body && !body.key) {
     const { student_id } = parse(z.object({ student_id: t.id }), body);
     const parent = req.parent ?? await sessionParent(req, q, tenant.id);

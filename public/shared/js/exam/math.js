@@ -1,6 +1,8 @@
-// النص الغني في الأسئلة: المعادلات بين علامتي $…$ (أو $$…$$ لسطر مستقل)، والفراغات ____، وفواصل الأسطر.
-// محرك المعادلات (KaTeX) مستضاف داخل المنصة ويُحمّل فقط عند وجود معادلة.
-// لا يُستخدم innerHTML: KaTeX يبني العناصر بنفسه، والنص العادي يُضاف كنص.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "../dom.js";
 
 let katex = null;
@@ -19,7 +21,6 @@ export function loadMath() {
   return loading;
 }
 
-// هل في الاختبار أي معادلة؟ (لتحميل المحرك قبل العرض)
 export function paperNeedsMath(content) {
   for (const s of content?.sections || []) for (const q of s.questions || []) {
     const texts = [q.text, q.answer, q.solution, ...(q.options || []).map((o) => o.text), ...(q.pairs || []).flatMap((p) => [p.left, p.right]),
@@ -42,10 +43,6 @@ function mathEl(tex, display) {
 
 const BLANK = /_{3,}/g;
 
-/**
- * يحوّل نص السؤال إلى عناصر.
- * blanks: تحويل «____» إلى سطر فراغ مناسب للكتابة، مع إجابته إن طُلب عرض الإجابات.
- */
 export function rich(text, { blanks = false, answers = null } = {}) {
   const frag = document.createDocumentFragment();
   const src = String(text ?? "");
@@ -65,7 +62,6 @@ export function rich(text, { blanks = false, answers = null } = {}) {
       if (last < line.length) frag.append(line.slice(last));
     });
   };
-  // $$…$$ أولًا ثم $…$
   const re = /\$\$([^$]+)\$\$|\$([^$\n]+)\$/g;
   let last = 0;
   for (const m of src.matchAll(re)) {
@@ -79,7 +75,6 @@ export function rich(text, { blanks = false, answers = null } = {}) {
 
 export const countBlanks = (text) => (String(text || "").match(BLANK) || []).length;
 
-// أزرار المعادلات: كل زر يُدرج قالب LaTeX داخل علامتي $ إن لم يكن المؤشر داخل معادلة
 export const MATH_SNIPPETS = [
   ["كسر", "\\frac{a}{b}"], ["أس", "x^{2}"], ["جذر", "\\sqrt{x}"], ["جذر نوني", "\\sqrt[3]{x}"], ["دليل سفلي", "x_{1}"],
   ["×", "\\times"], ["÷", "\\div"], ["±", "\\pm"], ["≤", "\\le"], ["≥", "\\ge"], ["≠", "\\ne"], ["≈", "\\approx"],

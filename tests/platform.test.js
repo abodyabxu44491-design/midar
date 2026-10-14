@@ -1,5 +1,8 @@
-// اختبارات الأساس: الفصل بين الأدوار، عزل المدارس، الحماية المالية، سلامة البيانات
-// التشغيل: npm test  (يحتاج قاعدة بيانات اختبار و TEST_OWNER_PASSWORD في .env)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, ownerPath, endPool } from "./helpers.js";
@@ -7,8 +10,8 @@ import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { PgStore } from "../src/core/rate-limit.js";
 
-let srv, owner, A, B;           // A و B مدرستان منفصلتان
-const s = {};                   // بيانات مشتركة بين الاختبارات
+let srv, owner, A, B;
+const s = {};
 
 async function makeSchool(name) {
   const id = `t-${uid()}`;
@@ -32,7 +35,6 @@ before(async () => {
   B = await makeSchool("مدرسة اختبار ب");
   s.adminPw = A.password;
 
-  // تجهيز مدرسة أ
   const c = await A.admin.post("/api/admin/structure/classes", { name: "الأول" });
   const sb = await A.admin.post("/api/admin/structure/subjects", { name: "الرياضيات" });
   s.classId = c.data.id; s.subjectId = sb.data.id;
@@ -75,7 +77,6 @@ test("باب المدرسة الموحّد يوجّه كل حساب للوحته
   assert.equal((await teacherIn.get("/api/admin/me")).status, 401, "حساب المعلم لا يفتح لوحة الإدارة");
   assert.equal((await teacherIn.get("/api/teacher/me")).status, 200);
 
-  // حساب مدرسة أ لا يدخل من باب مدرسة ب
   const cross = client(srv.base);
   assert.equal((await cross.post("/api/staff/login", { school: B.id, username: "tester", password: s.teacherPw })).status, 401);
 });
@@ -108,20 +109,17 @@ test("عزل المدارس: مدير مدرسة ب لا يصل لطالب مد�
   assert.equal((await B.admin.post(`/api/admin/students/${id}/regenerate-key`)).status, 404);
   const list = await B.admin.get("/api/admin/students");
   assert.equal(list.data.length, 0);
-  // محاولة ربط طالب بفصل مدرسة أخرى
   const bad = await B.admin.post("/api/admin/students", { name: "طالب ب", class_id: s.classId });
   assert.equal(bad.status, 409);
 });
 
 test("تسهيلات الإدخال: اسم ولي الأمر وتوحيد الجوال وربط الإخوة", async () => {
-  // اسم ولي الأمر يُشتق من اسم الطالب، والجوال يُوحَّد إلى صيغة 05
   const a = await A.admin.post("/api/admin/students", { name: "  سالم   عبدالله ناصر ", guardian_phone: "+966 55 123 4567" });
   assert.equal(a.status, 201, JSON.stringify(a.data));
   assert.equal(a.data.name, "سالم عبدالله ناصر", "تنظيف المسافات");
   assert.equal(a.data.guardian_name, "عبدالله ناصر", "اسم ولي الأمر من اسم الطالب");
   assert.equal(a.data.guardian_phone, "0551234567", "الرقم السعودي بمفتاحه يُحفظ بصيغة موحدة (05…)");
 
-  // أخ بنفس الجوال يأخذ اسم ولي الأمر نفسه
   const b = await A.admin.post("/api/admin/students", { name: "ريم", guardian_phone: "+966 55 123 4567" });
   assert.equal(b.data.guardian_name, "عبدالله ناصر", "الأخ يرث اسم ولي الأمر");
 
@@ -130,10 +128,8 @@ test("تسهيلات الإدخال: اسم ولي الأمر وتوحيد ال�
   assert.equal(g.data.guardian_name, "عبدالله ناصر");
   assert.equal(g.data.siblings.length, 2, "يظهر الإخوة المسجلون");
 
-  // مدرسة أخرى لا ترى أولياء أمور مدرستنا
   assert.equal((await B.admin.get("/api/admin/students/guardian?phone=%2B966551234567")).data.siblings.length, 0);
 
-  // تنظيف بعد الاختبار حتى لا يتأثر حد الباقة
   for (const id of [a.data.id, b.data.id]) await A.admin.post(`/api/admin/students/${id}/status`, { status: "withdrawn" });
 });
 
@@ -185,7 +181,6 @@ test("صفحة الطلاب: الأسماء فقط، والملف بالمعرّ
   const after = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
   assert.equal(after.data.grades[0].score, 17.5);
 
-  // معرّف مدرسة أ لا يعمل على مدرسة ب
   assert.equal((await anon.post(`/api/public/${B.id}/student`, { student_id: s.student.id, key: s.student.access_key })).status, 401);
 });
 
@@ -194,13 +189,11 @@ test("إعدادات الصفحة العامة: كل عنصر اختياري", a
   const page = () => anon.post(`/api/public/${A.id}/page`, { access: A.directory });
   const set = (patch) => A.admin.put("/api/admin/settings/public-page", patch);
 
-  // الصفحة مفتوحة للجميع بلا رمز، ورمز قديم ترسله نسخة سابقة من الواجهة لا يعطلها
   const open = await anon.post(`/api/public/${A.id}/page`, {});
   assert.equal(open.status, 200);
   assert.ok(open.data.classes.length);
   assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: "WRONG123" })).status, 200);
 
-  // إخفاء الصفوف والأسماء يبقي البحث فقط
   assert.equal((await set({ show_classes: false, show_student_names: false })).status, 200);
   const hidden = await page();
   assert.equal(hidden.data.classes.length, 0);
@@ -208,30 +201,25 @@ test("إعدادات الصفحة العامة: كل عنصر اختياري", a
   assert.ok(found.data.results.length, "البحث يعمل رغم إخفاء القوائم");
   assert.equal(found.data.results[0].fees, undefined, "لا تظهر حالة السداد افتراضيًا");
 
-  // لا يمكن إيقاف كل شيء معًا
   assert.equal((await set({ show_search: false })).status, 400);
   await set({ show_classes: true, show_student_names: true });
 
-  // معلمو الصف
   const withTeachers = await page();
   assert.ok(Array.isArray(withTeachers.data.classes[0].teachers));
   await set({ show_teachers: false });
   assert.equal((await page()).data.classes[0].teachers, null);
   await set({ show_teachers: true });
 
-  // شارات السداد عند تفعيلها فقط
   await set({ public_fee_badges: true });
   const badged = await anon.post(`/api/public/${A.id}/search`, { access: A.directory, q: "الاختبار" });
   assert.ok("fees" in badged.data.results[0]);
   await set({ public_fee_badges: false });
 
-  // إخفاء الدرجات من ملف الطالب
   await set({ profile_show_grades: false });
   const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
   assert.equal(prof.data.grades.length, 0);
   await set({ profile_show_grades: true });
 
-  // مدرسة ب لا تتأثر بإعدادات مدرسة أ
   await set({ profile_show_homework: false });
   const bSettings = await B.admin.get("/api/admin/settings/public-page");
   assert.equal(bSettings.data.profile_show_homework, true);
@@ -242,13 +230,11 @@ test("الجدول الدراسي: يُحفظ ويمنع تعارض المعلم
   const [cls2] = (await A.admin.get("/api/admin/structure/classes")).data.filter((c) => c.id !== s.classId);
   const put = (body) => A.admin.put("/api/admin/timetable/slot", body);
 
-  // مادة غير مسندة للمعلم تُرفض
   assert.equal((await put({ class_id: s.classId, day: 0, period: 1, subject_id: s.subjectId, teacher_id: 999999 })).status, 400);
 
   const teacherId = (await A.admin.get("/api/admin/teachers")).data[0].id;
   assert.equal((await put({ class_id: s.classId, day: 0, period: 1, subject_id: s.subjectId, teacher_id: teacherId })).status, 200);
 
-  // نفس المعلم في صف آخر بنفس الوقت = تعارض
   await A.admin.post("/api/admin/teachers/" + teacherId + "/load", {});
   const clash = await put({ class_id: cls2.id, day: 0, period: 1, subject_id: s.subjectId, teacher_id: teacherId });
   assert.equal(clash.status, 409, JSON.stringify(clash.data));
@@ -257,14 +243,12 @@ test("الجدول الدراسي: يُحفظ ويمنع تعارض المعلم
   assert.equal(slots.length, 1);
   assert.equal(slots[0].period, 1);
 
-  // يظهر في بوابة المعلم وفي ملف الطالب
   const mine = await s.teacher.get("/api/teacher/timetable");
   assert.equal(mine.data.week.length, 1);
   const anon = client(srv.base);
   const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
   assert.equal(prof.data.timetable.length, 1);
 
-  // إخفاء الجدول من الإعدادات
   await A.admin.put("/api/admin/settings/public-page", { profile_show_timetable: false });
   const hidden = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
   assert.equal(hidden.data.timetable.length, 0);
@@ -278,7 +262,6 @@ test("كشف الدرجات يُبنى من الاختبارات المنشور�
   assert.equal(card.data.subjects[0].score, 17.5);
   assert.equal(card.data.summary.percent, 87.5);
   assert.ok(card.data.summary.grade);
-  // كشف مدرسة أخرى غير متاح
   assert.equal((await B.admin.get(`/api/admin/reports/report-card/${s.student.id}`)).status, 404);
 });
 
@@ -295,7 +278,6 @@ test("قوالب واتساب تُحفظ لكل مدرسة على حدة", async
 
 test("طلبات التجربة: تصل للمالك فقط", async () => {
   const anon = client(srv.base);
-  // تنظيف طلبات تشغيل سابق (حد 5 طلبات لكل جهاز يوميًا)
   for (const old of (await owner.get("/api/owner/leads")).data) await owner.del(`/api/owner/leads/${old.id}`);
   const bad = await anon.post("/api/public/leads", { school_name: "م", contact_name: "ا", phone: "x" });
   assert.equal(bad.status, 400);
@@ -334,7 +316,6 @@ test("المالية: لا دفع زائد، لا تكرار، لا إلغاء �
   assert.equal((await A.admin.post(`/api/admin/finance/invoices/${id}/refunds`, { amount: 500, note: "اختبار", idempotency_key: `k-${uid()}-r` })).status, 400);
   assert.equal((await A.admin.post(`/api/admin/finance/invoices/${id}/refunds`, { amount: 400, note: "اختبار", idempotency_key: `k-${uid()}-r` })).status, 201);
 
-  // ولي الأمر: يرى الحساب البنكي ثم يرسل إشعار تحويل، والإدارة تؤكده
   const acc = await A.admin.post("/api/admin/settings/payment/accounts", { bank_name: "مصرف الاختبار", account_holder: "مدرسة الاختبار", iban: "sa03 8000 0000 6080 1016 7519" });
   assert.equal(acc.status, 201, JSON.stringify(acc.data));
   assert.equal((await A.admin.post("/api/admin/settings/payment/accounts", { bank_name: "خطأ", account_holder: "خطأ", iban: "123" })).status, 400);
@@ -355,11 +336,9 @@ test("المالية: لا دفع زائد، لا تكرار، لا إلغاء �
   assert.equal(again.data.id, c1.data.id, "الإشعار لا يتكرر");
   assert.equal((await anon.post(`/api/public/${A.id}/transfer-claims`, { ...base, amount: 1, idempotency_key: `k-${uid()}-c2` })).status, 400, "الإشعار المعلق يغطي المتبقي");
 
-  // الإشعار وحده لا يغيّر حالة السداد
   const mid = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
   assert.equal(mid.data.fees.status, "unpaid");
 
-  // مدرسة ب لا تستطيع مراجعة إشعار مدرسة أ
   assert.equal((await B.admin.post(`/api/admin/finance/claims/${c1.data.id}/review`, { decision: "confirm" })).status, 404);
   assert.equal((await A.admin.post(`/api/admin/finance/claims/${c1.data.id}/review`, { decision: "reject" })).status, 400, "الرفض يحتاج سببًا");
   const ok = await A.admin.post(`/api/admin/finance/claims/${c1.data.id}/review`, { decision: "confirm" });
@@ -419,7 +398,6 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   const past = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   const nextYear = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
 
-  // اشتراك منتهٍ منذ 60 يومًا ومدة سماح 14 يومًا
   assert.equal((await owner.patch(`/api/owner/tenants/${A.id}`, { subscription_end: past, subscription_price: 4000, grace_days: 14 })).status, 200);
 
   const inv = await owner.post("/api/owner/billing/invoices", {
@@ -430,7 +408,6 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   assert.ok(before.data.summary.due >= 4000);
   assert.ok(before.data.renewals.some((t) => t.id === A.id));
 
-  // بعد مدة السماح: الاشتراك ينتهي (تغيير حالة فقط، بلا حذف ولا إيقاف للمدرسة)
   const suspended = await owner.post("/api/owner/billing/suspend-expired", {});
   assert.ok(suspended.data.suspended.some((t) => t.tenant_id === A.id), "الاشتراك المنتهي يُنهى");
   const me = await A.admin.get("/api/admin/me");
@@ -443,7 +420,6 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   assert.equal((await A.admin.get("/api/admin/subscription")).status, 200, "صفحة الاشتراك متاحة للتجديد");
   assert.equal((await client(srv.base).post(`/api/public/${A.id}/directory`, { access: "X" })).status, 404, "صفحات المدرسة العامة متوقفة");
 
-  // السداد يعيد التفعيل ويمدد الاشتراك، والبيانات كما هي
   assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "transfer" })).status, 200);
   const tenants = await owner.get("/api/owner/tenants");
   const A2 = tenants.data.find((t) => t.id === A.id);
@@ -452,7 +428,6 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   assert.equal((await A.admin.get("/api/admin/students")).status, 200, "عادت المدرسة للعمل ببياناتها");
   assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "cash" })).status, 400, "لا تُسدد مرتين");
 
-  // المدرسة لا ترى فواتير الاشتراك
   const admin2 = client(srv.base);
   await admin2.post("/api/staff/login", { school: A.id, username: "admin", password: s.adminPw });
   assert.equal((await admin2.get("/api/owner/billing")).status, 401);
@@ -460,7 +435,6 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
 });
 
 test("الواجبات: المعلم ينشئ ويرصد، وولي الأمر يتابع", async () => {
-  // جلسة المعلم انتهت في الاختبارات السابقة (إيقاف المدرسة وقفل الحساب)، فنعيد تفعيلها من الإدارة
   const teacherId = (await A.admin.get("/api/admin/teachers")).data[0].id;
   const fresh = await A.admin.post(`/api/admin/teachers/${teacherId}/reset-password`, {});
   s.teacherPw = fresh.data.credentials.password;
@@ -470,7 +444,6 @@ test("الواجبات: المعلم ينشئ ويرصد، وولي الأمر �
     class_id: s.classId, subject_id: s.subjectId, title: "حل تمارين الوحدة", due_date: new Date().toISOString().slice(0, 10) });
   assert.equal(hw.status, 201, JSON.stringify(hw.data));
 
-  // مادة غير مسندة تُرفض
   const other = (await A.admin.get("/api/admin/structure/classes")).data.find((c) => c.id !== s.classId);
   assert.equal((await s.teacher.post("/api/teacher/homework", { class_id: other.id, subject_id: s.subjectId, title: "ممنوع" })).status, 403);
 
@@ -486,7 +459,6 @@ test("الواجبات: المعلم ينشئ ويرصد، وولي الأمر �
   assert.equal(prof.data.homework[0].title, "حل تمارين الوحدة");
   assert.equal(prof.data.homework[0].submitted, true);
 
-  // مدرسة ب لا ترى واجبات مدرسة أ
   assert.equal((await B.admin.get("/api/admin/homework")).data.length, 0);
 });
 
@@ -494,7 +466,6 @@ test("طلبات التسجيل: تُرسل من صفحة المدرسة وتُ�
   const anon = client(srv.base);
   const body = { access: A.directory, student_name: "طالب جديد", guardian_name: "ولي أمر جديد", guardian_phone: "0500000077", grade_wanted: "الأول" };
 
-  // موقوف افتراضيًا
   assert.equal((await anon.post(`/api/public/${A.id}/admissions`, body)).status, 403);
   assert.equal((await A.admin.put("/api/admin/settings/public-page", { show_admissions: true })).status, 200);
   assert.equal((await anon.post(`/api/public/${A.id}/admissions`, body)).status, 201);
@@ -509,17 +480,14 @@ test("طلبات التسجيل: تُرسل من صفحة المدرسة وتُ�
   assert.match(accepted.data.student.access_key, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
   assert.equal((await A.admin.post(`/api/admin/admissions/${req.id}/review`, { decision: "accepted" })).status, 400, "لا يُقبل مرتين");
 
-  // الطالب الجديد يفتح ملفه بمعرّفه
   const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: accepted.data.student.id, key: accepted.data.student.access_key });
   assert.equal(prof.status, 200);
   assert.equal(prof.data.student.name, "طالب جديد");
 });
 
 test("النظام المالي: حسابات وحركات واعتماد وتبرعات ورواتب", async () => {
-  // التبرعات والرواتب أقسام اختيارية موقوفة افتراضيًا
   assert.equal((await A.admin.get("/api/admin/ledger/donations")).status, 404, "القسم الموقوف غير موجود");
   assert.equal((await A.admin.put("/api/admin/settings/modules", { donations: true, payroll: true })).status, 200);
-  // الحسابات والتصنيفات تُجهَّز تلقائيًا لكل مدرسة
   const accounts = await A.admin.get("/api/admin/ledger/accounts");
   assert.equal(accounts.status, 200, JSON.stringify(accounts.data));
   assert.ok(accounts.data.length >= 2, "صندوق نقدي وحساب بنكي افتراضيان");
@@ -528,7 +496,6 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   const expenseCat = categories.find((c) => c.direction === "expense");
   const incomeCat = categories.find((c) => c.direction === "income");
 
-  // دفعة رسوم جديدة تدخل سجل الحركات تلقائيًا
   await A.admin.post("/api/admin/finance/invoices", { target: "student", target_id: s.student.id, title: "رسوم نشاط", amount: 200 });
   const inv = (await A.admin.get("/api/admin/finance/invoices")).data.invoices.find((i) => i.title === "رسوم نشاط");
   assert.equal((await A.admin.post(`/api/admin/finance/invoices/${inv.id}/payments`,
@@ -538,7 +505,6 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   assert.ok(entriesAfterFees.data.some((e) => e.source_type === "fee"), "دفعة الرسوم أنشأت حركة");
   assert.ok(entriesAfterFees.data.every((e) => e.reason && e.account_name && e.category_name), "لا حركة مجهولة السبب");
 
-  // مصروف يحتاج اعتمادًا: لا يُحتسب قبل الاعتماد
   const before = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
   const pending = await A.admin.post("/api/admin/ledger/entries", {
     direction: "expense", amount: 500, account_id: cash.id, category_id: expenseCat.id,
@@ -557,7 +523,6 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   assert.equal(after.data.balance, before.data.balance - 500, "الرصيد ينقص");
   assert.equal((await A.admin.post(`/api/admin/ledger/entries/${pending.data.id}/review`, { decision: "approve" })).status, 400, "لا يُعتمد مرتين");
 
-  // الإلغاء يحتاج سببًا ولا يُحذف
   assert.equal((await A.admin.post(`/api/admin/ledger/entries/${pending.data.id}/void`, { reason: "خط" })).status, 400);
   assert.equal((await A.admin.post(`/api/admin/ledger/entries/${pending.data.id}/void`, { reason: "خطأ في الإدخال" })).status, 200);
   const voided = (await A.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01")).data
@@ -566,11 +531,9 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   const afterVoid = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
   assert.equal(afterVoid.data.expense, before.data.expense, "الملغاة لا تُحتسب");
 
-  // حركة الرسوم لا تُلغى من السجل المالي
   const feeEntry = entriesAfterFees.data.find((e) => e.source_type === "fee");
   assert.equal((await A.admin.post(`/api/admin/ledger/entries/${feeEntry.id}/void`, { reason: "محاولة" })).status, 400);
 
-  // تبرع: يُسجَّل كإيراد مستقل
   const donation = await A.admin.post("/api/admin/ledger/donations", {
     anonymous: true, amount: 1000, method: "transfer", received_on: "2026-09-02", purpose: "دعم الأنشطة" });
   assert.equal(donation.status, 201, JSON.stringify(donation.data));
@@ -579,8 +542,6 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   assert.equal(withDonation.data.donations, 1000);
   assert.equal((await A.admin.post("/api/admin/ledger/donations", { anonymous: false, amount: 50, method: "cash", received_on: "2026-09-02" })).status, 400, "اسم المتبرع مطلوب");
 
-  // الرواتب: مسير ← اعتماد ← صرف ينشئ حركات
-  // المعلمون موظفون تلقائيًا (بلا استيراد يدوي)، ويظهرون في المالية
   const staffList = (await A.admin.get("/api/admin/ledger/staff")).data;
   assert.ok(staffList.staff.some((x) => x.teacher_id && x.category === "teacher"), "المعلم يظهر في الموظفين تلقائيًا");
   assert.equal((await A.admin.post("/api/admin/ledger/staff/import-teachers", {})).data.added, 0, "لا تكرار");
@@ -609,7 +570,6 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   assert.equal(salaryVoid.status, 400, "قيد الراتب لا يُلغى منفردًا");
   assert.match(salaryVoid.data.error, /عكسية/);
 
-  // عزل المدارس
   assert.equal((await B.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01")).data.length, 0);
   await B.admin.put("/api/admin/settings/modules", { donations: true });
   assert.equal((await B.admin.get("/api/admin/ledger/donations")).data.length, 0);
@@ -617,7 +577,6 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
 
 test("دور المحاسب: يرى المالية فقط، والصلاحيات تُطبَّق", async () => {
   await A.admin.put("/api/admin/settings/modules", { donations: true, payroll: true });
-  // إنشاء حساب محاسب بلا صلاحية اعتماد
   const created = await A.admin.post("/api/admin/users", {
     name: "محاسب المدرسة", username: "acc1", can_approve_finance: false, can_manage_payroll: false, can_manage_accounts: false });
   assert.equal(created.status, 201, JSON.stringify(created.data));
@@ -626,15 +585,12 @@ test("دور المحاسب: يرى المالية فقط، والصلاحيات
   const login = await acc.post("/api/staff/login", { school: A.id, username: "acc1", password: created.data.credentials.password });
   assert.equal(login.data.role, "accountant");
 
-  // يرى المالية
   assert.equal((await acc.get("/api/accountant/ledger/accounts")).status, 200);
   assert.equal((await acc.get("/api/accountant/finance/invoices")).status, 200);
-  // لا يرى بقية أقسام المدرسة
   assert.equal((await acc.get("/api/admin/students")).status, 401, "لا يفتح لوحة الإدارة");
   assert.equal((await acc.get("/api/admin/exams")).status, 401);
   assert.equal((await acc.get("/api/teacher/me")).status, 401);
 
-  // يسجل حركة، لكن لا يعتمدها بلا صلاحية
   const cash = (await acc.get("/api/accountant/ledger/accounts")).data.find((a) => a.kind === "cash");
   const cat = (await acc.get("/api/accountant/ledger/categories")).data.find((c) => c.direction === "expense");
   const entry = await acc.post("/api/accountant/ledger/entries", {
@@ -644,10 +600,8 @@ test("دور المحاسب: يرى المالية فقط، والصلاحيات
   assert.equal((await acc.post(`/api/accountant/ledger/entries/${entry.data.id}/review`, { decision: "approve" })).status, 403);
   assert.equal((await acc.post("/api/accountant/ledger/payroll", { period: "2026-10-01" })).status, 403, "الرواتب تحتاج صلاحية");
 
-  // المدير يعتمدها
   assert.equal((await A.admin.post(`/api/admin/ledger/entries/${entry.data.id}/review`, { decision: "approve" })).status, 200);
 
-  // منح الصلاحيات ثم إعادة المحاولة
   const listed = (await A.admin.get("/api/admin/users")).data.find((u) => u.username === "acc1");
   assert.equal((await A.admin.patch(`/api/admin/users/${listed.id}/permissions`,
     { can_approve_finance: true, can_manage_payroll: true, can_manage_accounts: true })).status, 200);
@@ -656,7 +610,6 @@ test("دور المحاسب: يرى المالية فقط، والصلاحيات
     occurred_on: "2026-09-04", reason: "مستلزمات", method: "cash", needs_approval: true });
   assert.equal((await acc.post(`/api/accountant/ledger/entries/${entry2.data.id}/review`, { decision: "approve" })).status, 200);
 
-  // المرفقات: صورة فاتورة مع الحركة
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
   const up = await acc.post(`/api/accountant/ledger/entries/${entry2.data.id}/attachments`,
     { filename: "فاتورة.png", mime: "image/png", data: png });
@@ -669,19 +622,15 @@ test("دور المحاسب: يرى المالية فقط، والصلاحيات
     .find((e) => e.id === entry2.data.id);
   assert.equal(withFiles.attachments.length, 1, "المرفق يظهر مع الحركة");
 
-  // مدرسة أخرى لا تفتح مرفقاتنا
   assert.equal((await B.admin.get(`/api/admin/ledger/attachments/${up.data.id}`)).status, 404);
 
-  // إيقاف الحساب يُخرجه فورًا
   assert.equal((await A.admin.patch(`/api/admin/users/${listed.id}/active`, { active: false })).status, 200);
   assert.equal((await acc.get("/api/accountant/me")).status, 401);
 
-  // مدرسة أخرى لا ترى حسابات محاسبينا
   assert.equal((await B.admin.get("/api/admin/users")).data.length, 0);
 });
 
 test("العملات: عملة المدرسة وحساب بعملة أخرى وسعر التحويل", async () => {
-  // مدرسة عملتها الريال اليمني
   const tenantC = client(srv.base);
   const created = await owner.post("/api/owner/tenants", { id: `t-${uid()}`, name: "مدرسة بالريال اليمني", currency: "YER", max_students: 10 });
   assert.equal(created.status, 201, JSON.stringify(created.data));
@@ -692,20 +641,17 @@ test("العملات: عملة المدرسة وحساب بعملة أخرى و�
   assert.ok(accs.data.length >= 2);
   assert.ok(accs.data.every((a) => a.currency === "YER"), "الحسابات الافتراضية بعملة المدرسة");
 
-  // حساب بالدولار داخل نفس المدرسة
   const usd = await tenantC.post("/api/admin/ledger/accounts", {
     name: "صندوق الدولار", kind: "cash", currency: "USD", opening_balance: 0, methods: [] });
   assert.equal(usd.status, 201, JSON.stringify(usd.data));
   const incomeCat = (await tenantC.get("/api/admin/ledger/categories")).data.find((c) => c.direction === "income");
 
-  // بدون سعر تحويل تُرفض الحركة
   const noRate = await tenantC.post("/api/admin/ledger/entries", {
     direction: "income", amount: 100, account_id: usd.data.id, category_id: incomeCat.id,
     occurred_on: "2026-09-05", reason: "تبرع بالدولار", method: "cash" });
   assert.equal(noRate.status, 400);
   assert.match(noRate.data.error, /سعر تحويل/);
 
-  // مع سعر التحويل: الرصيد بعملة الحساب والتقارير بالعملة الأساسية
   const ok = await tenantC.post("/api/admin/ledger/entries", {
     direction: "income", amount: 100, account_id: usd.data.id, category_id: incomeCat.id,
     occurred_on: "2026-09-05", reason: "تبرع بالدولار", method: "cash", rate: 530 });
@@ -722,7 +668,6 @@ test("العملات: عملة المدرسة وحساب بعملة أخرى و�
   assert.equal(entry.currency, "USD");
   assert.equal(Number(entry.amount_base), 53000);
 
-  // تغيير عملة المدرسة ممنوع بعد وجود حركات
   assert.equal((await tenantC.put("/api/admin/settings/currency", { currency: "USD" })).status, 400);
 });
 
@@ -730,7 +675,6 @@ test("التحويل بين الحسابات: حركتان مرتبطتان ول
   const accounts = (await A.admin.get("/api/admin/ledger/accounts")).data.filter((a) => a.is_active);
   const cash = accounts.find((a) => a.kind === "cash");
   const bank = accounts.find((a) => a.kind === "bank");
-  // إيداع مبلغ في الصندوق أولًا حتى يكون فيه رصيد
   const incomeCat = (await A.admin.get("/api/admin/ledger/categories")).data.find((c) => c.direction === "income");
   await A.admin.post("/api/admin/ledger/entries", {
     direction: "income", amount: 2000, account_id: cash.id, category_id: incomeCat.id,
@@ -741,7 +685,6 @@ test("التحويل بين الحسابات: حركتان مرتبطتان ول
   const bankBalance = Number(fresh.find((a) => a.id === bank.id).balance);
   const before = await A.admin.get("/api/admin/ledger/summary?from=2000-01-01&to=2100-01-01");
 
-  // لا تحويل بأكثر من الرصيد
   const tooMuch = await A.admin.post("/api/admin/ledger/transfers", {
     from_account_id: bank.id, to_account_id: cash.id, amount: 999999,
     occurred_on: "2026-09-06", reason: "تجربة" });
@@ -778,20 +721,16 @@ test("أقسام المنصة: الإيقاف يخفي القسم ويرفضه �
   assert.equal(mods.data.attendance, true);
   assert.equal(mods.data.donations, false, "التبرعات والرواتب اختيارية موقوفة افتراضيًا");
 
-  // القسم يعمل قبل الإيقاف
   assert.equal((await S.admin.get("/api/admin/analytics/alerts")).status, 200);
 
-  // الإيقاف: الخادم يرفض بـ 404 (كأن القسم غير موجود)
   assert.equal((await S.admin.put("/api/admin/settings/modules", { attendance: false, analytics: false })).status, 200);
   assert.equal((await S.admin.get("/api/admin/analytics/alerts")).status, 404);
   assert.equal((await S.admin.post("/api/admin/attendance", { date: "2026-09-10", entries: [] })).status, 404);
 
-  // الأقسام تظهر في /me فتُخفى التبويبات في الواجهة
   const me = await S.admin.get("/api/admin/me");
   assert.equal(me.data.modules.attendance, false);
   assert.equal(me.data.modules.exams, true);
 
-  // المعلم أيضًا يُمنع من القسم الموقوف
   const created = await S.admin.post("/api/admin/teachers", { name: "معلم الأقسام", username: "mod-teacher" });
   assert.equal(created.status, 201, JSON.stringify(created.data));
   const tc = client(srv.base);
@@ -800,8 +739,6 @@ test("أقسام المنصة: الإيقاف يخفي القسم ويرفضه �
   assert.equal((await tc.get("/api/teacher/me")).data.modules.attendance, false);
   assert.equal((await tc.get("/api/teacher/attendance/class/1?date=2026-09-10")).status, 404);
 
-  // قيود منطقية: كشوف الدرجات لا تعمل بدون الاختبارات، والتبرعات بدون المالية
-  // إيقاف الاختبارات يوقف ما يعتمد عليها (كشوف الدرجات والاختبارات الإلكترونية)، وتشغيلها وحدها يحتاجها
   const off = await S.admin.put("/api/admin/settings/modules", { exams: false });
   assert.equal(off.status, 200);
   assert.equal(off.data.reports, false, "كشوف الدرجات أُوقفت معها");
@@ -809,7 +746,6 @@ test("أقسام المنصة: الإيقاف يخفي القسم ويرفضه �
   assert.equal((await S.admin.put("/api/admin/settings/modules", { exams: true, reports: true })).status, 200);
   assert.equal((await S.admin.put("/api/admin/settings/modules", { finance: false, donations: true })).status, 400);
 
-  // التشغيل من جديد يعيد القسم كما كان
   assert.equal((await S.admin.put("/api/admin/settings/modules", { attendance: true, analytics: true })).status, 200);
   assert.equal((await S.admin.get("/api/admin/analytics/alerts")).status, 200);
 });
@@ -822,22 +758,18 @@ test("الاستيراد من ملف: قالب جاهز، تحقق كامل، و
   assert.equal(kinds.status, 200);
   assert.ok(kinds.data.some((k) => k.key === "students" && k.columns.some((c) => c.required)));
 
-  // القالب يُنزَّل بصيغة CSV وفيه العناوين العربية
   const cookie = [...S.admin.jar].map(([k, v]) => `${k}=${v}`).join("; ");
   const tpl = await fetch(`${srv.base}/api/admin/import/template/students`, { headers: { cookie } });
   assert.equal(tpl.status, 200);
   const body = await tpl.text();
   assert.ok(body.includes("اسم الطالب"), "القالب يحوي عناوين الأعمدة");
 
-  // الفصول أولًا
   const classes = await S.admin.post("/api/admin/import/classes", {
     rows: [{ "اسم الفصل": "الأول - أ" }, { "اسم الفصل": "الأول - ب" }] });
   assert.equal(classes.status, 200, JSON.stringify(classes.data));
   assert.equal(classes.data.created, 2);
-  // التكرار يُرفض
   assert.equal((await S.admin.post("/api/admin/import/classes", { rows: [{ "اسم الفصل": "الأول - أ" }] })).status, 400);
 
-  // الطلاب: سطر بفصل غير موجود يُبطل الملف كله
   const bad = await S.admin.post("/api/admin/import/students", { rows: [
     { "اسم الطالب": "طالب أول", "الفصل": "الأول - أ" },
     { "اسم الطالب": "طالب ثانٍ", "الفصل": "فصل غير موجود" }] });
@@ -845,12 +777,10 @@ test("الاستيراد من ملف: قالب جاهز، تحقق كامل، و
   assert.ok(bad.data.errors.some((e) => /غير موجود/.test(e.message)));
   assert.equal((await S.admin.get("/api/admin/students")).data.length, 0, "لم يُستورد شيء");
 
-  // سطر بلا اسم يُرفض مع رقم السطر
   const noName = await S.admin.post("/api/admin/import/students", { rows: [{ "اسم الطالب": "", "الفصل": "الأول - أ" }] });
   assert.equal(noName.status, 400);
   assert.equal(noName.data.errors[0].row, 2);
 
-  // استيراد صحيح: اسم ولي الأمر يُستنتج والجوال يُوحَّد
   const ok = await S.admin.post("/api/admin/import/students", { rows: [
     { "اسم الطالب": "محمد عبدالله سالم", "الفصل": "الأول - أ", "جوال ولي الأمر": "+966 50 111 2233", "الرسوم (نعم/لا)": "نعم" },
     { "اسم الطالب": "ريم عبدالله سالم", "الفصل": "الأول - ب" }] });
@@ -862,7 +792,6 @@ test("الاستيراد من ملف: قالب جاهز، تحقق كامل، و
   assert.equal(first.guardian_phone, "0501112233", "توحيد صيغة الجوال");
   assert.equal(first.fees_enabled, true);
 
-  // المعلمون: كلمات مرور مؤقتة تعود مرة واحدة، والمستخدم المكرر يُرفض
   const teachers = await S.admin.post("/api/admin/import/teachers", { rows: [
     { "اسم المعلم": "أحمد سعيد", "اسم المستخدم (إنجليزي)": "ahmad-i", "الجوال": "0500000010" },
     { "اسم المعلم": "نورة خالد", "اسم المستخدم (إنجليزي)": "noura-i" }] });
@@ -872,13 +801,11 @@ test("الاستيراد من ملف: قالب جاهز، تحقق كامل، و
   assert.equal((await S.admin.post("/api/admin/import/teachers", {
     rows: [{ "اسم المعلم": "مكرر", "اسم المستخدم (إنجليزي)": "ahmad-i" }] })).status, 400);
 
-  // المعلم المستورد يدخل بكلمته المؤقتة ويُطلب منه تغييرها
   const tc = client(srv.base);
   const login = await tc.post("/api/staff/login", { school: S.id, username: "ahmad-i", password: teachers.data.rows[0].password });
   assert.equal(login.data.role, "teacher");
   assert.equal((await tc.get("/api/teacher/me")).data.must_change_password, true);
 
-  // حد الباقة يُحترم في الاستيراد
   await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 2 });
   assert.equal((await S.admin.post("/api/admin/import/students", {
     rows: [{ "اسم الطالب": "طالب زائد", "الفصل": "الأول - أ" }] })).status, 400, "حد الباقة يمنع الاستيراد");
@@ -891,7 +818,6 @@ test("الاشتراك: تفاصيله للمدرسة، وطلب التجديد 
   assert.equal(typeof sub.data.subscription.students, "number");
   assert.ok(Array.isArray(sub.data.requests));
 
-  // إعدادات الدعم من لوحة المالك تظهر للمدرسة
   await owner.put("/api/owner/settings", { support_whatsapp: "0591757224", support_note: "للدعم والتجديد" });
   const withSupport = await A.admin.get("/api/admin/settings/subscription");
   assert.equal(withSupport.data.support.support_whatsapp, "0591757224");
@@ -900,15 +826,12 @@ test("الاشتراك: تفاصيله للمدرسة، وطلب التجديد 
     kind: "renew", months: 12, contact_name: "مدير المدرسة", contact_phone: "0500000000", note: "تجديد سنة" });
   assert.equal(req.status, 201, JSON.stringify(req.data));
   assert.equal(req.data.status, "new");
-  // لا يُكرر الطلب نفسه قبل الرد
   assert.equal((await A.admin.post("/api/admin/settings/subscription/renew", { kind: "renew", months: 12 })).status, 400);
 
-  // المدرسة ترى طلبها فقط
   const mine = await A.admin.get("/api/admin/settings/subscription");
   assert.equal(mine.data.requests[0].kind, "renew");
   assert.equal((await B.admin.get("/api/admin/settings/subscription")).data.requests.length, 0);
 
-  // المالك يراه ويردّ عليه
   const list = await owner.get("/api/owner/renewals");
   const found = list.data.find((x) => x.id === req.data.id);
   assert.ok(found, "الطلب يظهر للمالك");
@@ -925,7 +848,6 @@ test("الاشتراك: تفاصيله للمدرسة، وطلب التجديد 
 
 test("الأرقام الدولية: أي دولة تُقبل ورابط واتساب يُبنى صحيحًا", async () => {
   const { normalizePhone } = await import("../src/modules/shared/students.service.js");
-  // صيغة واحدة لكل دولة: اليمني 9 أرقام، والسعودي 05…، وغيرهما بمفتاحه
   assert.equal(normalizePhone("+967 77 123 4567"), "771234567");
   assert.equal(normalizePhone("00967771234567"), "771234567");
   assert.equal(normalizePhone("0771234567"), "771234567", "الصفر قبل الجوال اليمني يُحذف");
@@ -947,7 +869,6 @@ test("أوراق الطباعة: بطاقات المعرّفات وسجل الح
   const byClass = await A.admin.get(`/api/admin/sheets/cards?class_id=${s.classId}`);
   assert.ok(byClass.data.students.length <= cards.data.students.length);
   assert.ok(byClass.data.students.every((x) => x.class_name));
-  // كل بطاقة ترسل وحدها: رابط يفتح ملف الطالب مباشرة برمز QR، وبيانات ولي الأمر للإرسال
   const one = cards.data.students[0];
   assert.ok(one.link.endsWith(`?k=${encodeURIComponent(one.access_key)}`), one.link);
   assert.match(one.qr, /^data:image\/svg\+xml;base64,/);
@@ -964,7 +885,6 @@ test("أوراق الطباعة: بطاقات المعرّفات وسجل الح
   assert.ok(sheet.data.students.every((x) => typeof x.absent === "number" && "days" in x));
   assert.equal((await A.admin.get(`/api/admin/sheets/attendance-month?class_id=${s.classId}&month=2026-13`)).status, 400);
 
-  // مدرسة أخرى لا ترى فصولنا
   assert.equal((await B.admin.get(`/api/admin/sheets/attendance-month?class_id=${s.classId}&month=${month}`)).status, 404);
   assert.equal((await B.admin.get("/api/admin/sheets/cards")).data.students.length, 0);
 });
@@ -990,7 +910,6 @@ test("سجل العمليات: تصفية بالقسم والنوع والتار
   const found = await A.admin.get(`/api/admin/audit?q=${encodeURIComponent("طالب الاختبار")}`);
   assert.ok(found.data.length > 0, "البحث في القيم يعمل");
 
-  // السجل لا يتجاوز المدرسة
   const other = await B.admin.get(`/api/admin/audit?q=${encodeURIComponent("طالب الاختبار")}`);
   assert.equal(other.data.length, 0);
 });
@@ -1005,7 +924,6 @@ test("معالج الإعداد: قالب ينشئ المراحل والصفوف
   assert.ok(state.data.catalog.templates.some((x) => x.key === "primary"));
   assert.equal(state.data.structure.stages.length, 0);
 
-  // بيانات المدرسة
   const profile = await S.admin.put("/api/admin/setup/profile", {
     name: "مدرسة الهيكل النموذجية", school_type: "private", gender: "boys",
     country: "السعودية", city: "الرياض", email: "info@example.com", phone: "0500000000" });
@@ -1013,7 +931,6 @@ test("معالج الإعداد: قالب ينشئ المراحل والصفوف
   assert.equal(profile.data.city, "الرياض");
   assert.equal(profile.data.name, "مدرسة الهيكل النموذجية");
 
-  // تطبيق قالب ابتدائي: 6 صفوف × 3 شعب + المواد المختارة
   const applied = await S.admin.post("/api/admin/setup/template", {
     template: "primary", sections_per_grade: 3, naming: "arabic",
     subjects: ["اللغة العربية", "الرياضيات", "العلوم"] });
@@ -1030,18 +947,15 @@ test("معالج الإعداد: قالب ينشئ المراحل والصفوف
   assert.match(grade1.sections[0].name, /- أ$/, "تسمية الشعب بالحروف العربية");
   assert.ok(after.subjects.every((x) => x.grade_ids.length === 6), "المواد مرتبطة بصفوف المرحلة");
 
-  // إعادة تطبيق القالب لا تكرر شيئًا
   const again = await S.admin.post("/api/admin/setup/template", {
     template: "primary", sections_per_grade: 3, naming: "arabic" });
   assert.equal(again.data.grades, 0, "لا تكرار للصفوف");
   assert.equal(again.data.sections, 0, "لا تكرار للشعب");
 
-  // إنشاء شعب إضافية بنمط إنجليزي
   const more = await S.admin.post(`/api/admin/setup/grades/${grade1.id}/sections`, { count: 2, naming: "english" });
   assert.equal(more.data.created, 2);
   assert.match(more.data.sections[0].name, /- A$/);
 
-  // تعديل وحذف وترتيب
   assert.equal((await S.admin.patch(`/api/admin/setup/grades/${grade1.id}`, { name: "الصف الأول" })).status, 200);
   const stage = (await S.admin.get("/api/admin/setup")).data.structure.stages[0];
   const ids = stage.grades.map((g) => g.id);
@@ -1054,12 +968,10 @@ test("معالج الإعداد: قالب ينشئ المراحل والصفوف
   const delRes = await S.admin.del(`/api/admin/setup/grades/${lastGrade.id}`);
   assert.equal(delRes.status, 200, JSON.stringify(delRes.data));
 
-  // صف فيه طلاب لا يُحذف
   const section = reordered.grades[0].sections[0];
   await S.admin.post("/api/admin/students", { name: "طالب الهيكل", class_id: section.id });
   assert.equal((await S.admin.del(`/api/admin/setup/grades/${reordered.grades[0].id}`)).status, 400);
 
-  // مادة جديدة وربطها بصفوف
   const subject = await S.admin.post("/api/admin/setup/subjects", {
     name: "المهارات الحياتية", code: "LIF", weekly_periods: 2, grade_ids: [reordered.grades[0].id] });
   assert.equal(subject.status, 201, JSON.stringify(subject.data));
@@ -1068,11 +980,9 @@ test("معالج الإعداد: قالب ينشئ المراحل والصفوف
   assert.equal(withSubject.grade_ids.length, 1);
   assert.equal((await S.admin.post("/api/admin/setup/subjects", { name: "المهارات الحياتية" })).status, 409);
 
-  // إنهاء الإعداد
   assert.equal((await S.admin.post("/api/admin/setup/complete", {})).status, 200);
   assert.ok((await S.admin.get("/api/admin/me")).data.setup_completed);
 
-  // العزل
   assert.equal((await B.admin.get("/api/admin/setup")).data.structure.stages.length, 0);
 });
 
@@ -1088,20 +998,17 @@ test("قوالب الرسوم: تقسيط تلقائي وخصومات وإعفا
   const bStudent = await S.admin.post("/api/admin/students", { name: "طالب ثانٍ", class_id: section.id });
   const cStudent = await S.admin.post("/api/admin/students", { name: "طالب معفى", class_id: section.id });
 
-  // قالب: 5000 على 4 دفعات
   const plan = await S.admin.post("/api/admin/finance/plans", {
     name: "رسوم الأول الابتدائي", grade_id: grade.id, amount: 5000, installments: 4,
     first_due: "2026-09-01", interval_months: 2 });
   assert.equal(plan.status, 201, JSON.stringify(plan.data));
   assert.equal((await S.admin.post("/api/admin/finance/plans", { name: "رسوم الأول الابتدائي", amount: 100 })).status, 409);
 
-  // خصم 20% للثاني، وإعفاء كامل للثالث
   assert.equal((await S.admin.post("/api/admin/finance/adjustments",
     { student_id: bStudent.data.id, kind: "discount", percent: 20, note: "أخ ثانٍ" })).status, 201);
   assert.equal((await S.admin.post("/api/admin/finance/adjustments",
     { student_id: cStudent.data.id, kind: "exemption", note: "حالة خاصة" })).status, 201);
 
-  // معاينة قبل التطبيق
   const preview = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, { dry_run: true });
   assert.equal(preview.data.students, 3);
   assert.equal(preview.data.invoices, 0, "المعاينة لا تنشئ شيئًا");
@@ -1110,7 +1017,6 @@ test("قوالب الرسوم: تقسيط تلقائي وخصومات وإعفا
   assert.equal(previewB.per_installment, 1000);
   assert.equal(preview.data.preview.find((x) => x.student_id === cStudent.data.id).total, 0);
 
-  // التطبيق الفعلي
   const applied = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, {});
   assert.equal(applied.status, 200, JSON.stringify(applied.data));
   assert.equal(applied.data.invoices, 8, "طالبان × 4 دفعات، والمعفى بلا فواتير");
@@ -1124,11 +1030,9 @@ test("قوالب الرسوم: تقسيط تلقائي وخصومات وإعفا
   assert.equal(dues[0], "2026-09-01");
   assert.equal(dues[3], "2027-03-01", "كل دفعة بعد شهرين");
 
-  // إعادة التطبيق لا تكرر
   const again = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, {});
   assert.equal(again.data.invoices, 0);
 
-  // طالب جديد في نفس الصف يأخذ الفواتير عند إعادة التطبيق
   const late = await S.admin.post("/api/admin/students", { name: "طالب متأخر", class_id: section.id });
   const third = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/apply`, {});
   assert.equal(third.data.invoices, 4);
@@ -1147,29 +1051,24 @@ test("الإجراءات الجماعية على الطلاب", async () => {
     ids.push((await S.admin.post("/api/admin/students", { name, class_id: first.id })).data.id);
   }
 
-  // نقل جماعي لشعبة أخرى
   const moved = await S.admin.post("/api/admin/students/bulk", { ids, action: "move_class", class_id: second.id });
   assert.equal(moved.status, 200, JSON.stringify(moved.data));
   assert.equal(moved.data.done, 3);
   const list = (await S.admin.get("/api/admin/students")).data;
   assert.ok(ids.every((id) => Number(list.find((x) => x.id === id).class_id) === Number(second.id)));
 
-  // تفعيل الرسوم جماعيًا
   assert.equal((await S.admin.post("/api/admin/students/bulk",
     { ids, action: "fees", fees_enabled: true })).data.done, 3);
   assert.ok((await S.admin.get("/api/admin/students")).data.filter((x) => ids.includes(x.id)).every((x) => x.fees_enabled));
 
-  // تغيير الحالة جماعيًا
   assert.equal((await S.admin.post("/api/admin/students/bulk",
     { ids: ids.slice(0, 2), action: "status", status: "transferred", note: "نقل جماعي" })).data.done, 2);
   const after = (await S.admin.get("/api/admin/students")).data;
   assert.equal(after.filter((x) => ids.includes(x.id)).length, 1, "المنقولون خرجوا من القائمة النشطة");
 
-  // التحقق من المدخلات
   assert.equal((await S.admin.post("/api/admin/students/bulk", { ids: [], action: "fees", fees_enabled: true })).status, 400);
   assert.equal((await S.admin.post("/api/admin/students/bulk",
     { ids, action: "move_class", class_id: 999999 })).status, 404);
-  // لا تتجاوز المدرسة حدودها
   assert.equal((await B.admin.post("/api/admin/students/bulk",
     { ids, action: "fees", fees_enabled: true })).data.done, 0);
 });
@@ -1183,14 +1082,12 @@ test("توليد الجدول: مسودة بلا تعارض، لا تُحفظ إ
   const sections = grade.sections;
   const subjects = structure.subjects.filter((x) => x.grade_ids.includes(Number(grade.id)));
 
-  // معلم واحد لمادتين في الشعبتين
   const teacher = await S.admin.post("/api/admin/teachers", { name: "معلم الجدول", username: "tt-teacher" });
   assert.equal(teacher.status, 201, JSON.stringify(teacher.data));
   const items = sections.flatMap((c) => subjects.slice(0, 2).map((sub) => ({
     class_id: c.id, subject_id: sub.id, teacher_id: teacher.data.id })));
   assert.equal((await S.admin.post("/api/admin/teachers/assignments/bulk", { items })).data.saved, items.length);
 
-  // إعدادات الجدول
   const settings = await S.admin.put("/api/admin/timetable/settings", {
     days: [0, 1, 2, 3, 4], periods_per_day: 6, start_time: "07:30", period_minutes: 45, break_after: 3, break_minutes: 20 });
   assert.equal(settings.status, 200, JSON.stringify(settings.data));
@@ -1201,21 +1098,18 @@ test("توليد الجدول: مسودة بلا تعارض، لا تُحفظ إ
   assert.equal(timesRes.data.times[1].from, "08:15", "الحصة الثانية بعد 45 دقيقة");
   assert.equal(timesRes.data.times[3].from, "10:05", "الفسحة 20 دقيقة بعد الحصة الثالثة");
 
-  // التوليد: مسودة فقط
   const draft = await S.admin.post("/api/admin/timetable/generate", { class_ids: sections.map((c) => c.id) });
   assert.equal(draft.status, 200, JSON.stringify(draft.data));
   assert.ok(draft.data.slots.length > 0, "وُزّعت حصص");
   assert.equal((await S.admin.get(`/api/admin/timetable?class_id=${sections[0].id}`)).data.length, 0,
     "المسودة لا تُحفظ قبل الموافقة");
 
-  // لا تعارض داخل المسودة: معلم واحد في وقت واحد، وشعبة واحدة في وقت واحد
   const teacherSlots = draft.data.slots.filter((x) => x.teacher_id).map((x) => `${x.teacher_id}:${x.day}:${x.period}`);
   assert.equal(new Set(teacherSlots).size, teacherSlots.length, "لا معلم في فصلين بنفس الوقت");
   const classSlots = draft.data.slots.map((x) => `${x.class_id}:${x.day}:${x.period}`);
   assert.equal(new Set(classSlots).size, classSlots.length, "لا شعبة بحصتين بنفس الوقت");
   assert.ok(draft.data.slots.every((x) => x.period <= 6), "ضمن عدد الحصص اليومية");
 
-  // الاعتماد
   const applied = await S.admin.post("/api/admin/timetable/apply", {
     slots: draft.data.slots.map(({ class_id, day, period, subject_id, teacher_id }) =>
       ({ class_id, day, period, subject_id, teacher_id })), replace: true });
@@ -1223,16 +1117,13 @@ test("توليد الجدول: مسودة بلا تعارض، لا تُحفظ إ
   assert.equal(applied.data.saved, draft.data.slots.length);
   assert.ok((await S.admin.get(`/api/admin/timetable?class_id=${sections[0].id}`)).data.length > 0);
 
-  // الجدول المعتمد بلا تعارضات
   const conflicts = await S.admin.get("/api/admin/timetable/conflicts");
   assert.equal(conflicts.data.teacher.length, 0);
   assert.equal(conflicts.data.room.length, 0);
 
-  // إعادة التوليد بعد الاعتماد لا تتعارض مع الشعب الأخرى
   const second = await S.admin.post("/api/admin/timetable/generate", { class_ids: [sections[0].id], replace: true });
   assert.ok(second.data.slots.every((x) => x.class_id === sections[0].id));
 
-  // العزل
   assert.equal((await B.admin.post("/api/admin/timetable/generate", { class_ids: sections.map((c) => c.id) })).status, 400);
 });
 
@@ -1244,17 +1135,14 @@ test("النسخ والتكرار: مواد صف، قالب رسوم، وجدو�
   const [g1, g2] = st.stages[0].grades;
   const [c1, c2] = g1.sections;
 
-  // نسخ مواد صف إلى صف: نفرغ الهدف أولًا ثم ننسخ
   const before = (await S.admin.get("/api/admin/setup")).data.structure.subjects
     .filter((x) => x.grade_ids.includes(Number(g1.id))).length;
   const copied = await S.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`,
     { to_grade_id: g2.id, replace: true });
   assert.equal(copied.status, 200, JSON.stringify(copied.data));
   assert.equal(copied.data.copied, before, "نُسخت كل مواد الصف");
-  // إعادة النسخ بلا تكرار
   assert.equal((await S.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`, { to_grade_id: g2.id })).data.copied, 0);
 
-  // نسخ قالب رسوم
   const plan = await S.admin.post("/api/admin/finance/plans", { name: "رسوم الأول", grade_id: g1.id, amount: 4000, installments: 2 });
   const clone = await S.admin.post(`/api/admin/finance/plans/${plan.data.id}/copy`, { name: "رسوم الثاني", grade_id: g2.id });
   assert.equal(clone.status, 201, JSON.stringify(clone.data));
@@ -1264,7 +1152,6 @@ test("النسخ والتكرار: مواد صف، قالب رسوم، وجدو�
   assert.equal(copiedPlan.installments, 2);
   assert.equal(Number(copiedPlan.grade_id), Number(g2.id));
 
-  // نسخ جدول شعبة إلى شعبة: المعلم المشغول تُترك حصته بلا معلم
   const teacher = await S.admin.post("/api/admin/teachers", { name: "معلم النسخ", username: "copy-teacher" });
   const subject = (await S.admin.get("/api/admin/setup")).data.structure.subjects[0];
   await S.admin.post("/api/admin/teachers/assignments/bulk",
@@ -1282,7 +1169,6 @@ test("النسخ والتكرار: مواد صف، قالب رسوم، وجدو�
   assert.equal(target[0].teacher_id, null);
   assert.equal(Number(target[0].subject_id), Number(subject.id));
 
-  // العزل
   assert.equal((await B.admin.post(`/api/admin/setup/grades/${g1.id}/copy-subjects`, { to_grade_id: g2.id })).status, 404);
 });
 
@@ -1293,7 +1179,6 @@ test("نسيت كلمة المرور: المعلم والمحاسب تعتمده
   const anon = client(srv.base);
   const reset = async (token, password) => anon.post("/api/public/password-reset", { token, password });
 
-  /* ---- أ) معلم: الإدارة تتحقق وتعتمد وتصدر الرابط، والمالك لا يدخل ---- */
   const submitted = await anon.post(`/api/public/${S.id}/password-request`, {
     full_name: "معلم النسيان", username: "Forgot-Teacher ", phone: "0500000123",
     job_title: "teacher", description: "نسيت كلمة المرور بعد الإجازة", contact_pref: "whatsapp" });
@@ -1325,7 +1210,6 @@ test("نسيت كلمة المرور: المعلم والمحاسب تعتمده
   assert.equal((await tc.get("/api/teacher/me")).data.must_change_password, false);
   assert.equal((await S.admin.get("/api/admin/password-requests")).data.find((x) => x.ref === request.ref).status, "used");
 
-  /* ---- ب) مدير المدرسة: الطلب يذهب للمالك مباشرة، حتى لو ادّعى صاحبه أنه «معلم» ---- */
   const adminReq = await anon.post(`/api/public/${S.id}/password-request`, {
     full_name: "شخص يدعي أنه معلم", username: "admin", phone: "0500000999",
     job_title: "teacher", description: "أريد تغيير كلمة المرور", contact_pref: "phone" });
@@ -1344,10 +1228,8 @@ test("نسيت كلمة المرور: المعلم والمحاسب تعتمده
   const ac = client(srv.base);
   assert.equal((await ac.post("/api/staff/login", { school: S.id, username: "admin", password: "Admin-Reset-2026" })).data.role, "admin");
 
-  // إعادة تعيين كلمة مرور المدير أنهت جلساته القديمة (كما يجب)
   assert.equal((await S.admin.get("/api/admin/me")).status, 401, "الجلسات القديمة انتهت");
 
-  /* ---- ج) طلب لاسم غير موجود: عند الإدارة، ولا يمكن اعتماده ---- */
   const ghost = await anon.post(`/api/public/${S.id}/password-request`, {
     full_name: "غير موجود", username: "nobody-here", phone: "0500000888", job_title: "accountant", description: "نسيت كلمة المرور" });
   assert.equal(ghost.status, 201, "لا يُكشف لصاحب الطلب وجود الحساب من عدمه");
@@ -1363,7 +1245,6 @@ test("الحقول المخصصة: تعريفها وقيمها وتحققها و
   const S = await makeSchool("مدرسة الحقول");
   await owner.patch(`/api/owner/tenants/${S.id}`, { max_students: 50 });
 
-  // حقول بأنواع مختلفة
   const bus = await S.admin.post("/api/admin/custom-fields", {
     entity: "student", label: "رقم الحافلة", type: "number", required: false, show_parent: true });
   assert.equal(bus.status, 201, JSON.stringify(bus.data));
@@ -1381,12 +1262,9 @@ test("الحقول المخصصة: تعريفها وقيمها وتحققها و
   const student = await S.admin.post("/api/admin/students", { name: "طالب الحقول" });
   const url = `/api/admin/custom-fields/values/student/${student.data.id}`;
 
-  // الحقل المطلوب يُفرض
   assert.equal((await S.admin.put(url, { values: { [bus.data.key]: "12" } })).status, 400);
-  // نوع خاطئ يُرفض
   assert.equal((await S.admin.put(url, {
     values: { [bus.data.key]: "ليس رقمًا", [health.data.key]: "سليم" } })).status, 400);
-  // قيمة خارج القائمة تُرفض
   assert.equal((await S.admin.put(url, {
     values: { [bus.data.key]: "12", [health.data.key]: "قيمة غريبة" } })).status, 400);
 
@@ -1396,7 +1274,6 @@ test("الحقول المخصصة: تعريفها وقيمها وتحققها و
   assert.equal(values.data[bus.data.key], "12");
   assert.equal(values.data[health.data.key], "يحتاج متابعة");
 
-  // ولي الأمر يرى ما فعّلته المدرسة فقط
   const anon = client(srv.base);
   const code = (await S.admin.get("/api/admin/me")).data.school.directory_code;
   const key = (await S.admin.get("/api/admin/students")).data.find((x) => x.id === student.data.id).access_key;
@@ -1407,11 +1284,9 @@ test("الحقول المخصصة: تعريفها وقيمها وتحققها و
   assert.ok(labels.includes("رقم الحافلة"), "الحقل المفعّل لولي الأمر يظهر");
   assert.ok(!labels.includes("الحالة الصحية"), "الحقل غير المفعّل لا يظهر");
 
-  // الحذف يزيل الحقل وقيمه
   assert.equal((await S.admin.del(`/api/admin/custom-fields/${bus.data.id}`)).status, 200);
   assert.equal((await S.admin.get(url)).data[bus.data.key], undefined);
 
-  // العزل
   assert.equal((await B.admin.get("/api/admin/custom-fields")).data.length, 0);
 });
 
@@ -1423,7 +1298,6 @@ test("مركز التنبيهات: مستويات مرتبة ووجهة لكل �
   assert.ok(n.data.items.every((x) => x.count > 0 && x.text && x.tab), "كل تنبيه له عدد ونص ووجهة");
   for (const key of ["urgent", "action", "info"]) assert.equal(typeof n.data.counts[key], "number");
 
-  // مدرسة فارغة: لا تنبيهات عاجلة
   const S = await makeSchool("مدرسة بلا تنبيهات");
   const fresh = await S.admin.get("/api/admin/analytics/notifications");
   assert.equal(fresh.data.items.filter((x) => x.level === "urgent").length, 0);
@@ -1466,7 +1340,6 @@ test("التحليلات والتنبيهات والبحث السريع", async 
   assert.ok(found.data.students.length >= 1);
   assert.equal((await A.admin.get("/api/admin/analytics/search?q=ط")).status, 400, "حرف واحد غير كافٍ");
 
-  // البحث لا يتجاوز المدرسة (نعيد تفعيل مدرسة ب بعد اختبار الإيقاف)
   await owner.patch(`/api/owner/tenants/${B.id}`, { status: "active" });
   B.admin = client(srv.base);
   await B.admin.post("/api/staff/login", { school: B.id, username: "admin", password: B.password });
@@ -1475,9 +1348,7 @@ test("التحليلات والتنبيهات والبحث السريع", async 
   assert.equal(other.data.students.length, 0);
 });
 
-// يُنفَّذ أخيرًا لأنه ينقل الطلاب بين الصفوف
 test("السنة الدراسية والفصول: ربط تلقائي وبدء سنة جديدة", async () => {
-  // إعادة تفعيل جلسة المعلم بعد اختبارات الإيقاف والقفل السابقة
   const teacherId = (await A.admin.get("/api/admin/teachers")).data[0].id;
   s.teacherPw = (await A.admin.post(`/api/admin/teachers/${teacherId}/reset-password`, {})).data.credentials.password;
   s.teacher = client(srv.base);
@@ -1491,21 +1362,18 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
   const first = terms.find((t) => t.ordinal === 1);
   assert.equal(first.is_current, true);
 
-  // الاختبار الجديد يُربط تلقائيًا بالفصل الحالي
   const e1 = await s.teacher.post("/api/teacher/exams", { class_id: s.classId, subject_id: s.subjectId, title: "اختبار الفصل الأول", max_score: 10 });
   assert.equal(e1.status, 201);
   const listed = (await A.admin.get("/api/admin/exams")).data.find((x) => x.id === e1.data.id);
   assert.equal(listed.term_id, first.id);
   assert.equal(listed.term_name, "الفصل الأول");
 
-  // تغيير الفصل الحالي ثم اختبار جديد يذهب للفصل الثاني
   const second = terms.find((t) => t.ordinal === 2);
   assert.equal((await A.admin.post(`/api/admin/academic/terms/${second.id}/current`, {})).status, 200);
   const e2 = await s.teacher.post("/api/teacher/exams", { class_id: s.classId, subject_id: s.subjectId, title: "اختبار الفصل الثاني", max_score: 10 });
   const listed2 = (await A.admin.get("/api/admin/exams")).data.find((x) => x.id === e2.data.id);
   assert.equal(listed2.term_name, "الفصل الثاني");
 
-  // كشف الدرجات يفصل بين الفصلين
   await s.teacher.put(`/api/teacher/exams/${e2.data.id}/scores`, { scores: { [s.student.id]: 9 } });
   await s.teacher.post(`/api/teacher/exams/${e2.data.id}/submit`, {});
   await A.admin.post(`/api/admin/exams/${e2.data.id}/status`, { status: "published" });
@@ -1514,7 +1382,6 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
   const yearCard = await A.admin.get(`/api/admin/reports/report-card/${s.student.id}`);
   assert.ok(yearCard.data.subjects[0].max > termCard.data.subjects[0].max, "السنة كاملة تجمع الفصول");
 
-  // النتائج: ناجح أو راسب حسب درجة النجاح
   const classes = (await A.admin.get("/api/admin/structure/classes")).data;
   const target = classes.find((c) => c.id !== s.classId);
 
@@ -1534,7 +1401,6 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
   assert.equal(mine.suggested_action, "promote");
   assert.ok(mine.average > 0 && mine.attendance_rate !== undefined);
 
-  // بدء سنة جديدة مع استثناء طالب (تخرّج)
   const other = preview.data.students.find((x) => x.id !== s.student.id);
   const rollover = await A.admin.post("/api/admin/academic/start-year", {
     year: { name: "2030/2031", start_date: "2030-08-01", end_date: "2031-06-30", terms: 2 },
@@ -1565,13 +1431,8 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
     assert.equal(gradHistory.data[0].result, "graduated");
   }
 
-  // الدرجات القديمة لم تُحذف
   assert.ok((await A.admin.get(`/api/admin/reports/report-card/${s.student.id}?term_id=${second.id}`)).data.subjects.length >= 1);
 });
-
-/* =====================================================================
-   إصلاحات المراجعة: المرفقات، فرض الاعتماد، اتساق التحويل، أقفال الدخول
-   ===================================================================== */
 
 const PNG_HEAD = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -1596,7 +1457,7 @@ test("المرفقات: ملف أكبر من 512KB يُقبل، والمحتوى
   assert.equal(entry.status, 201, JSON.stringify(entry.data));
   const url = `/api/admin/ledger/entries/${entry.data.id}/attachments`;
 
-  const big = Buffer.concat([PNG_HEAD, Buffer.alloc(1_000_000)]).toString("base64");   // ~1.3MB بعد base64
+  const big = Buffer.concat([PNG_HEAD, Buffer.alloc(1_000_000)]).toString("base64");
   const ok = await C.admin.post(url, { filename: "فاتورة.png", mime: "image/png", data: big });
   assert.equal(ok.status, 201, JSON.stringify(ok.data));
   assert.ok(ok.data.size_bytes > 900_000);
@@ -1616,7 +1477,6 @@ test("الاعتماد المالي يُفرض من الخادم: مصروف م�
   const acc = client(srv.base);
   assert.equal((await acc.post("/api/staff/login", { school: C.id, username: "acc-plain", password: created.data.credentials.password })).status, 200);
 
-  // يرسل needs_approval: false ليتجاوز الاعتماد، والخادم يتجاهله
   const before = await C.balance(C.cash.id);
   const sneaky = await acc.post("/api/accountant/ledger/entries", {
     direction: "expense", amount: 400, account_id: C.cash.id, category_id: C.expense.id,
@@ -1625,13 +1485,11 @@ test("الاعتماد المالي يُفرض من الخادم: مصروف م�
   assert.equal(sneaky.data.status, "pending", "المصروف بانتظار الاعتماد رغم الطلب");
   assert.equal(await C.balance(C.cash.id), before, "الرصيد لا يتأثر قبل الاعتماد");
 
-  // الإيراد لا يحتاج اعتمادًا
   const inc = await acc.post("/api/accountant/ledger/entries", {
     direction: "income", amount: 50, account_id: C.cash.id, category_id: C.income.id,
     occurred_on: "2026-09-07", reason: "إيراد", method: "cash" });
   assert.equal(inc.data.status, "approved");
 
-  // الاسترداد يُخرج نقدًا، فيحتاج الصلاحية (يُرفض قبل أي فحص آخر)
   const refund = await acc.post("/api/accountant/finance/invoices/1/refunds", { amount: 10, note: "اختبار", idempotency_key: `k-${uid()}-r` });
   assert.equal(refund.status, 403);
 });
@@ -1642,7 +1500,6 @@ test("التحويل بين الحسابات: يُلغى بطرفيه معًا،
   const transfer = (amount) => C.admin.post("/api/admin/ledger/transfers", {
     from_account_id: C.cash.id, to_account_id: C.bank.id, amount, occurred_on: "2026-09-08", reason: "إيداع" });
 
-  // تحويلان متزامنان بـ 700 من رصيد 1000: ينجح أحدهما فقط
   const both = await Promise.all([transfer(700), transfer(700)]);
   assert.deepEqual(both.map((r) => r.status).sort(), [201, 400], JSON.stringify(both.map((r) => r.data)));
   assert.equal(await C.balance(C.cash.id), 300);
@@ -1651,7 +1508,6 @@ test("التحويل بين الحسابات: يُلغى بطرفيه معًا،
   const legs = (await C.admin.get("/api/admin/ledger/entries?from=2000-01-01&to=2100-01-01&source_type=transfer")).data;
   assert.equal(legs.length, 2);
 
-  // إلغاء طرف واحد يُلغي الطرفين، فيعود الرصيدان كما كانا
   const voided = await C.admin.post(`/api/admin/ledger/entries/${legs[0].id}/void`, { reason: "تحويل بالخطأ" });
   assert.equal(voided.status, 200, JSON.stringify(voided.data));
   assert.equal(voided.data.voided, 2);
@@ -1660,7 +1516,6 @@ test("التحويل بين الحسابات: يُلغى بطرفيه معًا،
   assert.equal(await C.balance(C.cash.id), 1000);
   assert.equal(await C.balance(C.bank.id), 0);
 
-  // لا إلغاء ثانٍ
   assert.equal((await C.admin.post(`/api/admin/ledger/entries/${legs[1].id}/void`, { reason: "مرة ثانية" })).status, 400);
 });
 
@@ -1675,14 +1530,12 @@ test("أقفال الدخول: تبقى الحماية، ورسالة القفل
   assert.equal(locked.status, 429);
   assert.equal(locked.data.code, "locked", "كلمة المرور الصحيحة لا تفتح أثناء القفل");
 
-  // اسم غير موجود يُعامل بالطريقة نفسها: لا فرق ظاهر بين حساب موجود وغير موجود
   const y = client(srv.base);
   for (let i = 0; i < 5; i++) await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
   const ghost = await y.post("/api/staff/login", { school: C.id, username: "ghost-user", password: "wrong-pass-1" });
   assert.equal(ghost.data.code, "locked");
   assert.equal(ghost.data.error, locked.data.error, "نفس الرسالة لحساب موجود وغير موجود");
 
-  // المدير يعيد تعيين كلمة المرور فيُفك القفل فورًا
   const id = (await C.admin.get("/api/admin/users")).data.find((u) => u.username === "acc-lock").id;
   const reset = await C.admin.post(`/api/admin/users/${id}/reset-password`, {});
   assert.equal(reset.status, 200, JSON.stringify(reset.data));
@@ -1690,27 +1543,19 @@ test("أقفال الدخول: تبقى الحماية، ورسالة القفل
   assert.equal(back.status, 200, "الدخول بعد إعادة التعيين");
 });
 
-/* =====================================================================
-   الجولة الثانية: RLS على الجداول الأساسية، الحدود المشتركة، التصدير، السنة، القراءة العامة
-   ===================================================================== */
-
 test("RLS: جداول المدارس والجلسات والأحداث الأمنية معزولة في قاعدة البيانات نفسها", async () => {
-  // بلا سياق لا يظهر أي صف
   for (const t of ["tenants", "sessions", "security_events"]) {
     const [row] = await transaction({}, (q) => q(`SELECT count(*)::int AS n FROM ${t}`));
     assert.equal(row.n, 0, `${t} بلا سياق`);
   }
-  // سياق مدرسة يرى صفها فقط، ولا يستطيع تعديل مدرسة أخرى
   const own = await transaction({ tenantId: A.id }, (q) => q("SELECT id FROM tenants"));
   assert.deepEqual(own.map((r) => r.id), [A.id]);
   const foreign = await transaction({ tenantId: A.id }, (q) => q("UPDATE tenants SET name = name WHERE id = $1 RETURNING id", [B.id]));
   assert.equal(foreign.length, 0, "لا تعديل لمدرسة أخرى");
   const sess = await transaction({ tenantId: A.id }, (q) => q("SELECT DISTINCT tenant_id FROM sessions"));
   assert.ok(sess.length > 0 && sess.every((r) => r.tenant_id === A.id), "جلسات مدرسة أ فقط");
-  // سياق المنصة يرى الكل
   const [all] = await transaction({ platform: true }, (q) => q("SELECT count(*)::int AS n FROM tenants"));
   assert.ok(all.n >= 2);
-  // جلسة واحدة بصمتها فقط
   const [one] = await transaction({ tenantId: A.id }, (q) => q("SELECT token_hash FROM sessions LIMIT 1"));
   const byHash = await transaction({ sessionHash: one.token_hash }, (q) => q("SELECT token_hash FROM sessions"));
   assert.deepEqual(byHash.map((r) => r.token_hash), [one.token_hash]);
@@ -1740,7 +1585,6 @@ test("مخزن الحدود المشترك: يعدّ، ويصفّر، وينته
 });
 
 test("التصدير: يشمل المالية والسنوات، وأكثر من دفعة، ويُسجَّل في التدقيق", async () => {
-  // أكثر من 5000 صف حضور لنتأكد من القراءة على دفعات دون فقدان أو تكرار
   const [st] = await A.admin.get("/api/admin/students").then((r) => r.data);
   await transaction({ tenantId: A.id, actor: "اختبار" }, (q) => q(
     `INSERT INTO attendance (tenant_id, student_id, day, status, recorded_by)
@@ -1776,7 +1620,7 @@ test("قراءة الصفحة العامة لا تكتب في قاعدة الب�
   const anon = client(srv.base);
   const stamp = async () => String((await transaction({ tenantId: A.id }, (q) =>
     q("SELECT updated_at FROM school_public_settings WHERE tenant_id = app_tenant()")))[0].updated_at);
-  assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: A.directory })).status, 200);   // يضمن وجود الصف
+  assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: A.directory })).status, 200);
   const before = await stamp();
   await new Promise((r) => setTimeout(r, 30));
   for (let i = 0; i < 3; i++) assert.equal((await anon.post(`/api/public/${A.id}/page`, { access: A.directory })).status, 200);
@@ -1791,13 +1635,9 @@ test("أداة فحص الشبكة للمالك: تعرض عنوان IP الذي
   assert.equal((await client(srv.base).get("/api/owner/network")).status, 401, "بلا دخول لا يُعرض شيء");
 });
 
-/* =====================================================================
-   الجولة الثالثة: كلمة المرور المؤقتة، إنهاء الجلسات، إلزام TOTP، وأخطاء صغيرة
-   ===================================================================== */
-
 test("كلمة المرور المؤقتة: لا يعمل شيء قبل تغييرها، والتغيير يُنهي جلسات الأجهزة الأخرى", async () => {
-  const C = await makeSchool("مدرسة كلمة المرور");    // الإلزام مطفأ افتراضيًا في الاختبارات
-  const other = client(srv.base);                    // جهاز آخر بالحساب نفسه
+  const C = await makeSchool("مدرسة كلمة المرور");
+  const other = client(srv.base);
   assert.equal((await other.post("/api/staff/login", { school: C.id, username: "admin", password: C.password })).status, 200);
 
   process.env.FORCE_PASSWORD_CHANGE = "true";
@@ -1819,7 +1659,6 @@ test("كلمة المرور المؤقتة: لا يعمل شيء قبل تغيي
     assert.equal((await C.admin.get("/api/admin/me")).data.must_change_password, false);
     assert.equal((await other.get("/api/admin/me")).status, 401, "جلسة الجهاز الآخر أُنهيت (حتى لو كانت نشطة الآن)");
 
-    // إعادة تعيين كلمة مرور المحاسب من المدير تُعيد الإلزام
     const created = await C.admin.post("/api/admin/users", { name: "محاسب مؤقت", username: "acc-temp" });
     const acc = client(srv.base);
     assert.equal((await acc.post("/api/staff/login", { school: C.id, username: "acc-temp", password: created.data.credentials.password })).status, 200);

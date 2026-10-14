@@ -1,12 +1,13 @@
-// الاستيراد من ملفات CSV: قالب جاهز لكل قسم، ثم معاينة، ثم استيراد كامل أو لا شيء
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, conflict } from "../../core/http/errors.js";
 import * as students from "./students.service.js";
 import { cleanName, normalizePhone } from "./students.service.js";
 
-/**
- * تعريف كل نوع استيراد: أعمدته بالعربية، وأيها إلزامي، ومثال يُكتب في القالب.
- */
 export const KINDS = {
   students: {
     name: "الطلاب",
@@ -64,7 +65,6 @@ export const rowsSchema = z.object({
   dry_run: z.boolean().default(false),
 });
 
-/** بناء ملف القالب (CSV بترميز يدعم العربية في Excel) */
 export function template(kind) {
   const def = KINDS[kind];
   if (!def) throw badRequest("نوع الاستيراد غير معروف");
@@ -76,7 +76,6 @@ export function template(kind) {
 const YES = ["نعم", "yes", "true", "1", "✓"];
 const CATEGORY = { "معلم": "teacher", "إداري": "admin", "اداري": "admin", "عامل": "worker", "أخرى": "other", "اخرى": "other" };
 
-// تحويل صف من عناوين عربية إلى حقول النظام
 function mapRow(def, raw) {
   const out = {};
   for (const col of def.columns) {
@@ -86,10 +85,6 @@ function mapRow(def, raw) {
   return out;
 }
 
-/**
- * استيراد موحّد: يتحقق من كل الأسطر أولًا، فإذا وُجد خطأ لم يُستورد شيء.
- * @returns {{ created:number, rows:Array, errors:Array }}
- */
 export async function importRows(q, tenant, kind, rawRows, { dryRun = false, actor }) {
   const def = KINDS[kind];
   if (!def) throw badRequest("نوع الاستيراد غير معروف");
@@ -99,7 +94,7 @@ export async function importRows(q, tenant, kind, rawRows, { dryRun = false, act
   rows.forEach((row, i) => {
     for (const col of def.columns) {
       if (col.required && !String(row[col.key] || "").trim()) {
-        errors.push({ row: i + 2, message: `${col.header} مطلوب` });    // +2: العنوان أولًا ثم ترقيم Excel
+        errors.push({ row: i + 2, message: `${col.header} مطلوب` });
       }
     }
   });
@@ -110,7 +105,6 @@ export async function importRows(q, tenant, kind, rawRows, { dryRun = false, act
   return handlers[kind](q, tenant, rows, { dryRun, actor });
 }
 
-/* ---------- الطلاب ---------- */
 async function importStudents(q, tenant, rows, { dryRun }) {
   const classes = await q("SELECT id, name FROM classes");
   const byName = new Map(classes.map((c) => [cleanName(c.name), c.id]));
@@ -132,7 +126,6 @@ async function importStudents(q, tenant, rows, { dryRun }) {
   return { created: created.length, rows: created, errors: [] };
 }
 
-/* ---------- المعلمون ---------- */
 async function importTeachers(q, tenant, rows, { dryRun }) {
   const { newTempPassword } = await import("../../core/auth/codes.js");
   const { hashPassword } = await import("../../core/auth/password.js");
@@ -166,7 +159,6 @@ async function importTeachers(q, tenant, rows, { dryRun }) {
   return { created: out.length, rows: out, errors: [] };
 }
 
-/* ---------- الفصول والمواد ---------- */
 const importClasses = (q, tenant, rows, opts) => importSimple(q, "classes", "الفصل", rows, opts);
 const importSubjects = (q, tenant, rows, opts) => importSimple(q, "subjects", "المادة", rows, opts);
 
@@ -191,7 +183,6 @@ async function importSimple(q, table, label, rows, { dryRun }) {
   return { created: out.length, rows: out, errors: [] };
 }
 
-/* ---------- الموظفون ---------- */
 async function importStaff(q, tenant, rows, { dryRun }) {
   const prepared = rows.map((r) => ({
     full_name: cleanName(r.full_name),

@@ -1,9 +1,12 @@
-// منطق الحضور (مشترك بين الإدارة والمعلم)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
 
-// مستأذن / رحلة / نشاط خارجي: لا تُحسب غيابًا (تُستثنى من نسبة الحضور مثل «بعذر»)
 export const STATUSES = ["present", "absent", "late", "excused", "permitted", "trip", "activity"];
 export const LABEL = { present: "حاضر", absent: "غائب", late: "متأخر", excused: "غياب بعذر", permitted: "مستأذن", trip: "رحلة", activity: "نشاط خارجي" };
 
@@ -12,26 +15,19 @@ export const dayQuery = z.object({ date: t.date });
 export const markSchema = z.object({
   date: t.date,
   reason: t.optText(300),
-  // يمكن تسجيل طالب واحد أو فصل كامل دفعة واحدة
-  // excuse: سبب الغياب أو التأخر، يظهر لولي الأمر (يُمسح تلقائيًا إن صار الطالب حاضرًا)
   entries: z.array(z.object({ student_id: t.id, status: z.enum(STATUSES), excuse: t.optText(200) })).min(1).max(500),
 });
 
-/**
- * حالة يوم من ناحية الدراسة: هل هو إجازة تؤثر على الحضور (من جدول الإجازات)،
- * وهل هو من أيام الدراسة الأسبوعية المضبوطة. مصدر واحد يقرأه الحضور والواجهات.
- */
 export async function dayStatus(q, date) {
   const [holiday] = await q(
     `SELECT name, kind FROM holidays WHERE affects_attendance AND $1::date BETWEEN start_date AND end_date
       ORDER BY start_date LIMIT 1`, [date]);
   const [cfg] = await q("SELECT days FROM timetable_settings WHERE tenant_id = app_tenant()");
-  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();        // 0 = الأحد
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
   const studyDay = cfg ? cfg.days.map(Number).includes(dow) : dow <= 4;
   return { date, holiday: holiday || null, study_day: studyDay };
 }
 
-// withContact: جوال ولي الأمر لأزرار التنبيه (للإدارة فقط، لا يُرسل لبوابة المعلم)
 export async function listForClass(q, classId, day, { withContact = false } = {}) {
   return q(
     `SELECT s.id, s.full_name AS name, a.status, a.excuse, a.parent_excuse, a.parent_excuse_state, a.source, a.first_in_at, a.minutes_late, a.last_out_at${withContact ? ", s.guardian_phone, s.guardian_name, s.access_key" : ""}
@@ -42,10 +38,6 @@ export async function listForClass(q, classId, day, { withContact = false } = {}
   );
 }
 
-/**
- * يسجل الحضور داخل معاملة واحدة. تعديل حالة مسجلة سابقًا يتطلب سببًا.
- * @param allowedClass دالة تتحقق أن الفصل مسموح للمستخدم
- */
 export async function mark(q, { date, reason, entries }, { actor, allowedClass, source = "manual", ip = null, device = null, forceReason = false, lockGate = false }) {
   if (date > new Date(Date.now() + 86400000).toISOString().slice(0, 10)) throw badRequest("لا يمكن تسجيل حضور لتاريخ مستقبلي");
   const day = await dayStatus(q, date);
@@ -59,13 +51,11 @@ export async function mark(q, { date, reason, entries }, { actor, allowedClass, 
     .map((r) => [Number(r.student_id), r.status]));
   const changes = entries.filter((e) => existing.has(e.student_id) && existing.get(e.student_id) !== e.status);
   if ((changes.length || forceReason) && !reason) throw badRequest("اكتب سبب تعديل الحضور المسجل سابقًا");
-  // المعلم لا يعدّل ما سجلته البوابة أو اعتمدته الإدارة إن لم تسمح المدرسة بذلك
   if (lockGate && changes.length) {
     const locked = await q("SELECT 1 FROM attendance WHERE day = $1 AND student_id = ANY($2::bigint[]) AND source IN ('gate', 'review') LIMIT 1",
       [date, changes.map((e) => e.student_id)]);
     if (locked.length) throw forbidden("تعديل ما سجلته البوابة أو اعتمدته الإدارة متاح للإدارة فقط في مدرستك");
   }
-  // سجل التعديلات المقروء: من، متى، القديم والجديد، السبب، الجهاز
   const prevSource = changes.length ? new Map((await q("SELECT student_id, source FROM attendance WHERE day = $1 AND student_id = ANY($2::bigint[])",
     [date, changes.map((e) => e.student_id)])).map((r) => [Number(r.student_id), r.source])) : new Map();
   for (const e of changes) {
@@ -89,8 +79,6 @@ export async function mark(q, { date, reason, entries }, { actor, allowedClass, 
       [e.student_id, date, e.status, existing.has(e.student_id) && changes.includes(e) ? `تعديل من ${LABEL[existing.get(e.student_id)]}: ${reason}` : null, actor, excuse, source],
     );
   }
-  // إشعار ولي الأمر بالغياب أو التأخر الجديد (والحضور إن فعّلته المدرسة) — لأيام قريبة فقط، لا عند إدخال سجلات قديمة.
-  // مفتاح لكل طالب ويوم وحالة: تبديل الحالة ذهابًا وإيابًا لا يكرر التنبيه
   const fresh = entries.filter((e) => ["absent", "late", "present"].includes(e.status) && existing.get(e.student_id) !== e.status);
   if (fresh.length && date >= new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)) {
     const names = new Map(students.map((s) => [Number(s.id), s.full_name]));
@@ -107,12 +95,8 @@ export async function mark(q, { date, reason, entries }, { actor, allowedClass, 
   return { saved: entries.length, changed: changes.length };
 }
 
-/* ---------- متابعة الإدارة ---------- */
-
-// نسبة الحضور: الغياب بعذر لا يُحسب على الطالب (يُستثنى من المقام)
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
 
-/** متابعة يوم: لكل فصل هل سُجّل حضوره، وأعداد الحالات، ومن سجّله؛ مع قائمة الغائبين والمتأخرين */
 export async function overview(q, date) {
   const day = await dayStatus(q, date);
   const classes = await q(
@@ -146,7 +130,6 @@ export async function overview(q, date) {
 
 export const reportQuery = z.object({ from: t.date, to: t.date, class_id: t.id.optional() });
 
-/** تقرير فترة: لكل طالب أعداد الحالات ونسبة الحضور، ولكل فصل نسبته، ومنحنى الأيام */
 export async function report(q, { from, to, class_id }) {
   if (to < from) throw badRequest("نهاية الفترة قبل بدايتها");
   const cls = class_id ? "AND s.class_id = $3" : "";
@@ -186,7 +169,6 @@ export async function report(q, { from, to, class_id }) {
   return { from, to, students, classes, days };
 }
 
-/** الطلاب الذين بلغ غيابهم (بلا عذر) الحد خلال آخر 30 يومًا */
 export async function atRisk(q, threshold) {
   if (!threshold) return [];
   return q(
@@ -197,11 +179,8 @@ export async function atRisk(q, threshold) {
       GROUP BY s.id, c.id HAVING count(*) >= $1 ORDER BY absent DESC, s.full_name`, [threshold]);
 }
 
-/* ---------- الأعذار ---------- */
-
 export const excuseSchema = z.object({ student_id: t.id, date: t.date, excuse: t.optText(200), status: z.enum(["absent", "late", "excused"]).optional() });
 
-/** الإدارة تكتب سبب الغياب (أو تعدّله) لسجل موجود، وقد تحوّله إلى «بعذر» */
 export async function setExcuse(q, { student_id, date, excuse, status }) {
   const [row] = await q(
     `UPDATE attendance SET excuse = $3, status = COALESCE($4, status)
@@ -220,7 +199,6 @@ export async function pendingExcuses(q) {
 
 export const decideSchema = z.object({ student_id: t.id, date: t.date, accept: z.boolean() });
 
-/** قبول عذر ولي الأمر: الغياب يصبح «بعذر» والعذر يصبح سبب الغياب الظاهر. الرفض يبقي الحالة */
 export async function decideExcuse(q, { student_id, date, accept }) {
   const [row] = await q(
     `UPDATE attendance SET parent_excuse_state = $3,
@@ -234,7 +212,6 @@ export async function decideExcuse(q, { student_id, date, accept }) {
 
 export const parentExcuseSchema = z.object({ date: t.date, text: z.string().trim().min(3, "اكتب العذر").max(300) });
 
-/** ولي الأمر يرسل عذرًا عن يوم غياب أو تأخر (آخر 30 يومًا، ما لم يُقبل عذر سابق) */
 export async function submitParentExcuse(q, studentId, { date, text }) {
   const [row] = await q(
     `UPDATE attendance SET parent_excuse = $3, parent_excuse_at = now(), parent_excuse_state = 'pending'

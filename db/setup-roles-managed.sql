@@ -1,15 +1,6 @@
--- =====================================================================
--- إعداد الأدوار على قاعدة بيانات مُدارة جاهزة (Neon أو Supabase أو غيرها)
--- تُشغَّل مرة واحدة من محرر SQL في لوحة المزود، بحساب المالك الافتراضي.
---
--- الفكرة نفسها: دور مالك يملك الجداول (هو حساب المزود الافتراضي)،
--- ودور تطبيق منفصل بصلاحيات محدودة يخضع لعزل المدارس (RLS).
--- استبدل كلمة المرور قبل التشغيل.
--- =====================================================================
-
+-- Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+-- Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 CREATE ROLE midar_app LOGIN PASSWORD 'ضع-كلمة-مرور-قوية-هنا' NOSUPERUSER NOCREATEDB NOCREATEROLE;
-GRANT CONNECT ON DATABASE current_database() TO midar_app;  -- في Neon قد تحتاج كتابة اسم القاعدة صراحة
+GRANT CONNECT ON DATABASE current_database() TO midar_app;
 GRANT USAGE ON SCHEMA public TO midar_app;
 
--- ملاحظة: بقية الصلاحيات تُمنح تلقائيًا داخل ملفات الترحيل.
--- بعد التشغيل نفّذ من جهازك: npm run migrate

@@ -1,4 +1,8 @@
-// لصق الأسئلة: التعرف على الأنواع والخيارات والإجابات من نص ملصوق، وقبول الخادم للناتج كما هو
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseQuestions } from "../public/shared/js/exam/parse.js";

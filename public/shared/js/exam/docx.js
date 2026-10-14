@@ -1,6 +1,8 @@
-// قراءة نص ملف Word (.docx) في المتصفح بلا مكتبات: الملف أرشيف ZIP فيه word/document.xml.
-// الترقيم التلقائي في Word لا يُخزَّن نصًا، فنعيد بناءه: المستوى الأول أرقام (1- 2-)،
-// والمستوى الثاني حروف (أ) ب)) حتى يتعرّف عليها محلّل الأسئلة كما لو كُتبت يدويًا.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const LETTERS = ["أ", "ب", "ج", "د", "هـ", "و", "ز", "ح"];
 
 async function unzipEntries(buf) {
@@ -38,7 +40,6 @@ const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const attr = (el, name) => el?.getAttributeNS(W, name) ?? el?.getAttribute(`w:${name}`) ?? null;
 const kids = (el, name) => [...el.getElementsByTagNameNS(W, name)];
 
-// numId → [numFmt لكل مستوى]
 function numberingFormats(xml) {
   const out = new Map();
   if (!xml) return out;
@@ -57,9 +58,9 @@ export async function docxToText(file) {
   const formats = numberingFormats(await read("word/numbering.xml"));
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   const lines = [];
-  const counters = new Map();   // numId → عدادات المستويات
+  const counters = new Map();
   let images = 0;
-  let letter = 0;               // حروف الخيارات تبدأ من (أ) بعد كل سؤال
+  let letter = 0;
   for (const p of kids(doc, "p")) {
     let text = "";
     for (const node of p.getElementsByTagName("*")) {
@@ -74,7 +75,7 @@ export async function docxToText(file) {
       const lvl = Number(attr(kids(numPr, "ilvl")[0], "val") || 0);
       const c = counters.get(numId) || [];
       c[lvl] = (c[lvl] || 0) + 1;
-      c.length = lvl + 1;               // مستوى أعلى جديد يصفّر ما تحته
+      c.length = lvl + 1;
       counters.set(numId, c);
       const fmt = formats.get(numId)?.[lvl] || (lvl ? "arabicAlpha" : "decimal");
       const isLetter = fmt !== "bullet" && (/letter|alpha|abjad|hebrew/i.test(fmt) || lvl > 0);

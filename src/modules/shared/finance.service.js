@@ -1,5 +1,8 @@
-// منطق الرسوم والمدفوعات
-// القواعد الحساسة (منع الدفع الزائد، ثبات المدفوعات) مطبقة داخل قاعدة البيانات نفسها
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { notFound, badRequest } from "../../core/http/errors.js";
 import { addSystemEntry } from "./ledger.service.js";
@@ -37,7 +40,6 @@ export async function studentSummary(q, studentId) {
   return { total, paid, remaining, status: total === 0 ? "none" : remaining > 0 ? "unpaid" : "paid" };
 }
 
-// ملخص الرسوم لعدة طلاب باستعلام واحد (بدل استعلام لكل طالب). يرجع Map من رقم الطالب إلى الملخص.
 export async function studentSummaries(q, ids) {
   const out = new Map();
   if (!ids.length) return out;
@@ -53,7 +55,6 @@ export async function studentSummaries(q, ids) {
 }
 
 export async function schoolTotals(q) {
-  // تجميع واحد بدل استدعاء دالة لكل فاتورة (آلاف الاستدعاءات في المدارس الكبيرة)
   const [r] = await q(
     `SELECT COALESCE(SUM(i.amount), 0) AS total, COALESCE(SUM(p.net), 0) AS paid
        FROM invoices i
@@ -63,7 +64,6 @@ export async function schoolTotals(q) {
   return { fees_total: round2(r.total), fees_paid: round2(r.paid), fees_remaining: round2(r.total - r.paid) };
 }
 
-// عدد الفواتير المطابقة (منفصل عن الصفحة حتى لا يُحسب المدفوع لكل الفواتير قبل اقتطاع الصفحة)
 export const countInvoices = async (q, where = "TRUE", params = []) => (await q(
   `SELECT count(*)::int AS n FROM invoices i JOIN students s ON s.id = i.student_id WHERE ${where}`, params))[0].n;
 
@@ -98,10 +98,6 @@ async function nextReceipt(q) {
   return `R-${String(r.n).padStart(6, "0")}`;
 }
 
-/**
- * تسجيل دفعة أو استرداد. إذا أُرسل نفس مفتاح العملية مرتين تُعاد النتيجة الأولى ولا تُسجل دفعة ثانية.
- */
-// paidOn: تاريخ السداد (للاستخدام الداخلي فقط، مثل بناء مدرسة العرض بتاريخها؛ المسارات العامة تسجّل بتاريخ اليوم)
 export async function recordPayment(q, { invoiceId, kind = "payment", amount, method, note, idempotencyKey, actor, providerRef = null, paidOn = null }) {
   const [dup] = await q("SELECT receipt_no, amount, invoice_id FROM payments WHERE idempotency_key = $1", [idempotencyKey]);
   if (dup) {
@@ -116,7 +112,6 @@ export async function recordPayment(q, { invoiceId, kind = "payment", amount, me
      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::date + time '10:00', now())) RETURNING id`,
     [invoiceId, kind, amount, method, receipt, idempotencyKey, providerRef, note, actor, paidOn]);
 
-  // كل دفعة أو استرداد يظهر تلقائيًا في سجل الحركات المالية
   const [info] = await q(
     `SELECT s.full_name AS student, c.name AS class_name, i.title
        FROM invoices i JOIN students s ON s.id = i.student_id LEFT JOIN classes c ON c.id = s.class_id

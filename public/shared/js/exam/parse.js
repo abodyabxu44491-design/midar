@@ -1,13 +1,9 @@
-// تحويل نص ملصوق (من Word أو الملاحظات) إلى أسئلة جاهزة: منطق خالص بلا واجهة، يُختبر في الخادم.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-//   1- عاصمة المملكة العربية السعودية هي:
-//   أ) الرياض *        ← النجمة (أو ✓) تحدد الإجابة الصحيحة
-//   ب) جدة
-//   2- الشمس نجم (صح)                 ← صح أو خطأ
-//   3- عاصمة مصر هي ______ (القاهرة)   ← أكمل الفراغ مع إجابته
-//   4- الماء = H2O                     ← أسطر «يمين = يسار» تحت السؤال تصبح توصيلًا
-//   السؤال الثاني: أجب عما يلي         ← عنوان قسم جديد
-//   الإجابة: ...                        ← إجابة أي سؤال (للمعلم فقط)
 import { newQuestion, uid, SECTION_TITLES } from "./engine.js";
 
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
@@ -21,12 +17,9 @@ const letterIndex = (l) => {
   return i >= 0 ? i : LATIN_LETTERS.indexOf(x.toLowerCase());
 };
 
-// «1-» «1)» «1.» «(1)» «س1:» «السؤال 1:»
 const NUMBER = /^\s*(?:س\s*|سؤال\s*)?[(\[]?\s*[0-9٠-٩]{1,3}\s*[)\].\-ـ:/]\s*/;
-// «أ)» «ب-» «(ج)» «a)» أو نقطة تعداد «-» «•»
 const OPTION = /^\s*[(\[]?\s*(هـ|[أابجدهوزح]|[a-hA-H])\s*[)\]\-.:/]\s*/;
 const BULLET = /^\s*[•●▪◦]\s*/;
-// خيارات في سطر واحد: «... أ) الرياض ب) جدة ج) مكة»
 const INLINE_OPTION = /(?:^|\s)[(\[]?(هـ|[أابجدهوزح]|[a-hA-H])\s*[)\]]\s*/g;
 const CORRECT_MARK = /\s*(?:\*|✓|✔|☑|\(\s*صح(?:يح)?\s*\))\s*$/;
 const CORRECT_MARK_START = /^\s*(?:\*|✓|✔|☑)\s*/;
@@ -44,7 +37,6 @@ const PAIR = /^(.+?)\s*(?:=|←|→|⟵|⟶|\t|\s-{2,}\s|\s—\s)\s*(.+)$/;
 
 const clean = (s) => String(s || "").replace(/‏|‎| /g, " ").replace(/[ \t]+$/g, "").replace(/^\s+/, "");
 
-// يحدد نوع القسم من عنوانه (يُستخدم افتراضيًا لأسئلته)
 function typeFromHeading(title) {
   const t = String(title || "");
   if (/(^|[\s(«"])(صح|خطأ|خطا|صواب)($|[\s)»"])/.test(t)) return "truefalse";
@@ -56,10 +48,6 @@ function typeFromHeading(title) {
   return null;
 }
 
-/**
- * parseQuestions(text, { marks }) → { sections: [{ title, questions }], count, warnings }
- * القسم الأول بلا عنوان إذا بدأ النص بأسئلة مباشرة.
- */
 export function parseQuestions(text, { marks = 1 } = {}) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(clean);
   const sections = [];
@@ -79,7 +67,6 @@ export function parseQuestions(text, { marks = 1 } = {}) {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) {
-      // سطر فارغ ينهي السؤال الحالي إن لم يكن له ترقيم (نص بلا أرقام: كل فقرة سؤال)
       if (block && !block.numbered) flush();
       continue;
     }
@@ -106,7 +93,6 @@ export function parseQuestions(text, { marks = 1 } = {}) {
     const pair = !block.options.length && line.match(PAIR);
     if (pair) { block.pairs.push([pair[1].trim(), pair[2].trim()]); continue; }
     if (block.options.length) block.options[block.options.length - 1] += ` ${line}`;
-    // نص بلا ترقيم: كل سطر سؤال مستقل، إلا إذا انتهى السطر السابق بنقطتين أو فاصلة (تكملة)
     else if (!block.numbered && !/[:：،,]$/.test(block.head[block.head.length - 1] || "")) {
       flush(); block = { head: [line], options: [], pairs: [], answer: null, numbered: false };
     } else block.head.push(line);
@@ -119,7 +105,6 @@ export function parseQuestions(text, { marks = 1 } = {}) {
 
 function splitInlineOptions(text) {
   const marks = [...text.matchAll(INLINE_OPTION)];
-  // نبحث عن تسلسل يبدأ بالحرف الأول (أ أو a) ويتبعه الثاني على الأقل
   const firstIdx = marks.findIndex((m) => letterIndex(m[1]) === 0);
   if (firstIdx < 0 || marks.length - firstIdx < 2 || letterIndex(marks[firstIdx + 1][1]) !== 1) return null;
   const seq = [marks[firstIdx]];
@@ -147,7 +132,6 @@ function buildQuestion(b, kind, defMarks, warnings) {
   ({ text, marks } = takeMarks(text, defMarks));
   if (!text && !options.length && !b.pairs.length) return null;
 
-  // اختيار من متعدد
   if (options.length >= 2) {
     const correct = [];
     const opts = options.slice(0, 8).map((o, i) => {
@@ -169,7 +153,6 @@ function buildQuestion(b, kind, defMarks, warnings) {
     return q;
   }
 
-  // توصيل
   if (b.pairs.length >= 2 || (kind === "match" && b.pairs.length)) {
     const q = newQuestion("match", marks);
     q.text = text;
@@ -178,7 +161,6 @@ function buildQuestion(b, kind, defMarks, warnings) {
   }
   if (b.pairs.length === 1) text = `${text}\n${b.pairs[0].join(" = ")}`.trim();
 
-  // صح أو خطأ
   const tf = text.match(TF_TAIL);
   const tfAnswer = !b.answer ? undefined : TF_TRUE.test(b.answer.trim()) ? true : TF_FALSE.test(b.answer.trim()) ? false : undefined;
   if (tf || (kind === "truefalse" && !HAS_BLANK.test(text)) || tfAnswer !== undefined || (TF_EMPTY.test(text) && kind !== "fill")) {
@@ -189,7 +171,6 @@ function buildQuestion(b, kind, defMarks, warnings) {
     return q;
   }
 
-  // أكمل الفراغ: الإجابات بين قوسين في آخر السطر أو في سطر «الإجابة:»
   if (HAS_BLANK.test(text) || kind === "fill") {
     const q = newQuestion("fill", marks);
     let body = text.replace(BLANK, "________");
@@ -202,7 +183,6 @@ function buildQuestion(b, kind, defMarks, warnings) {
     return q;
   }
 
-  // ترتيب: عناصر بنقاط بلا خيارات صحيحة لا يمكن تمييزها هنا، فتبقى أسئلة قصيرة
   const type = kind === "essay" || text.length > 220 ? "essay" : "short";
   const q = newQuestion(type, marks);
   q.text = text;
@@ -212,5 +192,4 @@ function buildQuestion(b, kind, defMarks, warnings) {
 
 const short = (s) => (String(s).length > 40 ? `${String(s).slice(0, 40)}…` : String(s));
 
-// عنوان قسم افتراضي حسب نوع أسئلته
 export const sectionTitleFor = (ordinal, type) => `السؤال ${ordinal}: ${SECTION_TITLES[type] || ""}`.replace(/:\s*$/, "");

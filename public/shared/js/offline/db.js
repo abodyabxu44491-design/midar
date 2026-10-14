@@ -1,15 +1,16 @@
-// قاعدة البيانات المحلية (IndexedDB) — ليست localStorage.
-// قاعدة مستقلة لكل مدرسة ولكل مستخدم (لا تختلط بيانات حسابين على نفس الجهاز)، وتُحذف عند تسجيل الخروج.
-// الكتابة بمتانة «strict»: العملية تُكتب على القرص قبل أن نقول للمستخدم «محفوظ على الجهاز»،
-// فإغلاق التطبيق أو انقطاع البطارية بعدها لا يفقدها.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const VERSION = 1;
 const STORES = {
   meta: { keyPath: "key" },
-  load: { keyPath: "k" },                                   // الفصول والمواد المسندة
+  load: { keyPath: "k" },
   students: { keyPath: "id", indexes: [["class_id", "class_id"]] },
-  attendance: { keyPath: "k", indexes: [["day", "day"], ["student_id", "student_id"]] },  // k = طالب|يوم
+  attendance: { keyPath: "k", indexes: [["day", "day"], ["student_id", "student_id"]] },
   exams: { keyPath: "id" },
-  scores: { keyPath: "k", indexes: [["exam_id", "exam_id"]] },                             // k = اختبار|طالب
+  scores: { keyPath: "k", indexes: [["exam_id", "exam_id"]] },
   queue: { keyPath: "operation_id", indexes: [["seq", "client_seq"], ["status", "status"]] },
 };
 
@@ -40,7 +41,6 @@ export const deleteDb = (name) => new Promise((resolve) => {
 const done = (req) => new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
 
 function wrap(db) {
-  // معاملة: fn تستلم المخازن، والوعد يتحقق بعد اكتمال الكتابة على القرص
   const tx = (stores, mode, fn) => new Promise((resolve, reject) => {
     const t = db.transaction(stores, mode, mode === "readwrite" ? { durability: "strict" } : undefined);
     const map = Object.fromEntries([].concat(stores).map((s) => [s, t.objectStore(s)]));

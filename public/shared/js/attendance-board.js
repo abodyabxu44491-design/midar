@@ -1,24 +1,24 @@
-// لوحة تسجيل الحضور (تستخدمها الإدارة والمعلم، كل واحد بمساره المنفصل)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// التسجيل مسودة على الشاشة ثم حفظ واحد: اضغط «الكل حاضر» ثم غيّر الغائبين فقط، أو اختر حالة كل طالب،
-// وشريط الحفظ أسفل الشاشة يعرض عدد التغييرات. سبب التعديل يُطلب فقط عند تغيير حالة محفوظة سابقًا.
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
-import { field, input, select, btn, panel, empty, toast, notice, dialog } from "./ui.js";
+import { field, input, select, btn, panel, empty, toast, notice, dialog, personAvatar } from "./ui.js";
 import { ATTENDANCE, today } from "./format.js";
 
 const ORDER = ["present", "absent", "late", "excused"];
 const SHORT = { present: "حاضر", absent: "غائب", late: "متأخر", excused: "بعذر" };
 const shift = (d, days) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + days); return x.toISOString().slice(0, 10); };
 
-// endpoint: رابط API (الإدارة، متصل) أو مصدر بيانات محلي { list, save } (المعلم: يعمل بدون إنترنت)
 export function attendanceBoard(endpoint, classes, wa = null, initialClassId = null, initialDate = null) {
   const source = typeof endpoint === "object" ? endpoint : {
     list: (classId, date) => api(`${endpoint}?class_id=${classId}&date=${date}`),
     save: (date, reason, entries) => api(endpoint, { date, reason, entries }),
     dayStatus: (date) => api(`${endpoint}/day-status?date=${date}`),
   };
-  // المعلم دون اتصال: مصدره المحلي لا يعرف الإجازات، فنسأل الخادم إن أمكن ونتجاهل الفشل
   const dayStatus = async (d) => {
     try { return source.dayStatus ? await source.dayStatus(d) : (navigator.onLine ? await api(`/api/teacher/attendance/day-status?date=${d}`) : null); }
     catch { return null; }
@@ -34,10 +34,10 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
   const bar = h("div", { class: "att-bar hidden" });
   const box = h("div");
 
-  let rows = [];                 // من الخادم أو الجهاز: { id, name, status, pending, ... }
-  const draft = new Map();       // student_id ← الحالة المختارة ولم تُحفظ بعد
-  const reasons = new Map();     // student_id ← سبب الغياب/التأخر المكتوب ولم يُحفظ (يظهر لولي الأمر)
-  const openReason = new Set();  // صفوف مفتوح فيها حقل السبب
+  let rows = [];
+  const draft = new Map();
+  const reasons = new Map();
+  const openReason = new Set();
 
   const statusOf = (r) => draft.get(r.id) ?? r.status ?? null;
   const statusChanged = (r) => draft.has(r.id) && draft.get(r.id) !== r.status;
@@ -66,6 +66,7 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
     const reasonVal = reasons.has(r.id) ? reasons.get(r.id) : (r.excuse || "");
     return h("div", { class: `att-row${s ? ` s-${s}` : ""}${dirty ? " dirty" : ""}`, "data-id": r.id },
       h("span", { class: "att-no" }, i + 1),
+      personAvatar(r.gender, 34, "att-av"),
       h("div", { class: "att-name" }, h("b", {}, r.name),
         r.pending ? h("small", { class: "pending-dot", title: "محفوظ على الجهاز، بانتظار المزامنة" }, "بانتظار المزامنة")
           : r.status && !dirty ? h("small", {}, `مسجّل: ${ATTENDANCE[r.status][0]}`) : dirty ? h("small", {}, "لم يُحفظ بعد") : null,
@@ -80,7 +81,6 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
         type: "button", role: "radio", "aria-checked": String(s === k), class: `seg s-${k}${s === k ? " on" : ""}`,
         onclick: () => {
           if (r.status === k) draft.delete(r.id); else draft.set(r.id, k);
-          // اختيار غائب/متأخر لطالب واحد يفتح حقل السبب مباشرة (اختياري)
           if (k === "present") openReason.delete(r.id);
           repaintRow(r);
         },
@@ -170,7 +170,6 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
     } catch (e) { mount(box, notice(e.message, "err")); }
   }
 
-  // تنبيه قبل مغادرة الفصل أو اليوم بتغييرات غير محفوظة
   const guard = (fn) => () => {
     if (changed().length && !confirm("لديك تغييرات لم تُحفظ. تجاهلها؟")) return false;
     fn(); return true;

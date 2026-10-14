@@ -1,8 +1,8 @@
-// تصدير كل بيانات المدرسة (نسخة يحتفظ بها المدير)
-//   - يشمل كل الأقسام: الأكاديمي والمالية والرواتب والسنوات والواجبات وطلبات التسجيل
-//   - الجداول الكبيرة (حضور، درجات، دفعات، حركات مالية) تُقرأ وتُكتب على دفعات، فلا تُحمَّل كلها في الذاكرة ولا تُقصّ
-//   - كل تصدير يُسجَّل في سجل التدقيق (النسخة تحوي بيانات شخصية ومعرّفات الطلاب)
-//   - محتوى المرفقات (الصور) غير مضمَّن، وتُذكر بياناتها فقط في attachments_meta
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
@@ -12,7 +12,6 @@ import { FIELDS as PUBLIC_FIELDS } from "../shared/public-settings.service.js";
 const r = Router();
 const PAGE = 5000;
 
-/* جداول صغيرة: استعلام واحد لكل جدول */
 const SMALL = {
   classes: "SELECT id, name FROM classes ORDER BY id",
   subjects: "SELECT id, name FROM subjects ORDER BY id",
@@ -30,7 +29,6 @@ const SMALL = {
                     i.due_date, i.status, i.created_at
                FROM invoices i JOIN students s ON s.id = i.student_id ORDER BY i.id`,
   announcements: "SELECT title, body, created_at FROM announcements ORDER BY id DESC",
-  // المالية
   finance_accounts: `SELECT id, name, kind, currency, opening_balance, low_balance, note, is_active,
                             account_balance(id) AS balance, created_at FROM finance_accounts ORDER BY id`,
   finance_categories: "SELECT id, direction, name, code, is_active FROM finance_categories ORDER BY id",
@@ -44,7 +42,6 @@ const SMALL = {
                    ORDER BY r.period, i.id`,
   attachments_meta: `SELECT id, entity_type, entity_id, filename, mime, size_bytes, uploaded_by, created_at
                        FROM attachments ORDER BY id`,
-  // السنوات والواجبات والتسجيل والإعدادات
   academic_years: "SELECT id, name, start_date, end_date, is_current, status, pass_mark FROM academic_years ORDER BY id",
   terms: "SELECT id, year_id, name, ordinal, start_date, end_date, is_current FROM terms ORDER BY year_id, ordinal",
   student_years: `SELECT y.year_id, ay.name AS year_name, s.full_name AS student, y.class_name, y.result, y.outcome,
@@ -61,7 +58,6 @@ const SMALL = {
   message_templates: "SELECT country_code, absence, late, fees, general FROM school_messages",
 };
 
-/* جداول كبيرة: دفعات بمؤشر (keyset). cursor(row) يعيد مؤشر الدفعة التالية */
 const LARGE = {
   attendance: {
     sql: `SELECT a.id, a.day, s.full_name AS student, a.status, a.note, a.recorded_by
@@ -102,7 +98,6 @@ const LARGE = {
   },
 };
 
-// كتابة مع احترام ضغط الشبكة (لا نملأ الذاكرة إن كان العميل بطيئًا)
 const writer = (res) => (chunk) => new Promise((resolve, reject) => {
   if (res.destroyed) return reject(new Error("أغلق العميل الاتصال"));
   if (res.write(chunk)) return resolve();
@@ -117,7 +112,6 @@ r.get("/", handle(async (req, res) => {
     await inTenant(req, async (q) => {
       await logEvent(q, { tenantId: req.tenantId, actor: req.actor, action: "تصدير نسخة كاملة من بيانات المدرسة" });
 
-      // الجداول الصغيرة تُقرأ كلها أولًا: أي خطأ فيها يظهر كخطأ عادي قبل أن يبدأ الرد
       const small = {};
       for (const [name, sql] of Object.entries(SMALL)) small[name] = await q(sql);
 
@@ -142,7 +136,6 @@ r.get("/", handle(async (req, res) => {
       res.end();
     });
   } catch (e) {
-    // بعد بدء الرد لا يمكن إرسال خطأ صالح؛ نقطع الاتصال حتى لا يظنّ العميل أن النسخة المبتورة كاملة
     if (res.headersSent) { res.destroy(e); return; }
     throw e;
   }

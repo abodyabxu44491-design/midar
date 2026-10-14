@@ -1,6 +1,8 @@
-// بوابة مِدار الذكية (المرحلة الأولى): رابط الحارس ← موافقة الإدارة، بطاقة حضور مستقلة،
-// حاضر/متأخر بالدقائق، لا تكرار، رفض ما هو خارج المدرسة أو الوقت، «لم يسجل حضور» ← اعتماد الغياب ← إشعار،
-// المسح بعد انقطاع الاتصال، والعزل بين المدارس.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -19,11 +21,10 @@ const settle = async () => { await new Promise((r) => setTimeout(r, 150)); await
 const everyDay = (S) => transaction({ tenantId: S.id }, (q) => q(
   `INSERT INTO timetable_settings (tenant_id, days) VALUES (app_tenant(), '{0,1,2,3,4,5,6}')
    ON CONFLICT (tenant_id) DO UPDATE SET days = EXCLUDED.days`));
-const OPEN = { open_at: "00:00", late_after: "23:58", close_at: "23:59" };       // الآن: حاضر
-const LATE = { open_at: "00:00", late_after: "00:00", close_at: "23:59" };       // الآن: متأخر
-const CLOSED = { open_at: "00:00", late_after: "00:00", close_at: "00:01" };     // الآن: انتهى الوقت
+const OPEN = { open_at: "00:00", late_after: "23:58", close_at: "23:59" };
+const LATE = { open_at: "00:00", late_after: "00:00", close_at: "23:59" };
+const CLOSED = { open_at: "00:00", late_after: "00:00", close_at: "00:01" };
 
-/** جهاز بوابة: يفتح الرابط الذي أرسلته الإدارة، ثم يمسح */
 function gateDevice(base, link) {
   const u = new URL(link);
   const school = u.pathname.split("/")[1];
@@ -70,10 +71,8 @@ test("بطاقة الحضور: رمز عشوائي مستقل عن معرّف و
     assert.ok(!x.qr.includes(A.students.find((s) => s.id === x.id).access_key));
   }
   assert.equal(new Set(c.cards.map((x) => x.qr)).size, 4);
-  // نفس البطاقة في كل مرة تُطبع (لا تتغير إلا بإعادة الإصدار)
   assert.equal((await cards(A, `student_id=${A.students[0].id}`)).cards[0].qr, cardA.get(A.students[0].id));
   cardB = (await cards(B, `class_id=${B.c1.id}`)).cards[0].qr;
-  // في القاعدة: بصمة ونسخة مشفرة فقط، لا الرمز نفسه
   const tok = cardA.get(A.students[0].id).split("/").pop();
   const [row] = await transaction({ tenantId: A.id }, (q) => q("SELECT token_enc, encode(token_hash, 'hex') AS h FROM attendance_credentials WHERE student_id = $1 AND status = 'active'", [A.students[0].id]));
   assert.ok(!row.token_enc.includes(tok));
@@ -82,7 +81,6 @@ test("بطاقة الحضور: رمز عشوائي مستقل عن معرّف و
   assert.equal(page.status, 200);
   const html = await page.text();
   assert.ok(!html.includes(A.students[0].full_name || "أحمد علي سالم"));
-  // قراءة الرمز
   assert.deepEqual(parseCode(`https://x.app/q/${A.id}/${tok}`, A.id), { token: tok });
   assert.deepEqual(parseCode(tok.toLowerCase(), A.id), { token: tok });
   assert.deepEqual(parseCode(`https://x.app/q/other-school/${tok}`, A.id), { error: "other_school" });
@@ -97,13 +95,11 @@ test("جهاز الحارس: رابط من الإدارة ← بانتظار ا�
   gA = gateDevice(srv.base, r.data.link);
   assert.equal((await gA.pair()).status, 200);
   assert.equal((await gA.status()).data.status, "pending");
-  // فتح الرابط مرة ثانية (جوال آخر): مرفوض
   const thief = gateDevice(srv.base, r.data.link);
   assert.equal((await thief.pair()).status, 401);
   await setWin(A, OPEN);
   const s1 = A.students[0];
   assert.equal((await gA.scan(cardA.get(s1.id))).status, 403, "قبل الموافقة لا مسح");
-  // الإدارة تشوف الجهاز بانتظار الموافقة
   const devs = (await A.admin.get("/api/admin/attendance/gate/devices")).data;
   const d = devs.find((x) => x.public_id === gA.pid);
   assert.equal(d.status, "pending");
@@ -113,7 +109,6 @@ test("جهاز الحارس: رابط من الإدارة ← بانتظار ا�
   assert.equal(st.status, "active");
   assert.equal(st.phase, "open");
   assert.ok(Math.abs(st.server_time - Date.now()) < 5000);
-  // سر خاطئ
   const fake = gateDevice(srv.base, r.data.link);
   fake.setSecret("x".repeat(43));
   assert.equal((await fake.scan(cardA.get(s1.id))).status, 401);
@@ -167,9 +162,7 @@ test("الرفض: بطاقة مدرسة أخرى، رمز ملغى (مشبوه)�
   const cross = await gA.scan(cardB);
   assert.equal(cross.data.result, "rejected");
   assert.equal(cross.data.reason, "other_school");
-  // رمز مدرسة ب بدون رابط: غير معروف هنا (العزل)
   assert.equal((await gA.scan(cardB.split("/").pop())).data.reason, "unknown_token");
-  // إعادة إصدار: البطاقة القديمة ملغاة ومشبوهة
   const old = cardA.get(s3.id);
   assert.equal((await A.admin.post(`/api/admin/attendance/gate/students/${s3.id}/token/reissue`, { reason: "فُقدت" })).status, 200);
   const rv = await gA.scan(old);
@@ -179,10 +172,8 @@ test("الرفض: بطاقة مدرسة أخرى، رمز ملغى (مشبوه)�
   assert.notEqual(fresh.qr, old);
   assert.equal(fresh.version, 2);
   assert.equal((await gA.scan(fresh.qr)).data.result, "present");
-  // بطاقة ولي الأمر القديمة (access_key): مغلقة افتراضيًا، وتُفتح فقط للفترة الانتقالية
   const legacy = `${srv.base}/${A.id}?k=${s4.access_key}`;
   assert.equal((await gA.scan(legacy)).data.reason, "legacy_disabled");
-  // طالب منسحب
   await transaction({ tenantId: A.id }, (q) => q("UPDATE students SET status = 'withdrawn' WHERE id = $1", [s4.id]));
   assert.equal((await gA.scan(cardA.get(s4.id))).data.reason, "student_inactive");
   await transaction({ tenantId: A.id }, (q) => q("UPDATE students SET status = 'active' WHERE id = $1", [s4.id]));
@@ -202,7 +193,6 @@ test("نفس البطاقة من بوابتين خلال ثوانٍ: الثان�
   const x = await dev2.scan(cardA.get(s1.id));
   assert.equal(x.data.result, "duplicate");
   assert.equal(x.data.suspicious, "two_gates");
-  // إيقاف الجهاز: يرفض فورًا
   assert.equal((await A.admin.post(`/api/admin/attendance/gate/devices/${id}/disable`)).status, 200);
   assert.equal((await dev2.scan(cardA.get(s1.id))).status, 403);
   assert.equal((await A.admin.post(`/api/admin/attendance/gate/devices/${id}/revoke`)).status, 200);
@@ -239,20 +229,17 @@ test("العزل: جهاز مدرسة أ لا يعمل برابط مدرسة ب�
 });
 
 test("بعد الإغلاق: «لم يسجل حضور» بلا غياب ولا إشعار ← استثناءات ← اعتماد ← إشعار الغياب مرة واحدة", async () => {
-  // طالب خامس لم يمسح، وطالب سادس في رحلة
   const s5 = (await A.admin.post("/api/admin/students", { name: "خالد سالم علي", class_id: A.c1.id, guardian_phone: "771234999" })).data;
   const s6 = (await A.admin.post("/api/admin/students", { name: "ناصر عمر خالد", class_id: A.c1.id, guardian_phone: "771234998" })).data;
   assert.equal((await client(srv.base).post(`/api/public/${A.id}/student/push`, { ...A.parent(s5), subscription: sub("sg5") })).status, 200);
   await setWin(A, { ...CLOSED, absence_notify_at: "00:00" });
-  if (hm() <= "00:01") return;   // الاختبار يحتاج أن يكون الوقت بعد الإغلاق
-  // المسح بعد الإغلاق مرفوض
+  if (hm() <= "00:01") return;
   assert.equal((await gA.scan((await cards(A, `student_id=${s5.id}`)).cards[0].qr)).data.reason, "outside_window");
   const sum = (await A.admin.get(`/api/admin/attendance/gate/summary?date=${today()}`)).data;
   assert.equal(sum.phase, "closed");
   const un = (await A.admin.get(`/api/admin/attendance/gate/unrecorded?date=${today()}`)).data;
   assert.deepEqual(un.map((x) => x.id).sort(), [s5.id, s6.id].sort());
   assert.equal(un.find((x) => x.id === s5.id).last_rejected, "outside_window");
-  // لا غياب ولا إشعار قبل الاعتماد (حتى بعد المهمة الدورية: تنبه الإدارة فقط)
   await transaction({ tenantId: A.id }, gateTickTenant);
   await settle();
   assert.equal(pushes.filter((x) => x.endpoint.endsWith("/sg5")).length, 0);
@@ -260,7 +247,6 @@ test("بعد الإغلاق: «لم يسجل حضور» بلا غياب ولا �
   assert.equal(n, 0);
   const inbox = (await A.admin.get("/api/admin/notifications")).data;
   assert.ok(JSON.stringify(inbox).includes("لم يسجل حضور"), "تنبيه المراجعة للإدارة");
-  // استثناء: رحلة (بسبب إلزامي)
   assert.equal((await A.admin.post("/api/admin/attendance/gate/exceptions", { date: today(), status: "trip", student_ids: [s6.id] })).status, 400);
   assert.equal((await A.admin.post("/api/admin/attendance/gate/exceptions", { date: today(), status: "trip", reason: "رحلة الشعبة", student_ids: [s6.id] })).status, 200);
   const fin = await A.admin.post("/api/admin/attendance/gate/finalize", { date: today() });
@@ -292,6 +278,5 @@ test("يوم بلا حضور (يوم استثنائي): المسح مرفوض", 
   await B.admin.post(`/api/admin/attendance/gate/devices/${id}/approve`);
   assert.equal((await dev.status()).data.phase, "no_school");
   assert.equal((await dev.scan(cardB)).data.reason, "no_school_day");
-  // الإعدادات تتحقق من ترتيب الأوقات
   assert.equal((await setWin(B, { open_at: "08:00", late_after: "07:00", close_at: "09:00" })).status, 400);
 });

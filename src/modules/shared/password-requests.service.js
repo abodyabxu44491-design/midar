@@ -1,7 +1,8 @@
-// طلبات «نسيت كلمة المرور» — المعتمد حسب الدور الفعلي للحساب:
-//   المعلم والمحاسب ← إدارة المدرسة تتحقق وتعتمد وتُصدر الرابط
-//   مدير المدرسة    ← مالك المنصة يتحقق ويعتمد ويُصدر الرابط
-// الرابط لمرة واحدة ولمدة ساعتين، ويُحفظ مجزّأً فقط ويُعرض لمن اعتمده مرة واحدة ليرسله لصاحب الطلب.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import crypto from "node:crypto";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
@@ -50,7 +51,6 @@ const SELECT = `SELECT r.id, r.ref, r.tenant_id, r.full_name, r.username, r.phon
     r.token_expires_at, r.used_at, r.created_at, r.updated_at
   FROM password_requests r`;
 
-// الإدارة: طلبات المعلمين والمحاسبين فقط (طلبات الحساب الإداري عند المالك)
 export const listForSchool = (q) => q(`${SELECT} WHERE r.route = 'school' ORDER BY r.status = 'new' DESC, r.id DESC LIMIT 200`);
 
 export const listForOwner = (q) => q(
@@ -64,7 +64,6 @@ export const submit = async (q, b) => {
   return { ref: row.ref };
 };
 
-// إصدار الرابط (مشترك بين الإدارة والمالك): رمز عشوائي يُحفظ مجزّأً فقط، ونصه يُعاد مرة واحدة
 async function issueLink(q, id, userId, patch, baseUrl) {
   const token = crypto.randomBytes(32).toString("hex");
   const hash = crypto.createHash("sha256").update(token).digest("hex");
@@ -75,10 +74,6 @@ async function issueLink(q, id, userId, patch, baseUrl) {
   return { status: "approved", link: `${baseUrl}/reset?token=${token}`, expires_hours: TOKEN_HOURS };
 }
 
-/**
- * إدارة المدرسة: تعتمد طلبات المعلمين والمحاسبين فقط (أو ترفض).
- * الدور يُفحص من الحساب الفعلي لحظة الاعتماد: إن تبيّن أنه حساب إداري يُحال للمالك تلقائيًا ولا يُصدر رابط.
- */
 export async function adminReview(q, id, b, actor, baseUrl) {
   const [r] = await q("SELECT id, status, username, route FROM password_requests WHERE id = $1 FOR UPDATE", [id]);
   if (!r || r.route !== "school") throw notFound("الطلب غير موجود");
@@ -99,9 +94,6 @@ export async function adminReview(q, id, b, actor, baseUrl) {
   return issueLink(q, id, user.id, { cols: "admin_note = $5, reviewed_by = $6, approved_by = $6", values: [b.note ?? null, actor] }, baseUrl);
 }
 
-/**
- * مالك المنصة: يعتمد طلبات مديري المدارس (وأي طلب قديم أُحيل إليه قبل هذا التعديل).
- */
 export async function ownerReview(q, id, b, actor, baseUrl) {
   const [r] = await q("SELECT * FROM password_requests WHERE id = $1 FOR UPDATE", [id]);
   if (!r || r.route !== "owner") throw notFound("الطلب غير موجود");
@@ -112,21 +104,17 @@ export async function ownerReview(q, id, b, actor, baseUrl) {
       [id, b.note ?? null, actor]);
     return { status: "rejected" };
   }
-  // الحساب ودوره سُجّلا عند تقديم الطلب بدالة قاعدة البيانات (جدول المستخدمين معزول لكل مدرسة حتى عن المالك)
   if (!r.user_id) throw badRequest("لا يوجد حساب بهذا الاسم في هذه المدرسة");
-  // طلب جديد عند المالك يجب أن يكون لحساب إداري (المعلمون والمحاسبون مسؤولية إدارة المدرسة)
   if (r.status === "new" && r.account_role !== "admin") throw badRequest("هذا ليس حسابًا إداريًا؛ تعتمده إدارة المدرسة.");
   return issueLink(q, id, r.user_id, { cols: "owner_note = $5, approved_by = $6", values: [b.note ?? null, actor] }, baseUrl);
 }
 
-/** فتح صفحة التغيير: يتحقق من الرمز دون كشف بيانات الحساب */
 export async function checkToken(q, token) {
   const hash = crypto.createHash("sha256").update(token).digest("hex");
   const [row] = await q("SELECT password_reset_check($1) AS ref", [hash]);
   return { ref: row.ref };
 }
 
-/** تنفيذ التغيير: مرة واحدة، ثم تُنهى كل جلسات الحساب */
 export async function reset(q, b) {
   const hash = crypto.createHash("sha256").update(b.token).digest("hex");
   const passwordHash = await hashPassword(b.password);

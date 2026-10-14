@@ -1,4 +1,8 @@
-// أوراق جاهزة للطباعة: بطاقات معرّفات الطلاب، وسجل الحضور الشهري
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -9,7 +13,6 @@ import { originOf } from "./certificates.js";
 
 const r = Router();
 
-// بطاقات ولي الأمر: اسم الطالب وصفه ورقمه وولي أمره ومعرّفه، ورابط يفتح ملفه مباشرة مع رمز QR له
 r.get("/cards", handle(async (req, res) => {
   const { class_id: classId, student_id: studentId } = parse(
     z.object({ class_id: t.id.optional(), student_id: t.id.optional() }), req.query);
@@ -35,7 +38,6 @@ r.get("/cards", handle(async (req, res) => {
   }));
 }));
 
-// سجل الحضور الشهري: صفوف الطلاب × أيام الشهر
 r.get("/attendance-month", handle(async (req, res) => {
   const { class_id: classId, month } = parse(
     z.object({ class_id: t.id, month: z.string().regex(/^\d{4}-\d{2}$/, "الشهر بصيغة YYYY-MM") }), req.query);

@@ -1,4 +1,8 @@
-// الاستيراد من ملفات: تنزيل القالب، معاينة الملف، ثم الاستيراد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { startJob } from "../../core/jobs.js";
@@ -11,7 +15,6 @@ import * as teachersImport from "../shared/import-teachers.service.js";
 const r = Router();
 const kindParam = z.enum(Object.keys(KINDS));
 
-// قائمة أنواع الاستيراد وأعمدتها (تُبنى منها الواجهة)
 r.get("/kinds", handle(async (req, res) => {
   res.json(Object.entries(KINDS).map(([key, def]) => ({
     key, name: def.name, note: def.note,
@@ -19,10 +22,8 @@ r.get("/kinds", handle(async (req, res) => {
   })));
 }));
 
-/* ---------- استيراد الطلاب (Excel/CSV): قالب، تحليل، تنفيذ ---------- */
 const studentsRows = z.object({
   rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).min(1, "الملف فارغ").max(2000, "الحد 2000 سطر في المرة"),
-  // اختيارات المستخدم للصفوف الملتبسة: { "مفتاح القيمة": رقم الصف }
   grade_map: z.record(z.string().max(120), z.coerce.number().int().positive()).default({}),
   include_duplicates: z.boolean().default(false),
 });
@@ -40,7 +41,6 @@ r.get("/students/template", handle(async (req, res) => {
   res.send(buffer);
 }));
 
-// تحليل بلا أي كتابة في قاعدة البيانات
 r.post("/students/analyze", handle(async (req, res) => {
   const b = parse(studentsRows, req.body);
   const a = await inTenant(req, (q) => studentsImport.analyze(q, req.tenant, b.rows, { gradeMap: b.grade_map, includeDuplicates: b.include_duplicates }));
@@ -48,8 +48,6 @@ r.post("/students/analyze", handle(async (req, res) => {
   res.json(out);
 }));
 
-// التنفيذ: يعيد التحليل في الخادم ثم يكتب الأسطر الصحيحة كلها في معاملة واحدة
-// يعمل في الخلفية ويُرجع رقم العملية فورًا، والتقدم من /api/admin/jobs/:id (الملف الكبير لا ينقطع بمهلة الطلب)
 r.post("/students/commit", handle(async (req, res) => {
   const b = parse(studentsRows, req.body);
   const tenant = req.tenant;
@@ -58,7 +56,6 @@ r.post("/students/commit", handle(async (req, res) => {
       { gradeMap: b.grade_map, includeDuplicates: b.include_duplicates, onProgress: (n, total) => progress(n, total) })) })));
 }));
 
-/* ---------- استيراد المعلمين (Excel/CSV): مطابقة أعمدة، تحليل، تنفيذ، قالب، تصدير ---------- */
 const teachersRows = z.object({
   rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).min(1, "الملف فارغ").max(teachersImport.MAX_ROWS, `الحد ${teachersImport.MAX_ROWS} معلم في المرة`),
   grade_map: z.record(z.string().max(120), z.coerce.number().int().positive()).default({}),
@@ -90,7 +87,6 @@ r.post("/teachers/analyze", handle(async (req, res) => {
   const { _internal, ...out } = a;
   res.json(out);
 }));
-// في الخلفية: تجزئة كلمات المرور بطيئة عمدًا. كلمات المرور المؤقتة تُسلَّم من الذاكرة لمن بدأ الاستيراد فقط ولا تُحفظ في jobs
 r.post("/teachers/commit", handle(async (req, res) => {
   const b = parse(teachersRows, req.body);
   const maxTeachers = req.subscription?.max_teachers ?? null;
@@ -102,7 +98,6 @@ r.post("/teachers/commit", handle(async (req, res) => {
     }));
 }));
 
-// تنزيل القالب جاهزًا للتعبئة في Excel
 r.get("/template/:kind", handle(async (req, res) => {
   const kind = parse(kindParam, req.params.kind);
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -110,7 +105,6 @@ r.get("/template/:kind", handle(async (req, res) => {
   res.send(template(kind));
 }));
 
-// معاينة أو استيراد. الاستيراد كامل أو لا شيء.
 r.post("/:kind", handle(async (req, res) => {
   const kind = parse(kindParam, req.params.kind);
   const b = parse(rowsSchema, req.body);

@@ -1,6 +1,8 @@
-// قراءة ملف Excel (.xlsx) داخل المتصفح بلا مكتبات: فك ZIP بـ DecompressionStream ثم قراءة XML.
-// يعيد { headers, rows } بنفس شكل parseCsv، فيتعامل معه المعالج بالطريقة نفسها.
-
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const dec = new TextDecoder("utf-8");
 
 async function inflateRaw(bytes) {
@@ -8,7 +10,6 @@ async function inflateRaw(bytes) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-/** يقرأ فهرس ZIP ويعيد دالة لجلب نص أي ملف داخله */
 async function openZip(buf) {
   const v = new DataView(buf), u8 = new Uint8Array(buf);
   let eocd = -1;
@@ -42,7 +43,6 @@ export async function readXlsx(file) {
   const get = await openZip(await file.arrayBuffer());
   const wb = await get("xl/workbook.xml");
   if (!wb) throw new Error("الملف ليس Excel صالحًا (.xlsx)");
-  // أول ورقة في المصنف
   const first = xml(wb).getElementsByTagName("sheet")[0];
   const rid = first?.getAttribute("r:id") || first?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
   const rels = xml((await get("xl/_rels/workbook.xml.rels")) || "<r/>");

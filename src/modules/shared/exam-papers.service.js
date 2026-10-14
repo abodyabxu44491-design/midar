@@ -1,7 +1,9 @@
-// ورقة الاختبار: الإنشاء، الحفظ التلقائي، الحالات والاعتماد، النسخ والقوالب، الاستيراد، والصلاحيات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// الصلاحيات تُحسب هنا في مكان واحد ويستخدمها الخادم قبل كل عملية، والواجهة تعرض الأزرار حسبها فقط.
-// نموذج الإجابة لا يخرج من الخادم إلا لمن يملك صلاحيته، ولا يوجد أي مسار عام يصل إليه.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { matchesMime } from "./attachments.service.js";
@@ -10,7 +12,6 @@ import {
 } from "../../../public/shared/js/exam/engine.js";
 import { paperQuestion, normalizeQuestion, newItemId, pick } from "./question-bank.service.js";
 
-/* ---------- المخططات ---------- */
 const sectionSchema = z.object({
   id: z.string().regex(/^s_[a-z0-9]{3,20}$/, "معرّف قسم غير صالح"),
   title: z.string().max(150).default(""),
@@ -71,8 +72,6 @@ export const settingsSchema = z.object({
   default_instructions: t.optText(2000), footer_text: t.optText(200),
 }).partial();
 
-/* ---------- إعدادات المدرسة ---------- */
-// شعار المدرسة العام يُستخدم في ورقة الاختبار إن لم تُرفع صورة خاصة بالاختبارات
 const SETTINGS_SQL = `SELECT e.*, p.logo_image_id AS school_logo_id FROM exam_paper_settings e
   LEFT JOIN school_profile p ON p.tenant_id = e.tenant_id WHERE e.tenant_id = app_tenant()`;
 export async function getSettings(q) {
@@ -97,8 +96,6 @@ const publicSettings = (s) => ({
   default_instructions: s.default_instructions, footer_text: s.footer_text,
 });
 
-/* ---------- الصلاحيات ---------- */
-// who: { role: "admin" } أو { role: "teacher", teacherId }
 export function permissions(who, paper, settings) {
   const admin = who.role === "admin";
   const author = !admin && paper.teacher_id != null && Number(paper.teacher_id) === Number(who.teacherId);
@@ -108,10 +105,10 @@ export function permissions(who, paper, settings) {
   return {
     view: owner,
     edit: owner && editable,
-    submit: author && s === "draft" && settings.require_approval,                       // إرسال للإدارة
+    submit: author && s === "draft" && settings.require_approval,
     approve: editable && (admin || (author && !settings.require_approval)),
     reopen: (s === "approved" || s === "printed") && (admin || (author && !settings.require_approval && settings.teacher_can_reopen)),
-    print: owner && (s === "approved" || s === "printed"),                             // الطباعة الرسمية بعد الاعتماد فقط
+    print: owner && (s === "approved" || s === "printed"),
     preview: owner,
     answer_key: admin || (author && settings.teacher_answer_keys),
     archive: owner && s !== "archived",
@@ -122,7 +119,6 @@ export function permissions(who, paper, settings) {
 
 function need(perm, message) { if (!perm) throw forbidden(message); }
 
-/* ---------- القراءة ---------- */
 const LIST_COLS = `p.id, p.teacher_id, p.subject_id, p.class_id, p.grade_id, p.term_id, p.title, p.exam_type, p.exam_date,
   p.duration_min, p.total_marks, p.computed_marks, p.question_count, p.status, p.versions, p.is_template, p.template_name,
   p.print_count, p.printed_at, p.approved_by, p.approved_at, p.created_at, p.updated_at, p.version,
@@ -170,10 +166,6 @@ async function load(q, id) {
   return p || null;
 }
 
-/**
- * قراءة الاختبار مع التحقق من الصلاحية.
- * غير المسموح له يتلقى «غير موجود» حتى لا يعرف أن الاختبار موجود أصلًا.
- */
 export async function getFor(q, who, id) {
   const paper = await load(q, id);
   const settings = await getSettings(q);
@@ -183,14 +175,11 @@ export async function getFor(q, who, id) {
   return { paper, perms, settings };
 }
 
-// ما يُرسل للواجهة: المحتوى كاملًا لمن يملك التعديل أو نموذج الإجابة، وبدون إجابات لغيره
 export function present({ paper, perms }) {
   const { seed, ...rest } = paper;
   return { ...rest, seed, layout: withLayoutDefaults(paper.layout), perms, check: checkPaper(paper) };
 }
 
-/* ---------- نطاق المعلم ---------- */
-// المعلم لا ينشئ اختبارًا إلا لمادة يدرّسها، وفي شعبة أو صف أُسند له فيه
 export async function assertTeacherScope(q, who, { subject_id, class_id, grade_id }) {
   if (who.role !== "teacher") return;
   const params = [who.teacherId, subject_id];
@@ -203,7 +192,6 @@ export async function assertTeacherScope(q, who, { subject_id, class_id, grade_i
   if (!rows.length) throw forbidden("هذه المادة غير مسندة لك في هذا الصف أو الشعبة");
 }
 
-// الصف يُستنتج من الشعبة إن لم يُحدد، والفصل الدراسي الحالي إن لم يُحدد
 async function fillDerived(q, b) {
   const out = { ...b };
   if (b.class_id) {
@@ -218,11 +206,9 @@ async function fillDerived(q, b) {
   return out;
 }
 
-/* ---------- الصور ---------- */
 export const imageSchema = z.object({
   mime: z.enum(["image/png", "image/jpeg", "image/webp"], { errorMap: () => ({ message: "الصور المسموحة: PNG أو JPG أو WEBP" }) }),
   data: z.string().min(16).max(Math.ceil(2 * 1024 * 1024 * 1.4)),
-  // صورة مصغرة اختيارية يولّدها المتصفح (للمعاينات والقوائم)
   thumb: z.object({ mime: z.enum(["image/png", "image/jpeg", "image/webp"]), data: z.string().min(16).max(360_000) }).optional(),
 });
 export async function saveImage(q, { kind = "question", teacherId = null, file, actor }) {
@@ -233,7 +219,6 @@ export async function saveImage(q, { kind = "question", teacherId = null, file, 
   let thumb = null;
   if (file.thumb) {
     thumb = Buffer.from(file.thumb.data, "base64");
-    // المصغرة تُفحص بمحتواها مثل الأصلية، وإن لم تصح تُتجاهل (الأصلية تكفي)
     if (!thumb.length || thumb.length > 262144 || !matchesMime(thumb, file.thumb.mime)) thumb = null;
   }
   const [row] = await q(
@@ -242,7 +227,6 @@ export async function saveImage(q, { kind = "question", teacherId = null, file, 
     [kind, teacherId, file.mime, buffer.length, buffer, actor, thumb, thumb ? file.thumb.mime : null]);
   return row;
 }
-// size = thumb: المصغرة إن وُجدت (وإلا الأصلية). لا تُقرأ الأصلية من القاعدة عند طلب المصغرة.
 export async function readImage(q, id, size = "full") {
   const [row] = size === "thumb"
     ? await q("SELECT COALESCE(thumb_mime, mime) AS mime, COALESCE(thumb, data) AS data FROM exam_images WHERE id = $1", [id])
@@ -251,7 +235,6 @@ export async function readImage(q, id, size = "full") {
   return row;
 }
 
-// الصور المشار إليها في المحتوى يجب أن تكون صور هذه المدرسة (RLS يضمن ذلك عند الاستعلام)
 async function dropForeignImages(q, content) {
   const ids = new Set();
   for (const s of content.sections) for (const qq of s.questions) if (qq.image?.id) ids.add(Number(qq.image.id));
@@ -267,7 +250,6 @@ function normalizeContent(content) {
   };
 }
 
-/* ---------- الإنشاء والحفظ ---------- */
 export async function create(q, who, b, actor, extra = {}) {
   await assertTeacherScope(q, who, b);
   const d = await fillDerived(q, b);
@@ -289,10 +271,6 @@ export async function create(q, who, b, actor, extra = {}) {
   return row;
 }
 
-/**
- * الحفظ التلقائي: يرسل المتصفح رقم النسخة التي يعدّلها.
- * إن عُدّل الاختبار من جهاز آخر بعدها يُرفض الحفظ بدل أن يمسح أحدهما عمل الآخر.
- */
 export async function save(q, who, id, b) {
   const { paper, perms } = await getFor(q, who, id);
   need(perms.edit, paper.status === "approved" || paper.status === "printed"
@@ -322,7 +300,6 @@ export async function save(q, who, id, b) {
   return { ...row, check: checkPaper({ ...paper, content, total_marks: val("total_marks") }) };
 }
 
-/* ---------- الحالات ---------- */
 export async function setStatus(q, who, id, action, actor) {
   const { paper, perms } = await getFor(q, who, id);
   if (paper.is_template) throw badRequest("القالب لا يُعتمد ولا يُطبع. أنشئ منه اختبارًا أولًا.");
@@ -338,7 +315,6 @@ export async function setStatus(q, who, id, action, actor) {
         ? "اعتماد الاختبارات من صلاحية إدارة المدرسة. أرسله للاعتماد." : "لا يمكن اعتماد هذا الاختبار");
       if (check.blocking) throw badRequest(`لا يمكن اعتماد الاختبار: ${check.issues.find((i) => i.level === "error").text}`);
       await q("UPDATE exam_papers SET status = 'approved', approved_by = $2, approved_at = now() WHERE id = $1", [id, actor]);
-      // إحصاء استخدام أسئلة البنك
       {
         const bankIds = [];
         for (const s of paper.content.sections || []) for (const qq of s.questions || []) if (qq.bank_id) bankIds.push(Number(qq.bank_id));
@@ -372,17 +348,15 @@ export async function remove(q, who, id) {
   await q("DELETE FROM exam_papers WHERE id = $1", [id]);
 }
 
-/* ---------- النسخ والقوالب ---------- */
 export const copySchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
-  mode: z.enum(["same", "bank"]).default("same"),       // نفس الأسئلة، أو أسئلة جديدة من البنك من النوع نفسه
-  shuffle: z.boolean().default(false),                 // تغيير ترتيب الأسئلة داخل كل قسم
-  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional(),   // توزيع الدرجات على مجموع جديد
+  mode: z.enum(["same", "bank"]).default("same"),
+  shuffle: z.boolean().default(false),
+  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional(),
   exam_date: t.optDate,
   class_id: t.optId,
 });
 
-// أسئلة جديدة بمعرّفات جديدة (حتى لا تتشارك النسخة والأصل أي عنصر)
 function cloneContent(content) {
   return {
     sections: content.sections.map((s) => ({
@@ -392,7 +366,6 @@ function cloneContent(content) {
   };
 }
 
-// توزيع الدرجات على مجموع جديد بالتناسب (لأقرب ربع درجة)، والفرق يُضاف لآخر سؤال
 function scaleMarks(content, target) {
   const tt = totals(content);
   if (!tt.total || !target) return content;
@@ -452,7 +425,6 @@ export async function saveTemplate(q, who, id, name, actor) {
   }, actor, { is_template: true, template_name: name, source_paper_id: paper.id, teacher_id: paper.teacher_id });
 }
 
-/* ---------- التصدير والاستيراد (ملف JSON بين المعلمين أو المدارس) ---------- */
 export function exportPaper(paper, withAnswers) {
   return {
     midar_exam: 1, exported_at: new Date().toISOString(),
@@ -485,11 +457,9 @@ export async function importPaper(q, who, b, actor) {
   }, actor);
 }
 
-/* ---------- الإنشاء السريع ومن البنك ---------- */
 export { SECTION_TITLES };
 const sectionTitle = (i, type) => `السؤال ${ORDINALS[i] || i + 1}: ${SECTION_TITLES[type] || QTYPES[type].label}`;
 
-// توزيع مجموع الدرجات على عدد الأسئلة لأقرب ربع درجة
 function spread(total, n) {
   if (!n) return [];
   const each = Math.max(0.25, Math.floor((total / n) * 4) / 4);
@@ -508,7 +478,7 @@ export const fromBankSchema = z.object({
   unit: z.string().trim().max(120).optional().nullable(),
   lesson: z.string().trim().max(120).optional().nullable(),
   spec: z.array(z.object({ type: z.enum(Object.keys(QTYPES)), count: z.coerce.number().int().min(1).max(100) })).min(1).max(12),
-  fill_missing: z.boolean().default(true),        // إكمال النقص بأسئلة فارغة يكتبها المعلم
+  fill_missing: z.boolean().default(true),
 });
 
 export const quickSchema = z.object({
@@ -519,7 +489,6 @@ export const quickSchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
 });
 
-// الإنشاء السريع: توزيع افتراضي للأنواع ثم نفس مسار «من البنك» مع إكمال النقص
 export function quickSpec(count) {
   if (count <= 3) return [{ type: "mcq", count }];
   const tf = Math.max(1, Math.round(count * 0.2));
@@ -552,7 +521,6 @@ export async function createFromSpec(q, who, b, actor) {
     for (const qq of got) {
       if (marks) qq.marks = marks[mi];
       mi++;
-      // معرّفات الخيارات من محرك الواجهة: توحيدها لصيغة الخادم
       if (qq.options) qq.options = qq.options.map((o) => ({ ...o, id: /^o_[a-z0-9]{3,20}$/.test(o.id) ? o.id : newItemId("o") }));
       if (qq.pairs) qq.pairs = qq.pairs.map((p) => ({ ...p, id: /^p_[a-z0-9]{3,20}$/.test(p.id) ? p.id : newItemId("p") }));
       if (qq.items) qq.items = qq.items.map((p) => ({ ...p, id: /^i_[a-z0-9]{3,20}$/.test(p.id) ? p.id : newItemId("i") }));
@@ -570,7 +538,6 @@ export async function createFromSpec(q, who, b, actor) {
   return { ...row, from_bank: r.questions.length, filled, shortages: r.shortages };
 }
 
-/* ---------- الأنواع والتعليمات ---------- */
 export async function examTypes(q) {
   const custom = await q("SELECT id, name, is_active FROM exam_types ORDER BY name");
   return { defaults: DEFAULT_EXAM_TYPES, custom };
@@ -598,7 +565,6 @@ export async function removePreset(q, teacherId, id) {
   if (!rows.length) throw notFound("التعليمات غير موجودة");
 }
 
-/* ---------- سياق الإنشاء: كل ما يلزم لتعبئة النموذج تلقائيًا ---------- */
 export async function context(q, who) {
   const settings = await getSettings(q);
   const load = who.role === "teacher" ? await q(
@@ -617,7 +583,6 @@ export async function context(q, who) {
     `SELECT t.id, t.name, t.is_current, y.name AS year_name FROM terms t JOIN academic_years y ON y.id = t.year_id
       WHERE y.is_current ORDER BY t.ordinal`);
   const [school] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
-  // الشعب موقوفة في المدرسة: لا يظهر حقل «الشعبة» ولا اسم الشعبة في ورقة الاختبار
   const [profile] = await q("SELECT sections_enabled FROM school_profile WHERE tenant_id = app_tenant()");
   return {
     load, terms, types: await examTypes(q), settings: { ...publicSettings(settings), sections_enabled: profile?.sections_enabled !== false }, school: school?.name,
@@ -625,11 +590,9 @@ export async function context(q, who) {
   };
 }
 
-/* ---------- قائمة طلاب الشعبة (للطباعة بأسماء الطلاب) ---------- */
 export async function roster(q, paper) {
   if (!paper.class_id) throw badRequest("حدد الشعبة في بيانات الاختبار أولًا لطباعة أوراق بأسماء الطلاب");
   const rows = await q(
     `SELECT s.full_name AS name FROM students s WHERE s.class_id = $1 AND s.status = 'active' ORDER BY s.full_name`, [paper.class_id]);
-  // رقم الطالب = ترتيبه في كشف الشعبة (معرّف الطالب السري لا يُطبع على الأوراق إطلاقًا)
   return rows.map((r, i) => ({ number: i + 1, name: r.name, class_name: paper.class_name, grade_name: paper.grade_name }));
 }
