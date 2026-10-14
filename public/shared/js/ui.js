@@ -84,6 +84,19 @@ export function brandLogo(cls = "brand-logo", light = true, variant = "row") {
   return h("img", { src: file, alt: "مدار", class: cls, ...size });
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+const AVATAR_TONES = { male: ["#E3F1F0", "#7FB5B1"], female: ["#EFEBF7", "#A79BC6"] };
+export function personAvatar(gender, size = 40, cls = "") {
+  const [bg, fg] = AVATAR_TONES[gender === "female" || gender === "girls" ? "female" : "male"];
+  const el = document.createElementNS(SVG_NS, "svg");
+  for (const [k, v] of Object.entries({ viewBox: "0 0 44 44", width: size, height: size, "aria-hidden": "true", focusable: "false", class: `p-avatar ${cls}`.trim() })) el.setAttribute(k, v);
+  const add = (tag, attrs) => { const n = document.createElementNS(SVG_NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); el.append(n); };
+  add("circle", { cx: 22, cy: 22, r: 22, fill: bg });
+  add("circle", { cx: 22, cy: 17, r: 7.5, fill: fg });
+  add("path", { d: "M8 38c2.5-7.5 7.5-11 14-11s11.5 3.5 14 11", fill: fg });
+  return el;
+}
+
 export const schoolLogoUrl = (schoolId, logo, size) => (logo ? `/api/public/${encodeURIComponent(schoolId)}/logo?v=${logo}${size ? `&size=${size}` : ""}` : null);
 export const schoolLogoImg = (url, cls = "school-logo") => (url ? h("img", { class: cls, src: url, alt: "", decoding: "async" }) : null);
 
@@ -367,6 +380,24 @@ export function tabs(list, views, ctx, { primary = [] } = {}) {
     return show(k || fallback, { push: false });
   };
   return { el: h("div", { class: "tabs-layout" }, bar, body, bnav), show, start, setBadge };
+}
+
+export function sheetMenu(title, groups, { current, onPick } = {}) {
+  const sheet = h("dialog", { class: "sheet", "aria-label": title });
+  sheet.append(h("div", { class: "sheet-in" },
+    h("div", { class: "sheet-head" }, h("h2", {}, title),
+      h("button", { type: "button", class: "sheet-x", "aria-label": "إغلاق", onclick: () => sheet.close() }, icons.close({ size: 20 }))),
+    groups.filter((g) => g.items.length).map((g) => h("section", { class: "sheet-group" },
+      g.title ? h("h3", {}, g.title) : null,
+      h("div", { class: "sheet-grid" }, g.items.map((it) => h("button", { type: "button", class: `sheet-item${it.key === current ? " on" : ""}`,
+        onclick: () => { sheet.close(); onPick(it.key); } },
+        h("span", { class: "sheet-ic" }, it.icon ? it.icon({ size: 22 }) : icons.list({ size: 22 })), h("span", {}, it.name),
+        it.note ? h("small", { class: "sheet-note" }, it.note) : null)))))));
+  sheet.addEventListener("close", () => sheet.remove());
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
+  document.body.append(sheet);
+  sheet.showModal();
+  return sheet;
 }
 
 export function dialog(title, content, actions = []) {

@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, input, btn, empty, notice, sub } from "../../shared/js/ui.js";
+import { panel, input, btn, empty, notice, sub, personAvatar } from "../../shared/js/ui.js";
 import { ATTENDANCE, today } from "../../shared/js/format.js";
 import { myClasses } from "./home.js";
 import { attendanceSource } from "../offline.js";
@@ -46,6 +46,7 @@ export default function students({ me, params, goTo }) {
       marked && absent ? notice(`غائبون اليوم: ${rows.filter((r) => r.today === "absent").map((r) => r.name).join("، ")}`, "warn") : null,
       shown.length ? shown.map((r, i) => h("div", { class: "stu-row" },
         h("span", { class: "att-no" }, i + 1),
+        personAvatar(r.gender, 38, "att-av"),
         h("div", { class: "stu-main" }, h("b", {}, r.name),
           h("small", {}, [r.student_no ? `رقم ${r.student_no}` : null, offline ? null : r.days ? `سُجّل ${r.days} يومًا` : "لا حضور مسجّل بعد"].filter(Boolean).join(" · "))),
         offline ? null : h("div", { class: "stu-stats" },

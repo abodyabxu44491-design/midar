@@ -5,6 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
+import { personAvatar } from "../../shared/js/ui.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
   showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
@@ -22,10 +23,9 @@ let importedSince = null;
 
 const GENDER = { male: "ذكر", female: "أنثى" };
 const photoUrl = (s) => `${A}/students/${s.id}/photo?v=${s.version || 0}`;
-const initial = (name) => [...(name || "؟")][0];
 const avatar = (s, big = false) => (s.has_photo
   ? h("img", { class: `s-photo${big ? " lg" : ""}`, src: photoUrl(s), alt: "", loading: "lazy" })
-  : h("span", { class: `s-photo ph${big ? " lg" : ""}`, "aria-hidden": "true" }, initial(s.name)));
+  : personAvatar(s.gender, big ? 84 : 46, "s-photo"));
 
 const bigDialog = (title, body, actions) => { const d = dialog(title, body, actions); d.classList.add("dialog-lg"); return d; };
 
@@ -265,7 +265,7 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   const drawPhoto = () => mount(preview,
     photoData ? h("img", { class: "s-photo lg", src: photoData, alt: "" })
       : s?.has_photo && !photoRemoved ? h("img", { class: "s-photo lg", src: photoUrl(s), alt: "" })
-      : h("span", { class: "s-photo lg ph" }, initial(f.name.value || s?.name)));
+      : personAvatar(f.gender?.value || s?.gender, 84, "s-photo"));
   const file = input({ type: "file", accept: "image/jpeg,image/png,image/webp", hidden: true });
   file.addEventListener("change", async () => {
     try { photoData = await resizePhoto(file.files[0]); photoRemoved = false; drawPhoto(); } catch (e) { toast(e.message, true); }

@@ -6,7 +6,7 @@
 //
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
-import { field, input, select, btn, panel, empty, toast, notice, dialog } from "./ui.js";
+import { field, input, select, btn, panel, empty, toast, notice, dialog, personAvatar } from "./ui.js";
 import { ATTENDANCE, today } from "./format.js";
 
 const ORDER = ["present", "absent", "late", "excused"];
@@ -66,6 +66,7 @@ export function attendanceBoard(endpoint, classes, wa = null, initialClassId = n
     const reasonVal = reasons.has(r.id) ? reasons.get(r.id) : (r.excuse || "");
     return h("div", { class: `att-row${s ? ` s-${s}` : ""}${dirty ? " dirty" : ""}`, "data-id": r.id },
       h("span", { class: "att-no" }, i + 1),
+      personAvatar(r.gender, 34, "att-av"),
       h("div", { class: "att-name" }, h("b", {}, r.name),
         r.pending ? h("small", { class: "pending-dot", title: "محفوظ على الجهاز، بانتظار المزامنة" }, "بانتظار المزامنة")
           : r.status && !dirty ? h("small", {}, `مسجّل: ${ATTENDANCE[r.status][0]}`) : dirty ? h("small", {}, "لم يُحفظ بعد") : null,

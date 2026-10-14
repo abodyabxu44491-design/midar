@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { field, input, btn, notice, dialog, sub, badge, toast, passwordInput, empty, toAsciiDigits } from "../shared/js/ui.js";
+import { field, input, btn, notice, dialog, sub, badge, toast, passwordInput, empty, toAsciiDigits, personAvatar } from "../shared/js/ui.js";
 import { ATTENDANCE, fmtDateTime } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { pushInvite } from "../shared/js/inbox.js";
@@ -181,7 +181,6 @@ const STATUS = {
   present: ["حاضر", ""], late: ["متأخر", "amber"], absent: ["غائب", "red"], excused: ["غياب بعذر", "gray"],
   permitted: ["مستأذن", "gray"], trip: ["رحلة", ""], activity: ["نشاط خارجي", ""],
 };
-const initials = (n) => String(n || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join(" ");
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0];
 const timeOf = (iso) => new Date(iso).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
 
@@ -199,7 +198,7 @@ export async function familyPage(shell) {
   const statusOf = (k) => (k.today_status ? STATUS[k.today_status] || [ATTENDANCE[k.today_status]?.[0] || k.today_status, "gray"] : ["لم يُسجَّل بعد", "gray"]);
 
   const card = (k) => {
-    const photo = h("span", { class: "fk-photo", "aria-hidden": "true" }, initials(k.name));
+    const photo = h("span", { class: "fk-photo", "aria-hidden": "true" }, personAvatar(k.gender, 52));
     if (k.has_photo) api(`${P}/parent/photo`, { student_id: k.id }).then((r) => { if (r.photo) mount(photo, h("img", { src: r.photo, alt: "" })); }).catch(() => {});
     const [st, tone] = statusOf(k);
     return h("a", { class: "fk-card", href: studentUrl(k.id), onclick: () => openChild(school, { id: k.id, key: null }) },

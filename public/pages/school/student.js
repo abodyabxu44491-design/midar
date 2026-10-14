@@ -57,7 +57,9 @@ function render(d, inbox, chat) {
     extra.push({ key: "chat", name: "مراسلة المعلمين", note: unread ? `${unread} جديد` : chat.teachers.length ? `${chat.teachers.length} معلم` : "",
       view: () => chatSection(chat, who) });
   }
-  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, actions: {
+  const invite = inbox?.push.key ? pushInvite({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
+    text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null;
+  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, appNav: true, afterHead: invite, actions: {
     excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
     who, api: (path, body) => api(`${P}${path}`, { ...who, ...body }),
@@ -71,10 +73,8 @@ function render(d, inbox, chat) {
         : () => { closeChild(school); back(); } }),
     h("main", { class: "profile-page" },
       viaParent() ? kidSwitcher(s) : null,
-      h("div", { class: "toolbar" }, viaParent() ? btn("أبنائي", family, "ghost sm") : btn("الرجوع لقائمة الطلاب", back, "ghost sm"),
+      h("div", { class: "toolbar sf-toolbar" }, viaParent() ? btn("أبنائي", family, "ghost sm") : btn("قائمة الطلاب", back, "ghost sm"),
         btn("طباعة", () => window.print(), "ghost sm")),
-      inbox?.push.key ? pushInvite({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
-        text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null,
       file.el),
     footer());
   const want = location.hash.slice(1);

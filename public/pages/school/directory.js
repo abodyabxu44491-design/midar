@@ -5,7 +5,7 @@
  */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandLogo, skeleton, installButton, teacherCards } from "../shared/js/ui.js";
+import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandLogo, skeleton, installButton, teacherCards, personAvatar } from "../shared/js/ui.js";
 import { fmtDate } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
@@ -215,9 +215,8 @@ async function sectionView(body, section, namesShown) {
 }
 
 function studentCard(s, className) {
-  const initials = String(s.name).trim().charAt(0);
   return h("button", { class: "ss-student", type: "button", onclick: () => askKey(s) },
-    h("span", { class: "av", "aria-hidden": "true" }, initials),
+    personAvatar(s.gender, 40, "av"),
     h("span", { class: "nm" }, h("b", {}, s.name), className ? h("small", {}, className) : null),
     s.fees === "paid" ? badge("مسدد") : s.fees === "unpaid" ? badge("لم يسدد", "red") : null);
 }
