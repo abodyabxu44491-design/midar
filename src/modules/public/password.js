@@ -38,7 +38,7 @@ r.get("/activation/check", limits.login, handle(async (req, res) => {
   res.json(await activation.info(token));
 }));
 r.post("/activation/send-code", limits.login, handle(async (req, res) => {
-  const b = parse(tokenQ.extend({ phone: z.string().trim().min(6, "اكتبوا رقم الجوال").max(25) }), req.body);
+  const b = parse(tokenQ.extend({ phone: z.string().trim().min(6, "أدخل رقم الجوال").max(25).optional() }), req.body);
   res.json(await activation.sendCode(b.token, b.phone));
 }));
 r.post("/activation/verify", limits.login, handle(async (req, res) => {

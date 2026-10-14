@@ -43,18 +43,21 @@ export async function info(token) {
   });
 }
 
-// Sends a one-time code to the number the manager types; that number becomes the manager's login once verified.
+// Sends a one-time code to the number the manager types (or resends it); that number becomes the manager's login once verified.
 // Short message, code first; the last line lets Android browsers fill the code automatically (Web OTP).
 const otpHost = () => { try { return env.PUBLIC_URL ? new URL(env.PUBLIC_URL).host : null; } catch { return null; } };
 export const otpMessage = (code) => [`رمز التحقق في مدار: ${code}`, `صالح ${OTP_MINUTES} دقائق. لا تشاركه مع أحد.`, otpHost() ? `\n@${otpHost()} #${code}` : null]
   .filter(Boolean).join("\n");
 
 export async function sendCode(token, rawPhone) {
-  const phone = detectPhone(rawPhone)?.ok ? normalizePhone(rawPhone) : null;
-  if (!phone) throw badRequest("رقم الجوال غير صحيح. تأكد من رمز الدولة والرقم.");
+  // Without a number this is a resend to the number already entered for this link.
+  const typed = rawPhone ? (detectPhone(rawPhone)?.ok ? normalizePhone(rawPhone) : null) : undefined;
+  if (typed === null) throw badRequest("رقم الجوال غير صحيح. تأكد من رمز الدولة والرقم.");
   const out = await platform("زائر", async (q) => {
     const a = await current(q, token, { lock: true });
     if (a.phone_verified_at) return { already: true };
+    const phone = typed ?? a.phone;
+    if (!phone) throw badRequest("أدخل رقم الجوال.");
     if (a.otp_sends >= OTP_SENDS) throw new AppError(429, "تم تجاوز عدد مرات طلب الرمز لهذا الرابط. تواصل مع إدارة مدار لإصدار رابط جديد.", "rate_limited");
     if (a.otp_last_sent_at && Date.now() - new Date(a.otp_last_sent_at) < RESEND_SECONDS * 1000) {
       throw new AppError(429, "انتظر دقيقة قبل طلب رمز جديد.", "rate_limited");

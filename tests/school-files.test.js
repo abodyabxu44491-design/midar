@@ -179,6 +179,16 @@ test("التفعيل: انتهاء الرمز، حد المحاولات، وان
   const c1 = await smsCode();
   await transaction({ platform: true }, (q) => q("UPDATE school_activations SET otp_expires_at = now() - interval '1 minute' WHERE tenant_id = $1", [id]));
   assert.equal((await verify(c1)).status, 410, "الرمز المنتهي مرفوض");
+  {
+    // A resend without a number goes to the number already entered.
+    const sent = [];
+    setTransport({ sms: async (g, m) => { sent.push(m); } });
+    await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = true, url = CASE WHEN url = '' THEN 'https://sms.example/send' ELSE url END WHERE id = 1"));
+    await transaction({ platform: true }, (q) => q("UPDATE school_activations SET otp_last_sent_at = NULL WHERE tenant_id = $1", [id]));
+    try { assert.equal((await pub.post("/api/public/activation/send-code", { token })).status, 200); }
+    finally { setTransport(null); await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = $1, url = $2 WHERE id = 1", [smsWas.enabled, smsWas.url])); }
+    assert.ok(sent[0].to.endsWith(mgr.slice(-9)), "إعادة الإرسال للرقم نفسه");
+  }
 
   const c2 = await smsCode();
   const bad = c2 === "123456" ? "654321" : "123456";

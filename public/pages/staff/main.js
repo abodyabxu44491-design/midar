@@ -6,7 +6,8 @@
 import { h, $, mount } from "../shared/js/dom.js";
 import { offlineProfile } from "../shared/js/offline/sync.js";
 import { api } from "../shared/js/api.js";
-import { brandLogo, footer, field, input, select, textarea, btn, notice, sub, dialog, showInstallBar, passwordInput, preloadModule } from "../shared/js/ui.js";
+import { field, input, select, textarea, btn, notice, dialog, showInstallBar, passwordInput, preloadModule, schoolLogoUrl } from "../shared/js/ui.js";
+import { authShell, authHead, authField, phoneField } from "../shared/js/auth.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 
@@ -61,30 +62,40 @@ async function start() {
 }
 
 function showLogin(error) {
-  const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
-  const pass = passwordInput({ autocomplete: "current-password", placeholder: "كلمة المرور" });
-  const remember = h("input", { type: "checkbox", id: "remember-me", checked: true });
-  const ROLES = [["admin", "الإداري", "الطلاب والفصول"], ["accountant", "المحاسب", "الرسوم والمالية"], ["teacher", "المعلم", "الدرجات والحضور"]];
+  const ROLES = [["admin", "الإدارة"], ["teacher", "المعلم"], ["accountant", "المحاسب"]];
   const fromLink = new URLSearchParams(location.search).get("role");
   let chosen = ["admin", "teacher", "accountant"].includes(fromLink) ? fromLink : (localStorage.getItem("midar_last_role") || "admin");
-  const roleCards = h("div", { class: "role-cards", role: "radiogroup", "aria-label": "اختر دورك" });
-  const userField = field("اسم المستخدم", user);
+  if (!ROLES.some(([k]) => k === chosen)) chosen = "admin";
   // Managers sign in with their verified mobile number; teachers and accountants keep their usernames.
-  const labelUser = () => {
-    const admin = chosen === "admin";
-    userField.querySelector("span").textContent = admin ? "رقم الجوال أو اسم المستخدم" : "اسم المستخدم";
-    user.placeholder = admin ? "05xxxxxxxx" : "اسم المستخدم";
+  let byPhone = localStorage.getItem("midar_admin_by") !== "username";
+  const phone = phoneField({ id: "login-phone" });
+  const user = input({ id: "login-user", class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
+  const pass = passwordInput({ id: "login-pass", autocomplete: "current-password", placeholder: "كلمة المرور" });
+  const remember = h("input", { type: "checkbox", checked: true });
+  const idBox = h("div");
+  const seg = h("div", { class: "au-seg", role: "radiogroup", "aria-label": "نوع الحساب" });
+  const msg = h("div", { "aria-live": "polite" }, error ? notice(error, "err") : null);
+  const usePhone = () => chosen === "admin" && byPhone;
+  const identity = () => (usePhone() ? phone.value : user.value.trim());
+
+  const drawId = () => {
+    const swap = chosen === "admin" ? h("button", { type: "button", class: "au-link", onclick: () => {
+      byPhone = !byPhone;
+      try { localStorage.setItem("midar_admin_by", byPhone ? "phone" : "username"); } catch { /* storage unavailable */ }
+      drawId(); (usePhone() ? phone : user).focus(); checkLock();
+    } }, byPhone ? "الدخول باسم المستخدم" : "الدخول برقم الجوال") : null;
+    mount(idBox, usePhone()
+      ? authField("رقم الجوال", phone.el, { id: "login-phone", aside: swap })
+      : authField("اسم المستخدم", user, { id: "login-user", aside: swap }));
   };
   const drawRoles = () => {
-    labelUser();
-    mount(roleCards, ROLES.map(([k, name, note]) => h("button", {
-      type: "button", class: `role-card${chosen === k ? " on" : ""}`, role: "radio", "aria-checked": String(chosen === k),
-      onclick: () => { chosen = k; drawRoles(); submit.textContent = `دخول ${name}`; user.focus(); },
-    }, name, h("small", {}, note))));
+    mount(seg, ROLES.map(([k, name]) => h("button", {
+      type: "button", class: chosen === k ? "on" : "", role: "radio", "aria-checked": String(chosen === k),
+      onclick: () => { chosen = k; drawRoles(); drawId(); checkLock(); (usePhone() ? phone : user).focus(); },
+    }, name)));
   };
-  const msg = h("div", {}, error ? notice(error, "err") : null);
 
-  const lockKey = () => `midar_lock_${school}_${user.value.trim().toLowerCase()}`;
+  const lockKey = () => `midar_lock_${school}_${identity().toLowerCase()}`;
   let lockTimer = null;
   const runLock = (until) => {
     clearInterval(lockTimer);
@@ -95,7 +106,7 @@ function showLogin(error) {
     mount(msg, h("div", { class: "lock-box", role: "timer", "aria-live": "polite" },
       h("div", { class: "lock-title" }, "تم إيقاف الدخول مؤقتًا بسبب محاولات خاطئة متكررة"),
       h("div", { class: "lock-sub" }, "يمكنك المحاولة مرة أخرى بعد"), time, h("div", { class: "lock-bar" }, bar),
-      h("div", { class: "lock-sub" }, "نسيت كلمة المرور؟ استخدم «نسيت كلمة المرور» بالأسفل.")));
+      h("div", { class: "lock-sub" }, "نسيت كلمة المرور؟ استخدم «نسيت كلمة المرور».")));
     const tick = () => {
       const left = Math.ceil((until - Date.now()) / 1000);
       if (left <= 0) {
@@ -111,17 +122,23 @@ function showLogin(error) {
     tick();
     lockTimer = setInterval(tick, 250);
   };
-  const checkLock = () => {
+  function checkLock() {
     const until = Number(sessionStorage.getItem(lockKey()) || 0);
     if (until > Date.now()) runLock(until);
     else if (lockTimer) { clearInterval(lockTimer); lockTimer = null; submit.disabled = false; mount(msg); }
-  };
+  }
   const submit = btn("تسجيل الدخول", async () => {
     if (lockTimer) return;
-    mount(msg);
+    mount(msg); phone.invalid(false);
+    if (usePhone() ? phone.empty : !user.value.trim()) {
+      (usePhone() ? phone : user).focus();
+      return mount(msg, notice(usePhone() ? "أدخل رقم الجوال." : "أدخل اسم المستخدم.", "err"));
+    }
+    if (usePhone() && !phone.valid) { phone.invalid(true); phone.focus(); return mount(msg, notice("رقم الجوال غير صحيح. تأكد من الدولة والرقم.", "err")); }
+    if (!pass.value) { pass.focus(); return mount(msg, notice("أدخل كلمة المرور.", "err")); }
+    submit.disabled = true;
     try {
-      if (!user.value.trim() || !pass.value) return mount(msg, notice(chosen === "admin" ? "أدخل رقم الجوال أو اسم المستخدم وكلمة المرور" : "أدخل اسم المستخدم وكلمة المرور", "err"));
-      const r = await api("/api/staff/login", { school, username: user.value.trim(), password: pass.value, remember: remember.checked });
+      const r = await api("/api/staff/login", { school, username: identity(), password: pass.value, remember: remember.checked });
       pass.value = "";
       sessionStorage.setItem("midar_role", r.role);
       localStorage.setItem("midar_last_role", r.role);
@@ -129,6 +146,7 @@ function showLogin(error) {
       mount(app, h("p", { class: "empty loading" }, "جارٍ فتح لوحتك…"));
       await enter(r.role);
     } catch (e) {
+      submit.disabled = false;
       if (e.code === "locked" && e.retryAfter) {
         const until = Date.now() + e.retryAfter * 1000;
         sessionStorage.setItem(lockKey(), String(until));
@@ -136,49 +154,35 @@ function showLogin(error) {
       }
       mount(msg, notice(e.message, "err"));
     }
-  }, "wide");
-  for (const el of [user, pass.inputEl || pass]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
+  }, "au-go");
+  submit.append(icons.chevronLeft({ size: 18 }));
+  for (const el of [user, phone.input, pass.inputEl]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
   user.addEventListener("input", checkLock);
+  phone.input.addEventListener("input", checkLock);
+  drawRoles(); drawId();
   setTimeout(checkLock, 0);
-  drawRoles();
-  submit.textContent = `دخول ${ROLES.find(([k]) => k === chosen)?.[1] || ""}`;
 
-  mount(app,
-    h("div", { class: "gate" }, h("div", { class: "gate-wrap" },
+  const head = h("div", {}, authHead("تسجيل الدخول", "أهلًا بعودتك. سجّل الدخول للمتابعة."));
+  mount(app, authShell({
+    title: "إدارة مدرستك بوضوح وسهولة",
+    text: "الطلاب والحضور والدرجات والرسوم والتقارير، في منصة واحدة آمنة.",
+    points: [[icons.users, "الطلاب والفصول والحضور"], [icons.calendar, "الجداول والاختبارات والدرجات"], [icons.wallet, "الرسوم والفواتير والتقارير"]],
+  },
+  head, seg, idBox,
+  authField("كلمة المرور", pass, { id: "login-pass" }),
+  h("div", { class: "au-row" },
+    h("label", { class: "au-check" }, remember, h("span", {}, "تذكرني")),
+    h("button", { class: "au-link", type: "button", onclick: () => requestDialog(school) }, "نسيت كلمة المرور؟")),
+  msg, submit,
+  h("p", { class: "au-hint", style: "text-align:center;margin-top:16px" }, "تحتاج مساعدة؟ تواصل مع إدارة المدرسة.")));
+  (usePhone() ? phone : user).focus();
 
-      h("aside", { class: "gate-aside hide-sm" },
-        brandLogo("hero-logo", true, "stacked"),
-        h("h1", {}, "بوابة إدارة المدرسة"),
-        h("p", {}, "كل ما تحتاجه لإدارة مدرستك في مكان واحد."),
-        h("ul", { class: "gate-points" },
-          h("li", {}, icons.users({ size: 18 }), "الطلاب والفصول والحضور"),
-          h("li", {}, icons.calendar({ size: 18 }), "الجداول والاختبارات والدرجات"),
-          h("li", {}, icons.money({ size: 18 }), "الرسوم والفواتير والتقارير"))),
-
-      h("section", { class: "gate-card" },
-        h("div", { class: "show-sm", style: "margin-bottom:10px" }, brandLogo("hero-logo", true, "stacked")),
-        h("h2", {}, "بوابة إدارة المدرسة"),
-        h("p", { class: "gate-sub" }, "كل ما تحتاجه لإدارة مدرستك في مكان واحد"),
-
-        userField,
-        field("كلمة المرور", pass),
-
-        h("div", { class: "gate-row" },
-          h("label", {}, remember, h("span", {}, "ابقني مسجلًا")),
-          h("button", { class: "gate-link", type: "button", onclick: () => requestDialog(school) }, "نسيت كلمة المرور؟")),
-
-        msg, submit,
-
-        h("div", { class: "gate-roles" },
-          h("h3", {}, "اختر دورك في المدرسة"),
-          roleCards,
-          sub("يفتح النظام لوحة دورك الفعلي من حسابك تلقائيًا.")),
-
-        h("div", { class: "gate-foot" },
-          h("span", { class: "gate-badge" }, icons.lock({ size: 14 }), "وصول خاص وآمن"),
-          h("div", { style: "margin-top:6px" }, "تحتاج مساعدة؟ تواصل مع إدارة المدرسة"))))));
-
-  user.focus();
+  // The school's name and logo, when its public page is available.
+  api(`/api/public/${encodeURIComponent(school)}/home`, {}).then((r) => {
+    if (!r?.school?.name) return;
+    mount(head, authHead("تسجيل الدخول", "أهلًا بعودتك. سجّل الدخول للمتابعة.",
+      { name: r.school.name, logo: schoolLogoUrl(school, r.school.logo_v, "thumb") }));
+  }).catch(() => {});
   startAnalytics("staff-login");
 }
 

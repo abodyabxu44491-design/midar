@@ -112,7 +112,7 @@ test("طالب مرتبط بالأب والأم: لكلٍّ حسابه، ويص�
 });
 
 test("الإشعار يحمل اسم الابن، والحضور والدرجات والواجبات والرسوم مستقلة لكل ابن", async () => {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" }); // the school's own day
   await transaction({ tenantId: A.id }, (q) => q(`INSERT INTO timetable_settings (tenant_id, days) VALUES (app_tenant(), '{0,1,2,3,4,5,6}')
     ON CONFLICT (tenant_id) DO UPDATE SET days = EXCLUDED.days`));
   assert.equal((await A.admin.post("/api/admin/attendance", { date, entries: [
