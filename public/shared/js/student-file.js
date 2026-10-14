@@ -38,7 +38,8 @@ export function feesReadOnly(f, compact = false) {
         : empty("لا توجد فواتير.")]);
 }
 
-export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [], appNav = false, afterHead = null, teachersView = null } = {}) {
+export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [], appNav = false, afterHead = null, teachersView = null,
+  headActions = [], moreActions = [] } = {}) {
   const s = d.student, f = d.fees;
   const avg = d.grades_percent !== undefined && d.grades_percent !== null ? Math.round(d.grades_percent)
     : d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
@@ -225,19 +226,37 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   const avatar = photo ? h("img", { class: "sf-avatar", src: photo, alt: "" }) : personAvatar(s.gender, 72, "sf-avatar");
   const todayRec = d.attendance.find((a) => a.day === new Date().toLocaleDateString("en-CA"));
   const tile = (tone, label, value) => h("div", { class: `sf-kpi ${tone}` }, h("span", {}, label), h("b", {}, value));
+  const cardAction = (d.admin || d.has_gate) && actions.attendanceCard ? [{ icon: "print", label: "بطاقة الحضور", tone: "soft", onClick: () => cardDialog() }] : [];
+  const acts = [...headActions.slice(0, 1), ...cardAction, ...headActions.slice(1)];
+  const copyId = (value, b) => {
+    navigator.clipboard?.writeText(value).then(() => { b.classList.add("done"); setTimeout(() => b.classList.remove("done"), 1400); }, () => {});
+  };
+  const idBox = (label, value) => {
+    const b = h("button", { type: "button", class: "sf-copy", title: "نسخ", "aria-label": `نسخ ${label}` }, icons.copy({ size: 14 }));
+    b.addEventListener("click", () => copyId(value, b));
+    return h("div", { class: "sf-idbox" }, h("span", {}, label), h("div", {}, h("b", { dir: "ltr" }, value), b));
+  };
+  const ids = [s.student_no ? idBox("رقم الطالب", String(s.student_no)) : null, s.access_key ? idBox("معرّف الطالب", s.access_key) : null].filter(Boolean);
+  const bar = acts.length || moreActions.length ? h("div", { class: "sf-bar", role: "toolbar", "aria-label": "إجراءات الطالب" },
+    acts.map((a) => (a.el ? a.el : h("button", { type: "button", class: `sf-act ${a.tone || ""}`, onclick: a.onClick },
+      icons[a.icon] ? icons[a.icon]({ size: 18 }) : null, h("span", {}, a.label)))),
+    moreActions.length ? h("button", { type: "button", class: "sf-act", "aria-haspopup": "dialog",
+      onclick: () => sheetMenu("إجراءات أخرى", [{ title: "", items: moreActions.map((a, i) => ({ key: String(i), name: a.label, note: a.note, icon: icons[a.icon] })) }],
+        { onPick: (k) => moreActions[Number(k)].onClick() }) },
+      icons.grid({ size: 18 }), h("span", {}, "المزيد")) : null) : null;
   const el = h("div", { class: `student-file${appNav ? " app" : ""}` },
     toolbar,
     h("div", { class: "sf-head" },
       avatar,
       h("div", { class: "sf-id" },
         h("h1", {}, s.name),
-        h("div", { class: "sub" }, [s.class_name, d.admin && s.student_no ? `رقم ${s.student_no}` : null].filter(Boolean).join(" · ")),
+        h("div", { class: "sub" }, s.class_name),
         h("div", { class: "sf-chips" },
           todayRec ? h("span", { class: `stu-today s-${todayRec.status}` }, `اليوم: ${ATTENDANCE[todayRec.status]?.[0] || todayRec.status}`) : null,
           avg !== null && d.settings.profile_show_grades ? badge(avg >= 90 ? "ممتاز" : avg >= 75 ? "جيد جدًا" : avg >= 60 ? "جيد" : "يحتاج متابعة", avg >= 60 ? "violet" : "amber") : null,
-          f && f.status === "unpaid" ? badge("عليه رسوم", "amber") : null),
-        !d.admin && d.has_gate && actions.attendanceCard ? h("div", { class: "sf-acts" },
-          btn([icons.print({ size: 16 }), "طباعة باركود الدخول"], () => cardDialog(), "soft sm")) : null)),
+          f && f.status === "unpaid" ? badge("عليه رسوم", "amber") : null)),
+      ids.length ? h("div", { class: "sf-ids" }, ids) : null),
+    bar,
     h("div", { class: "sf-kpis" },
       d.settings.profile_show_attendance && rate !== null ? tile("teal", "نسبة الحضور", `${rate}%`) : null,
       d.settings.profile_show_grades ? tile("violet", "متوسط الدرجات", avg === null ? "—" : `${avg}%`) : null,

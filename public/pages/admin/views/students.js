@@ -7,9 +7,9 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { personAvatar } from "../../shared/js/ui.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
-  showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards, switchBtn } from "../../shared/js/ui.js";
+  showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
-import { waButton, messageVars } from "../../shared/js/whatsapp.js";
+import { waLink, fillTemplate, messageVars } from "../../shared/js/whatsapp.js";
 import { cardWithActions } from "../../shared/js/parent-card.js";
 import { A, loadClasses, directoryLink, optional, rememberField } from "./common.js";
 import { openStudentImport } from "./student-import.js";
@@ -155,28 +155,31 @@ export default async function students({ me, refresh }) {
     try {
       const data = await api(`${A}/students/${s.id}/profile`);
       const cur = { ...s, ...data.student, name: data.student.name };
-      const toolbar = h("div", { class: "file-actions" },
-        btn("تعديل", () => { d.close(); studentForm({ student: s, classes, structure, sectionsOn, onSaved: afterChange }); }, "sm"),
-        btn("بطاقة ولي الأمر", () => card2(me, s), "ghost sm"),
-        btn("حسابات أولياء الأمور", async () => dialog(`أولياء أمور ${s.name}`, h("div", {}, await studentParents(s.id),
-          sub("الربط وفك الارتباط من قسم «أولياء الأمور»."))), "ghost sm"),
-        templates && waButton({ phone: s.guardian_phone, template: templates.general, countryCode: templates.country_code,
-          vars: messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) }), label: "واتساب" }),
-        h("span", { class: "fees-switch" }, h("span", { class: "sub" }, "الرسوم"),
-          switchBtn(s.fees_enabled, `الرسوم للطالب ${s.name}`, async () => {
-            try { const r = await api(`${A}/students/${s.id}`, { version: s.version, fees_enabled: !s.fees_enabled }, "PATCH");
-              s.version = r.version; s.fees_enabled = !s.fees_enabled; d.close(); afterChange(); return true; }
-            catch (e) { toast(e.message, true); return false; }
-          })),
-        btn("معرّف جديد", async () => {
+      const wa = templates ? waLink(s.guardian_phone, fillTemplate(templates.general,
+        messageVars({ student: s, school: me.school.name, fees: s.fees, link: directoryLink(me) })), templates.country_code) : null;
+      const headActions = [
+        { icon: "edit", label: "تعديل البيانات", tone: "pri", onClick: () => { d.close(); studentForm({ student: s, classes, structure, sectionsOn, onSaved: afterChange }); } },
+        { icon: "user", label: "بطاقة ولي الأمر", onClick: () => card2(me, s) },
+        ...(wa ? [{ icon: "message", label: "واتساب", onClick: () => window.open(wa, "_blank", "noopener") }] : []),
+        { icon: "print", label: "طباعة الملف", onClick: () => window.print() },
+      ];
+      const moreActions = [
+        { icon: "users", label: "حسابات أولياء الأمور", note: "من يتابع الطالب", onClick: async () => dialog(`أولياء أمور ${s.name}`, h("div", {}, await studentParents(s.id),
+          sub("الربط وفك الارتباط من قسم «أولياء الأمور»."))) },
+        { icon: "wallet", label: s.fees_enabled ? "إيقاف الرسوم لهذا الطالب" : "تفعيل الرسوم لهذا الطالب", onClick: async () => {
+          try { const r = await api(`${A}/students/${s.id}`, { version: s.version, fees_enabled: !s.fees_enabled }, "PATCH");
+            s.version = r.version; s.fees_enabled = !s.fees_enabled; toast(s.fees_enabled ? "فُعّلت الرسوم" : "أُوقفت الرسوم"); d.close(); afterChange(); }
+          catch (e) { toast(e.message, true); }
+        } },
+        { icon: "key", label: "إصدار معرّف جديد", note: "يوقف المعرّف الحالي فورًا", onClick: async () => {
           if (!confirmAction("المعرّف القديم سيتوقف فورًا. متابعة؟")) return;
           const r = await api(`${A}/students/${s.id}/regenerate-key`, {});
           d.close(); showCredentials("المعرّف الجديد", { access_key: r.access_key }); afterChange();
-        }, "ghost sm"),
-        btn("تغيير الحالة", () => { d.close(); statusDialog(s, afterChange); }, "danger sm"),
-        btn("طباعة", () => window.print(), "ghost sm"));
+        } },
+        { icon: "alert", label: "تغيير الحالة", note: "نقل، انسحاب، تخرج", onClick: () => { d.close(); statusDialog(s, afterChange); } },
+      ];
       const draw = (tab) => {
-        const f = studentFile(data, { toolbar, photo: s.has_photo ? photoUrl(s) : null, actions });
+        const f = studentFile(data, { headActions, moreActions, photo: s.has_photo ? photoUrl(s) : null, actions });
         mount(holder, f.el);
         if (tab) f.open(tab);
       };
