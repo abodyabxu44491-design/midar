@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "/shared/js/dom.js";
@@ -116,7 +116,7 @@ function leadDetails(d) {
   if (!d || !Object.keys(d).length) return null;
   const m = d.manager || {};
   const rows = [
-    ["الاسم المختصر", d.short_name], ["نوع المؤسسة", ORG[d.org_type]], ["الدولة", COUNTRY[d.country]], ["المنطقة", d.region], ["العنوان", d.address],
+    ["الاسم المختصر", d.short_name], ["نوع المؤسسة", ORG[d.org_type]], ["الدولة", COUNTRY[d.country] || d.country], ["المنطقة", d.region], ["العنوان", d.address],
     ["هاتف المدرسة", d.school_phone], ["بريد المدرسة", d.school_email], ["الموقع", d.website], ["رقم الترخيص", d.license_no],
     ["المراحل", (d.stages || []).map((x) => STAGE[x]).join("، ")], ["عدد الفصول", d.classes_count], ["العام الدراسي", d.academic_year],
     ["مدير المدرسة", [m.first, m.second, m.third, m.family].filter(Boolean).join(" ")], ["المسمى", m.title], ["التواصل المفضل", PREF[m.preferred]],

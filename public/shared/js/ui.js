@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { $, h, mount } from "./dom.js";
@@ -8,7 +8,7 @@ import { api, APP_VERSION, announceUpdate, applyPendingUpdate } from "./api.js";
 import { startAnalytics } from "./analytics.js";
 import { icons } from "./icons.js";
 
-export const DEV = "مدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
+export const DEV = "مدار MIDAR";
 
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; refreshInstall(); });

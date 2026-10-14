@@ -1,6 +1,6 @@
 /*!
  * Midar (مدار) - School Management Platform
- * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, $, mount } from "../shared/js/dom.js";
@@ -9,6 +9,7 @@ import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, di
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 import { recentSchools, forgetSchool } from "../shared/js/recent.js";
+import { registerDialog } from "./register.js";
 
 const app = $("#app");
 
@@ -66,7 +67,7 @@ function marketing(site) {
   const plans = site.plans || [];
   const trialOn = site.trial_enabled && (site.trial_without_plan || plans.some((p) => p.trial));
   const days = site.trial_days || 30;
-  let cycle = plans.some((p) => p.yearly) ? "yearly" : "monthly";
+  let cycle = plans.some((p) => p.yearly || p.first_year) ? "yearly" : "monthly";
   const go = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   const link = (id, text) => h("a", { href: `#${id}`, onclick: (e) => { e.preventDefault(); go(id); } }, text);
   const phone = site.support_whatsapp || site.brand_phone;
@@ -79,7 +80,8 @@ function marketing(site) {
     h("nav", { class: "links" }, link("features", "المميزات"), link("how", "كيف تبدأ"),
       plans.length ? link("plans", "الباقات") : null, reviews.length ? link("reviews", "آراء العملاء") : null, link("contact", "تواصل معنا"),
       h("button", { type: "button", class: "lnk", onclick: () => statusDialog() }, "متابعة طلب")),
-    installButton()));
+    installButton(),
+    trialOn ? h("button", { type: "button", class: "st-btn pri nav-cta", onclick: () => trialDialog(site) }, "ابدأ مجانًا") : null));
 
   const hero = h("section", { class: "st-hero v2" }, h("div", { class: "in" },
     h("div", { class: "txt" },
@@ -89,7 +91,8 @@ function marketing(site) {
       h("div", { class: "cta" },
         trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, "ابدأ تجربتك المجانية") : null,
         h("button", { class: "st-btn ghost", onclick: () => go("features") }, "استكشف المميزات")),
-      trialOn ? h("p", { class: "note" }, `${days} يومًا مجانًا كاملة، بدون رسوم خلال التجربة`) : null),
+      h("ul", { class: "hero-ticks" }, [trialOn ? `${days} يومًا مجانًا بكل المميزات` : null, "بدون تثبيت برامج", "على الجوال والكمبيوتر", "بيانات كل مدرسة معزولة ومشفرة"]
+        .filter(Boolean).map((t) => h("li", {}, icons.check({ size: 15 }), t)))),
     h("div", { class: "hero-shot", "aria-hidden": "true" },
       h("img", { class: "desk", src: "/brand/screens/admin.jpg", alt: "", width: 1280, height: 800, decoding: "async", fetchpriority: "high" }),
       h("img", { class: "phone", src: "/brand/screens/parent.jpg", alt: "", width: 390, height: 844, decoding: "async" }))));
@@ -106,7 +109,7 @@ function marketing(site) {
       h("div", { class: "st-feats" }, core.filter((f) => f.category === c).map((f) =>
         h("div", { class: "st-feat" }, h("b", {}, f.name), f.description ? h("p", {}, f.description) : null))))));
   const features = h("section", { class: "st-sec", id: "features" }, h("div", { class: "in" },
-    h("h2", {}, "مميزات مدار"), h("p", { class: "sub-h" }, "كل ما تحتاجه المدرسة في منصة واحدة تعمل من الجوال والكمبيوتر."),
+    h("span", { class: "sec-eb" }, "المميزات"), h("h2", {}, "مميزات مدار"), h("p", { class: "sub-h" }, "كل ما تحتاجه المدرسة في منصة واحدة تعمل من الجوال والكمبيوتر."),
     h("div", { class: "kf-grid" }, KEY_FEATURES.map(([icon, title, text]) => h("div", { class: "kf-card" },
       h("span", { class: "ic" }, icons[icon]({ size: 22 })), h("h3", {}, title), h("p", {}, text)))),
     core.length ? catalog : null));
@@ -119,27 +122,27 @@ function marketing(site) {
         h("span", { class: "ic" }, icons[icon]({ size: 22 })), h("b", {}, title), h("small", {}, text)))))) : null;
 
   const how = h("section", { class: "st-sec soft", id: "how" }, h("div", { class: "in" },
-    h("h2", {}, "كيف تبدأ مع مدار؟"), h("p", { class: "sub-h" }, "خمس خطوات بسيطة من التعرف على المنصة إلى تشغيل مدرستك."),
+    h("span", { class: "sec-eb" }, "خطوات البدء"), h("h2", {}, "كيف تبدأ مع مدار؟"), h("p", { class: "sub-h" }, "خمس خطوات بسيطة من التعرف على المنصة إلى تشغيل مدرستك."),
     h("ol", { class: "steps-v" }, STEPS.map(([title, text], i) => h("li", {},
       h("span", { class: "n" }, String(i + 1)), h("div", {}, h("b", {}, title), h("p", {}, text)))))));
 
   const grid = h("div", { class: "st-plans" });
   const toggle = h("div", { class: "st-toggle" });
-  const drawToggle = () => mount(toggle, plans.some((p) => p.monthly) && plans.some((p) => p.yearly) ? h("div", { class: "box" },
+  const drawToggle = () => mount(toggle, plans.some((p) => p.monthly) && plans.some((p) => p.yearly) && !plans.every((p) => p.first_year) ? h("div", { class: "box" },
     h("button", { class: cycle === "monthly" ? "on" : "", onclick: () => { cycle = "monthly"; drawToggle(); drawPlans(); } }, "شهري"),
     h("button", { class: cycle === "yearly" ? "on" : "", onclick: () => { cycle = "yearly"; drawToggle(); drawPlans(); } }, "سنوي")) : null);
   const drawPlans = () => mount(grid, plans.map((p) => planCard(p, cycle, site)));
   drawToggle(); drawPlans();
   const plansSec = plans.length ? h("section", { class: "st-sec", id: "plans" }, h("div", { class: "in" },
-    h("h2", {}, "الباقات والأسعار"),
+    h("span", { class: "sec-eb" }, "الأسعار"), h("h2", {}, "الباقات والأسعار"),
     h("p", { class: "sub-h" }, plans.every((p) => p.features.length === (plans[0]?.features.length || 0))
       ? "كل المميزات متاحة في كل الباقات، والفرق في عدد الطلاب وعدد المدارس." : "اختر الباقة المناسبة لحجم مدرستك، ورقِّها في أي وقت بدون فقدان بياناتك."),
-    toggle, grid, compareTable(plans), h("p", { class: "plans-note" },
+    toggle, grid, h("p", { class: "plans-note" },
       "يُدفع الاشتراك سنويًا مقدمًا. سعر السنة الأولى عرض للمدارس الجديدة، ثم يتجدد الاشتراك بالسعر السنوي المذكور. التفاصيل في ",
       h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات والإلغاء"), "."))) : null;
 
   const reviewsSec = h("section", { class: "st-sec soft", id: "reviews" }, h("div", { class: "in" },
-    h("h2", {}, "آراء عملائنا وشركائنا"),
+    h("span", { class: "sec-eb" }, "آراء العملاء"), h("h2", {}, "آراء عملائنا وشركائنا"),
     reviews.length ? h("div", { class: "rv-grid" }, reviews.map((r) => h("figure", { class: "rv-card" },
       r.rating ? h("div", { class: "rv-stars", "aria-label": `${r.rating} من 5` }, "★".repeat(r.rating), h("span", {}, "★".repeat(5 - r.rating))) : null,
       h("blockquote", {}, r.body),
@@ -164,11 +167,10 @@ function marketing(site) {
   ].filter(Boolean);
 
   const trust = h("section", { class: "st-sec soft", id: "trust" }, h("div", { class: "in" },
-    h("h2", {}, "لماذا تثق المدارس بمدار؟"),
+    h("span", { class: "sec-eb" }, "الثقة والأمان"), h("h2", {}, "لماذا تثق المدارس بمدار؟"),
     h("div", { class: "trust-grid" },
       h("div", { class: "trust-card" }, h("h3", {}, icons.building({ size: 20 }), "عن مدار"),
-        h("p", {}, "مدار منصة عربية لإدارة المدارس، صُممت للمدارس في اليمن والسعودية والمنطقة، وتعمل من المتصفح على الكمبيوتر والجوال بدون تثبيت برامج."),
-        h("p", { class: "sub" }, "برمجة وتطوير وتشغيل: المبرمج عبدالله السكني.")),
+        h("p", {}, "مدار منصة عربية لإدارة المدارس، تعمل من المتصفح على الكمبيوتر والجوال بدون تثبيت برامج، وتناسب المدارس في أي دولة.")),
       h("div", { class: "trust-card" }, h("h3", {}, icons.shield({ size: 20 }), "كيف نحمي بيانات مدرستك"),
         h("ul", {}, PROTECT.map((x) => h("li", {}, x)))),
       h("div", { class: "trust-card" }, h("h3", {}, icons.file({ size: 20 }), "السياسات والمساعدة"),
@@ -296,129 +298,6 @@ function planCard(p, cycle, site) {
       p.trial ? h("button", { class: "try", onclick: () => trialDialog(site, p) }, `أو جرّبها مجانًا ${p.trial_days} يومًا`) : null));
 }
 
-function compareTable(plans) {
-  if (plans.length < 2) return null;
-  const rows = [
-    ["السعر للسنة الأولى", (p) => (p.first_year ? `${fmt(p.first_year.price)} ${cur(p)}` : p.yearly ? `${fmt(p.yearly.final)} ${cur(p)}` : "—")],
-    ["السعر السنوي عند التجديد", (p) => (p.first_year ? `${fmt(p.first_year.renewal)} ${cur(p)}` : p.yearly ? `${fmt(p.yearly.base)} ${cur(p)}` : "—")],
-    ["عدد الطلاب", (p) => (p.max_students ? fmt(p.max_students) : "مفتوح")],
-    ["عدد المدارس", (p) => fmt(p.max_schools || 1)],
-    ["مدرسة إضافية", (p) => (p.max_schools > 1 && p.extra_school_price ? `${fmt(p.extra_school_price)} ${cur(p)} سنويًا` : "—")],
-    ["مركز تحكم لعدة مدارس", (p) => (p.max_schools > 1 ? "✓" : "—")],
-    ["كل المميزات", () => "✓"],
-    ["تجربة مجانية", (p) => (p.trial ? `${p.trial_days} يومًا` : "—")],
-  ];
-  return h("div", { class: "cmp-wrap" }, h("table", { class: "cmp" },
-    h("thead", {}, h("tr", {}, h("th", {}, "المقارنة"), plans.map((p) => h("th", { class: p.highlight ? "hi" : "" }, p.name)))),
-    h("tbody", {}, rows.map(([label, fn]) => h("tr", {}, h("th", { scope: "row" }, label), plans.map((p) => h("td", { class: p.highlight ? "hi" : "" }, fn(p))))))));
-}
-
-const ORG_TYPES = [["private", "مدرسة أهلية"], ["public", "مدرسة حكومية"], ["international", "مدرسة دولية"], ["institute", "معهد تدريبي"], ["other", "نوع آخر"]];
-const COUNTRIES = [["YE", "اليمن"], ["SA", "السعودية"], ["OTHER", "دولة أخرى"]];
-const STAGES = [["kg", "رياض الأطفال"], ["primary", "ابتدائي / أساسي"], ["middle", "متوسط"], ["secondary", "ثانوي"]];
-const PHONE_RE = /^[0-9+ ]{6,20}$/, EMAIL_RE = /^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$/;
-const academicYear = () => { const d = new Date(), y = d.getFullYear(); return d.getMonth() >= 6 ? `${y}/${y + 1}` : `${y - 1}/${y}`; };
-
-function leadForm(site, { kind, plan = null, cycle = "yearly", onDone, prefill = "" }) {
-  if (kind === "contact") return contactForm(onDone, prefill);
-  const plans = site.plans || [];
-  const trialPlans = plans.filter((p) => p.trial);
-  const i = (props = {}) => input(props);
-  const f = {
-    school_name: i({ autocomplete: "organization" }), short_name: i(), org_type: select(ORG_TYPES), country: select(COUNTRIES),
-    city: i(), region: i(), address: i(), school_phone: i({ class: "ltr", inputMode: "tel" }), school_email: i({ type: "email", class: "ltr" }),
-    website: i({ class: "ltr", placeholder: "https://" }), license_no: i(), students_count: i({ type: "number", min: 1 }),
-    classes_count: i({ type: "number", min: 1 }), academic_year: i({ value: academicYear() }),
-    m_first: i({ autocomplete: "given-name" }), m_second: i(), m_third: i(), m_family: i({ autocomplete: "family-name" }),
-    m_title: i({ value: "مدير المدرسة" }), phone: i({ class: "ltr", inputMode: "tel", autocomplete: "tel" }), email: i({ type: "email", class: "ltr", autocomplete: "email" }),
-    preferred: select([["whatsapp", "واتساب"], ["call", "اتصال"], ["email", "البريد الإلكتروني"]]), note: textarea({ rows: 2 }),
-  };
-  const stageBoxes = STAGES.map(([k, label]) => { const c = h("input", { type: "checkbox", value: k }); return [c, h("label", { class: "chk" }, c, label)]; });
-  const licenseField = field("رقم ترخيص المدرسة (اختياري)", f.license_no);
-  const syncCountry = () => {
-    licenseField.hidden = f.country.value === "OTHER";
-    licenseField.querySelector("span").textContent = f.country.value === "SA" ? "رقم ترخيص وزارة التعليم (اختياري)" : "رقم ترخيص المدرسة (اختياري)";
-  };
-  f.country.addEventListener("change", syncCountry); syncCountry();
-  const fullName = h("div", { class: "full-name" });
-  const syncName = () => { const n = [f.m_first, f.m_second, f.m_third, f.m_family].map((x) => x.value.trim()).filter(Boolean).join(" "); mount(fullName, n ? ["الاسم الكامل: ", h("b", {}, n)] : null); };
-  [f.m_first, f.m_second, f.m_third, f.m_family].forEach((x) => x.addEventListener("input", syncName));
-
-  const planOpts = kind === "trial"
-    ? [...(site.trial_without_plan ? [["", "أريد تجربة المنصة (بدون تحديد باقة)"]] : []), ...trialPlans.map((p) => [p.id, p.name])]
-    : plans.map((p) => [p.id, p.name]);
-  const planSel = select(planOpts, { value: plan?.id ?? (kind === "trial" ? (site.trial_without_plan ? "" : trialPlans[0]?.id) : plans[0]?.id) });
-  const cycleSel = kind === "subscription" && plans.some((p) => p.monthly) ? select([["monthly", "شهري"], ["yearly", "سنوي"]], { value: cycle }) : null;
-  const msg = h("div");
-  const label = { trial: "إرسال طلب التجربة المجانية", subscription: "إرسال طلب الاشتراك" }[kind];
-  const send = h("button", { class: `st-btn ${kind === "trial" ? "gold" : "pri"} wide`, type: "button" }, label);
-
-  const check = () => {
-    const req = [[f.school_name, "اكتب اسم المدرسة الرسمي"], [f.city, "اكتب المدينة"], [f.m_first, "اكتب الاسم الأول للمدير"],
-      [f.m_family, "اكتب اسم العائلة للمدير"], [f.phone, "اكتب رقم جوال المسؤول"]];
-    for (const [el, text] of req) if (!el.value.trim()) return [el, text];
-    if (!PHONE_RE.test(f.phone.value.trim())) return [f.phone, "رقم الجوال غير صحيح: أرقام فقط مع رمز الدولة إن وجد"];
-    if (f.email.value.trim() && !EMAIL_RE.test(f.email.value.trim())) return [f.email, "البريد الإلكتروني غير صحيح"];
-    if (f.school_email.value.trim() && !EMAIL_RE.test(f.school_email.value.trim())) return [f.school_email, "بريد المدرسة غير صحيح"];
-    if (f.school_phone.value.trim() && !PHONE_RE.test(f.school_phone.value.trim())) return [f.school_phone, "هاتف المدرسة غير صحيح"];
-    if (f.website.value.trim() && !/^https?:\/\/\S+\.\S+/.test(f.website.value.trim())) return [f.website, "رابط الموقع يبدأ بـ https://"];
-    return null;
-  };
-  send.addEventListener("click", async () => {
-    mount(msg);
-    form.querySelectorAll(".bad").forEach((x) => x.classList.remove("bad"));
-    const bad = check();
-    if (bad) { bad[0].classList.add("bad"); bad[0].focus(); return mount(msg, notice(bad[1], "err")); }
-    send.disabled = true;
-    try {
-      const v = (el) => el.value.trim();
-      const r = await api("/api/public/leads", {
-        kind, school_name: v(f.school_name), contact_name: [f.m_first, f.m_second, f.m_third, f.m_family].map(v).filter(Boolean).join(" "),
-        phone: v(f.phone), email: v(f.email), city: v(f.city), students_count: v(f.students_count), note: v(f.note),
-        plan_id: planSel.value || null, ...(kind === "subscription" ? { billing_cycle: cycleSel?.value || "yearly" } : {}), try_plan: true,
-        details: {
-          short_name: v(f.short_name), org_type: f.org_type.value, country: f.country.value, region: v(f.region), address: v(f.address),
-          school_phone: v(f.school_phone), school_email: v(f.school_email), website: v(f.website), license_no: f.country.value === "OTHER" ? "" : v(f.license_no),
-          stages: stageBoxes.filter(([c]) => c.checked).map(([c]) => c.value), classes_count: v(f.classes_count), academic_year: v(f.academic_year),
-          manager: { first: v(f.m_first), second: v(f.m_second), third: v(f.m_third), family: v(f.m_family), title: v(f.m_title), preferred: f.preferred.value },
-        },
-      });
-      const ok = h("div", { class: "st-ok" }, icons.check({ size: 40 }), h("h3", {}, "وصلنا طلبك"),
-        h("div", { class: "req-no" }, h("span", {}, "رقم الطلب"), h("b", { class: "ltr" }, `#${r.id}`)),
-        h("p", {}, `الحالة: ${r.status_label}.`),
-        h("p", {}, kind === "trial" ? "سنراجع الطلب ونتواصل معك، ثم نرسل رابط مدرستك وبيانات دخول المدير." : "سنتواصل معك لإتمام الاشتراك."),
-        h("p", { class: "sub" }, "احفظ رقم الطلب. تستطيع متابعة حالته من «متابعة طلب» برقم الطلب وجوالك."));
-      if (onDone) onDone(ok); else mount(msg, ok);
-    } catch (e) { mount(msg, notice(e.message, "err")); send.disabled = false; }
-  });
-  const sec = (title, ...kids) => h("fieldset", { class: "fs" }, h("legend", {}, title), ...kids);
-  const form = h("div", {},
-    kind === "subscription" && plan ? h("div", { class: "notice" }, `الباقة المختارة: ${plan.name}`) : null,
-    h("p", { class: "req-hint" }, "الحقول المعلَّمة بـ * مطلوبة، والباقي اختياري."),
-    sec("1. بيانات المدرسة",
-      field("اسم المدرسة الرسمي *", f.school_name),
-      h("div", { class: "row" }, field("الاسم المختصر", f.short_name), field("نوع المؤسسة", f.org_type)),
-      h("div", { class: "row" }, field("الدولة", f.country), field("المدينة *", f.city)),
-      h("div", { class: "row" }, field("المنطقة أو المحافظة", f.region), field("العنوان", f.address)),
-      h("div", { class: "row" }, field("هاتف المدرسة", f.school_phone), field("بريد المدرسة", f.school_email)),
-      h("div", { class: "row" }, field("الموقع الإلكتروني", f.website), licenseField),
-      h("div", { class: "f" }, h("span", {}, "المراحل الدراسية"), h("div", { class: "stage-grid" }, stageBoxes.map((x) => x[1]))),
-      h("div", { class: "row" }, field("عدد الطلاب التقريبي", f.students_count), field("عدد الفصول التقريبي", f.classes_count), field("العام الدراسي", f.academic_year))),
-    sec("2. بيانات مدير المدرسة والمسؤول عن الحساب",
-      h("div", { class: "row" }, field("الاسم الأول *", f.m_first), field("الاسم الثاني", f.m_second)),
-      h("div", { class: "row" }, field("الاسم الثالث", f.m_third), field("اسم العائلة *", f.m_family)),
-      fullName,
-      h("div", { class: "row" }, field("المسمى الوظيفي", f.m_title), field("وسيلة التواصل المفضلة", f.preferred)),
-      h("div", { class: "row" }, field("رقم الجوال *", f.phone, "مع رمز الدولة إن كان خارج بلد المدرسة"), field("البريد الإلكتروني", f.email))),
-    sec("3. الباقة",
-      h("div", { class: "row" }, field(kind === "trial" ? "الباقة المرغوبة للتجربة" : "الباقة المطلوبة", planSel), cycleSel ? field("المدة", cycleSel) : null),
-      field("ملاحظات", f.note)),
-    h("p", { class: "st-consent" }, "بإرسال الطلب توافق على ", h("a", { href: "/terms", target: "_blank" }, "الشروط والأحكام"),
-      " و", h("a", { href: "/privacy", target: "_blank" }, "سياسة الخصوصية"), ". لا نطلب كلمة مرور الآن، ونرسل لك بيانات الدخول بعد المراجعة."),
-    msg, send);
-  return form;
-}
-
 function contactForm(onDone, prefill) {
   const f = { school_name: input({ autocomplete: "organization" }), contact_name: input({ autocomplete: "name" }),
     phone: input({ class: "ltr", inputMode: "tel", autocomplete: "tel" }), email: input({ type: "email", class: "ltr", autocomplete: "email" }), note: textarea({ rows: 3, value: prefill }) };
@@ -445,24 +324,15 @@ function formDialog(title, top, form) {
   return { d, box, send };
 }
 
-function trialDialog(site, plan = null) {
-  let ref;
-  const form = leadForm(site, { kind: "trial", plan, onDone: (ok) => { mount(ref.box, ok); ref.send?.remove(); } });
-  ref = formDialog("طلب تجربة مجانية", h("div", { class: "st-dlg-note" }, icons.gift({ size: 16 }),
-    `${site.trial_days || 30} يومًا مجانًا — بدون رسوم خلال فترة التجربة`), form);
-}
+function trialDialog(site, plan = null) { registerDialog(site, { kind: "trial", plan }); }
 
 function contactDialog(site, prefill = "") {
   let ref;
-  const form = leadForm(site, { kind: "contact", prefill, onDone: (ok) => { mount(ref.box, ok); ref.send?.remove(); } });
+  const form = contactForm((ok) => { mount(ref.box, ok); ref.send?.remove(); }, prefill);
   ref = formDialog("تواصل معنا", null, form);
 }
 
-function subscribeDialog(site, plan, cycle) {
-  let ref;
-  const form = leadForm(site, { kind: "subscription", plan, cycle, onDone: (ok) => { mount(ref.box, ok); ref.send?.remove(); } });
-  ref = formDialog(`طلب اشتراك — ${plan.name}`, null, form);
-}
+function subscribeDialog(site, plan, cycle) { registerDialog(site, { kind: "subscription", plan, cycle }); }
 
 const STATUS_TONE = { new: "", reviewing: "", approved: "ok", awaiting_payment: "warn", active: "ok", rejected: "err", canceled: "err", expired: "err" };
 function statusDialog() {
