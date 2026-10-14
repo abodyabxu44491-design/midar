@@ -45,3 +45,14 @@ SELECT p.id, 'chat', 27 FROM plans p ON CONFLICT DO NOTHING;
 UPDATE subscriptions s SET snapshot = jsonb_set(s.snapshot, '{features}', (s.snapshot -> 'features') || '["chat"]'::jsonb)
  WHERE NOT (s.snapshot -> 'features') ? 'chat';
 ALTER TABLE school_modules ADD COLUMN chat boolean NOT NULL DEFAULT true;
+
+-- ضوابط المراسلة: الإدارة تسمح لكل معلم على حدة (مغلقة افتراضيًا)، وتطّلع على المحادثات، وتغلق أي محادثة،
+-- والرسائل التي تذكر مالًا أو تواصلًا خارج المنصة تُعلَّم للمراجعة. لا تعديل ولا حذف للرسائل.
+ALTER TABLE teachers ADD COLUMN chat_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE chat_threads
+  ADD COLUMN closed_at    timestamptz,
+  ADD COLUMN closed_by    text,
+  ADD COLUMN close_reason text,
+  ADD COLUMN flagged_at   timestamptz;
+ALTER TABLE chat_messages ADD COLUMN flagged boolean NOT NULL DEFAULT false;
+CREATE INDEX chat_threads_flagged ON chat_threads (tenant_id, flagged_at DESC) WHERE flagged_at IS NOT NULL;

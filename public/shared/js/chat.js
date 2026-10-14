@@ -9,7 +9,9 @@ import { toast } from "./ui.js";
 
 const time = (v) => new Date(v).toLocaleString("ar", { weekday: "short", hour: "numeric", minute: "2-digit" });
 
-export function chatThread({ me, title, subtitle, load, send, onBack, placeholder = "اكتب رسالتك…" }) {
+export const CHAT_NOTE = "المحادثات محفوظة ويمكن لإدارة المدرسة الاطلاع عليها. لا تُرسل أي مبالغ أو أرقام تواصل خاصة.";
+
+export function chatThread({ me, title, subtitle, load, send, onBack, placeholder = "اكتب رسالتك…", readOnly = null }) {
   const list = h("div", { class: "chat-list", role: "log", "aria-live": "polite" });
   const more = h("button", { type: "button", class: "btn ghost sm chat-more", hidden: true }, "رسائل أقدم");
   const box = h("textarea", { rows: 1, maxLength: 1000, placeholder, "aria-label": "نص الرسالة" });
@@ -55,7 +57,8 @@ export function chatThread({ me, title, subtitle, load, send, onBack, placeholde
       onBack ? h("button", { type: "button", class: "chat-back", onclick: onBack, "aria-label": "رجوع" }, icons.chevronLeft({ size: 20 })) : null,
       h("div", {}, h("b", {}, title), subtitle ? h("small", {}, subtitle) : null)),
     more, list,
-    h("div", { class: "chat-compose" }, box, go));
+    readOnly ? h("p", { class: "chat-closed" }, readOnly) : h("div", { class: "chat-compose" }, box, go),
+    h("p", { class: "chat-note small" }, CHAT_NOTE));
   refresh(true);
   const timer = setInterval(() => { if (!el.isConnected) return clearInterval(timer); if (!document.hidden) refresh(); }, 15000);
   return el;

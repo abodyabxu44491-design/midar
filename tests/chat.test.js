@@ -21,6 +21,11 @@ before(async () => {
   await other.post("/api/staff/login", { school: S.id, username: t.data.credentials.username, password: t.data.credentials.password });
   await transaction({ tenantId: S.id }, (q) => q("UPDATE users SET must_change_password = false WHERE role = 'teacher'"));
   S.otherId = (await S.admin.get("/api/admin/teachers/")).data.find((x) => x.name === "أ. ناصر علي").id;
+  // المراسلة مغلقة افتراضيًا لكل معلم حتى تفعّلها الإدارة
+  const p0 = S.parent(S.students[0]);
+  const blocked = await pub("/student/chat/send", { ...p0, teacher_id: S.teacherId, text: "مرحبا" });
+  assert.equal(blocked.status, 403, "قبل تفعيل الإدارة لا مراسلة");
+  assert.equal((await S.admin.put("/api/admin/chat/teachers", { enabled: true })).status, 200);
 });
 after(async () => { await srv.close(); await endPool(); });
 
@@ -83,4 +88,44 @@ test("المعلم يبدأ محادثة مع ولي أمر طالب من فصل
   assert.equal((await S.teacher.get("/api/teacher/chat")).status, 404, "القسم الموقوف غير متاح للمعلم");
   await S.admin.put("/api/admin/settings/modules", { chat: true });
   assert.equal((await pub("/student/chat", p2)).status, 200);
+});
+
+test("ضوابط الإدارة: إيقاف معلم، الرصد التلقائي، الاطلاع المسجّل، إغلاق المحادثة وإعادة فتحها", async () => {
+  const p1 = S.parent(S.students[0]);
+  // إيقاف المعلم: لا يرسل ولا يُراسَل، ويظهر لولي الأمر أن المراسلة غير متاحة
+  assert.equal((await S.admin.put(`/api/admin/chat/teachers/${S.teacherId}`, { enabled: false })).status, 200);
+  assert.equal((await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "سؤال" })).status, 403);
+  assert.equal((await pub("/student/chat", p1)).data.teachers[0].can_send, false);
+  assert.equal((await S.teacher.get("/api/teacher/chat")).data.enabled, false);
+  assert.equal((await S.teacher.post("/api/teacher/chat/start", { student_id: S.students[0].id, text: "مرحبا" })).status, 403);
+  await S.admin.put(`/api/admin/chat/teachers/${S.teacherId}`, { enabled: true });
+
+  // رسالة تذكر مالًا: تُعلَّم للمراجعة ويصل للإدارة إشعار
+  assert.equal((await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "أقدر أحوّل لك مبلغ عشان تهتم بالولد؟" })).status, 201);
+  const flagged = await S.admin.get("/api/admin/chat/threads?flagged=1");
+  assert.equal(flagged.status, 200, JSON.stringify(flagged.data));
+  const th = flagged.data.find((x) => x.student_id === S.students[0].id);
+  assert.ok(th?.flagged_at, "المحادثة معلَّمة");
+  const [n] = await transaction({ tenantId: S.id }, (q) => q("SELECT count(*)::int AS n FROM notifications WHERE kind = 'chat_review'"));
+  assert.ok(n.n >= 1, "إشعار للإدارة");
+
+  // اطلاع الإدارة: للقراءة، ويُسجَّل في سجل المدرسة
+  const view = await S.admin.get(`/api/admin/chat/threads/${th.id}`);
+  assert.equal(view.status, 200);
+  assert.ok(view.data.messages.some((m) => m.flagged), "الرسالة المعلَّمة ظاهرة للإدارة");
+  const [log] = await transaction({ tenantId: S.id }, (q) => q("SELECT count(*)::int AS n FROM audit_log WHERE action LIKE 'اطلاع على محادثة%'"));
+  assert.ok(log.n >= 1, "الاطلاع مسجّل");
+  assert.equal((await S.teacher.get(`/api/admin/chat/threads/${th.id}`)).status >= 400, true, "المعلم لا يصل لشاشة الإدارة");
+
+  // مراجعة بلا مخالفة تزيل العلامة
+  await S.admin.post(`/api/admin/chat/threads/${th.id}/reviewed`, {});
+  assert.equal((await S.admin.get("/api/admin/chat/threads?flagged=1")).data.some((x) => x.id === th.id), false);
+
+  // إغلاق المحادثة: لا إرسال من الطرفين، ثم إعادة الفتح
+  assert.equal((await S.admin.post(`/api/admin/chat/threads/${th.id}/close`, { closed: true, reason: "تجاوز الضوابط" })).status, 200);
+  assert.equal((await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "مرحبا" })).status, 403);
+  assert.equal((await S.teacher.post(`/api/teacher/chat/${th.id}`, { text: "مرحبا" })).status, 403);
+  assert.equal((await pub("/student/chat", p1)).data.teachers[0].closed, true);
+  await S.admin.post(`/api/admin/chat/threads/${th.id}/close`, { closed: false });
+  assert.equal((await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "شكرًا" })).status, 201);
 });

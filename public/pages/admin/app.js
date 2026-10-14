@@ -65,7 +65,7 @@ export async function startAdmin() {
     analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions", sheets: "attendance",
     distribution: "timetable",
     announcements: "announcements", papers: "exam_papers",
-    communication: ["notifications", "messaging", "sms", "surveys", "meetings"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
+    communication: ["notifications", "messaging", "sms", "surveys", "meetings", "chat"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
     behavior: "behavior", calendar: "calendar", certificates: "certificates",
     services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant",
   };

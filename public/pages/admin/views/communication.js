@@ -26,6 +26,7 @@ export default async function communication({ me }) {
   if (mods.sms) parts.push(["sms", "الرسائل النصية"]);
   if (mods.surveys) parts.push(["surveys", "الاستبيانات"]);
   if (mods.meetings) parts.push(["meetings", "مواعيد أولياء الأمور"]);
+  if (mods.chat) parts.push(["chat", "مراسلة المعلمين"]);
   if (!parts.length) return notice("أقسام التواصل موقوفة. شغّلها من «الإعدادات ← أقسام المنصة».", "warn");
   return partsView(parts, async (part, nav) => {
     if (part === "notify") return notifyRules(me);
@@ -34,6 +35,7 @@ export default async function communication({ me }) {
     if (part === "wa") return (await import("./whatsapp-queue.js")).default({ nav });
     if (part === "surveys") return (await import("./surveys.js")).default({ me, nav });
     if (part === "meetings") return (await import("./meetings.js")).default({ me, nav });
+    if (part === "chat") return (await import("./chat-admin.js")).default({ me, nav });
   });
 }
 

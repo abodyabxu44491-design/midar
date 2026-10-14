@@ -5,13 +5,13 @@
  */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api, idempotencyKey } from "../shared/js/api.js";
-import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl } from "../shared/js/ui.js";
+import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl, teacherCards } from "../shared/js/ui.js";
 import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "../shared/js/format.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
 import { notificationCenter, notificationPrefs, pushInvite, pushToggle } from "../shared/js/inbox.js";
-import { chatThread } from "../shared/js/chat.js";
+import { chatThread, CHAT_NOTE } from "../shared/js/chat.js";
 import { currentChild, closeChild, rememberChild, forgetChild, isRemembered, rememberedChildren, openChild, parentSignedIn, setParentSignedIn } from "../shared/js/children.js";
 
 const app = $("#app");
@@ -90,8 +90,10 @@ function teachersSection(chat, who, staff) {
   const list = async () => {
     const fresh = await api(`${P}/student/chat`, who).catch(() => chat);
     Object.assign(chat, fresh);
-    mount(body, chat.teachers.length
+    const anyOpen = chat.teachers.some((t) => t.can_send || t.thread_id);
+    mount(body, chat.teachers.length && anyOpen
       ? [sub("اضغط «مراسلة» لتفتح محادثة مع المعلم. يصله إشعار برسالتك، ويصلك رده هنا وعلى جوالك."),
+        h("p", { class: "chat-note" }, CHAT_NOTE),
         h("div", { class: "tc-list" }, chat.teachers.map((t) => {
           const photo = photoOf(t.name);
           return h("div", { class: `tc-row${t.unread ? " unread" : ""}` },
@@ -100,11 +102,15 @@ function teachersSection(chat, who, staff) {
               t.last_preview ? h("span", { class: "tc-prev" }, t.last_preview) : null),
             h("div", { class: "tc-side" },
               t.unread ? h("span", { class: "chat-badge" }, String(t.unread)) : null,
-              btn("مراسلة", () => open(t), t.unread ? "sm" : "soft sm")));
+              t.can_send ? btn("مراسلة", () => open(t), t.unread ? "sm" : "soft sm")
+                : t.thread_id ? btn("عرض المحادثة", () => open(t), "ghost sm")
+                : h("span", { class: "tc-off" }, "المراسلة غير مفعّلة")));
         }))]
-      : empty("لا يوجد معلمون مسندون لفصل الطالب بعد."));
+      : [staff.length ? teacherCards(staff) : null,
+        notice(chat.teachers.length ? "المراسلة مع المعلمين غير مفعّلة حاليًا من إدارة المدرسة." : "لا يوجد معلمون مسندون لفصل الطالب بعد.", "")]);
   };
   const open = (t) => mount(body, chatThread({ me: "parent", title: t.name, subtitle: (t.subjects || []).join("، "),
+    readOnly: t.can_send ? null : t.closed ? "أغلقت إدارة المدرسة هذه المحادثة." : "المراسلة مع هذا المعلم غير مفعّلة حاليًا من إدارة المدرسة.",
     load: (before) => api(`${P}/student/chat/thread`, { ...who, teacher_id: t.id, before }),
     send: (text) => api(`${P}/student/chat/send`, { ...who, teacher_id: t.id, text }),
     onBack: list }));

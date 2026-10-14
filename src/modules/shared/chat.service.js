@@ -11,10 +11,19 @@ export const bodySchema = z.string().trim().min(1, "اكتب الرسالة").ma
 const PAGE = 60;
 const PARENT_HOURLY = 20;
 
+const FLAG = new RegExp([
+  "مبلغ", "فلوس", "ريال", "دولار", "حوال", "تحويل", "رقم حساب", "حساب بنك", "آيبان", "ايبان", "كاش", "هدي[ةه]", "هدايا", "رشو", "مكاف[أا]",
+  "درس خصوصي", "دروس خصوصي", "خصوصي", "بالبيت", "في البيت", "خارج المدرسة", "برا المدرسة", "واتس", "واتساب", "تلجرام", "تليجرام", "سناب",
+  "رقمي", "رقمك", "جوالي", "جوالك", "اتصل بي", "كلمني", "ادفع", "دفعة", "عمولة", "نجاح مضمون", "ترفيع", "زيادة درج", "رفع الدرج",
+  "[0-9٠-٩][0-9٠-٩ -]{6,}[0-9٠-٩]",
+].join("|"), "i");
+export const needsReview = (text) => FLAG.test(String(text || "").replace(/[\u064B-\u0652]/g, ""));
+
 export async function teachersOfStudent(q, student) {
   if (!student.class_id) return [];
   return q(
     `SELECT t.id, t.full_name AS name, array_agg(DISTINCT sb.name ORDER BY sb.name) AS subjects,
+            (t.chat_enabled AND th.closed_at IS NULL) AS can_send, (th.closed_at IS NOT NULL) AS closed,
             th.id AS thread_id, COALESCE(th.parent_unread, 0) AS unread, th.last_message_at, th.last_preview
        FROM teacher_assignments a
        JOIN teachers t ON t.id = a.teacher_id
@@ -32,9 +41,9 @@ export async function teacherTeachesStudent(q, teacherId, studentId) {
   return Boolean(ok);
 }
 
-export async function threadMessages(q, threadId, before = null) {
+export async function threadMessages(q, threadId, before = null, { withFlags = false } = {}) {
   const rows = await q(
-    `SELECT id, sender, sender_name, body, created_at FROM chat_messages
+    `SELECT id, sender, sender_name, body, created_at${withFlags ? ", flagged" : ""} FROM chat_messages
       WHERE thread_id = $1 AND ($2::bigint IS NULL OR id < $2) ORDER BY id DESC LIMIT ${PAGE}`, [threadId, before]);
   return { messages: rows.reverse(), more: rows.length === PAGE };
 }
@@ -50,15 +59,21 @@ async function threadOf(q, studentId, teacherId) {
 export async function sendMessage(q, { studentId, teacherId, sender, senderName, body }) {
   const text = parse(bodySchema, body);
   if (!(await teacherTeachesStudent(q, teacherId, studentId))) throw forbidden("المراسلة متاحة مع معلمي فصل الطالب فقط");
+  const [perm] = await q("SELECT chat_enabled FROM teachers WHERE id = $1", [teacherId]);
+  if (!perm?.chat_enabled) {
+    throw forbidden(sender === "teacher" ? "لم تفعّل إدارة المدرسة المراسلة لك بعد." : "المراسلة مع هذا المعلم غير مفعّلة من إدارة المدرسة.");
+  }
   const th = await threadOf(q, studentId, teacherId);
+  if (th.closed_at) throw forbidden("أغلقت إدارة المدرسة هذه المحادثة.");
+  const flagged = needsReview(text);
   if (sender === "parent") {
     const [{ n }] = await q(`SELECT count(*)::int AS n FROM chat_messages WHERE thread_id = $1 AND sender = 'parent'
                                AND created_at > now() - interval '1 hour'`, [th.id]);
     if (n >= PARENT_HOURLY) throw badRequest("أرسلت رسائل كثيرة خلال ساعة. انتظر رد المعلم قليلًا.");
   }
   const [msg] = await q(
-    `INSERT INTO chat_messages (tenant_id, thread_id, sender, sender_name, body) VALUES (app_tenant(), $1, $2, $3, $4)
-     RETURNING id, sender, sender_name, body, created_at`, [th.id, sender, senderName || null, text]);
+    `INSERT INTO chat_messages (tenant_id, thread_id, sender, sender_name, body, flagged) VALUES (app_tenant(), $1, $2, $3, $4, $5)
+     RETURNING id, sender, sender_name, body, created_at`, [th.id, sender, senderName || null, text, flagged]);
   const preview = text.length > 90 ? `${text.slice(0, 90)}…` : text;
   await q(
     `UPDATE chat_threads SET last_message_at = now(), last_preview = $2,
@@ -67,6 +82,15 @@ export async function sendMessage(q, { studentId, teacherId, sender, senderName,
       WHERE id = $1`, [th.id, preview, sender]);
   const [names] = await q(
     `SELECT s.full_name AS student, t.full_name AS teacher FROM students s, teachers t WHERE s.id = $1 AND t.id = $2`, [studentId, teacherId]);
+  if (flagged) {
+    await q("UPDATE chat_threads SET flagged_at = now() WHERE id = $1", [th.id]);
+    const admins = (await q("SELECT id FROM users WHERE role = 'admin' AND is_active")).map((u) => u.id);
+    if (admins.length) {
+      await notify(q, { event: "chat_review", users: admins, title: "رسالة تحتاج مراجعة في مراسلة المعلمين",
+        body: `${sender === "teacher" ? names.teacher : `ولي أمر ${names.student}`}: ${preview}`, link: "communication",
+        dedupKey: `chat-flag-${th.id}`, dedupMinutes: 360 });
+    }
+  }
   if (sender === "teacher") {
     await notify(q, { event: "chat", students: [studentId], title: `رسالة من ${names.teacher}`, body: preview, link: "chat",
       dedupKey: `chat-p-${th.id}`, dedupMinutes: 10 });

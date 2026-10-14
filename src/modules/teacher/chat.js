@@ -15,10 +15,11 @@ r.get("/", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const threads = await q(
       `SELECT th.id, th.student_id, s.full_name AS student_name, c.name AS class_name, th.last_message_at, th.last_preview,
-              th.teacher_unread AS unread
+              th.teacher_unread AS unread, (th.closed_at IS NOT NULL) AS closed
          FROM chat_threads th JOIN students s ON s.id = th.student_id LEFT JOIN classes c ON c.id = s.class_id
         WHERE th.teacher_id = $1 ORDER BY th.last_message_at DESC LIMIT 200`, [req.user.teacher_id]);
-    return { threads, unread: threads.reduce((n, x) => n + x.unread, 0) };
+    const [t] = await q("SELECT chat_enabled FROM teachers WHERE id = $1", [req.user.teacher_id]);
+    return { threads, unread: threads.reduce((n, x) => n + x.unread, 0), enabled: Boolean(t?.chat_enabled) };
   }));
 }));
 
@@ -40,7 +41,8 @@ r.get("/:id", handle(async (req, res) => {
   const before = req.query.before ? parse(t.id, req.query.before) : null;
   res.json(await inTenant(req, async (q) => {
     const th = await mine(q, req);
-    return { thread: { id: th.id, student_id: th.student_id, student_name: th.student_name, class_name: th.class_name },
+    return { thread: { id: th.id, student_id: th.student_id, student_name: th.student_name, class_name: th.class_name,
+      closed: Boolean(th.closed_at), close_reason: th.close_reason || null },
       ...(await openThread(q, th, "teacher", before)) };
   }));
 }));
