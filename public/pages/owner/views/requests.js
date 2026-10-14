@@ -8,7 +8,7 @@ import { api } from "/shared/js/api.js";
 import { panel, field, input, select, btn, badge, sub, notice, toast, dialog, empty, textarea, confirmAction, line, keyText } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
 import { waLink } from "/shared/js/whatsapp.js";
-import { loadRefs, subForm, handoverText, REQ_KINDS, REQ_STATUS } from "./sub-form.js";
+import { loadRefs, subForm, REQ_KINDS, REQ_STATUS } from "./sub-form.js";
 import { detail } from "./subscriptions.js";
 
 export const KINDS = REQ_KINDS;
@@ -63,20 +63,37 @@ function row(r, refresh, root) {
 
 async function convert(r, refresh) {
   const refs = await loadRefs();
-  const suggested = (r.email?.split("@")[0] || "school").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20) || "school";
-  const id = input({ class: "ltr", value: `${suggested}${Math.floor(Math.random() * 90 + 10)}` });
   const name = input({ value: r.school_name });
+  // The school code is derived from the name on the server (unique, readable); the owner may still adjust it.
+  const id = input({ class: "ltr", dir: "ltr", placeholder: "alnoor", "aria-label": "رمز المدرسة" });
+  let touched = false, seq = 0;
+  const preview = h("bdi", { dir: "ltr", class: "code-url" });
+  const paint = () => { preview.textContent = `${location.host}/${id.value || "…"}`; };
+  const suggest = async () => {
+    if (touched) return;
+    const n = ++seq;
+    try { const { code } = await api(`/api/owner/files/suggest-code?name=${encodeURIComponent(name.value)}`); if (n === seq && !touched) { id.value = code; paint(); } } catch { /* keep current */ }
+  };
+  let t;
+  name.addEventListener("input", () => { clearTimeout(t); t = setTimeout(suggest, 350); });
+  id.addEventListener("input", () => { touched = true; id.value = id.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30); paint(); });
+  const codeBox = h("div", { class: "code-pick" }, h("span", { class: "sub" }, "رابط المدرسة"), preview,
+    h("details", {}, h("summary", {}, "تعديل الرمز"), id));
+  suggest();
   const admin = input({ value: r.contact_name || "مدير المدرسة" });
   const form = subForm(refs, { kind: r.kind === "trial" ? "trial" : "paid", plan_id: r.plan_id ?? undefined, billing_cycle: r.billing_cycle || "yearly",
     addons: (r.addon_keys || []).map((k) => ({ key: k })) });
   const d = dialog(r.kind === "trial" ? "تفعيل التجربة المجانية" : "إنشاء المدرسة وتفعيل الاشتراك", h("div", {},
     !r.plan_id && r.kind === "trial" ? notice("طلب العميل تجربة المنصة بدون تحديد باقة. اختر الباقة التي سيجربها.", "") : null,
-    h("div", { class: "row" }, field("اسم المدرسة", name), field("رمز المدرسة", id, "إنجليزي صغير، يظهر في الرابط")),
-    field("اسم المدير", admin), h("hr"), form.el),
+    field("اسم المدرسة", name), codeBox,
+    h("div", { class: "row" }, field("اسم المدير", admin), field("الجوال المعتمد للتحقق", h("div", { class: "ro-val ltr" }, r.phone || "—"),
+      "يصله رمز التفعيل. عدّله من ملف المدرسة إذا لزم")),
+    !r.phone ? notice("لا يوجد رقم جوال في الطلب، فلا يمكن إصدار رابط التفعيل حتى تضيفه في ملف المدرسة.", "warn") : null,
+    h("hr"), form.el),
   [btn("إنشاء وتفعيل", async (e) => {
     const b = e?.currentTarget; if (b) b.disabled = true;
     try {
-      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value, name: name.value, admin_name: admin.value, subscription: form.value() });
+      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value || undefined, name: name.value, admin_name: admin.value, subscription: form.value() });
       d.close(); toast("اعتُمدت المدرسة وأُنشئ حسابها");
       location.hash = `#/schools?school=${res.tenant_id}&handover=1`;
     } catch (err) {

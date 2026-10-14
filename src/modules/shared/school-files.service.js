@@ -10,11 +10,12 @@ import { t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { sealSecret, openSecret } from "../../core/auth/secret-box.js";
 import { logEvent } from "../../core/audit.js";
+import { normalizePhone } from "./students.service.js";
 
 export const LINK_DAYS = 7;
 export const STAGES = [
   ["received", "استلام الطلب"], ["review", "المراجعة"], ["approved", "الاعتماد"],
-  ["account", "إنشاء الحساب"], ["delivered", "تسليم بيانات الدخول"], ["first_login", "أول تسجيل دخول"],
+  ["account", "إنشاء الحساب"], ["delivered", "إرسال رابط التفعيل"], ["first_login", "تفعيل الحساب"],
 ];
 export const CHANNELS = { email: "البريد الإلكتروني", whatsapp: "واتساب", copy: "نسخ الرسالة", pdf: "ملف PDF", manual: "تسليم يدوي" };
 export const DELIVERY = { sent: "تم التسليم", failed: "فشل", pending: "بانتظار التأكيد" };
@@ -90,19 +91,20 @@ export async function counts(q) {
 // Users are read inside the school's own scope (row-level security keeps them per school).
 async function adminOf(q, tenantId) {
   const [u] = await transaction({ tenantId, actor: "النظام" }, (tq) => tq(
-    `SELECT id, username, full_name, is_active, must_change_password, last_login_at, password_changed_at
+    `SELECT id, full_name, is_active, must_change_password, last_login_at, password_changed_at, phone_verified_at
        FROM users WHERE role = 'admin' ORDER BY id LIMIT 1`));
   return u || null;
 }
 
 // The current activation link, if one is still valid, decrypted so it can be shown again.
 async function currentLink(q, tenantId, baseUrl) {
-  const [a] = await q(`SELECT id, token_enc, expires_at, created_at, created_by FROM school_activations
+  const [a] = await q(`SELECT id, token_enc, expires_at, created_at, created_by, phone, phone_verified_at, otp_sends FROM school_activations
                         WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
                         ORDER BY id DESC LIMIT 1`, [tenantId]);
   if (!a) return null;
   const token = a.token_enc ? openSecret(a.token_enc, `activation:${tenantId}`) : null;
-  return { expires_at: a.expires_at, created_at: a.created_at, created_by: a.created_by, url: token ? `${baseUrl}/activate?token=${token}` : null };
+  return { expires_at: a.expires_at, created_at: a.created_at, created_by: a.created_by, phone: a.phone, phone_verified_at: a.phone_verified_at,
+    otp_sends: a.otp_sends, url: token ? `${baseUrl}/activate?token=${token}` : null };
 }
 
 export async function getFile(q, id, baseUrl) {
@@ -117,13 +119,19 @@ export async function getFile(q, id, baseUrl) {
   const delivery = events.find((e) => e.kind === "delivery" && e.status === "sent")?.status || events.find((e) => e.kind === "delivery")?.status || null;
   const stage = stageOf({ ...t, admin_id: admin?.id, delivery });
   const links = { login: `${baseUrl}/${id}/idara?role=admin`, parents: `${baseUrl}/${id}` };
+  const activation = admin ? await currentLink(q, id, baseUrl) : null;
+  const [lastLink] = await q("SELECT expires_at, used_at, revoked_at FROM school_activations WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1", [id]);
+  // An open link (first activation or a reset) shows its own progress; otherwise the account's final state.
+  const activationState = activation?.phone_verified_at ? "phone_verified"
+    : activation ? (events.some((e) => e.kind === "delivery" && new Date(e.created_at) >= new Date(activation.created_at)) ? "link_sent" : "link_ready")
+      : t.activated_at ? "activated" : lastLink && !lastLink.used_at && !lastLink.revoked_at && new Date(lastLink.expires_at) < new Date() ? "expired" : "pending";
   return {
     school: { id: t.id, name: t.name, status: t.status, created_at: t.created_at, updated_at: t.updated_at, approved_at: t.approved_at,
       approved_by: t.approved_by, activated_at: t.activated_at, is_demo: t.is_demo, directory_code: t.directory_code, currency: t.currency,
       lead_id: t.lead_id, requested_at: t.requested_at || t.created_at, lead_status: t.lead_status, lead_kind: t.lead_kind, handled_by: t.handled_by },
     profile: { ...(t.lead_details || {}), ...t.profile },
     subscription: t.plan_name ? { plan_name: t.plan_name, kind: t.sub_kind, status: t.sub_status, starts_on: t.starts_on, ends_on: t.ends_on } : null,
-    admin, activation: admin ? await currentLink(q, id, baseUrl) : null,
+    admin, activation, activation_state: activationState,
     links, stage, stages: STAGES, delivery, events,
   };
 }
@@ -152,30 +160,29 @@ export async function issueLink(q, id, actor, baseUrl) {
   const admin = await adminOf(q, id);
   if (!admin) throw badRequest("لا يوجد حساب مدير لهذه المدرسة بعد. أكمل إنشاء الحساب أولًا.");
   if (!admin.is_active) throw badRequest("حساب المدير موقوف. فعّله أولًا.");
+  const [t] = await q("SELECT profile FROM tenants WHERE id = $1", [id]);
+  const p = t?.profile || {};
+  const phone = normalizePhone(p.phone);
+  if (!phone) throw badRequest("أضف رقم جوال المدير المعتمد في ملف المدرسة أولًا؛ يُرسل إليه رمز التحقق عند التفعيل.");
+  const m = p.manager || {};
+  const manager = p.contact_name || [m.first, m.second, m.third, m.family].filter(Boolean).join(" ") || admin.full_name;
   await q("UPDATE school_activations SET revoked_at = now(), token_enc = NULL WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL", [id]);
   const token = crypto.randomBytes(32).toString("hex");
   const [a] = await q(
-    `INSERT INTO school_activations (tenant_id, user_id, token_hash, token_enc, expires_at, created_by)
-     VALUES ($1, $2, $3, $4, now() + make_interval(days => $5), $6) RETURNING expires_at`,
-    [id, admin.id, sha(token), sealSecret(token, `activation:${id}`), LINK_DAYS, actor]);
-  await addEvent(q, id, { kind: "activation_link", body: `رابط تعيين كلمة مرور صالح ${LINK_DAYS} أيام (الرابط السابق أُلغي)` }, actor);
+    `INSERT INTO school_activations (tenant_id, user_id, token_hash, token_enc, expires_at, created_by, phone, manager_name)
+     VALUES ($1, $2, $3, $4, now() + make_interval(days => $5), $6, $7, $8) RETURNING expires_at`,
+    [id, admin.id, sha(token), sealSecret(token, `activation:${id}`), LINK_DAYS, actor, phone, manager]);
+  await addEvent(q, id, { kind: "activation_link", body: `رابط تفعيل صالح ${LINK_DAYS} أيام للجوال المعتمد ${phone.slice(-4).padStart(phone.length, "•")} (الرابط السابق أُلغي)` }, actor);
   return { url: `${baseUrl}/activate?token=${token}`, expires_at: a.expires_at };
 }
 
-// A temporary password, when the owner prefers it to a link. The old password stops working at once.
-export async function tempPassword(q, id, actor) {
-  const { newTempPassword } = await import("../../core/auth/codes.js");
-  const admin = await adminOf(q, id);
-  if (!admin) throw badRequest("لا يوجد حساب مدير لهذه المدرسة بعد.");
-  const password = newTempPassword();
-  await transaction({ tenantId: id, actor, platform: false }, async (tq) => {
-    await tq(`UPDATE users SET password_hash = $2, must_change_password = true, failed_logins = 0, locked_until = NULL, is_active = true,
-                     password_changed_at = now() WHERE id = $1`, [admin.id, await hashPassword(password)]);
-    await tq("DELETE FROM sessions WHERE user_id = $1", [admin.id]);
-  });
-  await q("UPDATE school_activations SET revoked_at = now(), token_enc = NULL WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL", [id]);
-  await addEvent(q, id, { kind: "password", body: "أُنشئت كلمة مرور مؤقتة جديدة لمدير المدرسة، وأُوقفت كلمة المرور السابقة وروابط التفعيل" }, actor);
-  return { username: admin.username, password };
+// Stops any open activation link (lost phone, wrong recipient). A new link can be issued afterwards.
+export async function revokeLinks(q, id, actor) {
+  const rows = await q("UPDATE school_activations SET revoked_at = now(), token_enc = NULL WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL RETURNING id", [id]);
+  if (!rows.length) throw badRequest("لا يوجد رابط تفعيل مفتوح لإلغائه.");
+  await addEvent(q, id, { kind: "activation_link", body: "أُلغي رابط التفعيل المفتوح ولم يعد صالحًا" }, actor);
+  await logEvent(q, { actor, action: `إلغاء رابط تفعيل ${id}` });
+  return { revoked: rows.length };
 }
 
 export async function recordDelivery(q, id, b, actor) {
@@ -200,20 +207,16 @@ export async function setStatus(q, id, status, reason, actor) {
   await logEvent(q, { actor, action: `${status === "active" ? "إعادة تفعيل" : "إيقاف"} المدرسة ${id}` });
 }
 
-export function welcomeText(file, link) {
-  return [
-    "أهلًا بكم في مدار | MIDAR",
-    "",
-    `نرحب بكم في منصة مدار لإدارة المدارس، ونسعد بانضمام ${file.school.name} إلى المنصة.`,
-    "",
-    "تم تجهيز حساب مدرستكم، ويمكنكم البدء باتباع الخطوات التالية:",
-    `1. افتحوا رابط التفعيل وأنشئوا كلمة المرور الخاصة بكم:\n${link || "(سيصلكم رابط التفعيل)"}`,
-    `2. سجّلوا الدخول من رابط الإدارة:\n${file.links.login}`,
-    `   رمز المدرسة: ${file.school.id}`,
-    `   اسم المستخدم: ${file.admin?.username || "admin"}`,
-    "3. ابدأوا باستخدام منصة مدار لإدارة مدرستكم.",
-    "",
-    "نتمنى لكم تجربة موفقة مع مدار.",
-    "مدار | كل إدارة مدرستك في مكان واحد.",
-  ].join("\n");
+export async function uniqueSchoolCode(q, name) {
+  const { schoolCodeFrom } = await import("../../../public/shared/js/school-code.js");
+  const { RESERVED_CODES } = await import("../../core/reserved.js");
+  const base = schoolCodeFrom(name);
+  for (let i = 1; i < 200; i++) {
+    const code = i === 1 ? base : `${base.slice(0, 26)}-${i}`;
+    if (RESERVED_CODES.has(code)) continue;
+    const [taken] = await q("SELECT 1 FROM tenants WHERE id = $1 UNION ALL SELECT 1 FROM school_groups WHERE id = $1", [code]);
+    if (!taken) return code;
+  }
+  return `${base.slice(0, 20)}-${Date.now().toString(36).slice(-5)}`;
 }
+

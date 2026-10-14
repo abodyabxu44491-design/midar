@@ -51,7 +51,7 @@ function normalize(b) {
 
 const STATUS = {
   new: "وصل طلبك وينتظر المراجعة", reviewing: "قيد المراجعة، وسنتواصل معك قريبًا", approved: "تمت الموافقة، ونجهّز مدرستك",
-  awaiting_payment: "بانتظار إتمام الدفع", active: "مدرستك جاهزة، ووصلتك بيانات الدخول", rejected: "اعتذرنا عن الطلب",
+  awaiting_payment: "بانتظار إتمام الدفع", active: "مدرستك جاهزة، ووصلكم رابط التفعيل", rejected: "اعتذرنا عن الطلب",
   canceled: "أُلغي الطلب", expired: "انتهت صلاحية الطلب",
 };
 const KIND = { trial: "تجربة مجانية", subscription: "اشتراك", contact: "رسالة تواصل" };

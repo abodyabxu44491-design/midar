@@ -1894,3 +1894,28 @@ dialog.ho-dlg { width: min(860px, 96vw); }
 }
 .timeline .tl-changes li { border: 0; padding: 0; margin: 2px 0; list-style: disc; }
 .timeline .tl-changes li::before { display: none; }
+
+/* Activation steps */
+.av-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; list-style: none; margin: 0 0 16px; padding: 0; counter-reset: s; }
+.av-steps li { display: flex; flex-direction: column; align-items: center; gap: 6px; color: rgba(255,255,255,.55); font-size: 12px; text-align: center; position: relative; }
+.av-steps li::before { content: ""; position: absolute; top: 14px; inset-inline-start: 50%; width: 100%; height: 2px; background: rgba(255,255,255,.16); z-index: 0; }
+.av-steps li:last-child::before { display: none; }
+.av-steps li.done::before { background: #7FD6CF; }
+.av-steps span { position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22); color: #fff; }
+.av-steps li.on { color: #fff; } .av-steps li.on span { background: #7FD6CF; color: #0B2340; border-color: #7FD6CF; }
+.av-steps li.done span { background: rgba(127,214,207,.22); border-color: #7FD6CF; color: #7FD6CF; }
+.av-steps b { font-weight: 600; }
+.av-id { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; margin: 0 0 16px; padding: 12px 14px; border-radius: 14px;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); font-size: 14px; }
+.av-id dt { color: rgba(255,255,255,.6); } .av-id dd { margin: 0; color: #fff; font-weight: 600; overflow-wrap: anywhere; }
+.av-phone { text-align: end; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+.gate-card .av-otp { text-align: center; font-size: 26px; letter-spacing: .5em; font-weight: 700; padding: 12px; font-variant-numeric: tabular-nums; }
+.gate-card .btn + .btn { margin-top: 8px; }
+.gate-card .notice { margin: 8px 0; }
+.code-pick { display: grid; gap: 4px; padding: 10px 12px; margin: 4px 0 12px; border-radius: 12px; background: var(--bg); border: 1px dashed var(--line-2); }
+.code-pick .code-url { font-weight: 700; font-size: 16px; color: var(--navy); overflow-wrap: anywhere; }
+.code-pick summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.code-pick details input { margin-top: 6px; }
+.ro-val { padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); min-height: 42px; }
+.otp-show { font-size: 34px; font-weight: 800; letter-spacing: .3em; text-align: center; padding: 14px; margin: 6px 0 10px; border-radius: 14px; background: var(--navy-soft); color: var(--navy); }

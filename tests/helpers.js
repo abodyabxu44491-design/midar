@@ -78,3 +78,15 @@ export async function readySchool(base, { prefix = "t", name = "مدرسة ال�
   return { id, owner, admin, teacher, teacherId, c1, c2, math, students: list, code: r.data.credentials.directory_code,
     parent: (s) => ({ student_id: s.id, key: s.access_key }) };
 }
+
+// Activates a school the way a manager does: verify the approved phone (here with an owner-issued code), then set the password.
+export async function activateSchool(base, owner, schoolId, url, password) {
+  const token = new URL(url).searchParams.get("token");
+  const pub = client(base);
+  const code = (await owner.post(`/api/owner/files/${schoolId}/verification-code`, {})).data.code;
+  const v = await pub.post("/api/public/activation/verify", { token, code });
+  if (v.status !== 200) throw new Error(`verify ${v.status} ${JSON.stringify(v.data)}`);
+  const done = await pub.post("/api/public/activation", { token, password });
+  if (done.status !== 200) throw new Error(`activate ${done.status} ${JSON.stringify(done.data)}`);
+  return pub;
+}

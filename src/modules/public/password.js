@@ -5,9 +5,8 @@
  */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
-import crypto from "node:crypto";
-import { handle, notFound } from "../../core/http/errors.js";
-import { hashPassword } from "../../core/auth/password.js";
+import { handle } from "../../core/http/errors.js";
+import * as activation from "../shared/activation.service.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
 import { inSchool } from "./context.js";
@@ -32,21 +31,23 @@ r.post("/password-reset", limits.login, handle(async (req, res) => {
   res.json(await anon(req, (q) => reqs.reset(q, b)));
 }));
 
-// School activation: the school's administrator sets their own password from the link the owner handed over.
-const tokenHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
+// School activation: verify the approved phone by SMS, then set the password and sign in.
+const tokenQ = z.object({ token: z.string().regex(/^[0-9a-f]{64}$/, "الرابط غير صحيح") });
 r.get("/activation/check", limits.login, handle(async (req, res) => {
-  const { token } = parse(z.object({ token: z.string().regex(/^[0-9a-f]{64}$/, "الرابط غير صحيح") }), req.query);
-  const [row] = await anon(req, (q) => q("SELECT * FROM school_activation_check($1)", [tokenHash(token)]));
-  if (!row) throw notFound("رابط التفعيل غير صالح أو انتهت صلاحيته أو استُخدم مسبقًا. اطلب رابطًا جديدًا من إدارة مدار.");
-  res.json({ school: row.school, school_id: row.school_id, username: row.username, full_name: row.full_name, expires_at: row.expires_at,
-    login: `/${row.school_id}/idara?role=admin` });
+  const { token } = parse(tokenQ, req.query);
+  res.json(await activation.info(token));
 }));
-
+r.post("/activation/send-code", limits.login, handle(async (req, res) => {
+  const { token } = parse(tokenQ, req.body);
+  res.json(await activation.sendCode(token));
+}));
+r.post("/activation/verify", limits.login, handle(async (req, res) => {
+  const b = parse(tokenQ.extend({ code: z.string().trim().max(10) }), req.body);
+  res.json(await activation.verifyCode(b.token, b.code));
+}));
 r.post("/activation", limits.login, handle(async (req, res) => {
-  const b = parse(z.object({ token: z.string().regex(/^[0-9a-f]{64}$/, "الرابط غير صحيح"), password: t.password }), req.body);
-  const passwordHash = await hashPassword(b.password);
-  const [row] = await anon(req, (q) => q("SELECT school_activation_apply($1, $2) AS school_id", [tokenHash(b.token), passwordHash]));
-  res.json({ ok: true, login: `/${row.school_id}/idara?role=admin` });
+  const b = parse(tokenQ.extend({ password: t.password }), req.body);
+  res.json(await activation.complete(b.token, b.password, req, res));
 }));
 
 export default r;

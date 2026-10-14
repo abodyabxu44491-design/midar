@@ -10,6 +10,8 @@ import { parse, t, z } from "../../core/http/validate.js";
 import { baseUrl } from "../../core/links.js";
 import { logEvent } from "../../core/audit.js";
 import * as sf from "../shared/school-files.service.js";
+import * as activationSvc from "../shared/activation.service.js";
+import { uniqueSchoolCode } from "../shared/school-files.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -28,6 +30,11 @@ const listQuery = z.object({
 r.get("/", handle(async (req, res) => {
   const f = parse(listQuery, req.query);
   res.json(await platform(req, async (q) => ({ items: await sf.list(q, f), counts: await sf.counts(q), stages: sf.STAGES, capabilities: CAPABILITIES })));
+}));
+
+r.get("/suggest-code", handle(async (req, res) => {
+  const { name } = parse(z.object({ name: z.string().trim().max(150) }), req.query);
+  res.json({ code: await platform(req, (q) => uniqueSchoolCode(q, name)) });
 }));
 
 r.get("/export.csv", handle(async (req, res) => {
@@ -78,14 +85,14 @@ r.post("/:id/link", handle(async (req, res) => {
   res.json(out);
 }));
 
-r.post("/:id/temp-password", handle(async (req, res) => {
+r.post("/:id/verification-code", handle(async (req, res) => {
   const id = parse(code, req.params.id);
-  const out = await platform(req, async (q) => {
-    const x = await sf.tempPassword(q, id, req.actor);
-    await logEvent(q, { actor: req.actor, action: `إصدار كلمة مرور مؤقتة لمدير المدرسة ${id}` });
-    return x;
-  });
-  res.json({ credentials: { school: id, ...out } });
+  res.json(await platform(req, (q) => activationSvc.manualCode(q, id, req.actor)));
+}));
+
+r.post("/:id/link/revoke", handle(async (req, res) => {
+  const id = parse(code, req.params.id);
+  res.json(await platform(req, (q) => sf.revokeLinks(q, id, req.actor)));
 }));
 
 r.post("/:id/deliveries", handle(async (req, res) => {

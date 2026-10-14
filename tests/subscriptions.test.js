@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, activateSchool } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
@@ -100,8 +100,7 @@ test("طلب تجربة من الصفحة العامة ← يصل للمالك �
   assert.equal(conv.status, 201, JSON.stringify(conv.data));
   // The school sets its own password from the activation link handed over by the owner.
   s.adminPw = "Future-School-2026";
-  const token = new URL(conv.data.activation.url).searchParams.get("token");
-  assert.equal((await client(srv.base).post("/api/public/activation", { token, password: s.adminPw })).status, 200);
+  await activateSchool(srv.base, owner, s.school, conv.data.activation.url, s.adminPw);
   const detail = (await owner.get(`/api/owner/subscriptions/${s.school}`)).data;
   assert.equal(detail.current.kind, "trial");
   assert.equal(detail.current.status, "trial");

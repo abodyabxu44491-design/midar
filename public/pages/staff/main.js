@@ -68,7 +68,15 @@ function showLogin(error) {
   const fromLink = new URLSearchParams(location.search).get("role");
   let chosen = ["admin", "teacher", "accountant"].includes(fromLink) ? fromLink : (localStorage.getItem("midar_last_role") || "admin");
   const roleCards = h("div", { class: "role-cards", role: "radiogroup", "aria-label": "اختر دورك" });
+  const userField = field("اسم المستخدم", user);
+  // Managers sign in with their verified mobile number; teachers and accountants keep their usernames.
+  const labelUser = () => {
+    const admin = chosen === "admin";
+    userField.querySelector("span").textContent = admin ? "رقم الجوال أو اسم المستخدم" : "اسم المستخدم";
+    user.placeholder = admin ? "05xxxxxxxx" : "اسم المستخدم";
+  };
   const drawRoles = () => {
+    labelUser();
     mount(roleCards, ROLES.map(([k, name, note]) => h("button", {
       type: "button", class: `role-card${chosen === k ? " on" : ""}`, role: "radio", "aria-checked": String(chosen === k),
       onclick: () => { chosen = k; drawRoles(); submit.textContent = `دخول ${name}`; user.focus(); },
@@ -112,7 +120,7 @@ function showLogin(error) {
     if (lockTimer) return;
     mount(msg);
     try {
-      if (!user.value.trim() || !pass.value) return mount(msg, notice("أدخل اسم المستخدم وكلمة المرور", "err"));
+      if (!user.value.trim() || !pass.value) return mount(msg, notice(chosen === "admin" ? "أدخل رقم الجوال أو اسم المستخدم وكلمة المرور" : "أدخل اسم المستخدم وكلمة المرور", "err"));
       const r = await api("/api/staff/login", { school, username: user.value.trim(), password: pass.value, remember: remember.checked });
       pass.value = "";
       sessionStorage.setItem("midar_role", r.role);
@@ -152,7 +160,7 @@ function showLogin(error) {
         h("h2", {}, "بوابة إدارة المدرسة"),
         h("p", { class: "gate-sub" }, "كل ما تحتاجه لإدارة مدرستك في مكان واحد"),
 
-        field("اسم المستخدم", user),
+        userField,
         field("كلمة المرور", pass),
 
         h("div", { class: "gate-row" },

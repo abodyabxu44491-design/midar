@@ -11,12 +11,13 @@ import { verifyPassword, hashPassword, canonPassword } from "../../core/auth/pas
 import { createSession, destroySession, currentSessionHash } from "../../core/auth/sessions.js";
 import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
+import { normalizePhone } from "./students.service.js";
 
 const MAX_FAILS = 5, MAX_FAILS_ACCOUNT = 30, LOCK_MIN = 5;
 const FAIL_IP = "staff_login_failed", FAIL_ACCOUNT = "staff_login_failed_all";
 const loginSchema = z.object({
   school: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,30}$/, "رمز المدرسة غير صحيح"),
-  username: z.string().trim().toLowerCase().min(1, "اكتب اسم المستخدم").max(40),
+  username: z.string().trim().toLowerCase().min(1, "اكتب رقم الجوال أو اسم المستخدم").max(40),
   password: z.string().min(1, "اكتب كلمة المرور").max(200),
   remember: z.boolean().optional().default(true),
 });
@@ -42,9 +43,12 @@ export const staffLoginRouter = () => {
     const outcome = await transaction({ tenantId: b.school, actor: b.username, ip: req.ip }, async (q) => {
       const denied = { error: "بيانات الدخول غير صحيحة" };
       const [tenant] = await q("SELECT id, status, emergency_locked_at FROM tenants WHERE id = $1", [b.school]);
+      // School administrators sign in with their verified mobile number; other staff keep their usernames.
+      const phone = /^[+0-9٠-٩\s-]{7,20}$/.test(b.username) && /\d{6,}|[٠-٩]{6,}/.test(b.username.replace(/[\s-]/g, "")) ? normalizePhone(b.username) : null;
       const [user] = tenant ? await q(
-        "SELECT id, full_name, role, password_hash, is_active, must_change_password, locked_until, locked_until > now() AS locked FROM users WHERE username = $1",
-        [b.username]) : [];
+        `SELECT id, full_name, role, password_hash, is_active, must_change_password, locked_until, locked_until > now() AS locked FROM users
+          WHERE ${phone ? "role = 'admin' AND phone_verified_at IS NOT NULL AND phone = $1" : "username = $1"}`,
+        [phone || b.username]) : [];
       const ok = await verifyPassword(b.password, user?.password_hash, { temporary: Boolean(user?.must_change_password) });
       if (!tenant) return denied;
 

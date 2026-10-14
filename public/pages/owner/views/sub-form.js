@@ -111,14 +111,6 @@ export function subForm(refs, defaults = {}) {
   return { el: h("div", {}, box, sub("المميزات والحدود تُحفظ كلقطة وقت التفعيل؛ تعديل الباقة لاحقًا لا يغيّر هذا الاشتراك إلا بقرارك.")), value };
 }
 
-export function handoverText(r) {
-  const link = `${location.origin}/${r.credentials.school}`;
-  return [`مرحبًا ${r.lead?.contact_name || ""}، تم تفعيل حساب ${r.school.name} على منصة مدار.`,
-    `رابط دخول الإدارة: ${link}/idara`, `اسم المستخدم: ${r.credentials.username}`, `كلمة المرور المؤقتة: ${r.credentials.password}`,
-    `رابط صفحة المدرسة وأولياء الأمور: ${link}`,
-    "بعد الدخول سيطلب النظام تغيير كلمة المرور، ثم يبدأ معالج إعداد المدرسة."].join("\n");
-}
-
 export const REQ_KINDS = { trial: ["طلب تجربة", "amber"], subscription: ["طلب اشتراك", "blue"], feature: ["طلب ميزة", ""], contact: ["تواصل", "gray"],
   upgrade: ["طلب ترقية", "blue"], renewal: ["طلب تجديد", ""] };
 export const REQ_STATUS = { new: ["جديد", "amber"], reviewing: ["قيد المراجعة", "blue"], approved: ["تمت الموافقة", ""], awaiting_payment: ["بانتظار الدفع", "amber"],
