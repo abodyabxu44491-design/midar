@@ -125,7 +125,7 @@ export function registerDialog(site, { kind = "trial", plan = null, cycle = "yea
           sum("عدد الطلاب", v("students_count")), sum("المدير", managerName()), sum("الجوال", v("phone"), true), sum("البريد", v("email"), true))),
         group("", F.note),
         h("p", { class: "rg-consent" }, "بإرسال الطلب توافق على ", h("a", { href: "/terms", target: "_blank" }, "الشروط والأحكام"),
-          " و", h("a", { href: "/privacy", target: "_blank" }, "سياسة الخصوصية"), ". لا نطلب كلمة مرور الآن، ونرسل بيانات الدخول بعد مراجعة الطلب."),
+          " و", h("a", { href: "/privacy", target: "_blank" }, "سياسة الخصوصية"), ". لا نطلب كلمة مرور الآن. بعد اعتماد الطلب يصلك رابط تفعيل تتحقق فيه من جوال المدير وتختار كلمة المرور بنفسك."),
       ],
       check: () => [] },
   ];
@@ -191,7 +191,7 @@ export function registerDialog(site, { kind = "trial", plan = null, cycle = "yea
         h("h3", {}, "وصلنا طلبك"),
         h("div", { class: "rg-no" }, h("span", {}, "رقم الطلب"), h("b", { dir: "ltr" }, `#${r.id}`)),
         h("p", {}, `حالة الطلب: ${r.status_label}`),
-        h("p", { class: "muted" }, kind === "trial" ? "نراجع الطلب ونتواصل معك، ثم نرسل رابط مدرستك وبيانات دخول المدير." : "نتواصل معك لإتمام الاشتراك."),
+        h("p", { class: "muted" }, kind === "trial" ? "نراجع الطلب ونتواصل معك، ثم يصل جوال المدير رابط تفعيل يختار فيه كلمة المرور بنفسه." : "نتواصل معك لإتمام الاشتراك."),
         h("p", { class: "muted" }, "احفظ رقم الطلب، وتابع حالته في أي وقت من «متابعة طلب» برقم الطلب وجوالك."),
         h("button", { type: "button", class: "rg-btn pri", onclick: () => d.close() }, "تم")));
     } catch (e) { mount(msg, e.message); next.disabled = false; }

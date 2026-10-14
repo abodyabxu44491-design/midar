@@ -370,8 +370,6 @@ textarea.rg-in { height: auto; min-height: 96px; padding: 12px 14px; line-height
 }
 
 /* Home polish */
-.st-nav .nav-cta { min-height: 40px; padding: 0 18px; font-size: 14.5px; border-radius: 10px; margin-inline-start: auto; }
-.st-nav .install-ic + .nav-cta { margin-inline-start: 8px; }
 .st-hero.v2 { position: relative; overflow: hidden; isolation: isolate; }
 .st-hero.v2::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: radial-gradient(600px 320px at 85% 10%, rgba(11, 122, 117, .35), transparent 70%), radial-gradient(520px 300px at 10% 90%, rgba(232, 163, 61, .14), transparent 70%);
@@ -387,6 +385,5 @@ textarea.rg-in { height: auto; min-height: 96px; padding: 12px 14px; line-height
 .kf-card:hover, .aud-card:hover, .trust-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(22, 36, 74, .08); border-color: #D3DCE7; }
 @media (max-width: 1000px) { .hero-ticks { justify-content: center; } }
 @media (max-width: 560px) {
-  .st-nav .nav-cta { min-height: 38px; padding: 0 14px; font-size: 14px; }
   .hero-ticks { gap: 8px 14px; font-size: 13px; }
 }
