@@ -16,7 +16,7 @@ export const getCurrency = () => currentCurrency;
 export const money = (n, code) => {
   const c = CURRENCIES[code || currentCurrency] || CURRENCIES.SAR;
   const value = Number(n || 0).toLocaleString("ar-SA-u-nu-latn", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  return `${value} ${c.symbol}`;
+  return `${value}\u00A0${c.symbol}`;
 };
 export const fmtDate = (d) => (d ? new Date(String(d).length === 10 ? `${d}T12:00:00` : d)
   .toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric" }) : "");

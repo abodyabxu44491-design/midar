@@ -72,13 +72,14 @@ export async function startAdmin() {
   const enabled = (m) => [].concat(m).some((k) => me.modules?.[k]);
   const allTabs = [
     ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
-    ["students", "الطلاب"], ["parents", "أولياء الأمور"], ["teachers", "المعلمون"], ["staff", "شؤون الموظفين"],
-    ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
-    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"],
-    ["academic", "السنة الدراسية"], ["calendar", "التقويم"], ["sheets", "أوراق للطباعة"], ["analytics", "التحليلات"],
-    ["finance", "الرسوم"], ["ledger", "المالية"], ["services", "الخدمات"], ["admissions", "طلبات التسجيل"],
-    ["announcements", "التعاميم"], ["communication", "التواصل"], ["subscription", "اشتراكي"],
-    ["settings", "الإعدادات"], ["audit", "السجل"],
+    [null, "الطلاب والأسر"], ["students", "الطلاب"], ["parents", "أولياء الأمور"], ["admissions", "طلبات التسجيل"],
+    ["attendance", "الحضور"], ["behavior", "السلوك"],
+    [null, "التعليم"], ["teachers", "المعلمون"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
+    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"], ["sheets", "أوراق للطباعة"],
+    [null, "المالية والموظفون"], ["finance", "الرسوم"], ["ledger", "المالية"], ["staff", "شؤون الموظفين"],
+    [null, "التواصل"], ["announcements", "التعاميم"], ["communication", "التواصل"],
+    [null, "الإدارة"], ["academic", "السنة الدراسية"], ["calendar", "التقويم"], ["analytics", "التحليلات"], ["services", "الخدمات"],
+    ["subscription", "اشتراكي"], ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
     .filter(([key]) => !MODULE_OF[key] || enabled(MODULE_OF[key]))
     .filter(([key]) => !(key === "finance" && me.modules?.finance));
@@ -86,7 +87,8 @@ export async function startAdmin() {
   const ctx = { me };
   const t = tabs(allTabs,
     { dashboard, setup: setupWizard, students, parents, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
-      communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant }, ctx);
+      communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant }, ctx,
+    { primary: ["dashboard", "students", "attendance", "ledger", "finance"] });
   ctx.goTo = (key) => {
     if (key === "finance" && me.modules?.finance) {
       try { sessionStorage.setItem("midar_finance_part", "fees"); } catch { /* ignore */ }

@@ -34,16 +34,17 @@ async function start() {
       points: ["إنشاء المدارس والاشتراكات", "إدارة الباقات والفوترة", "المؤشرات العامة وسجل العمليات"],
     }));
   }
-  const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"],
-    ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["billing", "الفواتير"], ["passwords", "طلبات كلمات المرور"],
-    ["sms", "الرسائل النصية"], ["settings", "إعدادات المنصة والتجربة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, audit, danger }, {});
+  const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
+    [null, "المدارس والاشتراكات"], ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
+    [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
+    [null, "المنصة"], ["settings", "إعدادات المنصة والتجربة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
+    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, audit, danger }, {},
+    { primary: ["overview", "requests", "schools", "subscriptions"] });
   let lastUnseen = null;
   const badgeTick = async () => {
     try {
       const b = await api(`${API}/requests/badge`);
-      const label = t.el.querySelector('[data-k="requests"] .tab-label');
-      if (label) label.textContent = b.unseen ? `الطلبات (${b.unseen} جديد)` : "الطلبات";
+      t.setBadge("requests", b.unseen);
       if (lastUnseen !== null && b.unseen > lastUnseen && b.latest) {
         const kinds = { trial: "طلبت تجربة مجانية", subscription: "طلبت اشتراكًا", feature: "طلبت ميزة", contact: "أرسلت رسالة تواصل", upgrade: "طلبت ترقية", renewal: "طلبت تجديدًا" };
         toast(`طلب جديد: ${b.latest.school} ${kinds[b.latest.kind] || ""}`);

@@ -99,7 +99,7 @@ export const docLogo = (cls = "print-logo") => (currentLogo ? h("img", { class: 
 export function topbar({ subtitle, school, onLogout, logo }) {
   if (logo) setSchoolLogo(logo);
   return h("header", { class: "topbar" }, h("div", { class: "in" },
-    h("div", { class: "who" }, brandLogo(),
+    h("div", { class: "who" }, brandLogo("brand-logo", false),
       (school || subtitle) && h("div", { class: `school${logo ? " with-logo" : ""}` }, schoolLogoImg(logo),
         h("div", { class: "school-text" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle)))),
     h("div", { class: "top-acts" }, installButton("on-dark"), onLogout && btn("خروج", onLogout, "ghost sm"))));
@@ -185,7 +185,7 @@ export const line = (...kids) => h("div", { class: "line" }, ...kids);
 export const sub = (...kids) => h("div", { class: "sub" }, ...kids);
 export const keyText = (text) => h("span", { class: "key" }, text);
 export const stats = (items) => h("div", { class: "stats" },
-  items.filter(Boolean).map(([label, value, hint]) => h("div", { class: "stat" }, h("b", {}, value), label, hint && sub(hint))));
+  items.filter(Boolean).map(([label, value, hint]) => h("div", { class: "stat" }, h("span", { class: "stat-l" }, label), h("b", {}, value), hint && sub(hint))));
 
 export function switchBtn(on, label, onToggle) {
   const el = h("button", { class: "switch", type: "button", role: "switch", "aria-checked": String(!!on), "aria-label": label });
@@ -267,22 +267,43 @@ const TAB_ICONS = {
   ai: "sparkle", chat: "message", lessons: "clipboard", meetings: "clock", surveys: "poll", me: "briefcase", sms: "message", "online-exams": "monitor",
 };
 
-export function tabs(list, views, ctx) {
+export function tabs(list, views, ctx, { primary = [] } = {}) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
   let current;
-  const keys = new Set(list.filter(([k]) => k).map(([k]) => k));
+  const entries = list.filter(([k]) => k);
+  const keys = new Set(entries.map(([k]) => k));
+  const labelOf = Object.fromEntries(entries);
+  const iconOf = (key, size) => (icons[TAB_ICONS[key]] ? icons[TAB_ICONS[key]]({ size }) : null);
+  const badges = {};
   const fromHash = () => { const k = decodeURIComponent((location.hash.match(/^#\/([\w-]+)/) || [])[1] || ""); return keys.has(k) ? k : null; };
+
+  const groups = [];
+  for (const [key, label] of list) {
+    if (key === null) groups.push({ title: label, items: [] });
+    else { if (!groups.length) groups.push({ title: "", items: [] }); groups.at(-1).items.push(key); }
+  }
+  const all = entries.map(([k]) => k);
+  const pinned = (primary.length ? primary.filter((k) => keys.has(k)) : all).slice(0, all.length <= 5 ? 5 : 4);
+  const withMore = all.length > pinned.length;
+  const bnav = h("nav", { class: "bnav", "aria-label": "التنقل السريع" });
+  const badgeEl = (key) => h("span", { class: "nav-badge", "data-badge": key, hidden: !badges[key] }, badges[key] ? String(badges[key]) : "");
+
+  const markActive = () => {
+    for (const b of [...bar.querySelectorAll("button[data-k]"), ...bnav.querySelectorAll("button[data-k]")]) {
+      b.setAttribute("aria-selected", String(b.dataset.k === current));
+      b.classList.toggle("on", b.dataset.k === current);
+    }
+    bnav.querySelector(".bnav-more")?.classList.toggle("on", !pinned.includes(current));
+  };
+
   const show = async (key, { push = true } = {}) => {
     if (current && applyPendingUpdate()) return;
     if (push && keys.has(key) && fromHash() !== key) history.pushState(null, "", `#/${key}`);
     current = key;
-    bar.querySelectorAll("button").forEach((b) => {
-      b.setAttribute("aria-selected", String(b.dataset.k === key));
-      b.classList.toggle("on", b.dataset.k === key);
-    });
+    markActive();
     const active = bar.querySelector(`[data-k="${key}"]`);
-    if (active && bar.scrollWidth > bar.clientWidth + 4) {
+    if (active && bar.scrollWidth > bar.clientWidth + 4 && getComputedStyle(bar).flexDirection === "row") {
       bar.scrollTo({ left: active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
     }
     mount(body, skeleton());
@@ -295,13 +316,48 @@ export function tabs(list, views, ctx) {
       if (e.status === 401) setTimeout(() => location.reload(), 1500);
     }
   };
-  for (const [key, label] of list) {
-    if (key === null) continue;
-    const icon = icons[TAB_ICONS[key]];
-    bar.append(h("button", { type: "button", role: "tab", "data-k": key, title: label, onclick: () => show(key),
-      onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() },
-      icon ? icon({ size: 18 }) : null, h("span", { class: "tab-label" }, label)));
+  const tabBtn = (key, cls = "") => h("button", { type: "button", role: "tab", class: cls, "data-k": key, title: labelOf[key], onclick: () => show(key),
+    onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() },
+    iconOf(key, 18), h("span", { class: "tab-label" }, labelOf[key]), badgeEl(key));
+
+  for (const g of groups) {
+    if (!g.items.length) continue;
+    if (g.title) bar.append(h("span", { class: "tabs-group", role: "presentation" }, g.title));
+    for (const key of g.items) bar.append(tabBtn(key));
   }
+
+  const openMore = () => {
+    const sheet = h("dialog", { class: "sheet", "aria-label": "كل الأقسام" });
+    const pick = (key) => { sheet.close(); show(key); };
+    sheet.append(h("div", { class: "sheet-in" },
+      h("div", { class: "sheet-head" }, h("h2", {}, "كل الأقسام"),
+        h("button", { type: "button", class: "sheet-x", "aria-label": "إغلاق", onclick: () => sheet.close() }, icons.close({ size: 20 }))),
+      groups.filter((g) => g.items.length).map((g) => h("section", { class: "sheet-group" },
+        g.title ? h("h3", {}, g.title) : null,
+        h("div", { class: "sheet-grid" }, g.items.map((key) => h("button", { type: "button", class: `sheet-item${key === current ? " on" : ""}`, onclick: () => pick(key) },
+          h("span", { class: "sheet-ic" }, iconOf(key, 22)), h("span", {}, labelOf[key]), badgeEl(key))))))));
+    sheet.addEventListener("close", () => sheet.remove());
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
+    document.body.append(sheet);
+    sheet.showModal();
+  };
+  for (const key of pinned) bnav.append(tabBtn(key, "bnav-item"));
+  if (withMore) {
+    bnav.append(h("button", { type: "button", class: "bnav-item bnav-more", onclick: openMore, "aria-haspopup": "dialog" },
+      icons.grid({ size: 20 }), h("span", { class: "tab-label" }, "المزيد"), badgeEl("__more")));
+  }
+  document.body.classList.add("has-bnav");
+
+  const setBadge = (key, n) => {
+    badges[key] = Number(n) || 0;
+    const hiddenSum = all.filter((k) => !pinned.includes(k)).reduce((t, k) => t + (badges[k] || 0), 0);
+    badges.__more = hiddenSum;
+    for (const el of document.querySelectorAll(`[data-badge="${key}"], [data-badge="__more"]`)) {
+      const v = badges[el.dataset.badge];
+      el.hidden = !v; el.textContent = v ? (v > 99 ? "99+" : String(v)) : "";
+    }
+  };
+
   let home = null;
   window.addEventListener("popstate", () => { const k = fromHash() || home; if (k && k !== current) show(k, { push: false }); });
   const start = (fallback) => {
@@ -310,7 +366,7 @@ export function tabs(list, views, ctx) {
     if (!k && location.hash) history.replaceState(null, "", location.pathname + location.search);
     return show(k || fallback, { push: false });
   };
-  return { el: h("div", { class: "tabs-layout" }, bar, body), show, start };
+  return { el: h("div", { class: "tabs-layout" }, bar, body, bnav), show, start, setBadge };
 }
 
 export function dialog(title, content, actions = []) {

@@ -46,10 +46,11 @@ export async function startTeacher(offlineMe = null) {
   const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
     homework: "homework", announcements: "announcements", papers: "exam_papers",
     behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat" };
-  const list = [["home", "الرئيسية"], ["students", "طلابي"], ["chat", "الرسائل"], ["attendance", "الحضور"], ["behavior", "السلوك"], ["timetable", "جدولي"],
-    ["papers", "الاختبارات والامتحانات"], ["exams", "رصد الدرجات"], ["homework", "الواجبات"], ["lessons", "تحضير الدروس"],
-    ["calendar", "التقويم"], ["meetings", "المواعيد"], ["surveys", "الاستبيانات"], ["announcements", "التعاميم"],
-    ["me", "حضوري وإجازاتي"], ["account", "حسابي"]]
+  const list = [["home", "الرئيسية"], ["attendance", "الحضور"], ["exams", "رصد الدرجات"], ["chat", "الرسائل"],
+    [null, "طلابي وفصولي"], ["students", "طلابي"], ["behavior", "السلوك"], ["homework", "الواجبات"], ["timetable", "جدولي"],
+    [null, "الاختبارات والدروس"], ["papers", "الاختبارات والامتحانات"], ["lessons", "تحضير الدروس"],
+    [null, "المدرسة"], ["announcements", "التعاميم"], ["calendar", "التقويم"], ["meetings", "المواعيد"], ["surveys", "الاستبيانات"],
+    [null, "حسابي"], ["me", "حضوري وإجازاتي"], ["account", "حسابي"]]
     .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
   if (!me.offline) saveOfflineProfile({ role: "teacher", tenantId: me.school.id, userId: me.user_id, savedAt: Date.now(), me: { ...me, offline: true } });
   try { await startSync({ tenantId: me.school.id, userId: me.user_id, me }); } catch (e) { console.warn("المزامنة غير متاحة على هذا المتصفح", e); }
@@ -60,7 +61,8 @@ export async function startTeacher(offlineMe = null) {
     location.reload();
   };
   const ctx = { me };
-  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine, chat }, ctx);
+  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine, chat }, ctx,
+    { primary: ["home", "attendance", "exams", "chat", "students"] });
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);
