@@ -197,6 +197,17 @@ export const notice = (text, tone = "") => h("div", { class: `notice ${tone}`, r
 export const line = (...kids) => h("div", { class: "line" }, ...kids);
 export const sub = (...kids) => h("div", { class: "sub" }, ...kids);
 export const keyText = (text) => h("span", { class: "key" }, text);
+export function kpiCard({ icon, tone = "teal", label, value, note, ratio = null, onClick }) {
+  const fill = h("i");
+  if (ratio !== null && Number.isFinite(ratio)) fill.style.width = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+  return h(onClick ? "button" : "div", { class: `kpi-card ${tone}`, type: onClick ? "button" : null, onclick: onClick || null },
+    h("div", { class: "kpi-top" }, h("span", { class: "kpi-l" }, label), icon && icons[icon] ? h("span", { class: "kpi-ic" }, icons[icon]({ size: 18 })) : null),
+    h("b", { class: "kpi-v" }, value),
+    ratio !== null && Number.isFinite(ratio) ? h("div", { class: "kpi-bar", "aria-hidden": "true" }, fill) : null,
+    note ? h("small", { class: "kpi-note" }, note) : null);
+}
+export const kpiGrid = (...cards) => h("div", { class: "kpi-grid" }, ...cards);
+
 export const stats = (items) => h("div", { class: "stats" },
   items.filter(Boolean).map(([label, value, hint]) => h("div", { class: "stat" }, h("span", { class: "stat-l" }, label), h("b", {}, value), hint && sub(hint))));
 

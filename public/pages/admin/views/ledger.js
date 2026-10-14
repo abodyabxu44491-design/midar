@@ -6,7 +6,8 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, stats, toast,
-  dialog, notice, confirmAction, docLogo } from "../../shared/js/ui.js";
+  dialog, notice, confirmAction, docLogo, kpiCard, kpiGrid } from "../../shared/js/ui.js";
+import { icons } from "../../shared/js/icons.js";
 import { barChart } from "../../shared/js/charts.js";
 import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
 import { A } from "./common.js";
@@ -80,21 +81,28 @@ async function overview({ show, go }) {
     const payState = !p ? null : !p.run ? ["لم يُنشأ مسير هذا الشهر", "amber", "إنشاء المسير"]
       : p.run.status === "draft" ? ["مسودة بانتظار الاعتماد", "amber", "مراجعة واعتماد"]
       : p.run.status === "approved" ? ["معتمد، بانتظار الصرف", "amber", "صرف الرواتب"] : ["مصروف", "", "عرض المسير"];
+    const label = { today: "اليوم", week: "هذا الأسبوع", month: "هذا الشهر", year: "هذا العام" }[range.value] || "الفترة";
+    const quick = (icon, text, tone, key) => h("button", { type: "button", class: `quick-act ${tone}`, onclick: () => go(key) },
+      h("span", { class: "qa-ic" }, icons[icon]({ size: 20 })), h("span", {}, text));
     mount(box,
-      stats([
-        ["الرصيد الحالي", money(d.balance), "مجموع الحسابات"],
-        ["المداخيل", money(d.income), "في الفترة"],
-        ["المصروفات", money(d.expense), "في الفترة"],
-        ["الصافي", money(d.net)],
-      ]),
+      h("div", { class: "bal-hero" },
+        h("span", { class: "bal-k" }, "الرصيد الحالي في كل الحسابات"),
+        h("b", { class: "bal-v" }, money(d.balance)),
+        h("span", { class: "bal-k" }, `صافي ${label}: `, h("b", {}, money(d.net)))),
+      kpiGrid(
+        kpiCard({ icon: "up", tone: "teal", label: "المداخيل", value: money(d.income), note: label }),
+        kpiCard({ icon: "down", tone: "red", label: "المصروفات", value: money(d.expense), note: label }),
+        kpiCard({ icon: "wallet", tone: "amber", label: "رسوم غير مسددة", value: money(d.unpaid_fees), note: d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", onClick: () => go("fees") }),
+        d.staff ? kpiCard({ icon: "users", tone: "navy", label: "الرواتب الشهرية", value: money(d.staff.monthly), note: `${d.staff.count} موظفًا`, onClick: () => go("staff") }) : null),
+      h("div", { class: "quick-acts" },
+        quick("plus", "قبض رسوم", "teal", "fees"), quick("minus", "تسجيل مصروف", "red", "money"),
+        d.staff ? quick("users", "الرواتب", "navy", "payroll") : null, quick("list", "سجل الحركات", "violet", "entries")),
       d.pending ? notice(`${d.pending} حركة بانتظار الاعتماد في «سجل الحركات».`, "warn") : null,
       low.length ? notice(`رصيد منخفض: ${low.map((a) => `${a.name} (${money(a.balance)})`).join("، ")}`, "err") : null,
 
       h("div", { class: "fin-cards" },
         finCard("الرسوم", [["المحصّل في الفترة", money(d.fees)], ["غير المسدد", money(d.unpaid_fees)]],
-          d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", "go", () => go("fees")),
-        d.staff ? finCard("الموظفون والرواتب", [["الموظفون", String(d.staff.count)], ["الرواتب الشهرية", money(d.staff.monthly)]],
-          d.staff.no_salary ? `${d.staff.no_salary} بلا راتب محدد` : d.staff.types.map((x) => `${x.name} ${x.count}`).join(" · "), "go", () => go("staff")) : null,
+          d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", "فتح الرسوم", () => go("fees")),
         p ? finCard(`رواتب ${monthLabel}`, [["الإجمالي", money(p.run ? p.run.total : p.total)], ["الحالة", payState[0]]],
           p.run?.paid_at ? `صُرفت في ${fmtDate(p.run.paid_at)}` : null, payState[2], () => go("payroll"), payState[1]) : null,
         finCard("المصروفات", [["الرواتب في الفترة", money(d.salaries)], ["التشغيلية", money(d.operating + d.withdrawals)]],
@@ -130,8 +138,14 @@ async function overview({ show, go }) {
   range.addEventListener("change", applyRange);
   from.addEventListener("change", load);
   to.addEventListener("change", load);
+  const custom = h("div", { class: "row fin-range", hidden: true }, field("من", from), field("إلى", to));
+  const seg = h("div", { class: "seg-tabs fin-period", role: "tablist", "aria-label": "الفترة" });
+  const drawSeg = () => mount(seg, [["today", "اليوم"], ["week", "الأسبوع"], ["month", "الشهر"], ["year", "العام"], ["custom", "مخصصة"]].map(([k, t]) =>
+    h("button", { type: "button", role: "tab", class: range.value === k ? "on" : "", "aria-selected": String(range.value === k),
+      onclick: () => { range.value = k; custom.hidden = k !== "custom"; drawSeg(); applyRange(); } }, t)));
+  drawSeg();
   await load();
-  return [h("div", { class: "row fin-range" }, field("الفترة", range), field("من", from), field("إلى", to)), box];
+  return [seg, custom, box];
 }
 
 function finCard(title, rows, note, action, onClick, tone = "") {
