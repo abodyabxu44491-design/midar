@@ -7,27 +7,25 @@ import { $, h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { btn, notice, passwordInput } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
-import { authShell, authHead, authField, phoneField, codeField } from "../shared/js/auth.js";
+import { strengthMeter, authShell, authHead, authField, phoneField, codeField } from "../shared/js/auth.js";
 
 const app = $("#app");
 const token = new URLSearchParams(location.search).get("token") || "";
 
+let info;
 const BRAND = {
   title: "أهلًا بك في مدار",
   text: "فعّل حساب المدرسة في دقيقة، وابدأ إدارة الطلاب والحضور والدرجات والرسوم من مكان واحد.",
   points: [[icons.shield, "حسابك محمي برقم جوالك"], [icons.users, "كل منسوبي المدرسة في منصة واحدة"], [icons.chart, "تقارير جاهزة لحظة بلحظة"]],
 };
-const page = (...content) => mount(app, authShell(BRAND, ...content));
+const page = (...content) => mount(app, authShell({ ...BRAND, school: info?.school ? { name: info.school } : null, kicker: "تفعيل حساب المدرسة" }, ...content));
 const go = (label, onClick) => {
   const b = btn(label, onClick, "au-go");
   b.append(icons.chevronLeft({ size: 18 }));
   return b;
 };
 
-const strengthLevel = (v) => (v ? Math.max(1, [v.length >= 10, v.length >= 14, /[A-Za-z]/.test(v) && /\d/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length) : 0);
-const LEVELS = ["", "ضعيفة", "مقبولة", "جيدة", "قوية"];
 
-let info;
 async function start() {
   if (!/^[0-9a-f]{64}$/.test(token)) return fail("رابط التفعيل غير مكتمل. افتح الرابط كما وصلك.");
   try { info = await api(`/api/public/activation/check?token=${token}`); } catch (e) { return fail(e.message); }
@@ -113,14 +111,8 @@ function codeStep(sentTo, wait) {
 function passwordStep() {
   const pass = passwordInput({ id: "act-pass", autocomplete: "new-password", placeholder: "كلمة المرور" });
   const again = passwordInput({ id: "act-again", autocomplete: "new-password", placeholder: "أعد كتابة كلمة المرور" });
-  const meter = h("div", { class: "au-meter", "data-l": "0", "aria-hidden": "true" }, h("i"), h("i"), h("i"), h("i"));
-  const level = h("span");
+  const meter = strengthMeter(pass);
   const msg = h("div", { "aria-live": "polite" });
-  pass.inputEl.addEventListener("input", () => {
-    const l = strengthLevel(pass.value);
-    meter.dataset.l = String(l);
-    level.textContent = l ? `قوة كلمة المرور: ${LEVELS[l]}` : "";
-  });
   const save = go("تفعيل", async () => {
     mount(msg);
     if (!pass.value) { pass.focus(); return mount(msg, notice("أدخل كلمة المرور.", "err")); }
@@ -137,7 +129,7 @@ function passwordStep() {
   });
   for (const el of [pass, again]) el.addEventListener("keydown", (e) => e.key === "Enter" && save.click());
   page(authHead("أنشئ كلمة المرور", "لتسجيل الدخول برقم الجوال وكلمة المرور.", { name: info.school }),
-    authField("كلمة المرور", h("div", {}, pass, meter), { id: "act-pass", hint: h("span", {}, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا. ", level) }),
+    authField("كلمة المرور", h("div", {}, pass, meter.el), { id: "act-pass", hint: h("span", {}, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا. ", meter.label) }),
     authField("تأكيد كلمة المرور", again, { id: "act-again" }),
     msg, save);
   pass.focus();

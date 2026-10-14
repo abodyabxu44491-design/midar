@@ -6,7 +6,7 @@
 import { $, h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { btn, notice, passwordInput } from "../shared/js/ui.js";
-import { authShell, authHead, authField } from "../shared/js/auth.js";
+import { strengthMeter, authShell, authHead, authField } from "../shared/js/auth.js";
 import { icons } from "../shared/js/icons.js";
 
 const app = $("#app");
@@ -19,8 +19,6 @@ const BRAND = {
 };
 const page = (...content) => mount(app, authShell(BRAND, ...content));
 const go = (label, onClick) => { const b = btn(label, onClick, "au-go"); b.append(icons.chevronLeft({ size: 18 })); return b; };
-const strengthLevel = (v) => (v ? Math.max(1, [v.length >= 10, v.length >= 14, /[A-Za-z]/.test(v) && /\d/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length) : 0);
-const LEVELS = ["", "ضعيفة", "مقبولة", "جيدة", "قوية"];
 
 async function start() {
   if (!token) return fail("الرابط غير مكتمل. افتح الرابط كما وصلك بالكامل.");
@@ -31,14 +29,8 @@ async function start() {
 
   const pass = passwordInput({ id: "rs-pass", autocomplete: "new-password", placeholder: "كلمة المرور الجديدة" });
   const again = passwordInput({ id: "rs-again", autocomplete: "new-password", placeholder: "أعد كتابة كلمة المرور" });
-  const meter = h("div", { class: "au-meter", "data-l": "0", "aria-hidden": "true" }, h("i"), h("i"), h("i"), h("i"));
-  const level = h("span");
+  const meter = strengthMeter(pass);
   const msg = h("div", { "aria-live": "polite" });
-  pass.inputEl.addEventListener("input", () => {
-    const l = strengthLevel(pass.value);
-    meter.dataset.l = String(l);
-    level.textContent = l ? `قوة كلمة المرور: ${LEVELS[l]}` : "";
-  });
 
   const save = go("حفظ كلمة المرور", async () => {
     mount(msg);
@@ -55,7 +47,7 @@ async function start() {
   for (const el of [pass, again]) el.addEventListener("keydown", (e) => e.key === "Enter" && save.click());
 
   page(authHead("اختر كلمة مرور جديدة", `طلب رقم ${ref}`),
-    authField("كلمة المرور الجديدة", h("div", {}, pass, meter), { id: "rs-pass", hint: h("span", {}, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا. ", level) }),
+    authField("كلمة المرور الجديدة", h("div", {}, pass, meter.el), { id: "rs-pass", hint: h("span", {}, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا. ", meter.label) }),
     authField("تأكيد كلمة المرور", again, { id: "rs-again" }),
     msg, save);
   pass.focus();

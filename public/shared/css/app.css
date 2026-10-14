@@ -2249,3 +2249,37 @@ button.in-item { cursor: pointer; } button.in-item:hover { border-color: var(--t
 @media (prefers-reduced-motion: reduce) { .au-orbit, .otp.bad, .pf-pop { animation: none; } }
 html:has(> body > #app > .au) { scrollbar-gutter: auto; }
 .pf-search::-webkit-search-cancel-button { display: none; }
+
+/* Sign-in: school header on phones, returning account, recovery */
+.au-hero-school { display: none; }
+.au-hero-logo { width: 78px; height: 78px; border-radius: 24px; display: grid; place-items: center; overflow: hidden; background: #fff; color: var(--navy);
+  box-shadow: 0 14px 34px -10px rgba(0,0,0,.45), 0 0 0 6px rgba(255,255,255,.08); }
+.au-hero-logo img { width: 100%; height: 100%; object-fit: contain; padding: 9px; }
+.au-me { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 20px; border: 1.5px solid var(--line); border-radius: 18px; background: linear-gradient(180deg, #FBFCFD, #F5F8FA); }
+.au-me .av { width: 46px; height: 46px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 19px; font-weight: 700; color: #fff;
+  background: linear-gradient(140deg, #13A39B, #16244A); box-shadow: 0 6px 14px -6px rgba(22,36,74,.5); }
+.au-me-t { min-width: 0; flex: 1; }
+.au-me-t b { display: block; font-size: 16px; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-me-t small { display: block; color: var(--muted); font-size: 13px; }
+.au-back { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 18px; padding: 6px 10px 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.au-back .icon { rotate: 180deg; }
+.au-back:hover { background: #F5F7FA; }
+@keyframes au-up { from { opacity: 0; transform: translateY(22px); } }
+@keyframes au-fade { from { opacity: 0; transform: translateY(6px); } }
+@media (max-width: 959px) {
+  .au-brand { padding: calc(18px + env(safe-area-inset-top)) 20px 62px; }
+  .au-has-hero .au-brand { padding-bottom: 70px; }
+  .au-has-hero .au-logo { width: 104px; opacity: .92; }
+  .au-hero-school { display: grid; justify-items: center; gap: 6px; margin-top: 22px; text-align: center; animation: au-fade .5s .05s both; }
+  .au-hero-school b { margin-top: 8px; font-size: 21px; line-height: 1.4; color: #fff; max-width: 300px; }
+  .au-hero-school small { color: rgba(255,255,255,.66); font-size: 13px; }
+  .au-has-hero .au-school { display: none; }
+  .au-main { box-shadow: 0 -12px 30px -18px rgba(12,22,49,.5); animation: au-up .5s cubic-bezier(.2,.8,.2,1) both; }
+  .au-main::before { content: ""; position: absolute; top: 10px; left: 50%; width: 38px; height: 4px; margin-left: -19px; border-radius: 2px; background: #DDE3EA; }
+  .au-head { margin-bottom: 22px; }
+  .au-head h1 { font-size: 25px; }
+  .au-seg { margin-bottom: 20px; }
+  .au-foot { margin-top: 26px; padding-bottom: env(safe-area-inset-bottom); }
+}
+@media (prefers-reduced-motion: reduce) { .au-main, .au-hero-school { animation: none; } }

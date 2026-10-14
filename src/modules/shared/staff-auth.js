@@ -12,6 +12,7 @@ import { createSession, destroySession, currentSessionHash } from "../../core/au
 import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
 import { normalizePhone } from "./students.service.js";
+import * as recovery from "./staff-recovery.service.js";
 
 const MAX_FAILS = 5, MAX_FAILS_ACCOUNT = 30, LOCK_MIN = 5;
 const FAIL_IP = "staff_login_failed", FAIL_ACCOUNT = "staff_login_failed_all";
@@ -82,11 +83,27 @@ export const staffLoginRouter = () => {
       if (user.role === "admin") await q("UPDATE tenants SET activated_at = now() WHERE id = $1 AND activated_at IS NULL", [tenant.id]);
       await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);
       await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role] || "موظف"})${b.remember ? " - تذكرني" : ""}` });
-      return { role: user.role };
+      return { role: user.role, name: user.full_name };
     });
     if (outcome.locked) throw new AppError(429, outcome.error, "locked", { retry_after: outcome.retry_after });
     if (outcome.error) throw outcome.status === 403 ? forbidden(outcome.error) : unauthorized(outcome.error);
-    res.json({ role: outcome.role });
+    res.json({ role: outcome.role, name: outcome.name });
+  }));
+
+  // Forgotten password (administrators): SMS code to the registered mobile, then a new password.
+  const school = loginSchema.shape.school;
+  const phone = z.string().trim().min(6, "أدخل رقم الجوال").max(25);
+  r.post("/recover/start", limits.login, handle(async (req, res) => {
+    const b = parse(z.object({ school, phone }), req.body);
+    res.json(await recovery.start(b.school, b.phone, req.ip));
+  }));
+  r.post("/recover/verify", limits.login, handle(async (req, res) => {
+    const b = parse(z.object({ school, phone, code: z.string().trim().max(10) }), req.body);
+    res.json(await recovery.verify(b.school, b.phone, b.code, req.ip));
+  }));
+  r.post("/recover/reset", limits.login, handle(async (req, res) => {
+    const b = parse(z.object({ school, ticket: z.string().max(80), password: t.password }), req.body);
+    res.json(await recovery.reset(b.school, b.ticket, b.password, req, res));
   }));
   return r;
 };

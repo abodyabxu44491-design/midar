@@ -30,12 +30,18 @@ function orbitArt() {
   return svg;
 }
 
-// A two-panel page: the brand panel and the form panel (stacked on phones).
-export function authShell({ title, text, points = [] }, ...content) {
-  return h("div", { class: "au" },
+// The school's identity for the phone header: logo (or a building mark), name and a short line.
+export const schoolHero = (school, kicker) => (school?.name ? [
+  h("span", { class: "au-hero-logo" }, school.logo ? h("img", { src: school.logo, alt: "" }) : icons.building({ size: 30 })),
+  h("b", {}, school.name), kicker ? h("small", {}, kicker) : null] : null);
+
+// A two-panel page: the brand panel and the form panel (stacked on phones, with the school in the header).
+export function authShell({ title, text, points = [], school, kicker }, ...content) {
+  return h("div", { class: `au${school?.name ? " au-has-hero" : ""}` },
     h("aside", { class: "au-brand" }, orbitArt(),
       h("div", { class: "au-brand-in" },
         brandLogo("au-logo", true, "row"),
+        h("div", { class: "au-hero-school" }, schoolHero(school, kicker)),
         h("div", { class: "au-brand-copy" },
           h("h2", {}, title),
           text && h("p", {}, text),
@@ -130,6 +136,13 @@ export function phoneField({ id = "au-phone", autofocus = false } = {}) {
     get valid() { return Boolean(detectPhone(withDial(dial, num.value))?.ok); },
     focus: () => num.focus(),
     invalid: (on) => box.classList.toggle("bad", on),
+    // Fills a stored international number back in, with its country selected.
+    set(full) {
+      const d = toAsciiDigits(String(full || "")).replace(/\D/g, "");
+      const hit = ARAB_DIALS.find((c) => d.startsWith(c.dial) && detectPhone(`+${d}`)?.ok);
+      if (hit) { dial = hit.dial; num.value = d.slice(hit.dial.length); } else { num.value = String(full || ""); }
+      paint();
+    },
   };
 }
 
@@ -163,4 +176,18 @@ export function codeField({ onComplete } = {}) {
     clear: () => { inp.value = ""; paint(); inp.focus(); },
     invalid: () => { el.classList.remove("bad"); void el.offsetWidth; el.classList.add("bad"); },
   };
+}
+
+// Four-step strength bar under a new password, with its word in the hint.
+const LEVELS = ["", "ضعيفة", "مقبولة", "جيدة", "قوية"];
+export const strengthLevel = (v) => (v ? Math.max(1, [v.length >= 10, v.length >= 14, /[A-Za-z]/.test(v) && /\d/.test(v), /[^A-Za-z0-9]/.test(v)].filter(Boolean).length) : 0);
+export function strengthMeter(pass) {
+  const el = h("div", { class: "au-meter", "data-l": "0", "aria-hidden": "true" }, h("i"), h("i"), h("i"), h("i"));
+  const label = h("span");
+  (pass.inputEl || pass).addEventListener("input", () => {
+    const l = strengthLevel(pass.value);
+    el.dataset.l = String(l);
+    label.textContent = l ? `قوة كلمة المرور: ${LEVELS[l]}` : "";
+  });
+  return { el, label };
 }
