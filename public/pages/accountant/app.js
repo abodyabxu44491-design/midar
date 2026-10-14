@@ -30,19 +30,28 @@ export async function startAccountant() {
   }
   setCurrency(me.currency);
   const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
+  const institute = me.school.org_type === "institute";
+  let ifees = null, ireports = null;
+  if (institute) {
+    const [{ loadMeta, inst }, V] = await Promise.all([import("../shared/js/institute-ui.js"), import("../admin/views/institute.js")]);
+    await loadMeta("/api/accountant/institute");
+    inst.school = me.school.name;
+    ifees = V.fees; ireports = V.reports;
+  }
   const list = [
+    ...(institute ? [["ifees", "رسوم الدورات"], ["ireports", "التقارير"]] : []),
     ...(me.modules?.finance ? [["ledger", "المالية"]] : []),
     ...(me.modules?.fees && !me.modules?.finance ? [["fees", "الرسوم"]] : []),
     ["money-requests", "الطلبات المالية"],
     ...(me.modules?.finance ? [["deposits", "تأمين الكتب"]] : []),
     ["account", "حسابي"],
   ];
-  const t = tabs(list, { ledger, fees, "money-requests": financeRequests, deposits: bookDeposits, account }, { me }, { top: true });
+  const t = tabs(list, { ifees, ireports, ledger, fees, "money-requests": financeRequests, deposits: bookDeposits, account }, { me }, { top: true });
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `المحاسب — ${me.name}`,
     onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } });
   attachBell(bar, "/api/accountant", (n) => (n.link === "finance-requests" ? (t.show("money-requests"), true) : false));
   mount(app, bar, h("main", {}, t.el), footer());
-  t.start(me.modules?.finance ? "ledger" : "fees");
+  t.start(institute ? "ifees" : me.modules?.finance ? "ledger" : "fees");
 }
 
 function account({ me }) {

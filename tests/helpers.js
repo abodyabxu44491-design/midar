@@ -80,7 +80,6 @@ export async function readySchool(base, { prefix = "t", name = "مدرسة ال�
     parent: (s) => ({ student_id: s.id, key: s.access_key }) };
 }
 
-// Activates a school the way a manager does: verify the approved phone (here with an owner-issued code), then set the password.
 export const randomPhone = () => `05${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
 
 // Runs the manager's activation: SMS code to the typed number (captured by a stub gateway), then the password.

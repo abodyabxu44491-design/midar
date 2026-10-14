@@ -287,6 +287,8 @@ const TAB_ICONS = {
   announcements: "megaphone", subscription: "star", subscriptions: "star", settings: "settings", audit: "history",
   homework: "book", account: "user", requests: "userPlus", plans: "gift", schools: "building", create: "plus", deposits: "book", "money-requests": "clipboard",
   billing: "money", passwords: "key", danger: "lock",
+  trainees: "users", programs: "book", courses: "clipboard", trainers: "briefcase", sessions: "calendar", icerts: "award", ifees: "wallet",
+  ireports: "chart", istaff: "user", isettings: "settings", mycourses: "clipboard",
   communication: "message", staff: "briefcase", behavior: "star", calendar: "calendar", certificates: "award", services: "box",
   ai: "sparkle", chat: "message", testimonials: "star", groups: "building", lessons: "clipboard", meetings: "clock", surveys: "poll", me: "briefcase", sms: "message", "online-exams": "monitor",
 };

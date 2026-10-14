@@ -51,6 +51,7 @@ import { papersRouter, papersAdminSettingsRouter } from "../shared/exam-papers.r
 import { adminSyncRouter } from "../shared/sync.routes.js";
 import { jobsRouter } from "../shared/jobs.routes.js";
 import { staffNotificationsRouter } from "../shared/notifications.routes.js";
+import { instituteRouter } from "../shared/institute.routes.js";
 
 const r = Router();
 r.use(logoutRouter("admin"));
@@ -58,7 +59,12 @@ r.use(requireStaff("admin"));
 const FULL_ONLY = ["/finance", "/ledger", "/users", "/danger", "/subscription", "/settings/subscription", "/book-deposits", "/staff-affairs/payroll"];
 r.use((req, res, next) => (req.user.admin_scope === "school" && FULL_ONLY.some((p) => req.path === p || req.path.startsWith(`${p}/`))
   ? next(forbidden("هذا القسم للإدارة العامة. قدّم ما تحتاجه من «الطلبات المالية».")) : next()));
+// Institute staff other than the director reach only the institute section (plus their own account).
+const STAFF_OPEN = ["/me", "/password", "/institute", "/notifications"];
+r.use((req, res, next) => (req.tenant.org_type === "institute" && req.user.staff_role && req.user.staff_role !== "director"
+  && !STAFF_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`)) ? next(forbidden("هذا القسم خارج صلاحيات دورك في المعهد.")) : next()));
 r.post("/password", changePassword);
+r.use("/institute", instituteRouter());
 r.use(dashboard);
 r.use("/structure", structure);
 r.use("/teachers", teachers);

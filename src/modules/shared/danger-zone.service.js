@@ -41,7 +41,10 @@ export const CATEGORIES = {
   finance:       { label: "العمليات المالية", note: "الفواتير والدفعات والقيود والتبرعات والرواتب (الحسابات والتصنيفات وخطط الرسوم تبقى)",
     tables: ["payment_claims", "payments", "invoices", "fee_adjustments", "donations", "payroll_items", "payroll_runs", "finance_entries"], admin: false },
   students:      { label: "الطلاب وكل سجلاتهم", note: "الحضور والدرجات والفواتير والدفعات والتنبيهات والسجل الأكاديمي",
-    tables: ["student_alerts", "student_years", "assignment_submissions", "scores", "attendance", "payment_claims", "payments", "invoices", "fee_adjustments", "students"], admin: false },
+    tables: ["score_changes", "assessment_scores", "session_attendance", "training_log", "enrollments",
+      "student_alerts", "student_years", "assignment_submissions", "scores", "attendance", "payment_claims", "payments", "invoices", "fee_adjustments", "students"], admin: false },
+  training:      { label: "بيانات التدريب", note: "البرامج والدورات والمجموعات والجلسات والتقييمات والتسجيلات (المتدربون يبقون)",
+    tables: ["score_changes", "assessment_scores", "session_attendance", "training_log", "enrollments", "assessments", "training_sessions", "course_groups", "courses", "programs"], admin: false },
   teachers:      { label: "المعلمون وحساباتهم", note: "والإسناد (المواد والفصول)", tables: ["teacher_assignments", "teachers"], admin: false },
 };
 const SETTINGS_TABLES = ["school_public_settings", "exam_paper_settings", "timetable_settings", "school_messages"];
@@ -172,6 +175,9 @@ const TABLE_LABEL = {
   meeting_slots: "فترات المواعيد", meeting_bookings: "حجوزات المواعيد", reminder_log: "سجل التذكيرات",
   renewal_requests: "طلبات التجديد", subscription_events: "سجل أحداث الاشتراك", leads: "طلبات الاهتمام", sms_ledger: "رصيد الرسائل النصية",
   tenant_prices: "أسعار المدرسة الخاصة",
+  institute_settings: "إعدادات المعهد", programs: "البرامج التدريبية", courses: "الدورات", course_groups: "المجموعات التدريبية",
+  enrollments: "تسجيلات المتدربين في الدورات", training_log: "سجل مسار التدريب", training_sessions: "الجلسات التدريبية",
+  session_attendance: "حضور الجلسات", assessments: "تقييمات الدورات", assessment_scores: "درجات التقييمات", score_changes: "سجل تعديل الدرجات",
   school_ai: "مفتاح المساعد الذكي", school_sms_gateway: "بوابة رسائل المدرسة", wa_outbox: "قائمة إرسال واتساب",
 };
 export const tableLabel = (t) => TABLE_LABEL[t] || t;

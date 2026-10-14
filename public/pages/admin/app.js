@@ -52,6 +52,7 @@ export async function startAdmin() {
   }
   if (me.access?.locked) return lockScreen(me, app);
   setCurrency(me.school.currency);
+  if (me.org_type === "institute") return startInstitute(me);
   const on = (key) => me.modules?.[key] !== false;
   if (me.setup_completed === false) {
     mount(app,
@@ -111,6 +112,35 @@ export async function startAdmin() {
     if (!tab || !allTabs.some(([k]) => k === tab || (tab === "finance" && k === "ledger"))) return false;
     ctx.goTo(tab); return true;
   });
+  mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
+  t.start("dashboard");
+}
+
+// Institutes get their own sections; school sections stay hidden (and closed on the server for non-director roles).
+async function startInstitute(me) {
+  const [{ loadMeta, inst, T }, V] = await Promise.all([import("../shared/js/institute-ui.js"), import("./views/institute.js")]);
+  const meta = await loadMeta("/api/admin/institute");
+  inst.school = me.school.name;
+  const can = (c) => meta.caps.includes(c);
+  const director = meta.staff_role === "director";
+  const list = [
+    ["dashboard", "الرئيسية"],
+    [null, "التدريب"], ["trainees", T("trainees")], ["courses", T("courses")], ["programs", T("programs")], ["sessions", "الجدول والحضور"],
+    can("catalog") || director ? ["trainers", T("trainers")] : null,
+    [null, "النتائج والشهادات"], can("reports") ? ["ireports", "التقارير"] : null, ["icerts", "الشهادات"],
+    [null, "المالية"], can("finance") ? ["ifees", "الرسوم والمدفوعات"] : null, director && me.modules?.finance ? ["ledger", "المالية"] : null,
+    [null, "الإدارة"], director ? ["istaff", "الموظفون والصلاحيات"] : null, director ? ["isettings", "إعدادات المعهد"] : null,
+    director ? ["subscription", "اشتراكي"] : null, director ? ["audit", "السجل"] : null,
+  ].filter(Boolean);
+  const ctx = { me };
+  const t = tabs(list, { dashboard: V.dashboard, trainees: V.trainees, courses: V.courses, programs: V.programs, sessions: V.sessions, trainers: V.trainers,
+    ireports: V.reports, icerts: V.certificates, ifees: V.fees, ledger, istaff: V.staff, isettings: V.settings, subscription: mySubscription, audit }, ctx,
+  { primary: ["dashboard", "trainees", "courses", "sessions", can("finance") ? "ifees" : "icerts"] });
+  ctx.goTo = (key) => t.show(key);
+  const roleName = meta.labels.staff_roles[meta.staff_role] || "إدارة المعهد";
+  const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `${roleName} — ${me.name}`,
+    onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } });
+  attachBell(bar, "/api/admin", () => false);
   mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
   t.start("dashboard");
 }

@@ -163,6 +163,7 @@ const convertSchema = z.object({
   admin_name: t.name("اسم المدير").optional().default("مدير المدرسة"),
   currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
   subscription: activateSchema,
+  org_type: z.enum(["school", "institute"]).optional(),
 });
 requests.post("/:id/convert", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
@@ -182,6 +183,7 @@ requests.post("/:id/convert", handle(async (req, res) => {
   try {
     created = await createTenant(req, {
       id: b.id, name: b.name, admin_name: b.admin_name, currency: b.currency, max_students: b.subscription.max_students || 200,
+      org_type: b.org_type || (lead.details?.org_type === "institute" ? "institute" : "school"),
       subscription: { ...b.subscription, lead_id: id },
     });
   } catch (e) {

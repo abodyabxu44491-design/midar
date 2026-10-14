@@ -19,6 +19,7 @@ import financeRequests from "../school-admin/finance-requests.js";
 import bookDeposits from "../school-admin/book-deposits.js";
 import fees from "../school-admin/finance.js";
 import { staffNotificationsRouter } from "../shared/notifications.routes.js";
+import { instituteRouter } from "../shared/institute.routes.js";
 
 const r = Router();
 r.use(logoutRouter("accountant"));
@@ -30,7 +31,7 @@ r.get("/me", handle(async (req, res) => {
     role: "accountant",
     access: accessSummary(req),
     must_change_password: req.user.must_change_password,
-    school: { id: req.tenant.id, name: req.tenant.name, logo: await inTenant(req, logoId) },
+    school: { id: req.tenant.id, name: req.tenant.name, logo: await inTenant(req, logoId), org_type: req.tenant.org_type },
     currency: req.tenant.currency,
     modules: req.modules,
     permissions: { approve: req.user.can_approve_finance, payroll: req.user.can_manage_payroll, accounts: req.user.can_manage_accounts },
@@ -63,6 +64,7 @@ r.get("/messaging/templates", handle(async (req, res) => {
 }));
 
 r.use("/notifications", staffNotificationsRouter());
+r.use("/institute", instituteRouter());
 r.use("/ledger", requireModule("finance"), ledger);
 r.use("/finance-requests", financeRequests);
 r.use("/book-deposits", requireModule("finance"), bookDeposits);

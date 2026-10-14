@@ -20,9 +20,11 @@ r.get("/me", handle(async (req, res) => {
   const [p] = await inTenant(req, (q) => q("SELECT setup_completed_at FROM school_profile WHERE tenant_id = app_tenant()"));
   res.json({
     modules: req.modules,
-    setup_completed: Boolean(p?.setup_completed_at),
+    setup_completed: req.tenant.org_type === "institute" || Boolean(p?.setup_completed_at),
     name: req.user.full_name,
     admin_scope: req.user.admin_scope || "full",
+    org_type: req.tenant.org_type || "school",
+    staff_role: req.tenant.org_type === "institute" ? req.user.staff_role || "director" : null,
     must_change_password: req.user.must_change_password,
     access: accessSummary(req),
     links: schoolLinks(req, req.tenant.id),

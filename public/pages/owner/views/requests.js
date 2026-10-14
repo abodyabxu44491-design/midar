@@ -64,6 +64,7 @@ function row(r, refresh, root) {
 async function convert(r, refresh) {
   const refs = await loadRefs();
   const name = input({ value: r.school_name });
+  const org = select([["school", "مدرسة"], ["institute", "معهد تدريبي"]], { value: r.details?.org_type === "institute" ? "institute" : "school" });
   // The school code is derived from the name on the server (unique, readable); the owner may still adjust it.
   const id = input({ class: "ltr", dir: "ltr", placeholder: "alnoor", "aria-label": "رمز المدرسة" });
   let touched = false, seq = 0;
@@ -85,13 +86,13 @@ async function convert(r, refresh) {
     addons: (r.addon_keys || []).map((k) => ({ key: k })) });
   const d = dialog(r.kind === "trial" ? "تفعيل التجربة المجانية" : "إنشاء المدرسة وتفعيل الاشتراك", h("div", {},
     !r.plan_id && r.kind === "trial" ? notice("طلب العميل تجربة المنصة بدون تحديد باقة. اختر الباقة التي سيجربها.", "") : null,
-    field("اسم المدرسة", name), codeBox,
+    field("نوع المؤسسة", org), field("الاسم", name), codeBox,
     field("اسم المدير", admin),
     h("hr"), form.el),
   [btn("إنشاء وتفعيل", async (e) => {
     const b = e?.currentTarget; if (b) b.disabled = true;
     try {
-      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value || undefined, name: name.value, admin_name: admin.value, subscription: form.value() });
+      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value || undefined, org_type: org.value, name: name.value, admin_name: admin.value, subscription: form.value() });
       d.close(); toast("اعتُمدت المدرسة وأُنشئ حسابها");
       location.hash = `#/schools?school=${res.tenant_id}&handover=1`;
     } catch (err) {

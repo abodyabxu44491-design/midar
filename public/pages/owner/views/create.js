@@ -11,15 +11,17 @@ import { runJob } from "/shared/js/job.js";
 
 export default async function create({ refresh }) {
   const refs = await loadRefs();
-  const f = { name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }) };
+  const f = { name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }),
+    org: select([["school", "مدرسة"], ["institute", "معهد تدريبي"]]) };
   const form = subForm(refs, { kind: "trial" });
   return [panel("إضافة مدرسة جديدة", null,
+    field("نوع المؤسسة", f.org, "المعهد يحصل على البرامج والدورات والمتدربين والشهادات بدل الصفوف والفصول"),
     field("اسم المدرسة", f.name),
     field("رمز المدرسة", f.id, "حروف إنجليزية صغيرة وأرقام. يظهر في رابط صفحة الطلاب ولا يمكن تغييره."),
     field("اسم مدير المدرسة", f.admin),
     h("h3", {}, "الاشتراك"), form.el,
     btn("إنشاء المدرسة", async () => {
-      const r = await api("/api/owner/tenants", { name: f.name.value, id: f.id.value, admin_name: f.admin.value, subscription: form.value() });
+      const r = await api("/api/owner/tenants", { name: f.name.value, id: f.id.value, admin_name: f.admin.value, subscription: form.value(), org_type: f.org.value });
       handoverCard(r);
       refresh();
     })), showcasePanel(refresh)];

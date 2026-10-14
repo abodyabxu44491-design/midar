@@ -37,6 +37,7 @@ const createSchema = z.object({
   subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
   subscription: activateSchema.optional(),
+  org_type: z.enum(["school", "institute"]).default("school"),
 });
 const updateSchema = z.object({
   name: t.shortText("اسم المدرسة", 150).optional(),
@@ -69,6 +70,7 @@ r.get("/stats", handle(async (req, res) => {
 }));
 
 export async function createTenant(req, b) {
+  if (b.org_type === "institute" && (!b.admin_name || b.admin_name === "مدير المدرسة")) b = { ...b, admin_name: "مدير المعهد" };
   const password = newTempPassword();
   const hash = await hashPassword(password);
   const directory = newDirectoryCode();
@@ -77,10 +79,11 @@ export async function createTenant(req, b) {
     if (exists) throw conflict("هذا الرمز مستخدم لمدرسة أخرى");
     if (b.group_id) await groupQuota(q, b.group_id);
     await q(`INSERT INTO tenants (id, name, plan, max_students, subscription_end, directory_code,
-               subscription_price, grace_days, currency, group_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+               subscription_price, grace_days, currency, group_id, org_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [b.id, b.name, b.plan ?? "basic", b.max_students ?? 200, b.subscription_end ?? null, directory,
-       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER", b.group_id ?? null]);
+       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER", b.group_id ?? null, b.org_type ?? "school"]);
+    if (b.org_type === "institute") await q("INSERT INTO institute_settings (tenant_id) VALUES ($1) ON CONFLICT DO NOTHING", [b.id]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);
@@ -94,7 +97,7 @@ export async function createTenant(req, b) {
   });
   await transaction({ actor: req.actor, ip: req.ip, platform: true }, async (q) => {
     await q("UPDATE tenants SET approved_at = COALESCE(approved_at, now()), approved_by = COALESCE(approved_by, $2) WHERE id = $1", [b.id, req.actor]);
-    await addSchoolEvent(q, b.id, { kind: "account", body: "أُنشئت المدرسة وحساب مديرها" }, req.actor);
+    await addSchoolEvent(q, b.id, { kind: "account", body: b.org_type === "institute" ? "أُنشئ المعهد وحساب مديره" : "أُنشئت المدرسة وحساب مديرها" }, req.actor);
   });
   return { school: { id: b.id, name: b.name }, credentials: { school: b.id, username: "admin", password, directory_code: directory } };
 }

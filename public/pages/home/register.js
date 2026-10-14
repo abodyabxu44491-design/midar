@@ -6,7 +6,7 @@ import { h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { icons } from "../shared/js/icons.js";
 
-const ORG_TYPES = [["private", "مدرسة أهلية"], ["public", "مدرسة حكومية"], ["international", "مدرسة دولية"], ["institute", "معهد تعليمي"], ["other", "أخرى"]];
+const ORG_TYPES = [["private", "مدرسة أهلية"], ["public", "مدرسة حكومية"], ["international", "مدرسة دولية"], ["institute", "معهد تدريبي"], ["other", "أخرى"]];
 const STAGES = [["kg", "رياض الأطفال"], ["primary", "المرحلة الابتدائية"], ["middle", "المرحلة المتوسطة"], ["secondary", "المرحلة الثانوية"]];
 const CONTACT = [["whatsapp", "واتساب"], ["call", "اتصال"], ["email", "البريد الإلكتروني"]];
 const PHONE_RE = /^\+?[0-9 ]{6,20}$/, EMAIL_RE = /^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$/;
