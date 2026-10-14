@@ -189,39 +189,24 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   }
 
   const body = h("div", { class: "profile-body" });
+  // Sections sit in one scrollable bar at the top (parent app and admin alike).
   const nav = h("nav", { class: "profile-nav", "aria-label": "أقسام الملف" });
-  const SHORT = { overview: "الرئيسية", grades: "الدرجات", attendance: "الحضور", fees: "الرسوم", teachers: "المعلمون" };
   const ICON = { overview: icons.home, grades: icons.chart, attendance: icons.calendar, fees: icons.wallet, alerts: icons.alert, homework: icons.clipboard,
     timetable: icons.grid, teachers: icons.users, news: icons.megaphone, inbox: icons.bell, chat: icons.message,
     "online-exams": icons.monitor, certificates: icons.award, calendar: icons.calendar, transport: icons.bus, health: icons.heart,
     library: icons.book, surveys: icons.poll, meetings: icons.clock, behavior: icons.star };
-  const pinned = appNav ? ["overview", "grades", "attendance", "teachers", "fees"].filter((k) => sections.some((x) => x.key === k)) : [];
-  const bnav = appNav ? h("nav", { class: "bnav sf-bnav", "aria-label": "التنقل" }) : null;
   let current = null, elRef = null;
   const open = (key, stay = false) => {
     current = key;
     nav.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
-    if (bnav) {
-      bnav.querySelectorAll("button[data-k]").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
-      bnav.querySelector(".bnav-more")?.classList.toggle("on", !pinned.includes(key));
-    }
+    nav.querySelector("button.on")?.scrollIntoView({ block: "nearest", inline: "center", behavior: stay ? "auto" : "smooth" });
     mount(body, views[key]());
     if (elRef) elRef.dataset.view = key;
     if (scrollTop && !stay) window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  mount(nav, sections.map((sec) => h("button", { type: "button", "data-k": sec.key, onclick: () => open(sec.key) },
-    h("span", {}, sec.name), sec.note ? h("small", {}, sec.note) : null)));
-  if (bnav) {
-    const rest = sections.filter((x) => !pinned.includes(x.key));
-    mount(bnav, pinned.map((k) => h("button", { type: "button", class: "bnav-item", "data-k": k, onclick: () => open(k) },
-      (ICON[k] || icons.list)({ size: 20 }), h("span", { class: "tab-label" }, SHORT[k]),
-      k === "teachers" && /جديد/.test(sections.find((x) => x.key === k)?.note || "") ? h("span", { class: "nav-badge" }, (sections.find((x) => x.key === k).note.match(/\d+/) || ["•"])[0]) : null)),
-    rest.length ? h("button", { type: "button", class: "bnav-item bnav-more", "aria-haspopup": "dialog",
-      onclick: () => sheetMenu("أقسام الملف", [{ title: "", items: rest.map((x) => ({ key: x.key, name: x.name, note: x.note, icon: ICON[x.key] })) }], { current, onPick: open }) },
-      icons.grid({ size: 20 }), h("span", { class: "tab-label" }, "المزيد"),
-      rest.some((x) => /جديد/.test(x.note || "")) ? h("span", { class: "nav-badge" }, "•") : null) : null);
-    document.body.classList.add("has-bnav");
-  }
+  mount(nav, sections.map((sec) => h("button", { type: "button", "data-k": sec.key, onclick: () => open(sec.key), title: sec.note || sec.name },
+    (ICON[sec.key] || icons.list)({ size: 16 }), h("span", {}, sec.name),
+    /جديد/.test(sec.note || "") ? h("span", { class: "nav-badge" }, (sec.note.match(/\d+/) || ["•"])[0]) : null)));
 
   const avatar = photo ? h("img", { class: "sf-avatar", src: photo, alt: "" }) : personAvatar(s.gender, 72, "sf-avatar");
   const todayRec = d.attendance.find((a) => a.day === new Date().toLocaleDateString("en-CA"));
@@ -245,7 +230,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
         { onPick: (k) => moreActions[Number(k)].onClick() }) },
       icons.grid({ size: 18 }), h("span", {}, "المزيد")) : null) : null;
   const el = h("div", { class: `student-file${appNav ? " app" : ""}` },
-    toolbar,
+    toolbar, nav,
     h("div", { class: "sf-head" },
       avatar,
       h("div", { class: "sf-id" },
@@ -264,8 +249,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
       d.settings.profile_show_attendance ? tile("amber", "مرات التأخر", String(count("late"))) : null,
       f ? tile("navy", f.status === "unpaid" ? "رسوم متبقية" : "الرسوم", f.status === "paid" ? "مسددة" : f.status === "unpaid" ? money(f.remaining) : "—") : null),
     afterHead,
-    h("div", { class: "profile-layout" }, nav, body),
-    bnav);
+    h("div", { class: "profile-layout" }, body));
   elRef = el;
   open("overview");
   return { el, open };

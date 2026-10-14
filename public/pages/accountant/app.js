@@ -37,7 +37,7 @@ export async function startAccountant() {
     ...(me.modules?.finance ? [["deposits", "تأمين الكتب"]] : []),
     ["account", "حسابي"],
   ];
-  const t = tabs(list, { ledger, fees, "money-requests": financeRequests, deposits: bookDeposits, account }, { me });
+  const t = tabs(list, { ledger, fees, "money-requests": financeRequests, deposits: bookDeposits, account }, { me }, { top: true });
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `المحاسب — ${me.name}`,
     onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } });
   attachBell(bar, "/api/accountant", (n) => (n.link === "finance-requests" ? (t.show("money-requests"), true) : false));

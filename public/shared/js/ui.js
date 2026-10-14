@@ -291,7 +291,7 @@ const TAB_ICONS = {
   ai: "sparkle", chat: "message", testimonials: "star", groups: "building", lessons: "clipboard", meetings: "clock", surveys: "poll", me: "briefcase", sms: "message", "online-exams": "monitor",
 };
 
-export function tabs(list, views, ctx, { primary = [] } = {}) {
+export function tabs(list, views, ctx, { primary = [], top = false } = {}) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
   let current;
@@ -328,7 +328,7 @@ export function tabs(list, views, ctx, { primary = [] } = {}) {
     markActive();
     const active = bar.querySelector(`[data-k="${key}"]`);
     if (active && bar.scrollWidth > bar.clientWidth + 4 && getComputedStyle(bar).flexDirection === "row") {
-      bar.scrollTo({ left: active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
+      active.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
     }
     mount(body, skeleton());
     const refresh = () => show(key);
@@ -365,12 +365,12 @@ export function tabs(list, views, ctx, { primary = [] } = {}) {
     document.body.append(sheet);
     sheet.showModal();
   };
-  for (const key of pinned) bnav.append(tabBtn(key, "bnav-item"));
-  if (withMore) {
+  if (!top) for (const key of pinned) bnav.append(tabBtn(key, "bnav-item"));
+  if (withMore && !top) {
     bnav.append(h("button", { type: "button", class: "bnav-item bnav-more", onclick: openMore, "aria-haspopup": "dialog" },
       icons.grid({ size: 20 }), h("span", { class: "tab-label" }, "المزيد"), badgeEl("__more")));
   }
-  document.body.classList.add("has-bnav");
+  if (!top) document.body.classList.add("has-bnav");
 
   const setBadge = (key, n) => {
     badges[key] = Number(n) || 0;
@@ -390,7 +390,8 @@ export function tabs(list, views, ctx, { primary = [] } = {}) {
     if (!k && location.hash) history.replaceState(null, "", location.pathname + location.search);
     return show(k || fallback, { push: false });
   };
-  return { el: h("div", { class: "tabs-layout" }, bar, body, bnav), show, start, setBadge };
+  // top: one horizontally scrollable bar above the content on every screen size, no bottom bar.
+  return { el: h("div", { class: `tabs-layout${top ? " tabs-top" : ""}` }, bar, body, top ? null : bnav), show, start, setBadge };
 }
 
 export function sheetMenu(title, groups, { current, onPick } = {}) {
