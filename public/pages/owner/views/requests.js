@@ -86,9 +86,7 @@ async function convert(r, refresh) {
   const d = dialog(r.kind === "trial" ? "تفعيل التجربة المجانية" : "إنشاء المدرسة وتفعيل الاشتراك", h("div", {},
     !r.plan_id && r.kind === "trial" ? notice("طلب العميل تجربة المنصة بدون تحديد باقة. اختر الباقة التي سيجربها.", "") : null,
     field("اسم المدرسة", name), codeBox,
-    h("div", { class: "row" }, field("اسم المدير", admin), field("الجوال المعتمد للتحقق", h("div", { class: "ro-val ltr" }, r.phone || "—"),
-      "يصله رمز التفعيل. عدّله من ملف المدرسة إذا لزم")),
-    !r.phone ? notice("لا يوجد رقم جوال في الطلب، فلا يمكن إصدار رابط التفعيل حتى تضيفه في ملف المدرسة.", "warn") : null,
+    field("اسم المدير", admin),
     h("hr"), form.el),
   [btn("إنشاء وتفعيل", async (e) => {
     const b = e?.currentTarget; if (b) b.disabled = true;

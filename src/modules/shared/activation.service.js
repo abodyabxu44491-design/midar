@@ -12,6 +12,7 @@ import { logEvent } from "../../core/audit.js";
 import { detectPhone } from "../../../public/shared/js/phone.js";
 import { loadGateway, sendRaw } from "./notify.service.js";
 import { addEvent } from "./school-files.service.js";
+import { normalizePhone } from "./students.service.js";
 
 export const OTP_MINUTES = 10, OTP_ATTEMPTS = 5, OTP_SENDS = 5, RESEND_SECONDS = 60;
 const sha = (v) => crypto.createHash("sha256").update(v).digest("hex");
@@ -27,7 +28,6 @@ async function current(q, token, { lock = false } = {}) {
   if (!a || a.used_at || a.revoked_at) throw notFound("رابط التفعيل غير صالح أو استُخدم مسبقًا. اطلبوا رابطًا جديدًا من إدارة مدار.");
   if (new Date(a.expires_at) < new Date()) throw new AppError(410, "انتهت صلاحية رابط التفعيل. اطلبوا رابطًا جديدًا من إدارة مدار.", "expired");
   if (a.school_status !== "active") throw new AppError(403, "حساب المدرسة موقوف حاليًا. تواصلوا مع إدارة مدار.", "forbidden");
-  if (!a.phone) throw badRequest("لا يوجد رقم جوال معتمد لهذا الرابط. تواصلوا مع إدارة مدار.");
   return a;
 }
 
@@ -35,14 +35,17 @@ export async function info(token) {
   return platform("زائر", async (q) => {
     const a = await current(q, token);
     const wait = a.otp_last_sent_at ? Math.max(0, RESEND_SECONDS - Math.floor((Date.now() - new Date(a.otp_last_sent_at)) / 1000)) : 0;
-    return { school: a.school, school_id: a.tenant_id, manager_name: a.manager_name, phone: maskPhone(a.phone),
-      phone_verified: Boolean(a.phone_verified_at), code_sent: Boolean(a.otp_hash && new Date(a.otp_expires_at) > new Date()),
-      resend_in: wait, expires_at: a.expires_at };
+    const sent = Boolean(a.otp_hash && new Date(a.otp_expires_at) > new Date());
+    return { school: a.school, school_id: a.tenant_id, manager_name: a.manager_name,
+      phone: (sent || a.phone_verified_at) && a.phone ? maskPhone(a.phone) : null,
+      phone_verified: Boolean(a.phone_verified_at), code_sent: sent, resend_in: wait, expires_at: a.expires_at };
   });
 }
 
-// Sends a one-time code to the phone approved by the platform (never to a number typed on the page).
-export async function sendCode(token) {
+// Sends a one-time code to the number the manager types; that number becomes the manager's login once verified.
+export async function sendCode(token, rawPhone) {
+  const phone = normalizePhone(rawPhone);
+  if (!phone || !detectPhone(phone)?.intl) throw badRequest("رقم الجوال غير صحيح");
   const out = await platform("زائر", async (q) => {
     const a = await current(q, token, { lock: true });
     if (a.phone_verified_at) return { already: true };
@@ -51,9 +54,9 @@ export async function sendCode(token) {
       throw new AppError(429, "انتظروا دقيقة قبل طلب رمز جديد.", "rate_limited");
     }
     const code = String(crypto.randomInt(100000, 1000000));
-    await q(`UPDATE school_activations SET otp_hash = $2, otp_channel = 'sms', otp_expires_at = now() + make_interval(mins => $3), otp_attempts = 0,
-                    otp_sends = otp_sends + 1, otp_last_sent_at = now() WHERE id = $1`, [a.id, codeHash(a.id, code), OTP_MINUTES]);
-    return { a, code };
+    await q(`UPDATE school_activations SET phone = $4, otp_hash = $2, otp_channel = 'sms', otp_expires_at = now() + make_interval(mins => $3), otp_attempts = 0,
+                    otp_sends = otp_sends + 1, otp_last_sent_at = now() WHERE id = $1`, [a.id, codeHash(a.id, code), OTP_MINUTES, phone]);
+    return { a: { ...a, phone }, code };
   });
   if (out.already) return { verified: true };
   const { a, code } = out;
@@ -73,7 +76,7 @@ export async function sendCode(token) {
       await addEvent(q, a.tenant_id, { kind: "otp", body: `أُرسل رمز تحقق برسالة نصية إلى ${maskPhone(a.phone)}` }, "النظام");
     }
   });
-  if (failure) throw new AppError(503, "تعذر إرسال رمز التحقق الآن. تواصلوا مع إدارة مدار لتزويدكم برمز تحقق.", "sms_failed");
+  if (failure) throw new AppError(503, "تعذر إرسال الرمز الآن. حاولوا بعد قليل.", "sms_failed");
   return { sent: true, phone: maskPhone(a.phone), expires_minutes: OTP_MINUTES };
 }
 
@@ -92,7 +95,7 @@ export async function verifyCode(token, code) {
       return { wrong: OTP_ATTEMPTS - a.otp_attempts - 1 };
     }
     await q("UPDATE school_activations SET phone_verified_at = now(), otp_hash = NULL, otp_expires_at = NULL WHERE id = $1", [a.id]);
-    await addEvent(q, a.tenant_id, { kind: "phone_verified", body: `تحقق المدير من جواله ${maskPhone(a.phone)} (${a.otp_channel === "manual" ? "رمز من إدارة مدار" : "رسالة نصية"})` }, "مدير المدرسة");
+    await addEvent(q, a.tenant_id, { kind: "phone_verified", body: `تحقق المدير من جواله ${maskPhone(a.phone)} برسالة نصية` }, "مدير المدرسة");
     return { verified: true };
   });
   if (out.wrong !== undefined) {
@@ -130,18 +133,4 @@ export async function complete(token, password, req, res) {
     await logEvent(q, { actor: "مدير المدرسة", action: `تفعيل حساب المدرسة ${a.tenant_id}` });
   });
   return { ok: true, redirect: `/${a.tenant_id}/idara?role=admin` };
-}
-
-// Fallback approved by the platform: the owner reads a one-time code to the manager over a verified call.
-export async function manualCode(q, tenantId, actor) {
-  const [a] = await q(`SELECT * FROM school_activations WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
-                        ORDER BY id DESC LIMIT 1 FOR UPDATE`, [tenantId]);
-  if (!a) throw badRequest("لا يوجد رابط تفعيل صالح. أصدر رابطًا أولًا.");
-  if (a.phone_verified_at) throw conflict("تحقق المدير من جواله مسبقًا.");
-  const code = String(crypto.randomInt(100000, 1000000));
-  await q(`UPDATE school_activations SET otp_hash = $2, otp_channel = 'manual', otp_expires_at = now() + interval '30 minutes', otp_attempts = 0
-            WHERE id = $1`, [a.id, codeHash(a.id, code)]);
-  await addEvent(q, tenantId, { kind: "otp", body: "أصدرت إدارة مدار رمز تحقق يدويًا للمدير (صالح 30 دقيقة)" }, actor);
-  await logEvent(q, { actor, action: `رمز تحقق يدوي لتفعيل ${tenantId}` });
-  return { code, expires_minutes: 30, phone: maskPhone(a.phone) };
 }

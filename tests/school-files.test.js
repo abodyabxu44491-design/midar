@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, ownerPassword, endPool, uid, activateSchool } from "./helpers.js";
+import { startServer, client, ownerPassword, endPool, activateSchool, randomPhone } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { setTransport } from "../src/modules/shared/notify.service.js";
@@ -68,24 +68,26 @@ test("من الطلب إلى أول دخول: ملف دائم، اعتماد م�
   const chk = await pub.get(`/api/public/activation/check?token=${token}`);
   assert.equal(chk.status, 200);
   assert.equal(chk.data.manager_name, "ماجد سالم");
-  assert.ok(chk.data.phone.endsWith(phone.slice(-4)) && !chk.data.phone.includes(phone.slice(0, 5)), "الجوال يظهر مقنّعًا");
+  assert.equal(chk.data.phone, null, "لا يظهر أي رقم قبل أن يكتبه المدير");
   assert.equal(chk.data.username, undefined, "لا اسم مستخدم يُعرض");
   assert.equal((await pub.post("/api/public/activation", { token, password: "Riyada-School-2026" })).status, 403, "لا كلمة مرور قبل التحقق من الجوال");
 
   // SMS gateway off: the failure is reported, never shown as sent.
   await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = false WHERE id = 1"));
-  const off = await pub.post("/api/public/activation/send-code", { token });
+  const mgr = randomPhone();
+  assert.equal((await pub.post("/api/public/activation/send-code", { token, phone: "12" })).status, 400, "رقم غير صحيح");
+  const off = await pub.post("/api/public/activation/send-code", { token, phone: mgr });
   assert.equal(off.status, 503);
-  // SMS gateway on: the code reaches the approved phone only.
+  // SMS gateway on: the code reaches the number the manager typed.
   const sent = [];
   setTransport({ sms: async (g, m) => { sent.push(m); } });
   await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = true, url = CASE WHEN url = '' THEN 'https://sms.example/send' ELSE url END WHERE id = 1"));
   try {
-    const ok1 = await pub.post("/api/public/activation/send-code", { token });
+    const ok1 = await pub.post("/api/public/activation/send-code", { token, phone: mgr });
     assert.equal(ok1.status, 200, JSON.stringify(ok1.data));
     assert.equal(sent.length, 1);
-    assert.ok(sent[0].to.endsWith(phone.slice(-9)), "الرمز يذهب للجوال المعتمد");
-    assert.equal((await pub.post("/api/public/activation/send-code", { token })).status, 429, "لا طلب رمز متكرر خلال دقيقة");
+    assert.ok(sent[0].to.endsWith(mgr.slice(-9)), "الرمز يذهب للرقم الذي كتبه المدير");
+    assert.equal((await pub.post("/api/public/activation/send-code", { token, phone: mgr })).status, 429, "لا طلب رمز متكرر خلال دقيقة");
     const code = sent[0].message.match(/(\d{6})/)[1];
     const wrong = await pub.post("/api/public/activation/verify", { token, code: code === "111111" ? "222222" : "111111" });
     assert.equal(wrong.status, 400);
@@ -103,7 +105,7 @@ test("من الطلب إلى أول دخول: ملف دائم، اعتماد م�
   assert.equal((await school.get("/api/admin/me")).status, 200, "يدخل لوحة المدرسة مباشرة بعد التفعيل");
   assert.equal((await pub.post("/api/public/activation", { token, password: "Another-Pass-2026" })).status, 404, "يُستخدم مرة واحدة");
   const byPhone = client(srv.base);
-  assert.equal((await byPhone.post("/api/staff/login", { school: id, username: phone, password: "Riyada-School-2026" })).status, 200, "الدخول برقم الجوال");
+  assert.equal((await byPhone.post("/api/staff/login", { school: id, username: mgr, password: "Riyada-School-2026" })).status, 200, "الدخول برقم الجوال");
   file = (await owner.get(`/api/owner/files/${id}`)).data;
   assert.equal(file.stage, "first_login");
   assert.equal(file.activation_state, "activated");
@@ -114,12 +116,11 @@ test("من الطلب إلى أول دخول: ملف دائم، اعتماد م�
   const reset = (await owner.post(`/api/owner/files/${id}/link`)).data;
   assert.equal((await owner.post(`/api/owner/files/${id}/link/revoke`)).data.revoked, 1);
   assert.equal((await pub.get(`/api/public/activation/check?token=${tokenOf(reset.url)}`)).status, 404, "الرابط الملغى لا يعمل");
-  assert.equal((await owner.post(`/api/owner/files/${id}/verification-code`)).status, 400, "لا رمز بلا رابط صالح");
   const reset2 = (await owner.post(`/api/owner/files/${id}/link`)).data;
-  await activateSchool(srv.base, owner, id, reset2.url, "Riyada-New-2026");
+  await activateSchool(srv.base, id, reset2.url, "Riyada-New-2026", mgr);
   const old = client(srv.base);
-  assert.equal((await old.post("/api/staff/login", { school: id, username: phone, password: "Riyada-School-2026" })).status, 401, "كلمة المرور القديمة تتوقف");
-  assert.equal((await old.post("/api/staff/login", { school: id, username: phone, password: "Riyada-New-2026" })).status, 200);
+  assert.equal((await old.post("/api/staff/login", { school: id, username: mgr, password: "Riyada-School-2026" })).status, 401, "كلمة المرور القديمة تتوقف");
+  assert.equal((await old.post("/api/staff/login", { school: id, username: mgr, password: "Riyada-New-2026" })).status, 200);
 
   assert.equal((await owner.patch(`/api/owner/files/${id}`, { phone2: "0500000001", city: "الرياض" })).data.changed, 2);
   await owner.post(`/api/owner/files/${id}/notes`, { body: "تواصلنا مع المدير وطلب مهلة أسبوع" });
@@ -163,11 +164,21 @@ test("التفعيل: انتهاء الرمز، حد المحاولات، وان
   const token = tokenOf(made.data.activation.url);
   const verify = (code) => pub.post("/api/public/activation/verify", { token, code });
 
-  const c1 = (await owner.post(`/api/owner/files/${id}/verification-code`)).data.code;
+  const mgr = randomPhone();
+  const smsCode = async () => {
+    const sent = [];
+    setTransport({ sms: async (g, m) => { sent.push(m); } });
+    await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = true, url = CASE WHEN url = '' THEN 'https://sms.example/send' ELSE url END WHERE id = 1"));
+    await transaction({ platform: true }, (q) => q("UPDATE school_activations SET otp_last_sent_at = NULL WHERE tenant_id = $1", [id]));
+    try { assert.equal((await pub.post("/api/public/activation/send-code", { token, phone: mgr })).status, 200); }
+    finally { setTransport(null); await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = $1, url = $2 WHERE id = 1", [smsWas.enabled, smsWas.url])); }
+    return sent[0].message.match(/(\d{6})/)[1];
+  };
+  const c1 = await smsCode();
   await transaction({ platform: true }, (q) => q("UPDATE school_activations SET otp_expires_at = now() - interval '1 minute' WHERE tenant_id = $1", [id]));
   assert.equal((await verify(c1)).status, 410, "الرمز المنتهي مرفوض");
 
-  const c2 = (await owner.post(`/api/owner/files/${id}/verification-code`)).data.code;
+  const c2 = await smsCode();
   const bad = c2 === "123456" ? "654321" : "123456";
   for (let i = 0; i < 5; i++) assert.equal((await verify(bad)).status, 400);
   assert.equal((await verify(c2)).status, 429, "بعد خمس محاولات خاطئة يتوقف حتى الرمز الصحيح");
@@ -176,5 +187,5 @@ test("التفعيل: انتهاء الرمز، حد المحاولات، وان
   await transaction({ platform: true }, (q) => q("UPDATE school_activations SET expires_at = now() - interval '1 minute' WHERE tenant_id = $1", [id]));
   assert.equal((await pub.get(`/api/public/activation/check?token=${token}`)).status, 410, "الرابط المنتهي مرفوض");
   assert.equal((await owner.get(`/api/owner/files/${id}`)).data.activation_state, "expired");
-  assert.equal((await client(srv.base).post("/api/staff/login", { school: id, username: phone, password: "Noor-School-2026" })).status, 401, "لا دخول قبل إكمال التحقق");
+  assert.equal((await client(srv.base).post("/api/staff/login", { school: id, username: mgr, password: "Noor-School-2026" })).status, 401, "لا دخول قبل إكمال التحقق");
 });

@@ -31,15 +31,15 @@ r.post("/password-reset", limits.login, handle(async (req, res) => {
   res.json(await anon(req, (q) => reqs.reset(q, b)));
 }));
 
-// School activation: verify the approved phone by SMS, then set the password and sign in.
+// School activation: the manager verifies a mobile number by SMS, then sets the password and signs in.
 const tokenQ = z.object({ token: z.string().regex(/^[0-9a-f]{64}$/, "الرابط غير صحيح") });
 r.get("/activation/check", limits.login, handle(async (req, res) => {
   const { token } = parse(tokenQ, req.query);
   res.json(await activation.info(token));
 }));
 r.post("/activation/send-code", limits.login, handle(async (req, res) => {
-  const { token } = parse(tokenQ, req.body);
-  res.json(await activation.sendCode(token));
+  const b = parse(tokenQ.extend({ phone: z.string().trim().min(6, "اكتبوا رقم الجوال").max(25) }), req.body);
+  res.json(await activation.sendCode(b.token, b.phone));
 }));
 r.post("/activation/verify", limits.login, handle(async (req, res) => {
   const b = parse(tokenQ.extend({ code: z.string().trim().max(10) }), req.body);

@@ -100,7 +100,7 @@ test("طلب تجربة من الصفحة العامة ← يصل للمالك �
   assert.equal(conv.status, 201, JSON.stringify(conv.data));
   // The school sets its own password from the activation link handed over by the owner.
   s.adminPw = "Future-School-2026";
-  await activateSchool(srv.base, owner, s.school, conv.data.activation.url, s.adminPw);
+  await activateSchool(srv.base, s.school, conv.data.activation.url, s.adminPw);
   const detail = (await owner.get(`/api/owner/subscriptions/${s.school}`)).data;
   assert.equal(detail.current.kind, "trial");
   assert.equal(detail.current.status, "trial");

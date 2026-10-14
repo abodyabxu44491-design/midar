@@ -2001,3 +2001,6 @@ dialog:modal:not(.sheet) { position: fixed; inset: 0; margin: max(4vh, 16px) aut
 .student-file .profile-nav button.on .icon { color: #fff; }
 .student-file .profile-nav small { display: none; }
 dialog .student-file .profile-nav { top: -18px; background: #fff; }
+.gate-card .av-sent { margin: -4px 0 10px; }
+.gate-card .av-links { justify-content: center; gap: 18px; margin: 10px 0 0; }
+.gate-card .gate-link:disabled { color: rgba(255,255,255,.5); text-decoration: none; cursor: default; }

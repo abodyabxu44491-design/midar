@@ -195,8 +195,7 @@ requests.post("/:id/convert", handle(async (req, res) => {
     await q("UPDATE leads SET converting_at = NULL, last_error = NULL, handled_by = $2 WHERE id = $1", [id, req.actor]);
     await files.addEvent(q, b.id, { kind: "approved", body: `اعتُمد طلب رقم ${id} وأُنشئت المدرسة` }, req.actor);
     await files.addEvent(q, b.id, { kind: "account", body: "أُنشئ حساب مدير المدرسة بانتظار التفعيل من رابط التفعيل" }, req.actor);
-    // Without an approved phone no link can be verified; the owner adds the phone in the school file, then issues the link.
-    return profile.phone ? files.issueLink(q, b.id, req.actor, baseUrl(req)) : null;
+    return files.issueLink(q, b.id, req.actor, baseUrl(req));
   });
   // The temporary password is not handed out: the school sets its own password from the activation link.
   res.status(201).json({ school: created.school, tenant_id: b.id, activation: link, lead: { phone: lead.phone, contact_name: lead.contact_name } });

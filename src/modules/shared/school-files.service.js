@@ -10,7 +10,6 @@ import { t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { sealSecret, openSecret } from "../../core/auth/secret-box.js";
 import { logEvent } from "../../core/audit.js";
-import { normalizePhone } from "./students.service.js";
 
 export const LINK_DAYS = 7;
 export const STAGES = [
@@ -91,7 +90,7 @@ export async function counts(q) {
 // Users are read inside the school's own scope (row-level security keeps them per school).
 async function adminOf(q, tenantId) {
   const [u] = await transaction({ tenantId, actor: "النظام" }, (tq) => tq(
-    `SELECT id, full_name, is_active, must_change_password, last_login_at, password_changed_at, phone_verified_at
+    `SELECT id, full_name, is_active, must_change_password, last_login_at, password_changed_at, phone, phone_verified_at
        FROM users WHERE role = 'admin' ORDER BY id LIMIT 1`));
   return u || null;
 }
@@ -162,8 +161,6 @@ export async function issueLink(q, id, actor, baseUrl) {
   if (!admin.is_active) throw badRequest("حساب المدير موقوف. فعّله أولًا.");
   const [t] = await q("SELECT profile FROM tenants WHERE id = $1", [id]);
   const p = t?.profile || {};
-  const phone = normalizePhone(p.phone);
-  if (!phone) throw badRequest("أضف رقم جوال المدير المعتمد في ملف المدرسة أولًا؛ يُرسل إليه رمز التحقق عند التفعيل.");
   const m = p.manager || {};
   const manager = p.contact_name || [m.first, m.second, m.third, m.family].filter(Boolean).join(" ") || admin.full_name;
   await q("UPDATE school_activations SET revoked_at = now(), token_enc = NULL WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL", [id]);
@@ -171,8 +168,8 @@ export async function issueLink(q, id, actor, baseUrl) {
   const [a] = await q(
     `INSERT INTO school_activations (tenant_id, user_id, token_hash, token_enc, expires_at, created_by, phone, manager_name)
      VALUES ($1, $2, $3, $4, now() + make_interval(days => $5), $6, $7, $8) RETURNING expires_at`,
-    [id, admin.id, sha(token), sealSecret(token, `activation:${id}`), LINK_DAYS, actor, phone, manager]);
-  await addEvent(q, id, { kind: "activation_link", body: `رابط تفعيل صالح ${LINK_DAYS} أيام للجوال المعتمد ${phone.slice(-4).padStart(phone.length, "•")} (الرابط السابق أُلغي)` }, actor);
+    [id, admin.id, sha(token), sealSecret(token, `activation:${id}`), LINK_DAYS, actor, null, manager]);
+  await addEvent(q, id, { kind: "activation_link", body: `رابط تفعيل صالح ${LINK_DAYS} أيام (الرابط السابق أُلغي)` }, actor);
   return { url: `${baseUrl}/activate?token=${token}`, expires_at: a.expires_at };
 }
 

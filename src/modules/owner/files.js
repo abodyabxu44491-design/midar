@@ -10,7 +10,6 @@ import { parse, t, z } from "../../core/http/validate.js";
 import { baseUrl } from "../../core/links.js";
 import { logEvent } from "../../core/audit.js";
 import * as sf from "../shared/school-files.service.js";
-import * as activationSvc from "../shared/activation.service.js";
 import { uniqueSchoolCode } from "../shared/school-files.service.js";
 
 const r = Router();
@@ -83,11 +82,6 @@ r.post("/:id/link", handle(async (req, res) => {
     return link;
   });
   res.json(out);
-}));
-
-r.post("/:id/verification-code", handle(async (req, res) => {
-  const id = parse(code, req.params.id);
-  res.json(await platform(req, (q) => activationSvc.manualCode(q, id, req.actor)));
 }));
 
 r.post("/:id/link/revoke", handle(async (req, res) => {
