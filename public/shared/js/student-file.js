@@ -38,7 +38,7 @@ export function feesReadOnly(f, compact = false) {
         : empty("لا توجد فواتير.")]);
 }
 
-export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [], appNav = false, afterHead = null } = {}) {
+export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [], appNav = false, afterHead = null, teachersView = null } = {}) {
   const s = d.student, f = d.fees;
   const avg = d.grades_percent !== undefined && d.grades_percent !== null ? Math.round(d.grades_percent)
     : d.grades.length ? Math.round(d.grades.reduce((a, g) => a + (g.score / g.max_score) * 100, 0) / d.grades.length) : null;
@@ -67,7 +67,8 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     ...(d.homework?.length ? [{ key: "homework", name: "الواجبات", note: `${d.homework.length} واجب` }] : []),
     ...(d.timetable?.length ? [{ key: "timetable", name: "الجدول الدراسي", note: "حصص الأسبوع" }] : []),
     ...(f ? [{ key: "fees", name: "الرسوم والسداد", note: f.status === "unpaid" ? money(f.remaining) : "مسدد" }] : []),
-    ...(d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
+    ...(teachersView ? [{ key: "teachers", name: "المعلمون والمراسلة", note: teachersView.note || "" }]
+      : d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
     ...(d.announcements.length ? [{ key: "news", name: "التعاميم", note: `${d.announcements.length}` }] : []),
     ...featureSections(d, actions),
     ...extra.map(({ key, name, note }) => ({ key, name, note })),
@@ -105,7 +106,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
         ? [h("b", { class: "small" }, sl.subject), sl.teacher ? h("div", { class: "small muted" }, sl.teacher) : null]
         : h("span", { class: "muted" }, "—")) })),
     fees: () => fees(f, false),
-    teachers: () => section("المعلمون والمواد", teacherCards(d.teachers)),
+    teachers: () => (teachersView ? teachersView.view() : section("المعلمون والمواد", teacherCards(d.teachers))),
     news: () => section("التعاميم", d.announcements.map((a) => line(
       h("div", {}, h("b", {}, a.title), sub(fmtDate(a.created_at)), a.body ? sub(a.body) : null)))),
     ...Object.fromEntries(featureSections(d, actions).map((x) => [x.key, x.view])),
@@ -188,12 +189,12 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
 
   const body = h("div", { class: "profile-body" });
   const nav = h("nav", { class: "profile-nav", "aria-label": "أقسام الملف" });
-  const SHORT = { overview: "الرئيسية", grades: "الدرجات", attendance: "الحضور", fees: "الرسوم" };
+  const SHORT = { overview: "الرئيسية", grades: "الدرجات", attendance: "الحضور", fees: "الرسوم", teachers: "المعلمون" };
   const ICON = { overview: icons.home, grades: icons.chart, attendance: icons.calendar, fees: icons.wallet, alerts: icons.alert, homework: icons.clipboard,
     timetable: icons.grid, teachers: icons.users, news: icons.megaphone, inbox: icons.bell, chat: icons.message,
     "online-exams": icons.monitor, certificates: icons.award, calendar: icons.calendar, transport: icons.bus, health: icons.heart,
     library: icons.book, surveys: icons.poll, meetings: icons.clock, behavior: icons.star };
-  const pinned = appNav ? ["overview", "grades", "attendance", "fees"].filter((k) => sections.some((x) => x.key === k)) : [];
+  const pinned = appNav ? ["overview", "grades", "attendance", "teachers", "fees"].filter((k) => sections.some((x) => x.key === k)) : [];
   const bnav = appNav ? h("nav", { class: "bnav sf-bnav", "aria-label": "التنقل" }) : null;
   let current = null, elRef = null;
   const open = (key, stay = false) => {
@@ -212,7 +213,8 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   if (bnav) {
     const rest = sections.filter((x) => !pinned.includes(x.key));
     mount(bnav, pinned.map((k) => h("button", { type: "button", class: "bnav-item", "data-k": k, onclick: () => open(k) },
-      (ICON[k] || icons.list)({ size: 20 }), h("span", { class: "tab-label" }, SHORT[k]))),
+      (ICON[k] || icons.list)({ size: 20 }), h("span", { class: "tab-label" }, SHORT[k]),
+      k === "teachers" && /جديد/.test(sections.find((x) => x.key === k)?.note || "") ? h("span", { class: "nav-badge" }, (sections.find((x) => x.key === k).note.match(/\d+/) || ["•"])[0]) : null)),
     rest.length ? h("button", { type: "button", class: "bnav-item bnav-more", "aria-haspopup": "dialog",
       onclick: () => sheetMenu("أقسام الملف", [{ title: "", items: rest.map((x) => ({ key: x.key, name: x.name, note: x.note, icon: ICON[x.key] })) }], { current, onPick: open }) },
       icons.grid({ size: 20 }), h("span", { class: "tab-label" }, "المزيد"),
@@ -233,7 +235,9 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
         h("div", { class: "sf-chips" },
           todayRec ? h("span", { class: `stu-today s-${todayRec.status}` }, `اليوم: ${ATTENDANCE[todayRec.status]?.[0] || todayRec.status}`) : null,
           avg !== null && d.settings.profile_show_grades ? badge(avg >= 90 ? "ممتاز" : avg >= 75 ? "جيد جدًا" : avg >= 60 ? "جيد" : "يحتاج متابعة", avg >= 60 ? "violet" : "amber") : null,
-          f && f.status === "unpaid" ? badge("عليه رسوم", "amber") : null))),
+          f && f.status === "unpaid" ? badge("عليه رسوم", "amber") : null),
+        !d.admin && d.has_gate && actions.attendanceCard ? h("div", { class: "sf-acts" },
+          btn([icons.print({ size: 16 }), "طباعة باركود الدخول"], () => cardDialog(), "soft sm")) : null)),
     h("div", { class: "sf-kpis" },
       d.settings.profile_show_attendance && rate !== null ? tile("teal", "نسبة الحضور", `${rate}%`) : null,
       d.settings.profile_show_grades ? tile("violet", "متوسط الدرجات", avg === null ? "—" : `${avg}%`) : null,

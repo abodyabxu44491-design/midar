@@ -11,7 +11,7 @@ import { timetableGrid } from "../shared/js/timetable.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
 import { notificationCenter, notificationPrefs, pushInvite, pushToggle } from "../shared/js/inbox.js";
-import { chatThread, chatRow } from "../shared/js/chat.js";
+import { chatThread } from "../shared/js/chat.js";
 import { currentChild, closeChild, rememberChild, forgetChild, isRemembered, rememberedChildren, openChild, parentSignedIn, setParentSignedIn } from "../shared/js/children.js";
 
 const app = $("#app");
@@ -52,14 +52,12 @@ function render(d, inbox, chat) {
   if (isRemembered(school, creds.id)) remember();
   const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
     view: ({ reopen }) => inboxSection(inbox, who, remember, reopen, (k) => file.open(k)) }] : [];
-  if (chat) {
-    const unread = chat.teachers.reduce((n, x) => n + x.unread, 0);
-    extra.push({ key: "chat", name: "مراسلة المعلمين", note: unread ? `${unread} جديد` : chat.teachers.length ? `${chat.teachers.length} معلم` : "",
-      view: () => chatSection(chat, who) });
-  }
+  const unread = chat ? chat.teachers.reduce((n, x) => n + x.unread, 0) : 0;
+  const teachersView = chat ? { note: unread ? `${unread} رسالة جديدة` : `${chat.teachers.length} معلم`,
+    view: () => teachersSection(chat, who, d.teachers) } : null;
   const invite = inbox?.push.key ? pushInvite({ key: inbox.push.key, save: (sub) => savePushAll(sub, who, remember),
     text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null;
-  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, appNav: true, afterHead: invite, actions: {
+  const file = studentFile(d, { fees: (fs, compact) => feesSection(fs, compact), scrollTop: true, extra, appNav: true, afterHead: invite, teachersView, actions: {
     excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
     who, api: (path, body) => api(`${P}${path}`, { ...who, ...body }),
@@ -80,21 +78,30 @@ function render(d, inbox, chat) {
   const want = location.hash.slice(1);
   const nid = Number(new URLSearchParams(location.search).get("n")) || null;
   if (nid && inbox) api(`${P}/student/inbox/read`, { ...who, ids: [nid] }).catch(() => {});
-  const target = { absence: "attendance", late: "attendance", present: "attendance" }[want] || want;
+  const target = { absence: "attendance", late: "attendance", present: "attendance", chat: "teachers" }[want] || want;
   let opened = false;
   if (target) { try { file.open(target); opened = true; } catch { /* ignore */ } }
   if (!opened && nid && inbox) file.open("inbox");
 }
 
-function chatSection(chat, who) {
+function teachersSection(chat, who, staff) {
   const body = h("div");
+  const photoOf = (name) => staff.find((t) => t.teacher === name)?.photo || null;
   const list = async () => {
     const fresh = await api(`${P}/student/chat`, who).catch(() => chat);
     Object.assign(chat, fresh);
     mount(body, chat.teachers.length
-      ? [sub("راسل معلمي ابنك مباشرة، ويصلهم إشعار برسالتك، ويصلك ردهم هنا وعلى جوالك."),
-        h("div", { class: "chat-rows" }, chat.teachers.map((t) => chatRow({ title: t.name, subtitle: (t.subjects || []).join("، "),
-          preview: t.last_preview, unread: t.unread, when: t.last_message_at, onClick: () => open(t) })))]
+      ? [sub("اضغط «مراسلة» لتفتح محادثة مع المعلم. يصله إشعار برسالتك، ويصلك رده هنا وعلى جوالك."),
+        h("div", { class: "tc-list" }, chat.teachers.map((t) => {
+          const photo = photoOf(t.name);
+          return h("div", { class: `tc-row${t.unread ? " unread" : ""}` },
+            photo ? h("img", { class: "tc-av", src: photo, alt: "" }) : h("span", { class: "tc-av ph", "aria-hidden": "true" }, String(t.name).replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0)),
+            h("div", { class: "tc-main" }, h("b", {}, t.name), h("small", {}, (t.subjects || []).join("، ")),
+              t.last_preview ? h("span", { class: "tc-prev" }, t.last_preview) : null),
+            h("div", { class: "tc-side" },
+              t.unread ? h("span", { class: "chat-badge" }, String(t.unread)) : null,
+              btn("مراسلة", () => open(t), t.unread ? "sm" : "soft sm")));
+        }))]
       : empty("لا يوجد معلمون مسندون لفصل الطالب بعد."));
   };
   const open = (t) => mount(body, chatThread({ me: "parent", title: t.name, subtitle: (t.subjects || []).join("، "),
@@ -103,7 +110,7 @@ function chatSection(chat, who) {
     onBack: list }));
   const first = chat.teachers.find((t) => t.unread);
   if (first && location.hash.slice(1) === "chat") open(first); else list();
-  return section("مراسلة المعلمين", body);
+  return section("المعلمون والمراسلة", body);
 }
 
 function kidSwitcher(s) {
