@@ -7,6 +7,7 @@ import { $, h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { brandLogo, field, btn, notice, sub, passwordInput } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
+import { ARAB_DIALS, guessDial, withDial, detectPhone } from "../shared/js/phone.js";
 
 const app = $("#app");
 const token = new URLSearchParams(location.search).get("token") || "";
@@ -46,10 +47,23 @@ function introStep() {
 
 function phoneStep() {
   const msg = h("div", { "aria-live": "polite" });
-  const phone = h("input", { type: "tel", inputmode: "tel", autocomplete: "tel", dir: "ltr", placeholder: "05xxxxxxxx", "aria-label": "رقم الجوال" });
+  const phone = h("input", { type: "tel", inputmode: "tel", autocomplete: "tel-national", dir: "ltr", placeholder: "رقم الجوال", "aria-label": "رقم الجوال" });
+  const guess = guessDial();
+  const dial = h("select", { class: "av-dial", "aria-label": "رمز الدولة", autocomplete: "tel-country-code" },
+    ARAB_DIALS.map((c) => h("option", { value: c.dial, selected: c.dial === guess }, `${c.name} \u200E+${c.dial}`)),
+    h("option", { value: "" }, "دولة أخرى (اكتب الرقم مع رمزه)"));
+  if (!guess) dial.value = "";
+  // A full international number pasted in the box moves the picker to its country.
+  phone.addEventListener("input", () => {
+    const v = digits(phone.value).trim();
+    if (!/^(\+|00)/.test(v)) return;
+    const d = v.replace(/\D/g, "").replace(/^00/, "");
+    const hit = ARAB_DIALS.find((c) => d.startsWith(c.dial) && detectPhone(`+${d}`)?.ok);
+    if (hit) { dial.value = hit.dial; phone.value = d.slice(hit.dial.length); }
+  });
   const code = h("input", { class: "av-otp", inputmode: "numeric", autocomplete: "one-time-code", maxlength: 6, dir: "ltr",
     placeholder: "••••••", "aria-label": "رمز التحقق" });
-  const phoneBox = h("div", {}, field("رقم الجوال", phone));
+  const phoneBox = h("div", {}, field("رقم الجوال", h("div", { class: "av-tel", dir: "ltr" }, dial, phone)));
   const codeBox = h("div", {}, field("رمز التحقق", code));
   const sentTo = h("p", { class: "gate-sub av-sent" });
   let wait = info.resend_in || 0, timer;
@@ -82,10 +96,12 @@ function phoneStep() {
   const digits = (v) => v.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
   async function send() {
     mount(msg);
-    if (digits(phone.value).replace(/\D/g, "").length < 7) return mount(msg, notice("أدخل رقم الجوال.", "err"));
+    const full = withDial(dial.value, digits(phone.value));
+    if (full.replace(/\D/g, "").length < 7) return mount(msg, notice("أدخل رقم الجوال.", "err"));
+    if (!detectPhone(full)?.ok) return mount(msg, notice("رقم الجوال غير صحيح. تأكد من الدولة والرقم.", "err"));
     sendBtn.disabled = true;
     try {
-      const r = await api("/api/public/activation/send-code", { token, phone: digits(phone.value) });
+      const r = await api("/api/public/activation/send-code", { token, phone: full });
       if (r.verified) return passwordStep();
       info.phone = r.phone;
       sentTo.textContent = `أرسلنا رمزًا إلى ${r.phone}`;

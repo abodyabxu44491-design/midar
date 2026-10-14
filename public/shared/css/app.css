@@ -2116,3 +2116,6 @@ button.in-item { cursor: pointer; } button.in-item:hover { border-color: var(--t
 .av-intro li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.06); }
 .av-intro .av-ic { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(127,214,207,.18); color: #7FD6CF; }
 .av-intro b { display: block; color: #fff; font-size: 14.5px; } .av-intro small { color: rgba(255,255,255,.7); font-size: 12.5px; }
+.av-tel { display: flex; gap: 8px; }
+.av-tel input { flex: 1; min-width: 0; }
+.gate-card .av-dial { flex: none; width: 128px; padding-inline: 8px; direction: rtl; text-overflow: ellipsis; }

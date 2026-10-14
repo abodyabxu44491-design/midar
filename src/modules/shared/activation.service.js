@@ -50,8 +50,8 @@ export const otpMessage = (code) => [`رمز التحقق في مدار: ${code}
   .filter(Boolean).join("\n");
 
 export async function sendCode(token, rawPhone) {
-  const phone = normalizePhone(rawPhone);
-  if (!phone || !detectPhone(phone)?.intl) throw badRequest("رقم الجوال غير صحيح");
+  const phone = detectPhone(rawPhone)?.ok ? normalizePhone(rawPhone) : null;
+  if (!phone) throw badRequest("رقم الجوال غير صحيح. تأكد من رمز الدولة والرقم.");
   const out = await platform("زائر", async (q) => {
     const a = await current(q, token, { lock: true });
     if (a.phone_verified_at) return { already: true };

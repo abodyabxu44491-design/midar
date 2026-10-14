@@ -76,6 +76,7 @@ test("من الطلب إلى أول دخول: ملف دائم، اعتماد م�
   await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = false WHERE id = 1"));
   const mgr = randomPhone();
   assert.equal((await pub.post("/api/public/activation/send-code", { token, phone: "12" })).status, 400, "رقم غير صحيح");
+  assert.equal((await pub.post("/api/public/activation/send-code", { token, phone: "+967612345678" })).status, 400, "رقم يمني ليس جوالًا");
   const off = await pub.post("/api/public/activation/send-code", { token, phone: mgr });
   assert.equal(off.status, 503);
   // SMS gateway on: the code reaches the number the manager typed.
@@ -189,4 +190,28 @@ test("التفعيل: انتهاء الرمز، حد المحاولات، وان
   assert.equal((await pub.get(`/api/public/activation/check?token=${token}`)).status, 410, "الرابط المنتهي مرفوض");
   assert.equal((await owner.get(`/api/owner/files/${id}`)).data.activation_state, "expired");
   assert.equal((await client(srv.base).post("/api/staff/login", { school: id, username: mgr, password: "Noor-School-2026" })).status, 401, "لا دخول قبل إكمال التحقق");
+});
+
+test("التفعيل يقبل أرقام الدول العربية، والدخول يقبل الرقم مع رمز الدولة أو بدونه", async () => {
+  const plans = (await owner.get("/api/owner/plans")).data;
+  const r9 = () => String(Math.floor(Math.random() * 1e7)).padStart(7, "0");
+  const cases = [
+    { full: `+96777${r9()}`, local: (f) => `0${f.slice(4)}`, sms: (f) => f.slice(1) },
+    { full: `+20100${r9().slice(0, 7)}${Math.floor(Math.random() * 10)}`, local: (f) => `0${f.slice(3)}`, sms: (f) => f.slice(1) },
+    { full: `+96477${r9()}${Math.floor(Math.random() * 10)}`, local: (f) => `0${f.slice(4)}`, sms: (f) => f.slice(1) },
+  ];
+  for (const [i, c] of cases.entries()) {
+    const lead = await pub.post("/api/public/leads", { kind: "trial", school_name: `مدرسة الضياء ${i + 1}`, contact_name: "هاني عمر", phone: randomPhone(), city: "المدينة",
+      details: { org_type: "private", country: "أخرى", stages: ["primary"], manager: { first: "هاني", family: "عمر" } } });
+    assert.equal(lead.status, 201, JSON.stringify(lead.data));
+    const made = await owner.post(`/api/owner/requests/${lead.data.id}/convert`, { name: `مدرسة الضياء ${i + 1}`, admin_name: "هاني عمر",
+      subscription: { kind: "trial", plan_id: plans[0].id, force_trial: true } });
+    assert.equal(made.status, 201, JSON.stringify(made.data));
+    const id = made.data.tenant_id;
+    await activateSchool(srv.base, id, made.data.activation.url, "Diyaa-School-2026", c.full);
+    for (const username of [c.full, c.local(c.full)]) {
+      const r = await client(srv.base).post("/api/staff/login", { school: id, username, password: "Diyaa-School-2026" });
+      assert.equal(r.status, 200, `${c.full} ← ${username}`);
+    }
+  }
 });

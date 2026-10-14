@@ -45,10 +45,15 @@ export const staffLoginRouter = () => {
       const [tenant] = await q("SELECT id, status, emergency_locked_at FROM tenants WHERE id = $1", [b.school]);
       // School administrators sign in with their verified mobile number; other staff keep their usernames.
       const phone = /^[+0-9٠-٩\s-]{7,20}$/.test(b.username) && /\d{6,}|[٠-٩]{6,}/.test(b.username.replace(/[\s-]/g, "")) ? normalizePhone(b.username) : null;
-      const [user] = tenant ? await q(
-        `SELECT id, full_name, role, password_hash, is_active, must_change_password, locked_until, locked_until > now() AS locked FROM users
-          WHERE ${phone ? "role = 'admin' AND phone_verified_at IS NOT NULL AND phone = $1" : "username = $1"}`,
-        [phone || b.username]) : [];
+      // A number typed without its country code still matches on its local digits, when only one administrator has them.
+      const local = phone ? b.username.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/\D/g, "").replace(/^0+/, "") : "";
+      const found = tenant ? await q(
+        `SELECT id, full_name, role, phone, password_hash, is_active, must_change_password, locked_until, locked_until > now() AS locked FROM users
+          WHERE ${phone ? `role = 'admin' AND phone_verified_at IS NOT NULL
+                   AND (phone = $1 OR (length($2) >= 8 AND regexp_replace(phone, '\\D', '', 'g') LIKE '%' || $2))
+                 ORDER BY phone = $1 DESC LIMIT 2` : "username = $1"}`,
+        phone ? [phone, local] : [b.username]) : [];
+      const user = !phone ? found[0] : found.find((u) => u.phone === phone) || (found.length === 1 ? found[0] : undefined);
       const ok = await verifyPassword(b.password, user?.password_hash, { temporary: Boolean(user?.must_change_password) });
       if (!tenant) return denied;
 

@@ -11,7 +11,35 @@ export const COUNTRY_CODES = {
   974: { key: "QA", name: "قطري" }, 965: { key: "KW", name: "كويتي" }, 973: { key: "BH", name: "بحريني" }, 20: { key: "EG", name: "مصري" },
   962: { key: "JO", name: "أردني" }, 249: { key: "SD", name: "سوداني" }, 90: { key: "TR", name: "تركي" }, 60: { key: "MY", name: "ماليزي" },
   44: { key: "GB", name: "بريطاني" }, 1: { key: "US", name: "أمريكي" },
+  964: { key: "IQ", name: "عراقي" }, 963: { key: "SY", name: "سوري" }, 961: { key: "LB", name: "لبناني" }, 970: { key: "PS", name: "فلسطيني" },
+  218: { key: "LY", name: "ليبي" }, 216: { key: "TN", name: "تونسي" }, 213: { key: "DZ", name: "جزائري" }, 212: { key: "MA", name: "مغربي" },
+  222: { key: "MR", name: "موريتاني" }, 252: { key: "SO", name: "صومالي" }, 253: { key: "DJ", name: "جيبوتي" }, 269: { key: "KM", name: "قمري" },
 };
+
+// Arab countries for phone-number pickers, with the time zones used to preselect the visitor's own.
+export const ARAB_DIALS = [
+  ["962", "الأردن", ["Asia/Amman"]], ["971", "الإمارات", ["Asia/Dubai"]], ["973", "البحرين", ["Asia/Bahrain"]],
+  ["216", "تونس", ["Africa/Tunis"]], ["213", "الجزائر", ["Africa/Algiers"]], ["253", "جيبوتي", ["Africa/Djibouti"]],
+  ["966", "السعودية", ["Asia/Riyadh"]], ["249", "السودان", ["Africa/Khartoum"]], ["963", "سوريا", ["Asia/Damascus"]],
+  ["252", "الصومال", ["Africa/Mogadishu"]], ["964", "العراق", ["Asia/Baghdad"]], ["968", "عُمان", ["Asia/Muscat"]],
+  ["970", "فلسطين", ["Asia/Gaza", "Asia/Hebron"]], ["974", "قطر", ["Asia/Qatar"]], ["269", "جزر القمر", ["Indian/Comoro"]],
+  ["965", "الكويت", ["Asia/Kuwait"]], ["961", "لبنان", ["Asia/Beirut"]], ["218", "ليبيا", ["Africa/Tripoli"]],
+  ["20", "مصر", ["Africa/Cairo"]], ["212", "المغرب", ["Africa/Casablanca", "Africa/El_Aaiun"]], ["222", "موريتانيا", ["Africa/Nouakchott"]],
+  ["967", "اليمن", ["Asia/Aden"]],
+].map(([dial, name, zones]) => ({ dial, name, zones })).sort((a, b) => a.name.replace(/^ال/, "").localeCompare(b.name.replace(/^ال/, ""), "ar"));
+
+export function guessDial() {
+  let tz = "";
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { /* no Intl time zone */ }
+  return ARAB_DIALS.find((c) => c.zones.includes(tz))?.dial || null;
+}
+
+// Joins a picked country code with a local number; a number typed with its own + or 00 prefix wins.
+export function withDial(dial, raw) {
+  const v = ascii(raw).trim().replace(/[^\d+]/g, "");
+  if (!v || v.startsWith("+") || v.startsWith("00") || !dial) return v;
+  return `+${dial}${v.replace(/^0+/, "")}`;
+}
 const YE_MOBILE = /^7[01378][0-9]{7}$/;
 const SA_MOBILE = /^5[0-9]{8}$/;
 
