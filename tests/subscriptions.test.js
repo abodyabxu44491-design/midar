@@ -89,7 +89,7 @@ test("طلب تجربة من الصفحة العامة ← يصل للمالك �
   assert.ok(badge.data.unseen >= 2, "عدّاد الطلبات الجديدة");
   const list = (await owner.get("/api/owner/requests?kind=trial")).data;
   const lead = list.find((x) => x.school_name === "مدرسة المستقبل");
-  assert.equal(lead.plan_name, "الأساسية");
+  assert.equal(lead.plan_name, "مدار الأساسية");
   assert.equal(lead.students_count, 420);
 
   s.school = `fut-${uid().slice(0, 6)}`;

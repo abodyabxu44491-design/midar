@@ -75,6 +75,8 @@ const planSchema = z.object({
   promo_label: t.optText(60),
   contact_only: z.boolean().default(false),
   max_students: optInt(100000), max_teachers: optInt(10000),
+  first_year_price: money, audience: t.optText(400),
+  max_schools: z.coerce.number().int().min(1).max(100).default(1), extra_school_price: money,
   trial_enabled: z.boolean().default(true),
   is_public: z.boolean().default(true),
   highlight: z.boolean().default(false),
@@ -86,7 +88,8 @@ const planSchema = z.object({
   .refine((p) => p.discount_kind !== "price" || p.sale_monthly_price != null || p.sale_yearly_price != null, "حدد السعر بعد الخصم")
   .refine((p) => p.discount_kind !== "price" || p.sale_monthly_price == null || p.monthly_price == null || p.sale_monthly_price < p.monthly_price, "السعر الشهري بعد الخصم يجب أن يكون أقل من الأصلي")
   .refine((p) => p.discount_kind !== "price" || p.sale_yearly_price == null || p.yearly_price == null || p.sale_yearly_price < p.yearly_price, "السعر السنوي بعد الخصم يجب أن يكون أقل من الأصلي")
-  .refine((p) => !p.discount_starts_at || !p.discount_ends_at || p.discount_ends_at >= p.discount_starts_at, "نهاية العرض قبل بدايته");
+  .refine((p) => !p.discount_starts_at || !p.discount_ends_at || p.discount_ends_at >= p.discount_starts_at, "نهاية العرض قبل بدايته")
+  .refine((p) => p.first_year_price == null || p.yearly_price == null || p.first_year_price <= p.yearly_price, "سعر السنة الأولى يجب ألا يزيد عن السعر السنوي");
 const planUpdate = z.object({
   plan: z.any(),
   apply: z.enum(["new", "existing", "tenant"]).default("new"),
@@ -115,7 +118,7 @@ async function writeFeatures(q, planId, chosen) {
 
 const PLAN_COLS = ["code", "name", "tagline", "description", "badge", "currency", "monthly_price", "yearly_price", "setup_fee",
   "discount_kind", "discount_value", "sale_monthly_price", "sale_yearly_price", "discount_starts_at", "discount_ends_at",
-  "promo_label", "contact_only", "max_students", "max_teachers",
+  "promo_label", "contact_only", "max_students", "max_teachers", "first_year_price", "audience", "max_schools", "extra_school_price",
   "trial_enabled", "is_public", "highlight", "sort"];
 
 r.get("/plans", handle(async (req, res) => res.json(await platform(req, listPlans))));

@@ -1702,3 +1702,7 @@ label.chk { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 label.chk input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
 .tc-hours { color: var(--teal) !important; }
 .tc-hours.off { color: #B5650F !important; }
+.lead-details { margin: 6px 0; font-size: 13px; }
+.lead-details summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.lead-details dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; padding: 10px 12px; background: var(--bg); border-radius: 10px; }
+.lead-details dt { color: var(--muted); } .lead-details dd { margin: 0; overflow-wrap: anywhere; }

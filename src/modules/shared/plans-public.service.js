@@ -47,7 +47,10 @@ export async function publicPlans() {
       monthly: displayPrice(p, "monthly"), yearly: displayPrice(p, "yearly"),
       promo_label: discountActive(p) ? p.promo_label || null : null,
       promo_ends_at: discountActive(p) ? iso(p.discount_ends_at) : null,
-      max_students: p.max_students, max_teachers: p.max_teachers,
+      max_students: p.max_students, max_teachers: p.max_teachers, audience: p.audience || null,
+      first_year: p.first_year_price != null && p.yearly_price != null && Number(p.first_year_price) < Number(p.yearly_price)
+        ? { price: Number(p.first_year_price), renewal: Number(p.yearly_price) } : null,
+      max_schools: p.max_schools, extra_school_price: p.extra_school_price != null ? Number(p.extra_school_price) : null,
       trial: s.trial_enabled && (s.trial_all_plans || p.trial_enabled), trial_days: s.trial_days,
       features: feats.filter((f) => f.plan_id === p.id).map(({ key, name, category, kind }) => ({ key, name, category, kind })),
     }));
@@ -61,5 +64,8 @@ export async function siteData() {
   if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp };
   const features = await transaction({}, (q) => q(
     `SELECT key, name, description, category, kind, requestable FROM features WHERE is_active ORDER BY sort, key`));
-  return { ...s, plans: await publicPlans(), features, demo: Boolean(await demoSchool()) };
+  const testimonials = await transaction({}, (q) => q(
+    `SELECT id, school_name, author_name, author_title, body, rating, logo FROM testimonials
+      WHERE status = 'approved' AND consent ORDER BY sort, id LIMIT 12`));
+  return { ...s, plans: await publicPlans(), features, testimonials, demo: Boolean(await demoSchool()) };
 }

@@ -15,6 +15,7 @@ import subscriptions from "./views/subscriptions.js";
 import requests from "./views/requests.js";
 import passwordRequests from "./views/password-requests.js";
 import settings from "./views/settings.js";
+import testimonials from "./views/testimonials.js";
 import billing from "./views/billing.js";
 import danger from "./views/danger.js";
 import sms from "./views/sms.js";
@@ -37,8 +38,8 @@ async function start() {
   const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
     [null, "المدارس والاشتراكات"], ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
     [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
-    [null, "المنصة"], ["settings", "إعدادات المنصة والتجربة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, audit, danger }, {},
+    [null, "المنصة"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "آراء العملاء"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
+    { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, testimonials, audit, danger }, {},
     { primary: ["overview", "requests", "schools", "subscriptions"] });
   let lastUnseen = null;
   const badgeTick = async () => {

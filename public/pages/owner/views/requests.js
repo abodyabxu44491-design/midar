@@ -36,7 +36,7 @@ function row(r, refresh, root) {
   const canConvert = !r.tenant_id && ["trial", "subscription", "contact"].includes(r.kind);
   return h("div", { class: "xb-list-row" },
     h("div", { class: ["rejected", "canceled", "expired", "active"].includes(r.status) ? "muted-row" : "" },
-      badge(...KINDS[r.kind]), " ", h("b", {}, r.tenant_name || r.school_name), " ", badge(...RSTATUS[r.status]),
+      badge(...KINDS[r.kind]), " ", h("b", {}, r.tenant_name || r.school_name), " ", h("small", { class: "ltr muted" }, `#${r.id}`), " ", badge(...RSTATUS[r.status]),
       r.source === "school" ? badge("من داخل المدرسة", "gray") : null,
       sub([r.contact_name, r.phone, r.email, r.city, r.students_count ? `${r.students_count} طالب` : null].filter(Boolean).join(" — ")),
       sub([r.plan_name ? `الباقة: ${r.plan_name}` : r.kind === "trial" ? "بدون تحديد باقة" : null,
@@ -44,6 +44,7 @@ function row(r, refresh, root) {
         r.billing_cycle ? (r.billing_cycle === "yearly" ? "سنوي" : "شهري") : null, r.months ? `${r.months} شهر` : null,
         r.feature_name ? `الميزة: ${r.feature_name}` : null, r.addon_names?.length ? `إضافات مطلوبة: ${r.addon_names.join("، ")}` : null,
         fmtDateTime(r.created_at)].filter(Boolean).join(" — ")),
+      leadDetails(r.details),
       r.note ? sub(`«${r.note}»`) : null,
       r.owner_note ? sub(`ملاحظتك: ${r.owner_note}`) : null,
       r.similar_trials ? notice(`تنبيه: ${r.similar_trials} طلب تجربة سابق بنفس الجوال أو البريد`, "warn") : null,
@@ -105,4 +106,22 @@ function note(r, refresh) {
   const t = textarea({ rows: 3, value: r.owner_note || "" });
   const d = dialog("ملاحظة على الطلب", field("ملاحظتك (تظهر للمدرسة في طلباتها)", t),
     [btn("حفظ", async () => { await api(`/api/owner/requests/${r.id}`, { owner_note: t.value }, "PATCH"); d.close(); refresh(); })]);
+}
+
+const ORG = { private: "أهلية", public: "حكومية", international: "دولية", institute: "معهد تدريبي", other: "أخرى" };
+const COUNTRY = { YE: "اليمن", SA: "السعودية", OTHER: "دولة أخرى" };
+const STAGE = { kg: "رياض الأطفال", primary: "ابتدائي/أساسي", middle: "متوسط", secondary: "ثانوي" };
+const PREF = { whatsapp: "واتساب", call: "اتصال", email: "البريد" };
+function leadDetails(d) {
+  if (!d || !Object.keys(d).length) return null;
+  const m = d.manager || {};
+  const rows = [
+    ["الاسم المختصر", d.short_name], ["نوع المؤسسة", ORG[d.org_type]], ["الدولة", COUNTRY[d.country]], ["المنطقة", d.region], ["العنوان", d.address],
+    ["هاتف المدرسة", d.school_phone], ["بريد المدرسة", d.school_email], ["الموقع", d.website], ["رقم الترخيص", d.license_no],
+    ["المراحل", (d.stages || []).map((x) => STAGE[x]).join("، ")], ["عدد الفصول", d.classes_count], ["العام الدراسي", d.academic_year],
+    ["مدير المدرسة", [m.first, m.second, m.third, m.family].filter(Boolean).join(" ")], ["المسمى", m.title], ["التواصل المفضل", PREF[m.preferred]],
+  ].filter(([, v]) => v);
+  if (!rows.length) return null;
+  return h("details", { class: "lead-details" }, h("summary", {}, "بيانات التسجيل الكاملة"),
+    h("dl", {}, rows.map(([k, v]) => [h("dt", {}, k), h("dd", {}, String(v))])));
 }

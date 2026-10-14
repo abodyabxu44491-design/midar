@@ -93,6 +93,10 @@ export async function priceFor(q, tenantId, plan, cycle) {
   if (!["monthly", "yearly"].includes(cycle)) return 0;
   const [custom] = tenantId ? await q("SELECT * FROM tenant_prices WHERE tenant_id = $1 AND plan_id = $2", [tenantId, plan.id]) : [];
   if (custom && custom[`${cycle}_price`] != null) return Number(custom[`${cycle}_price`]);
+  if (cycle === "yearly" && plan.first_year_price != null) {
+    const [paid] = tenantId ? await q("SELECT 1 FROM subscriptions WHERE tenant_id = $1 AND kind = 'paid' LIMIT 1", [tenantId]) : [];
+    if (!paid) return Number(plan.first_year_price);
+  }
   return displayPrice(plan, cycle)?.final ?? 0;
 }
 

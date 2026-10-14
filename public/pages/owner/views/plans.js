@@ -26,7 +26,9 @@ export default async function plans({ refresh }) {
         p.status !== "archived" ? btn("أرشفة", () => setStatus(p, "archived", refresh), "danger sm") : null)),
     h("div", { class: "row spaced", style: "flex-wrap:wrap;gap:18px" },
       h("div", {}, sub("شهري"), h("b", {}, p.contact_only ? "تواصل معنا" : money(p.monthly_price, p.currency))),
-      h("div", {}, sub("سنوي"), h("b", {}, p.contact_only ? "تواصل معنا" : money(p.yearly_price, p.currency))),
+      h("div", {}, sub(p.first_year_price != null ? "السنة الأولى / التجديد" : "سنوي"), h("b", {}, p.contact_only ? "تواصل معنا"
+        : p.first_year_price != null ? `${money(p.first_year_price, p.currency)} / ${money(p.yearly_price, p.currency)}` : money(p.yearly_price, p.currency))),
+      p.max_schools > 1 ? h("div", {}, sub("المدارس"), h("b", {}, `${p.max_schools}${p.extra_school_price ? ` + ${money(p.extra_school_price, p.currency)} لكل إضافية` : ""}`)) : null,
       h("div", {}, sub("الطلاب"), h("b", {}, p.max_students ?? "مفتوح")),
       h("div", {}, sub("المعلمون"), h("b", {}, p.max_teachers ?? "مفتوح")),
       h("div", {}, sub("مدارس عليها"), h("b", {}, p.schools)),
@@ -75,6 +77,10 @@ function editor(p, catalog, refresh) {
     max_students: input({ type: "number", min: 1, value: p.max_students ?? "", placeholder: "مفتوح" }),
     max_teachers: input({ type: "number", min: 1, value: p.max_teachers ?? "", placeholder: "مفتوح" }),
     sort: input({ type: "number", value: p.sort ?? 100 }),
+    first_year_price: input({ type: "number", min: 0, step: "0.01", value: p.first_year_price ?? "", placeholder: "فارغ = نفس السعر السنوي" }),
+    audience: textarea({ rows: 2, value: p.audience || "", placeholder: "مثل: المدارس الصغيرة التي تريد تنظيم أعمالها الأساسية" }),
+    max_schools: input({ type: "number", min: 1, max: 100, value: p.max_schools ?? 1 }),
+    extra_school_price: input({ type: "number", min: 0, step: "0.01", value: p.extra_school_price ?? "", placeholder: "للباقات متعددة المدارس" }),
   };
   const chk = (key, label) => { const el = h("input", { type: "checkbox", checked: !!p[key], style: "width:18px;height:18px" }); f[key] = el; return h("label", { class: "row", style: "align-items:center;gap:6px;min-width:0" }, el, label); };
 
@@ -126,12 +132,14 @@ function editor(p, catalog, refresh) {
     h("div", { class: "row" }, field("اسم الباقة", f.name), field("رمز الباقة", f.code, "إنجليزي، لا يظهر للعملاء")),
     h("div", { class: "row" }, field("وصف مختصر", f.tagline), field("شارة", f.badge)),
     field("وصف", f.description),
+    field("الفئة المناسبة (تظهر في بطاقة الباقة)", f.audience),
     h("h4", {}, "الأسعار"),
     h("div", { class: "row" }, field("العملة", f.currency), field("السعر الشهري", f.monthly_price, "فارغ = غير متاح شهريًا"), field("السعر السنوي", f.yearly_price)),
-    field("رسوم تجهيز لمرة واحدة", f.setup_fee),
+    h("div", { class: "row" }, field("سعر السنة الأولى للمدارس الجديدة", f.first_year_price, "يُطبَّق على أول سنة مدفوعة فقط، ثم السعر السنوي"), field("رسوم تجهيز لمرة واحدة", f.setup_fee)),
     h("h4", {}, "الخصم (اختياري)"), discountBox,
     h("h4", {}, "الحدود والإعدادات"),
     h("div", { class: "row" }, field("حد الطلاب", f.max_students), field("حد المعلمين", f.max_teachers), field("الترتيب في الصفحة", f.sort)),
+    h("div", { class: "row" }, field("عدد المدارس المشمولة", f.max_schools, "أكثر من 1 = مركز تحكم لعدة مدارس"), field("سعر كل مدرسة إضافية سنويًا", f.extra_school_price)),
     h("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px;margin:8px 0" },
       chk("trial_enabled", "تتيح تجربة مجانية"), chk("is_public", "تظهر في الموقع"), chk("highlight", "باقة مميزة (بإطار)"), chk("contact_only", "«تواصل معنا» بدل السعر")),
     h("h4", {}, "المميزات (علّم ما تشمله الباقة، ورتّبها كما تظهر)"), featBox);
@@ -147,6 +155,7 @@ function editor(p, catalog, refresh) {
       promo_label: f.promo_label.value, max_students: num(f.max_students), max_teachers: num(f.max_teachers),
       trial_enabled: f.trial_enabled.checked, is_public: f.is_public.checked, highlight: f.highlight.checked, contact_only: f.contact_only.checked,
       sort: Number(f.sort.value || 100), features: order.filter((k) => on.has(k)),
+      first_year_price: num(f.first_year_price), audience: f.audience.value, max_schools: Number(f.max_schools.value || 1), extra_school_price: num(f.extra_school_price),
     };
   };
   const d = dialog(isNew ? "باقة جديدة" : `تعديل الباقة — ${p.name}`, body, [btn("حفظ", async () => {
