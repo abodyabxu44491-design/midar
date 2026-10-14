@@ -2108,3 +2108,17 @@ button.in-item { cursor: pointer; } button.in-item:hover { border-color: var(--t
   body.ic-printing dialog, body.ir-printing dialog { display: none !important; }
   body.ic-printing > .ic-sheet, body.ir-printing > .ir-sheet { display: block !important; }
 }
+
+/* Student identifiers: one compact row */
+.sf-ids { display: flex !important; flex-wrap: wrap; gap: 6px; }
+.sf-idbox { flex-direction: row !important; align-items: center; gap: 6px !important; padding: 5px 6px 5px 10px !important; border-radius: 999px !important; border-style: solid !important; }
+.sf-idbox > span { font-size: 11px; }
+.sf-idbox b { font-size: 13.5px !important; letter-spacing: .4px !important; }
+.sf-copy { width: 26px; height: 26px; border-radius: 999px; }
+.sf-qr { width: auto; padding: 0 9px; gap: 4px; display: inline-flex; align-items: center; font: inherit; font-size: 11.5px; font-weight: 700; color: var(--teal); border-color: var(--teal-soft); background: var(--teal-soft); }
+.sf-qr:hover { background: var(--teal); color: #fff; }
+.sms-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 8px; margin: 10px 0 12px; }
+.sms-opt { display: grid; gap: 3px; text-align: start; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; font: inherit; cursor: pointer; color: var(--ink); }
+.sms-opt small { color: var(--muted); font-size: 12px; } .sms-opt .badge { justify-self: start; margin-top: 4px; }
+.sms-opt.on { border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); background: var(--teal-soft); }
+.sms-adv { margin: 12px 0; } .sms-adv > summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-bottom: 8px; }

@@ -49,6 +49,14 @@ function phoneStep() {
   const resend = h("button", { type: "button", class: "gate-link", onclick: () => send() });
   const change = h("button", { type: "button", class: "gate-link", onclick: () => stage("phone") }, "تغيير الرقم");
   const links = h("div", { class: "gate-row av-links" }, resend, change);
+  // Android browsers read the SMS and fill the code by themselves (Web OTP); iOS offers it above the keyboard.
+  let otpAbort = null;
+  const autoFill = () => {
+    if (!("OTPCredential" in window)) return;
+    otpAbort?.abort(); otpAbort = new AbortController();
+    navigator.credentials.get({ otp: { transport: ["sms"] }, signal: otpAbort.signal })
+      .then((c) => { if (c?.code) { code.value = c.code; verify(); } }).catch(() => {});
+  };
   const stage = (k) => {
     const onCode = k === "code";
     phoneBox.hidden = onCode; sendBtn.hidden = onCode;
@@ -72,7 +80,7 @@ function phoneStep() {
       if (r.verified) return passwordStep();
       info.phone = r.phone;
       sentTo.textContent = `أرسلنا رمزًا إلى ${r.phone}`;
-      wait = 60; stage("code"); tick();
+      wait = 60; stage("code"); tick(); autoFill();
     } catch (e) { mount(msg, notice(e.message, "err")); }
     finally { sendBtn.disabled = false; }
   }
@@ -80,7 +88,7 @@ function phoneStep() {
     mount(msg);
     if (!/^\d{6}$/.test(code.value.trim())) return mount(msg, notice("اكتبوا الرمز المكوّن من 6 أرقام.", "err"));
     verifyBtn.disabled = true;
-    try { await api("/api/public/activation/verify", { token, code: code.value.trim() }); clearInterval(timer); passwordStep(); }
+    try { await api("/api/public/activation/verify", { token, code: code.value.trim() }); clearInterval(timer); otpAbort?.abort(); passwordStep(); }
     catch (e) { mount(msg, notice(e.message, "err")); code.select(); }
     finally { verifyBtn.disabled = false; }
   }

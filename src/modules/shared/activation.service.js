@@ -10,6 +10,7 @@ import { hashPassword } from "../../core/auth/password.js";
 import { createSession } from "../../core/auth/sessions.js";
 import { logEvent } from "../../core/audit.js";
 import { detectPhone } from "../../../public/shared/js/phone.js";
+import { env } from "../../config/env.js";
 import { loadGateway, sendRaw } from "./notify.service.js";
 import { addEvent } from "./school-files.service.js";
 import { normalizePhone } from "./students.service.js";
@@ -43,6 +44,11 @@ export async function info(token) {
 }
 
 // Sends a one-time code to the number the manager types; that number becomes the manager's login once verified.
+// Short message, code first; the last line lets Android browsers fill the code automatically (Web OTP).
+const otpHost = () => { try { return env.PUBLIC_URL ? new URL(env.PUBLIC_URL).host : null; } catch { return null; } };
+export const otpMessage = (code) => [`رمز التحقق في مدار: ${code}`, `صالح ${OTP_MINUTES} دقائق. لا تشاركه مع أحد.`, otpHost() ? `\n@${otpHost()} #${code}` : null]
+  .filter(Boolean).join("\n");
+
 export async function sendCode(token, rawPhone) {
   const phone = normalizePhone(rawPhone);
   if (!phone || !detectPhone(phone)?.intl) throw badRequest("رقم الجوال غير صحيح");
@@ -66,7 +72,7 @@ export async function sendCode(token, rawPhone) {
     const gateway = await loadGateway();
     if (!gateway) failure = "خدمة الرسائل النصية غير مهيأة";
     else if (!to) failure = "رقم الجوال المعتمد غير صالح للإرسال";
-    else await sendRaw(gateway, { to, message: `رمز تفعيل حساب ${a.school} على مدار: ${code}\nصالح ${OTP_MINUTES} دقائق. لا تشاركه مع أحد.` });
+    else await sendRaw(gateway, { to, message: otpMessage(code) });
   } catch (e) { failure = `فشل إرسال الرسالة: ${String(e.message).slice(0, 120)}`; }
   await platform("النظام", async (q) => {
     if (failure) {

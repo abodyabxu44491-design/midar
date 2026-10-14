@@ -87,6 +87,7 @@ test("من الطلب إلى أول دخول: ملف دائم، اعتماد م�
     assert.equal(ok1.status, 200, JSON.stringify(ok1.data));
     assert.equal(sent.length, 1);
     assert.ok(sent[0].to.endsWith(mgr.slice(-9)), "الرمز يذهب للرقم الذي كتبه المدير");
+    assert.match(sent[0].message, /^رمز التحقق في مدار: \d{6}\n/, "الرمز في أول سطر لتعبئة تلقائية");
     assert.equal((await pub.post("/api/public/activation/send-code", { token, phone: mgr })).status, 429, "لا طلب رمز متكرر خلال دقيقة");
     const code = sent[0].message.match(/(\d{6})/)[1];
     const wrong = await pub.post("/api/public/activation/verify", { token, code: code === "111111" ? "222222" : "111111" });

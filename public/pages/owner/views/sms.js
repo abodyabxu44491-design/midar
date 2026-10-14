@@ -9,6 +9,29 @@ import { panel, field, input, select, textarea, btn, empty, badge, line, sub, to
 import { fmtDateTime } from "/shared/js/format.js";
 
 const API = "/api/owner/sms";
+// Ready setups: the owner types two or three values from the provider's dashboard; the request format is filled in here.
+const enc = encodeURIComponent;
+const PROVIDERS = {
+  twilio: { key: "twilio", name: "Twilio", tag: "عالمي · الأسرع إعدادًا", urlPrefix: "https://api.twilio.com/",
+    steps: ["أنشئ حسابًا في twilio.com وفعّله بإضافة رصيد (الدفع بالبطاقة).", "من Console انسخ «Account SID» و«Auth Token».",
+      "من Messaging أنشئ «Messaging Service» وانسخ رقمها (يبدأ بـ MG)، أو اشترِ رقمًا واكتبه بالصيغة الدولية.",
+      "الصق القيم هنا واضغط «حفظ وتفعيل»، ثم جرّب برقمك."],
+    fields: [["sid", "Account SID", "AC…"], ["token", "Auth Token", "••••", true], ["from", "Messaging Service SID أو رقم المرسل", "MG… أو +1…"]],
+    build: (v) => ({ provider_name: "Twilio", url: `https://api.twilio.com/2010-04-01/Accounts/${enc(v.sid)}/Messages.json`, method: "POST", content_type: "form",
+      body_template: `To=%2B{to}&${v.from.startsWith("MG") ? "MessagingServiceSid" : "From"}=${enc(v.from)}&Body={message}`, sender: "", success_match: "",
+      headers: JSON.stringify({ Authorization: basic(v.sid, v.token) }) }) },
+  unifonic: { key: "unifonic", name: "Unifonic", tag: "الشرق الأوسط · اسم مرسل عربي", urlPrefix: "https://el.cloud.unifonic.com/",
+    steps: ["أنشئ حسابًا في unifonic.com واشحن الرصيد.", "سجّل اسم المرسل (Sender ID) واعتمده من حسابك.",
+      "من لوحة المطورين أنشئ تطبيق SMS وانسخ «AppSid».", "الصق القيم هنا واضغط «حفظ وتفعيل»، ثم جرّب برقمك."],
+    fields: [["appsid", "AppSid", "", true], ["sender", "اسم المرسل المعتمد", "MIDAR"]],
+    build: (v) => ({ provider_name: "Unifonic", url: "https://el.cloud.unifonic.com/rest/SMS/messages", method: "POST", content_type: "form",
+      body_template: `AppSid=${enc(v.appsid)}&SenderID=${enc(v.sender)}&Recipient={to}&Body={message}`, sender: "", success_match: '"success":true', headers: "-" }) },
+  android: { key: "android", name: "جوال أندرويد", tag: "مجاني من شريحتك", urlPrefix: "https://api.sms-gate.app/",
+    steps: ["ثبّت «SMS Gateway for Android» على جوال فيه شريحة برصيد رسائل.", "فعّل «Cloud server» واضغط «Online» وانسخ اسم المستخدم وكلمة المرور.",
+      "اتركه متصلًا وعلى الشاحن؛ سرعة الوصول تعتمد على الجوال."],
+    fields: [["user", "اسم المستخدم", ""], ["pass", "كلمة المرور", "", true]],
+    build: (v) => ({ ...ANDROID, headers: JSON.stringify({ Authorization: basic(v.user, v.pass) }) }) },
+};
 // Free option: an Android phone with a SIM runs the open-source "SMS Gateway for Android" app and sends the messages.
 const ANDROID = { provider_name: "جوال أندرويد (SMS Gateway)", url: "https://api.sms-gate.app/3rdparty/v1/message", method: "POST", content_type: "json",
   body_template: '{"textMessage":{"text":"{message}"},"phoneNumbers":["+{to}"]}', sender: "", success_match: "" };
@@ -31,24 +54,37 @@ export default async function sms({ refresh }) {
   let enabled = g.enabled;
   const testTo = input({ class: "ltr", placeholder: "967771234567" });
   const testMsg = input({ value: "رسالة تجريبية من مدار" });
-  const aUser = input({ class: "ltr", placeholder: "Username", autocomplete: "off" });
-  const aPass = passwordInput({ placeholder: "Password", autocomplete: "new-password" });
-  const isAndroid = g.url === ANDROID.url;
-  return [
-    panel("الطريقة الأسهل: جوال أندرويد", g.enabled && isAndroid ? badge("مفعّلة") : null,
-      h("ol", { class: "gw-steps" },
-        h("li", {}, "جهّز جوال أندرويد فيه شريحة برصيد رسائل، وثبّت عليه تطبيق «SMS Gateway for Android» من متجر Google Play."),
-        h("li", {}, "افتح التطبيق، فعّل «Cloud server» ثم اضغط «Online». يظهر لك اسم مستخدم وكلمة مرور."),
-        h("li", {}, "اكتبهما هنا واضغط «حفظ وتفعيل»، ثم جرّب من «رسالة تجريبية» بالأسفل."),
-        h("li", {}, "اترك الجوال متصلًا بالإنترنت وعلى الشاحن.")),
-      h("div", { class: "row" }, field("اسم المستخدم", aUser), field("كلمة المرور", aPass)),
+  const providerBox = h("div");
+  const current = Object.values(PROVIDERS).find((x) => g.url && g.url.startsWith(x.urlPrefix));
+  let pick = current?.key || "twilio";
+  const drawProvider = () => {
+    const P = PROVIDERS[pick];
+    const inputs = Object.fromEntries(P.fields.map(([k, label, ph, secret]) => [k, secret ? passwordInput({ placeholder: ph, autocomplete: "new-password" })
+      : input({ class: "ltr", placeholder: ph, autocomplete: "off" })]));
+    mount(providerBox,
+      h("div", { class: "sms-pick", role: "radiogroup" }, Object.values(PROVIDERS).map((x) => h("button", { type: "button", role: "radio", "aria-checked": String(x.key === pick),
+        class: `sms-opt${x.key === pick ? " on" : ""}`, onclick: () => { pick = x.key; drawProvider(); } },
+        h("b", {}, x.name), h("small", {}, x.tag), current?.key === x.key && g.enabled ? badge("مفعّل") : null))),
+      h("ol", { class: "gw-steps" }, P.steps.map((t) => h("li", {}, t))),
+      h("div", { class: "row" }, P.fields.map(([k, label]) => field(label, inputs[k]))),
       btn("حفظ وتفعيل", async () => {
-        if (!aUser.value.trim() || !aPass.value) return toast("اكتب اسم المستخدم وكلمة المرور من التطبيق", true);
-        try {
-          await api(`${API}/gateway`, { ...ANDROID, enabled: true, headers: JSON.stringify({ Authorization: basic(aUser.value.trim(), aPass.value) }) }, "PUT");
-          toast("فُعّلت الرسائل"); refresh();
-        } catch (e) { toast(e.message, true); }
-      })),
+        const v = Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value.trim()]));
+        const missing = P.fields.find(([k]) => !v[k]);
+        if (missing) return toast(`اكتب: ${missing[1]}`, true);
+        try { await api(`${API}/gateway`, { ...P.build(v), enabled: true }, "PUT"); toast("فُعّلت الرسائل. جرّب بالإرسال لرقمك من الأسفل."); refresh(); }
+        catch (e) { toast(e.message, true); }
+      }));
+  };
+  drawProvider();
+  return [
+    panel("مزوّد الرسائل النصية", g.enabled ? badge(current ? `مفعّل: ${current.name}` : "مفعّل") : badge("غير مفعّل", "gray"),
+      sub("منه تصل رموز التحقق لمدراء المدارس والمعاهد، وكل رسائل المنصة النصية."),
+      !d.can_store_secret ? notice("مفتاح التشفير غير مضبوط على الخادم: لا يمكن حفظ مفاتيح المزوّد.", "warn") : null,
+      providerBox),
+    panel("رسالة تجريبية", null,
+      h("div", { class: "row" }, field("إلى (الرقم دوليًا بدون +)", testTo), field("النص", testMsg)),
+      btn("إرسال", async () => { try { await api(`${API}/test`, { to: testTo.value.trim(), message: testMsg.value }); toast("أُرسلت"); } catch (e) { toast(e.message, true); } }, "ghost")),
+    h("details", { class: "sms-adv" }, h("summary", {}, "إعدادات متقدمة (مزوّد آخر يدويًا)"),
     panel("مزوّد رسائل آخر", null,
       line(h("div", {}, h("b", {}, "تفعيل الإرسال"), sub("بدون تفعيل لا تُرسل أي رسالة، ويعود رصيد أي رسالة محجوزة.")),
         switchBtn(g.enabled, "تفعيل الإرسال", (v) => { enabled = v; return true; })),
@@ -64,10 +100,7 @@ export default async function sms({ refresh }) {
         if (!body.headers.trim()) delete body.headers;
         await api(`${API}/gateway`, { ...body, enabled }, "PUT");
         toast("تم الحفظ"); refresh();
-      })),
-    panel("رسالة تجريبية", null,
-      h("div", { class: "row" }, field("إلى", testTo), field("النص", testMsg)),
-      btn("إرسال", async () => { await api(`${API}/test`, { to: testTo.value.trim(), message: testMsg.value }); toast("أُرسلت"); }, "ghost")),
+      }))),
     panel("رصيد المدارس", null,
       sub("الرصيد بعدد الرسائل. الرسالة العربية حتى 70 حرفًا = رسالة واحدة. الرسائل التي تفشل يعود رصيدها تلقائيًا."),
       d.balances.length ? d.balances.map((s) => {

@@ -122,8 +122,6 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     const STATE = { pending: ["عذرك قيد المراجعة", "amber"], accepted: ["قُبل العذر", ""], rejected: ["لم يُقبل العذر", "red"] };
     return section("الحضور والغياب",
       banners()[0],
-      d.has_gate && actions.attendanceCard ? h("div", { class: "row spaced", style: "justify-content:flex-start" },
-        btn("بطاقة الحضور (QR)", () => cardDialog(), "soft sm"), sub("تُمسح عند بوابة المدرسة فيُسجَّل الحضور ويصلك إشعار.")) : null,
       h("div", { class: "kpis inline att-inline" },
         h("div", { class: "s-present" }, h("b", {}, count("present")), "حاضر"), h("div", { class: "s-absent" }, h("b", {}, count("absent")), "غائب"),
         h("div", { class: "s-late" }, h("b", {}, count("late")), "متأخر"), h("div", { class: "s-excused" }, h("b", {}, count("excused")), "بعذر"),
@@ -211,17 +209,20 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   const avatar = photo ? h("img", { class: "sf-avatar", src: photo, alt: "" }) : personAvatar(s.gender, 72, "sf-avatar");
   const todayRec = d.attendance.find((a) => a.day === new Date().toLocaleDateString("en-CA"));
   const tile = (tone, label, value) => h("div", { class: `sf-kpi ${tone}` }, h("span", {}, label), h("b", {}, value));
-  const cardAction = (d.admin || d.has_gate) && actions.attendanceCard ? [{ icon: "print", label: "بطاقة الحضور", tone: "soft", onClick: () => cardDialog() }] : [];
-  const acts = [...headActions.slice(0, 1), ...cardAction, ...headActions.slice(1)];
+  const canCard = (d.admin || d.has_gate) && actions.attendanceCard;
+  const acts = headActions;
   const copyId = (value, b) => {
     navigator.clipboard?.writeText(value).then(() => { b.classList.add("done"); setTimeout(() => b.classList.remove("done"), 1400); }, () => {});
   };
-  const idBox = (label, value) => {
-    const b = h("button", { type: "button", class: "sf-copy", title: "نسخ", "aria-label": `نسخ ${label}` }, icons.copy({ size: 14 }));
+  // Compact identifiers: the student ID (parent login) with copy and the attendance barcode next to it; the school number only if set.
+  const idBox = (label, value, extra = null) => {
+    const b = h("button", { type: "button", class: "sf-copy", title: "نسخ", "aria-label": `نسخ ${label}` }, icons.copy({ size: 13 }));
     b.addEventListener("click", () => copyId(value, b));
-    return h("div", { class: "sf-idbox" }, h("span", {}, label), h("div", {}, h("b", { dir: "ltr" }, value), b));
+    return h("div", { class: "sf-idbox" }, h("span", {}, label), h("b", { dir: "ltr" }, value), b, extra);
   };
-  const ids = [s.student_no ? idBox("رقم الطالب", String(s.student_no)) : null, s.access_key ? idBox("معرّف الطالب", s.access_key) : null].filter(Boolean);
+  const cardBtn = canCard ? h("button", { type: "button", class: "sf-copy sf-qr", title: "طباعة باركود الحضور", "aria-label": "طباعة باركود الحضور", onclick: () => cardDialog() },
+    icons.print({ size: 13 }), h("span", {}, "الباركود")) : null;
+  const ids = [s.access_key ? idBox("المعرّف", s.access_key, cardBtn) : null, s.student_no ? idBox("رقم الطالب", String(s.student_no)) : null].filter(Boolean);
   const bar = acts.length || moreActions.length ? h("div", { class: "sf-bar", role: "toolbar", "aria-label": "إجراءات الطالب" },
     acts.map((a) => (a.el ? a.el : h("button", { type: "button", class: `sf-act ${a.tone || ""}`, onclick: a.onClick },
       icons[a.icon] ? icons[a.icon]({ size: 18 }) : null, h("span", {}, a.label)))),
