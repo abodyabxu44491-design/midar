@@ -26,9 +26,9 @@ async function current(q, token, { lock = false } = {}) {
   const [a] = await q(
     `SELECT a.*, t.name AS school, t.status AS school_status FROM school_activations a JOIN tenants t ON t.id = a.tenant_id
       WHERE a.token_hash = $1${lock ? " FOR UPDATE OF a" : ""}`, [sha(token)]);
-  if (!a || a.used_at || a.revoked_at) throw notFound("رابط التفعيل غير صالح أو استُخدم مسبقًا. اطلبوا رابطًا جديدًا من إدارة مدار.");
-  if (new Date(a.expires_at) < new Date()) throw new AppError(410, "انتهت صلاحية رابط التفعيل. اطلبوا رابطًا جديدًا من إدارة مدار.", "expired");
-  if (a.school_status !== "active") throw new AppError(403, "حساب المدرسة موقوف حاليًا. تواصلوا مع إدارة مدار.", "forbidden");
+  if (!a || a.used_at || a.revoked_at) throw notFound("رابط التفعيل غير صالح أو استُخدم مسبقًا. تواصل مع إدارة مدار لطلب رابط جديد.");
+  if (new Date(a.expires_at) < new Date()) throw new AppError(410, "انتهت صلاحية رابط التفعيل. تواصل مع إدارة مدار لطلب رابط جديد.", "expired");
+  if (a.school_status !== "active") throw new AppError(403, "حساب المدرسة موقوف حاليًا. تواصل مع إدارة مدار.", "forbidden");
   return a;
 }
 
@@ -55,9 +55,9 @@ export async function sendCode(token, rawPhone) {
   const out = await platform("زائر", async (q) => {
     const a = await current(q, token, { lock: true });
     if (a.phone_verified_at) return { already: true };
-    if (a.otp_sends >= OTP_SENDS) throw new AppError(429, "تجاوزتم عدد مرات طلب الرمز لهذا الرابط. تواصلوا مع إدارة مدار لإصدار رابط جديد.", "rate_limited");
+    if (a.otp_sends >= OTP_SENDS) throw new AppError(429, "تم تجاوز عدد مرات طلب الرمز لهذا الرابط. تواصل مع إدارة مدار لإصدار رابط جديد.", "rate_limited");
     if (a.otp_last_sent_at && Date.now() - new Date(a.otp_last_sent_at) < RESEND_SECONDS * 1000) {
-      throw new AppError(429, "انتظروا دقيقة قبل طلب رمز جديد.", "rate_limited");
+      throw new AppError(429, "انتظر دقيقة قبل طلب رمز جديد.", "rate_limited");
     }
     const code = String(crypto.randomInt(100000, 1000000));
     await q(`UPDATE school_activations SET phone = $4, otp_hash = $2, otp_channel = 'sms', otp_expires_at = now() + make_interval(mins => $3), otp_attempts = 0,
@@ -82,7 +82,7 @@ export async function sendCode(token, rawPhone) {
       await addEvent(q, a.tenant_id, { kind: "otp", body: `أُرسل رمز تحقق برسالة نصية إلى ${maskPhone(a.phone)}` }, "النظام");
     }
   });
-  if (failure) throw new AppError(503, "تعذر إرسال الرمز الآن. حاولوا بعد قليل.", "sms_failed");
+  if (failure) throw new AppError(503, "تعذر إرسال الرمز الآن. حاول بعد قليل.", "sms_failed");
   return { sent: true, phone: maskPhone(a.phone), expires_minutes: OTP_MINUTES };
 }
 
@@ -91,9 +91,9 @@ export async function verifyCode(token, code) {
   const out = await platform("زائر", async (q) => {
     const a = await current(q, token, { lock: true });
     if (a.phone_verified_at) return { verified: true };
-    if (!a.otp_hash || !a.otp_expires_at) throw badRequest("اطلبوا رمز التحقق أولًا.");
-    if (new Date(a.otp_expires_at) < new Date()) throw new AppError(410, "انتهت صلاحية الرمز. اطلبوا رمزًا جديدًا.", "expired");
-    if (a.otp_attempts >= OTP_ATTEMPTS) throw new AppError(429, "تجاوزتم عدد المحاولات. اطلبوا رمزًا جديدًا.", "rate_limited");
+    if (!a.otp_hash || !a.otp_expires_at) throw badRequest("اطلب رمز التحقق أولًا.");
+    if (new Date(a.otp_expires_at) < new Date()) throw new AppError(410, "انتهت صلاحية الرمز. اطلب رمزًا جديدًا.", "expired");
+    if (a.otp_attempts >= OTP_ATTEMPTS) throw new AppError(429, "تم تجاوز عدد المحاولات. اطلب رمزًا جديدًا.", "rate_limited");
     const ok = /^\d{6}$/.test(String(code || "").trim())
       && crypto.timingSafeEqual(Buffer.from(codeHash(a.id, code)), Buffer.from(a.otp_hash));
     if (!ok) {
@@ -106,7 +106,7 @@ export async function verifyCode(token, code) {
   });
   if (out.wrong !== undefined) {
     const left = out.wrong;
-    throw badRequest(left > 0 ? `الرمز غير صحيح. متبقٍ ${left} ${left === 1 ? "محاولة" : "محاولات"}.` : "الرمز غير صحيح. اطلبوا رمزًا جديدًا.");
+    throw badRequest(left > 0 ? `الرمز غير صحيح. متبقٍ ${left} ${left === 1 ? "محاولة" : "محاولات"}.` : "الرمز غير صحيح. اطلب رمزًا جديدًا.");
   }
   return out;
 }
@@ -115,13 +115,13 @@ export async function verifyCode(token, code) {
 export async function complete(token, password, req, res) {
   const a = await platform("زائر", async (q) => {
     const x = await current(q, token, { lock: true });
-    if (!x.phone_verified_at) throw new AppError(403, "تحققوا من رقم الجوال أولًا.", "forbidden");
+    if (!x.phone_verified_at) throw new AppError(403, "تحقق من رقم الجوال أولًا.", "forbidden");
     return x;
   });
   const hash = await hashPassword(password);
   await transaction({ tenantId: a.tenant_id, actor: "مدير المدرسة", ip: req.ip }, async (q) => {
     const [taken] = await q("SELECT 1 FROM users WHERE phone = $1 AND id <> $2", [a.phone, a.user_id]);
-    if (taken) throw conflict("رقم الجوال مرتبط بحساب آخر في المدرسة. تواصلوا مع إدارة مدار.");
+    if (taken) throw conflict("رقم الجوال مرتبط بحساب آخر في المدرسة. تواصل مع إدارة مدار.");
     const rows = await q(
       `UPDATE users SET password_hash = $2, must_change_password = false, initial_password_enc = NULL, failed_logins = 0, locked_until = NULL,
               is_active = true, password_changed_at = now(), phone = $3, phone_verified_at = now(), full_name = COALESCE($4, full_name),
