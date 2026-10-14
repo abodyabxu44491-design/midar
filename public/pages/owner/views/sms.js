@@ -5,10 +5,14 @@
  */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn } from "/shared/js/ui.js";
+import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn, passwordInput } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
 
 const API = "/api/owner/sms";
+// Free option: an Android phone with a SIM runs the open-source "SMS Gateway for Android" app and sends the messages.
+const ANDROID = { provider_name: "جوال أندرويد (SMS Gateway)", url: "https://api.sms-gate.app/3rdparty/v1/message", method: "POST", content_type: "json",
+  body_template: '{"textMessage":{"text":"{message}"},"phoneNumbers":["+{to}"]}', sender: "", success_match: "" };
+const basic = (u, p) => `Basic ${btoa(String.fromCharCode(...new TextEncoder().encode(`${u}:${p}`)))}`;
 const STATUS = { queued: ["قيد الإرسال", "amber"], sent: ["أُرسلت", ""], failed: ["فشلت", "red"], no_credit: ["لا رصيد", "gray"], disabled: ["المزوّد موقوف", "gray"] };
 
 export default async function sms({ refresh }) {
@@ -27,8 +31,25 @@ export default async function sms({ refresh }) {
   let enabled = g.enabled;
   const testTo = input({ class: "ltr", placeholder: "967771234567" });
   const testMsg = input({ value: "رسالة تجريبية من مدار" });
+  const aUser = input({ class: "ltr", placeholder: "Username", autocomplete: "off" });
+  const aPass = passwordInput({ placeholder: "Password", autocomplete: "new-password" });
+  const isAndroid = g.url === ANDROID.url;
   return [
-    panel("مزوّد الرسائل النصية", null,
+    panel("الطريقة الأسهل: جوال أندرويد", g.enabled && isAndroid ? badge("مفعّلة") : null,
+      h("ol", { class: "gw-steps" },
+        h("li", {}, "جهّز جوال أندرويد فيه شريحة برصيد رسائل، وثبّت عليه تطبيق «SMS Gateway for Android» من متجر Google Play."),
+        h("li", {}, "افتح التطبيق، فعّل «Cloud server» ثم اضغط «Online». يظهر لك اسم مستخدم وكلمة مرور."),
+        h("li", {}, "اكتبهما هنا واضغط «حفظ وتفعيل»، ثم جرّب من «رسالة تجريبية» بالأسفل."),
+        h("li", {}, "اترك الجوال متصلًا بالإنترنت وعلى الشاحن.")),
+      h("div", { class: "row" }, field("اسم المستخدم", aUser), field("كلمة المرور", aPass)),
+      btn("حفظ وتفعيل", async () => {
+        if (!aUser.value.trim() || !aPass.value) return toast("اكتب اسم المستخدم وكلمة المرور من التطبيق", true);
+        try {
+          await api(`${API}/gateway`, { ...ANDROID, enabled: true, headers: JSON.stringify({ Authorization: basic(aUser.value.trim(), aPass.value) }) }, "PUT");
+          toast("فُعّلت الرسائل"); refresh();
+        } catch (e) { toast(e.message, true); }
+      })),
+    panel("مزوّد رسائل آخر", null,
       line(h("div", {}, h("b", {}, "تفعيل الإرسال"), sub("بدون تفعيل لا تُرسل أي رسالة، ويعود رصيد أي رسالة محجوزة.")),
         switchBtn(g.enabled, "تفعيل الإرسال", (v) => { enabled = v; return true; })),
       !d.can_store_secret ? notice("مفتاح التشفير غير مضبوط على الخادم: لا يمكن حفظ مفتاح المزوّد السري.", "warn") : null,

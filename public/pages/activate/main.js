@@ -10,22 +10,15 @@ import { icons } from "../shared/js/icons.js";
 
 const app = $("#app");
 const token = new URLSearchParams(location.search).get("token") || "";
-const STEPS = ["الجوال", "كلمة المرور", "الدخول"];
 
 const shell = (...content) => h("div", { class: "gate" }, h("div", { class: "gate-wrap" },
   h("aside", { class: "gate-aside hide-sm" },
     brandLogo("hero-logo", true, "stacked"),
     h("h1", {}, "تفعيل حساب مدرستكم"),
-    h("p", {}, "أدخلوا رقم جوال المدير، واكتبوا الرمز الذي يصلكم، ثم اختاروا كلمة المرور."),
-    h("ul", { class: "gate-points" }, ["تحقق برسالة نصية", "الدخول برقم الجوال وكلمة المرور"]
-      .map((x) => h("li", {}, icons.check({ size: 16 }), x)))),
+    h("p", {}, "أدخلوا رقم جوال المدير، واكتبوا الرمز الذي يصلكم، ثم اختاروا كلمة المرور.")),
   h("section", { class: "gate-card" },
     h("div", { class: "show-sm", style: "margin-bottom:10px" }, brandLogo("hero-logo", true, "stacked")),
     ...content)));
-
-const stepper = (at) => h("ol", { class: "av-steps", "aria-label": "خطوات التفعيل" }, STEPS.map((s, i) =>
-  h("li", { class: i < at ? "done" : i === at ? "on" : "", "aria-current": i === at ? "step" : null },
-    h("span", {}, i < at ? icons.check({ size: 13 }) : String(i + 1)), h("b", {}, s))));
 
 const identity = (info) => h("dl", { class: "av-id" },
   h("dt", {}, "المدرسة"), h("dd", {}, info.school),
@@ -96,8 +89,7 @@ function phoneStep() {
     if (code.value.length === 6) verify();
   });
   phone.addEventListener("keydown", (e) => e.key === "Enter" && send());
-  mount(app, shell(stepper(0),
-    h("h2", {}, "تحقق من الجوال"),
+  mount(app, shell(h("h2", {}, "تحقق من الجوال"),
     identity({ ...info, phone: null }), phoneBox, sentTo, codeBox, msg, sendBtn, verifyBtn, links));
   if (info.code_sent) { sentTo.textContent = `أرسلنا رمزًا إلى ${info.phone}`; stage("code"); if (wait) tick(); else resend.textContent = "إعادة إرسال الرمز"; }
   else stage("phone");
@@ -116,8 +108,7 @@ function passwordStep() {
     try {
       const r = await api("/api/public/activation", { token, password: pass.value });
       try { localStorage.setItem("midar_school", info.school_id); } catch { /* storage unavailable */ }
-      mount(app, shell(stepper(2),
-        h("div", { class: "act-done" }, h("span", { class: "big" }, icons.check({ size: 34 })),
+      mount(app, shell(h("div", { class: "act-done" }, h("span", { class: "big" }, icons.check({ size: 34 })),
           h("h2", {}, "تم تفعيل حساب مدرستكم"),
           h("p", { class: "gate-sub" }, "سجّلوا الدخول لاحقًا برقم الجوال وكلمة المرور.")),
         btn("الدخول إلى لوحة المدرسة", () => { location.href = r.redirect; })));
@@ -125,8 +116,7 @@ function passwordStep() {
     } catch (e) { save.disabled = false; mount(msg, notice(e.message, "err")); }
   });
   for (const el of [pass, again]) el.addEventListener("keydown", (e) => e.key === "Enter" && save.click());
-  mount(app, shell(stepper(1),
-    h("h2", {}, "اختاروا كلمة المرور"),
+  mount(app, shell(h("h2", {}, "اختاروا كلمة المرور"),
     identity(info),
     field("كلمة المرور الجديدة", pass, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),
     meter, field("أعيدوا كتابة كلمة المرور", again), msg, save));
