@@ -22,6 +22,7 @@ r.get("/me", handle(async (req, res) => {
     modules: req.modules,
     setup_completed: Boolean(p?.setup_completed_at),
     name: req.user.full_name,
+    admin_scope: req.user.admin_scope || "full",
     must_change_password: req.user.must_change_password,
     access: accessSummary(req),
     links: schoolLinks(req, req.tenant.id),

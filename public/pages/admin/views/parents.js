@@ -30,7 +30,8 @@ export default async function parents({ me }) {
   [btn("نسخ الكل", async () => { await navigator.clipboard.writeText(list.map(message).join("\n\n")); toast("تم النسخ"); }, "ghost")]);
 
   async function draw() {
-    const [list, reqs, settings] = await Promise.all([api(`${R()}?search=${encodeURIComponent(search)}`), api(`${R()}/requests`), api(`${R()}/settings`)]);
+    const [list, reqs, settings, families] = await Promise.all([api(`${R()}?search=${encodeURIComponent(search)}`), api(`${R()}/requests`), api(`${R()}/settings`),
+      api(`${R()}/families`).catch(() => [])]);
     const q = input({ value: search, placeholder: "بحث بالاسم أو الجوال أو اسم الابن", maxLength: 60 });
     let t;
     q.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { search = q.value.trim(); draw(); }, 350); });
@@ -41,7 +42,7 @@ export default async function parents({ me }) {
           if (!confirmAction("يُنشأ حساب لكل رقم جوال ولي أمر مسجل، ويُربط بكل الطلاب المسجلين بنفس الرقم. الحسابات الموجودة تُكمَّل فقط. متابعة؟")) return;
           try {
             const r = await api(`${R()}/auto-create`, {});
-            toast(`أُنشئ ${r.created} حساب، ورُبط ${r.linked} طالب`);
+            toast(`أُنشئ ${r.created} حساب، ورُبط ${r.linked} طالب${r.review ? `، و${r.review} بانتظار مراجعتك لاختلاف اسم العائلة` : ""}`);
             if (r.credentials.length) credsDialog("بيانات الحسابات الجديدة", r.credentials);
             draw();
           } catch (e) { toast(e.message, true); }
@@ -62,7 +63,23 @@ export default async function parents({ me }) {
         h("div", { class: "row" },
           btn("موافقة", async () => { await api(`${R()}/requests/${r.id}`, { approve: true }); toast("رُبط الطالب"); draw(); }, "sm"),
           btn("رفض", async () => { await api(`${R()}/requests/${r.id}`, { approve: false }); draw(); }, "ghost sm"))))) : null,
+      familiesPanel(families),
       settingsPanel(settings));
+  }
+
+  function familiesPanel(groups) {
+    if (!groups.length) return null;
+    const review = groups.filter((g) => !g.verified);
+    const one = (g) => h("div", { class: `fam-row${g.verified ? "" : " warn"}` },
+      h("div", { class: "fam-head" }, h("b", {}, g.guardian_name || "ولي الأمر"), h("bdi", { dir: "ltr", class: "sub" }, g.phone),
+        g.verified ? badge("عائلة واحدة", "") : badge(`${g.families} أسماء عائلات مختلفة — راجِع`, "amber")),
+      h("div", { class: "fam-kids" }, g.students.map((k) => h("span", { class: `pa-kid${k.linked ? "" : " old"}`, title: k.linked ? "مربوط بحساب ولي الأمر" : "غير مربوط" },
+        k.name, k.class_name ? ` · ${k.class_name}` : ""))));
+    return panel(`العائلات حسب جوال ولي الأمر (${groups.length})`, null,
+      sub("يُربط كل طالب جديد تلقائيًا بحساب ولي الأمر الذي يحمل نفس الجوال، بشرط أن يتطابق اسم العائلة مع أبنائه المسجلين. إذا اختلف، يصلك طلب ربط لتتحقق منه بدل الربط الخاطئ."),
+      review.length ? notice(`${review.length} مجموعة فيها أسماء عائلات مختلفة على نفس الجوال. تأكد منها وصحّح الجوال أو اللقب عند الحاجة.`, "warn") : null,
+      h("details", { class: "fam-more" }, h("summary", {}, review.length ? "عرض المجموعات" : "عرض العائلات"),
+        h("div", { class: "fam-list" }, [...review, ...groups.filter((g) => g.verified)].map(one))));
   }
 
   function settingsPanel(s) {

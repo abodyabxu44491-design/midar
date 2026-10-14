@@ -11,6 +11,8 @@ import { topbar, footer, tabs, lazy, panel, field, input, btn, toast, sub, notic
 import { setApiBase } from "../admin/views/common.js";
 import { rememberSchool } from "../shared/js/recent.js";
 const ledger = lazy(() => import("../admin/views/ledger.js"), new URL("../admin/views/ledger.js", import.meta.url).pathname);
+const financeRequests = lazy(() => import("../admin/views/finance-requests.js"), new URL("../admin/views/finance-requests.js", import.meta.url).pathname);
+const bookDeposits = lazy(() => import("../admin/views/book-deposits.js"), new URL("../admin/views/book-deposits.js", import.meta.url).pathname);
 const fees = lazy(() => import("../admin/views/finance.js"), new URL("../admin/views/finance.js", import.meta.url).pathname);
 
 const app = $("#app");
@@ -31,12 +33,14 @@ export async function startAccountant() {
   const list = [
     ...(me.modules?.finance ? [["ledger", "المالية"]] : []),
     ...(me.modules?.fees && !me.modules?.finance ? [["fees", "الرسوم"]] : []),
+    ["money-requests", "الطلبات المالية"],
+    ...(me.modules?.finance ? [["deposits", "تأمين الكتب"]] : []),
     ["account", "حسابي"],
   ];
-  const t = tabs(list, { ledger, fees, account }, { me });
+  const t = tabs(list, { ledger, fees, "money-requests": financeRequests, deposits: bookDeposits, account }, { me });
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `المحاسب — ${me.name}`,
     onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } });
-  attachBell(bar, "/api/accountant");
+  attachBell(bar, "/api/accountant", (n) => (n.link === "finance-requests" ? (t.show("money-requests"), true) : false));
   mount(app, bar, h("main", {}, t.el), footer());
   t.start(me.modules?.finance ? "ledger" : "fees");
 }

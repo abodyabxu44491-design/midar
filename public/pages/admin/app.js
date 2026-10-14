@@ -37,6 +37,8 @@ const behavior = lazy(() => import("./views/behavior.js"), new URL("./views/beha
 const calendar = lazy(() => import("./views/calendar.js"), new URL("./views/calendar.js", import.meta.url).pathname);
 const certificates = lazy(() => import("./views/certificates.js"), new URL("./views/certificates.js", import.meta.url).pathname);
 const services = lazy(() => import("./views/services.js"), new URL("./views/services.js", import.meta.url).pathname);
+const financeRequests = lazy(() => import("./views/finance-requests.js"), new URL("./views/finance-requests.js", import.meta.url).pathname);
+const bookDeposits = lazy(() => import("./views/book-deposits.js"), new URL("./views/book-deposits.js", import.meta.url).pathname);
 const aiAssistant = lazy(() => import("./views/ai.js"), new URL("./views/ai.js", import.meta.url).pathname);
 
 const app = $("#app");
@@ -67,8 +69,10 @@ export async function startAdmin() {
     announcements: "announcements", papers: "exam_papers",
     communication: ["notifications", "messaging", "sms", "surveys", "meetings", "chat"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
     behavior: "behavior", calendar: "calendar", certificates: "certificates",
-    services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant",
+    services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant", deposits: "finance",
   };
+  const schoolScope = me.admin_scope === "school";
+  const FULL_ONLY = new Set(["finance", "ledger", "deposits", "subscription"]);
   const enabled = (m) => [].concat(m).some((k) => me.modules?.[k]);
   const allTabs = [
     ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
@@ -76,19 +80,20 @@ export async function startAdmin() {
     ["attendance", "الحضور"], ["behavior", "السلوك"],
     [null, "التعليم"], ["teachers", "المعلمون"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
     ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"], ["sheets", "أوراق للطباعة"],
-    [null, "المالية والموظفون"], ["finance", "الرسوم"], ["ledger", "المالية"], ["staff", "شؤون الموظفين"],
+    [null, "المالية والموظفون"], ["finance", "الرسوم"], ["ledger", "المالية"], ["money-requests", "الطلبات المالية"], ["deposits", "تأمين الكتب"], ["staff", "شؤون الموظفين"],
     [null, "التواصل"], ["announcements", "التعاميم"], ["communication", "التواصل"],
     [null, "الإدارة"], ["academic", "السنة الدراسية"], ["calendar", "التقويم"], ["analytics", "التحليلات"], ["services", "الخدمات"],
     ["subscription", "اشتراكي"], ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
     .filter(([key]) => !MODULE_OF[key] || enabled(MODULE_OF[key]))
-    .filter(([key]) => !(key === "finance" && me.modules?.finance));
+    .filter(([key]) => !(key === "finance" && me.modules?.finance))
+    .filter(([key]) => !(schoolScope && FULL_ONLY.has(key)));
 
   const ctx = { me };
   const t = tabs(allTabs,
     { dashboard, setup: setupWizard, students, parents, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
-      communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant }, ctx,
-    { primary: ["dashboard", "students", "attendance", "ledger", "finance"] });
+      communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant, "money-requests": financeRequests, deposits: bookDeposits }, ctx,
+    { primary: schoolScope ? ["dashboard", "students", "attendance", "money-requests"] : ["dashboard", "students", "attendance", "ledger", "finance"] });
   ctx.goTo = (key) => {
     if (key === "finance" && me.modules?.finance) {
       try { sessionStorage.setItem("midar_finance_part", "fees"); } catch { /* ignore */ }
@@ -102,6 +107,7 @@ export async function startAdmin() {
   attachBell(bar, "/api/admin", (n) => {
     const tab = { leave: "staff", request: n.link === "staff" ? "staff" : "admissions", meeting: "communication", survey: "communication", grades_review: "exams",
       timetable: "timetable", announcement: "announcements", system: "students" }[n.kind] || n.link;
+    if (n.link === "finance-requests") { ctx.goTo("money-requests"); return true; }
     if (!tab || !allTabs.some(([k]) => k === tab || (tab === "finance" && k === "ledger"))) return false;
     ctx.goTo(tab); return true;
   });

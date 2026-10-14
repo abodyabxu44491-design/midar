@@ -1753,3 +1753,54 @@ label.chk input { width: 18px; height: 18px; min-height: 0; accent-color: var(--
 @media print { .sf-bar, .sf-copy { display: none !important; } }
 .sf-bar:has(> .sf-act:only-child) { grid-template-columns: minmax(0, 1fr); }
 .sf-bar > .sf-act:only-child { flex-direction: row; min-height: 48px; font-size: 14.5px; }
+
+/* Finance requests */
+.fr-list { display: grid; gap: 10px; margin-top: 10px; }
+.fr-card { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; background: #fff; display: flex; flex-direction: column; gap: 8px; border-inline-start: 4px solid var(--line-2); }
+.fr-card.s-pending { border-inline-start-color: var(--amber); } .fr-card.s-approved { border-inline-start-color: var(--violet); }
+.fr-card.s-paid { border-inline-start-color: var(--teal); } .fr-card.s-rejected { border-inline-start-color: var(--red); }
+.fr-card > header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.fr-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fr-title small { color: var(--muted); font-size: 12px; text-align: right; }
+.fr-title b { font-size: 15.5px; color: var(--navy); }
+.fr-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.fr-amt b { font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fr-amt del { font-size: 12px; color: var(--muted); }
+.fr-details { margin: 0; font-size: 14px; color: #3B4658; line-height: 1.8; }
+.fr-trail { list-style: none; margin: 0; padding: 8px 10px; background: var(--bg); border-radius: 10px; display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.fr-trail li { display: flex; align-items: center; gap: 6px; } .fr-trail svg { flex: none; color: var(--teal); }
+.fr-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fr-acts:empty { display: none; }
+
+/* Book deposits */
+.bd-list { display: grid; gap: 8px; margin-top: 4px; }
+.bd-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.bd-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--amber-soft); color: #B5650F; }
+.bd-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .bd-main b { color: var(--navy); }
+.bd-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.bd-side > b { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bd-side .row { gap: 6px; flex-wrap: nowrap; }
+@media (max-width: 640px) {
+  .bd-row { grid-template-columns: auto minmax(0, 1fr); }
+  .bd-side { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .fr-card > header { flex-direction: column; } .fr-amt { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+}
+
+/* Printable vouchers */
+.voucher { min-width: min(520px, 100%); }
+.voucher > header { display: flex; align-items: center; gap: 14px; padding-bottom: 12px; margin-bottom: 8px; border-bottom: 2px solid var(--navy); }
+.voucher > header h3 { margin: 0; font-size: 18px; color: var(--navy); } .voucher > header small { color: var(--muted); }
+.voucher .vc-logo { height: 44px; width: auto; }
+.vc-row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+.vc-row span { color: var(--muted); } .vc-row b { text-align: left; }
+.vc-sign { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin-top: 18px; }
+.vc-sign > div { display: flex; flex-direction: column; gap: 22px; padding-top: 8px; border-top: 1px solid var(--line-2); font-size: 13px; }
+.vc-sign small { color: var(--muted); }
+.fam-list { display: grid; gap: 8px; margin-top: 10px; }
+.fam-row { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; }
+.fam-row.warn { border-color: #F2C98F; background: #FFFBF4; }
+.fam-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fam-kids { display: flex; flex-wrap: wrap; gap: 6px; }
+.fam-more > summary { cursor: pointer; color: var(--accent); font-weight: 600; margin-top: 8px; }
+.add-admin { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.add-admin > summary { cursor: pointer; color: var(--accent); font-weight: 700; margin-bottom: 10px; }

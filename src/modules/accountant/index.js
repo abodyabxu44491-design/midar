@@ -15,6 +15,8 @@ import { getTemplates } from "../shared/messages.service.js";
 import { structure } from "../shared/structure.service.js";
 import { parse, t } from "../../core/http/validate.js";
 import ledger from "../school-admin/ledger.js";
+import financeRequests from "../school-admin/finance-requests.js";
+import bookDeposits from "../school-admin/book-deposits.js";
 import fees from "../school-admin/finance.js";
 import { staffNotificationsRouter } from "../shared/notifications.routes.js";
 
@@ -62,6 +64,8 @@ r.get("/messaging/templates", handle(async (req, res) => {
 
 r.use("/notifications", staffNotificationsRouter());
 r.use("/ledger", requireModule("finance"), ledger);
+r.use("/finance-requests", financeRequests);
+r.use("/book-deposits", requireModule("finance"), bookDeposits);
 r.use("/finance", requireModule("fees"), fees);
 
 export default r;

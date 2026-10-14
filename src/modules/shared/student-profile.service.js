@@ -71,6 +71,7 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     student_no: s.student_no ?? null, access_key: s.access_key ?? null };
   if (admin) {
     Object.assign(student, { student_no: s.student_no, birth_date: s.birth_date, gender: s.gender, student_phone: s.student_phone,
+      family_name: s.family_name, area: s.area,
       status: s.status, status_note: s.status_note, has_photo: Boolean(s.photo), version: s.version, class_id: s.class_id });
   }
   return {

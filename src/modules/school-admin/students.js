@@ -27,6 +27,7 @@ const listQuery = z.object({
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
   summary: z.enum(["1"]).optional(),
   fields: z.enum(["basic"]).optional(),
+  area: z.string().trim().max(80).optional(),
 });
 const FEE_BALANCE = `(SELECT COALESCE(SUM(i.amount - invoice_net_paid(i.id)), 0) FROM invoices i WHERE i.student_id = s.id AND i.status = 'open')`;
 const FEE_TOTAL = `(SELECT COALESCE(SUM(i.amount), 0) FROM invoices i WHERE i.student_id = s.id AND i.status = 'open')`;
@@ -47,15 +48,17 @@ r.get("/", handle(async (req, res) => {
     if (f.class_ids) add("s.class_id = ANY(?::bigint[])", f.class_ids.split(",").map(Number));
     if (f.q) {
       add(`(s.full_name ILIKE '%' || ? || '%' OR s.access_key = upper(?) OR s.guardian_phone LIKE '%' || ? || '%'
-            OR s.guardian_name ILIKE '%' || ? || '%' OR s.student_no ILIKE '%' || ? || '%')`, f.q);
+            OR s.guardian_name ILIKE '%' || ? || '%' OR s.student_no ILIKE '%' || ? || '%'
+            OR s.family_name ILIKE '%' || ? || '%' OR s.area ILIKE '%' || ? || '%')`, f.q);
     }
+    if (f.area) add("s.area = ?", f.area);
     if (f.fees === "off") where.push("NOT s.fees_enabled");
     if (f.fees === "paid") where.push(`s.fees_enabled AND ${FEE_TOTAL} > 0 AND ${FEE_BALANCE} <= 0`);
     if (f.fees === "unpaid") where.push(`s.fees_enabled AND ${FEE_BALANCE} > 0`);
     const cols = f.fields === "basic" ? "s.id, s.full_name AS name, s.class_id, c.name AS class_name"
       : `s.id, s.full_name AS name, s.class_id, c.name AS class_name, s.guardian_name, s.guardian_phone,
          s.access_key, s.fees_enabled, s.version, s.status, s.status_note, s.status_changed_at, s.created_at,
-         s.student_no, s.birth_date, s.gender, s.student_phone, (s.photo IS NOT NULL) AS has_photo`;
+         s.student_no, s.birth_date, s.gender, s.student_phone, s.family_name, s.area, (s.photo IS NOT NULL) AS has_photo`;
     const paging = f.limit ? `LIMIT ${f.limit} OFFSET ${f.offset}` : "";
     const rows = await q(
       `SELECT ${cols}${f.limit ? ", count(*) OVER ()::int AS _total" : ""}
@@ -72,6 +75,12 @@ r.get("/", handle(async (req, res) => {
     }
     return rows;
   }));
+}));
+
+r.get("/areas", handle(async (req, res) => {
+  res.json(await inTenant(req, (q) => q(
+    `SELECT area, count(*)::int AS students FROM students
+      WHERE area IS NOT NULL AND status = 'active' AND archived_at IS NULL GROUP BY area ORDER BY area`)));
 }));
 
 r.get("/guardian", handle(async (req, res) => {

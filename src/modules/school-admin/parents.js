@@ -25,6 +25,7 @@ r.get("/settings", handle(async (req, res) => res.json(await inTenant(req, async
 r.put("/settings", handle(async (req, res) => res.json(await inTenant(req, (q) => updateFeatureSettings(q, "parents", req.body || {})))));
 r.post("/auto-create", handle(async (req, res) => res.json(await inTenant(req, (q) => parents.autoCreate(q, { actor: req.actor })))));
 r.get("/requests", handle(async (req, res) => res.json(await inTenant(req, parents.listRequests))));
+r.get("/families", handle(async (req, res) => res.json(await inTenant(req, parents.familyGroups))));
 r.post("/requests/:id", handle(async (req, res) => {
   const { id } = parse(idP, req.params);
   const { approve } = parse(z.object({ approve: z.boolean() }), req.body);

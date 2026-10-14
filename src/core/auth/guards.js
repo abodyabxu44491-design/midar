@@ -65,7 +65,7 @@ export const requireStaff = (role) => async (req, res, next) => {
         SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency, emergency_locked_at, is_demo
                   FROM tenants WHERE id = app_tenant()) t) AS tenant,
                (SELECT row_to_json(u) FROM (SELECT id, full_name, role, teacher_id, is_active, must_change_password,
-                  can_approve_finance, can_manage_payroll, can_manage_accounts FROM users
+                  can_approve_finance, can_manage_payroll, can_manage_accounts, admin_scope FROM users
                   WHERE id = ${Number(s.user_id)} AND role = ${client.escapeLiteral(role)}) u) AS "user",
                (SELECT row_to_json(x) FROM (SELECT sb.*, (SELECT trial_grace_days FROM platform_settings WHERE id) AS trial_grace
                   FROM tenants t JOIN subscriptions sb ON sb.id = t.subscription_id WHERE t.id = app_tenant()) x) AS sub,
