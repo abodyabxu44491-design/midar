@@ -454,8 +454,10 @@ export function showCredentials(title, all, note) {
 }
 
 export function loginScreen({ role, endpoint, withSchool = true, withCode = false, onSuccess,
-  title = "بوابة مالك المنصة", subtitle = "إدارة المدارس والاشتراكات من مكان واحد", points = [] }) {
-  const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem("midar_school") || "", "aria-label": "رمز المدرسة" });
+  title = "بوابة مالك المنصة", subtitle = "إدارة المدارس والاشتراكات من مكان واحد", points = [],
+  schoolLabel = "رمز المدرسة", storeKey = "midar_school",
+  recoveryText = "استعادة كلمة مرور المالك تتم من ملف الإعدادات على الخادم: npm run owner:password ثم تحديث OWNER_PASSWORD_HASH." }) {
+  const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem(storeKey) || "", "aria-label": schoolLabel });
   const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
   const pass = passwordInput({ autocomplete: "current-password", placeholder: "كلمة المرور" });
   const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 6, placeholder: "000000" });
@@ -466,7 +468,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
     mount(msg);
     try {
       await api(endpoint, { school: school.value, username: user.value, password: pass.value, code: code.value, remember: remember.checked });
-      if (withSchool) localStorage.setItem("midar_school", school.value.trim().toLowerCase());
+      if (withSchool) localStorage.setItem(storeKey, school.value.trim().toLowerCase());
       pass.value = "";
       onSuccess();
     } catch (e) { mount(msg, notice(e.message, "err")); }
@@ -489,7 +491,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
         h("h2", {}, title),
         h("p", { class: "gate-sub" }, subtitle),
 
-        withSchool ? field("رمز المدرسة", school) : null,
+        withSchool ? field(schoolLabel, school) : null,
         field("اسم المستخدم", user),
         field("كلمة المرور", pass),
         withCode ? field("رمز التحقق (6 أرقام)", code) : null,
@@ -497,7 +499,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
         h("div", { class: "gate-row" },
           h("label", {}, remember, h("span", {}, "تذكرني على هذا الجهاز")),
           h("button", { class: "gate-link", type: "button", onclick: () => mount(recovery,
-            notice("استعادة كلمة مرور المالك تتم من ملف الإعدادات على الخادم: npm run owner:password ثم تحديث OWNER_PASSWORD_HASH.", "warn")) },
+            notice(recoveryText, "warn")) },
             "نسيت كلمة المرور؟")),
 
         recovery, msg, submit,

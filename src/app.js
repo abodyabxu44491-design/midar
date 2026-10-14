@@ -24,6 +24,7 @@ import { isSchoolCode } from "./core/reserved.js";
 import { baseUrl } from "./core/links.js";
 import { SEO_PAGES, renderSeoPage, homeLd, ldScripts } from "./core/seo-pages.js";
 import ownerApi from "./modules/owner/index.js";
+import groupApi from "./modules/group/index.js";
 import adminApi from "./modules/school-admin/index.js";
 import teacherApi from "./modules/teacher/index.js";
 import accountantApi from "./modules/accountant/index.js";
@@ -81,6 +82,7 @@ export function createApp() {
   api.use("/accountant", accountantApi);
   api.use("/public", publicApi);
   api.use("/gate", gateApi);
+  api.use("/group", groupApi);
   api.use("/staff", staffLoginRouter());
   api.use((req, res, next) => next(notFound("المسار غير موجود")));
   app.use("/api", api);
@@ -95,6 +97,7 @@ export function createApp() {
   app.get(`${env.OWNER_PATH}/app.webmanifest`, ownerNetwork, ownerManifest(env.OWNER_PATH));
   app.use(env.OWNER_PATH, ownerNetwork, express.static(file("owner"), { index: "index.html", redirect: true }));
   app.get("/reset", send("reset", "index.html"));
+  app.get("/group", send("group", "index.html"));
   app.get("/reset/", send("reset", "index.html"));
   const withOrigin = (...p) => (req, res) => res.set("Cache-Control", "no-cache").type("html")
     .send(renderPage(file(...p), { isProd: env.isProd }).replaceAll("__ORIGIN__", baseUrl(req)));

@@ -17,12 +17,13 @@ import { schoolLinks } from "../../core/links.js";
 import { buildShowcase } from "../shared/showcase-school.service.js";
 import { startJob } from "../../core/jobs.js";
 import { forgetDemoCache } from "../shared/demo.service.js";
+import { groupQuota } from "../shared/groups.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 const inSchool = (req, tenantId, fn) => transaction({ tenantId, actor: req.actor, ip: req.ip }, fn);
 
-const codeSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)")
+export const codeSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)")
   .refine((v) => !RESERVED_CODES.has(v), "هذا الرمز محجوز للنظام، اختر غيره");
 const createSchema = z.object({
   id: codeSchema,
@@ -73,11 +74,12 @@ export async function createTenant(req, b) {
   await transaction({ tenantId: b.id, actor: req.actor, ip: req.ip, platform: true }, async (q) => {
     const [exists] = await q("SELECT 1 FROM tenants WHERE id = $1", [b.id]);
     if (exists) throw conflict("هذا الرمز مستخدم لمدرسة أخرى");
+    if (b.group_id) await groupQuota(q, b.group_id);
     await q(`INSERT INTO tenants (id, name, plan, max_students, subscription_end, directory_code,
-               subscription_price, grace_days, currency)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+               subscription_price, grace_days, currency, group_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [b.id, b.name, b.plan ?? "basic", b.max_students ?? 200, b.subscription_end ?? null, directory,
-       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER"]);
+       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER", b.group_id ?? null]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);
