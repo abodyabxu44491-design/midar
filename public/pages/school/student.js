@@ -99,6 +99,7 @@ function teachersSection(chat, who, staff) {
           return h("div", { class: `tc-row${t.unread ? " unread" : ""}` },
             photo ? h("img", { class: "tc-av", src: photo, alt: "" }) : h("span", { class: "tc-av ph", "aria-hidden": "true" }, String(t.name).replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0)),
             h("div", { class: "tc-main" }, h("b", {}, t.name), h("small", {}, (t.subjects || []).join("، ")),
+              t.can_send && t.hours ? h("small", { class: `tc-hours${t.available_now ? "" : " off"}` }, `${t.available_now ? "متاح الآن · " : "خارج أوقات المراسلة · "}${t.hours}`) : null,
               t.last_preview ? h("span", { class: "tc-prev" }, t.last_preview) : null),
             h("div", { class: "tc-side" },
               t.unread ? h("span", { class: "chat-badge" }, String(t.unread)) : null,
@@ -110,7 +111,8 @@ function teachersSection(chat, who, staff) {
         notice(chat.teachers.length ? "المراسلة مع المعلمين غير مفعّلة حاليًا من إدارة المدرسة." : "لا يوجد معلمون مسندون لفصل الطالب بعد.", "")]);
   };
   const open = (t) => mount(body, chatThread({ me: "parent", title: t.name, subtitle: (t.subjects || []).join("، "),
-    readOnly: t.can_send ? null : t.closed ? "أغلقت إدارة المدرسة هذه المحادثة." : "المراسلة مع هذا المعلم غير مفعّلة حاليًا من إدارة المدرسة.",
+    readOnly: t.can_send ? (t.available_now === false ? `يستقبل المعلم الرسائل: ${t.hours}. تستطيع قراءة المحادثة والإرسال خلال هذه الأوقات.` : null)
+      : t.closed ? "أغلقت إدارة المدرسة هذه المحادثة." : "المراسلة مع هذا المعلم غير مفعّلة حاليًا من إدارة المدرسة.",
     load: (before) => api(`${P}/student/chat/thread`, { ...who, teacher_id: t.id, before }),
     send: (text) => api(`${P}/student/chat/send`, { ...who, teacher_id: t.id, text }),
     onBack: list }));

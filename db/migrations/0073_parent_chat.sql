@@ -56,3 +56,6 @@ ALTER TABLE chat_threads
   ADD COLUMN flagged_at   timestamptz;
 ALTER TABLE chat_messages ADD COLUMN flagged boolean NOT NULL DEFAULT false;
 CREATE INDEX chat_threads_flagged ON chat_threads (tenant_id, flagged_at DESC) WHERE flagged_at IS NOT NULL;
+
+-- أوقات استقبال رسائل أولياء الأمور يحددها المعلم: {"days":[0..6], "from":"HH:MM", "to":"HH:MM"}، والفارغ = كل الأوقات.
+ALTER TABLE teachers ADD COLUMN chat_hours jsonb;

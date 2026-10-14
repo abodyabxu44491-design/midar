@@ -129,3 +129,23 @@ test("ضوابط الإدارة: إيقاف معلم، الرصد التلقائ
   await S.admin.post(`/api/admin/chat/threads/${th.id}/close`, { closed: false });
   assert.equal((await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "شكرًا" })).status, 201);
 });
+
+test("أوقات المراسلة: يحددها المعلم، وخارجها لا يستطيع ولي الأمر الإرسال، ويستطيع المعلم الرد", async () => {
+  const p1 = S.parent(S.students[0]);
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Aden" }));
+  const other = (now.getDay() + 3) % 7;
+  const bad = await S.teacher.put("/api/teacher/chat/hours", { hours: { days: [other], from: "10:00", to: "09:00" } });
+  assert.equal(bad.status, 400, "النهاية قبل البداية مرفوضة");
+  assert.equal((await S.teacher.put("/api/teacher/chat/hours", { hours: { days: [other], from: "07:00", to: "14:00" } })).status, 200);
+  const list = await pub("/student/chat", p1);
+  const t = list.data.teachers.find((x) => x.id === S.teacherId);
+  assert.equal(t.available_now, false);
+  assert.match(t.hours, /من 7:00 ص إلى 2:00 م/);
+  const r = await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "مرحبا" });
+  assert.equal(r.status, 400);
+  assert.match(r.data.error || r.data.message || "", /أوقات/);
+  const th = (await S.teacher.get("/api/teacher/chat")).data.threads.find((x) => x.student_id === S.students[0].id);
+  assert.equal((await S.teacher.post(`/api/teacher/chat/${th.id}`, { text: "سأرد غدًا إن شاء الله" })).status, 201, "المعلم يرد في أي وقت");
+  assert.equal((await S.teacher.put("/api/teacher/chat/hours", { hours: null })).status, 200);
+  assert.equal((await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "شكرًا" })).status, 201);
+});

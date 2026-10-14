@@ -7,7 +7,7 @@ import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, forbidden } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
-import { sendMessage, threadFor, openThread, teacherTeachesStudent } from "../shared/chat.service.js";
+import { sendMessage, threadFor, openThread, teacherTeachesStudent, hoursSchema, hoursLabel } from "../shared/chat.service.js";
 
 const r = Router();
 
@@ -18,8 +18,9 @@ r.get("/", handle(async (req, res) => {
               th.teacher_unread AS unread, (th.closed_at IS NOT NULL) AS closed
          FROM chat_threads th JOIN students s ON s.id = th.student_id LEFT JOIN classes c ON c.id = s.class_id
         WHERE th.teacher_id = $1 ORDER BY th.last_message_at DESC LIMIT 200`, [req.user.teacher_id]);
-    const [t] = await q("SELECT chat_enabled FROM teachers WHERE id = $1", [req.user.teacher_id]);
-    return { threads, unread: threads.reduce((n, x) => n + x.unread, 0), enabled: Boolean(t?.chat_enabled) };
+    const [t] = await q("SELECT chat_enabled, chat_hours FROM teachers WHERE id = $1", [req.user.teacher_id]);
+    return { threads, unread: threads.reduce((n, x) => n + x.unread, 0), enabled: Boolean(t?.chat_enabled),
+      hours: t?.chat_hours || null, hours_label: hoursLabel(t?.chat_hours) };
   }));
 }));
 
@@ -28,6 +29,14 @@ r.post("/start", handle(async (req, res) => {
   res.status(201).json(await inTenant(req, async (q) => {
     if (!(await teacherTeachesStudent(q, req.user.teacher_id, b.student_id))) throw forbidden("الطالب ليس في فصولك");
     return sendMessage(q, { studentId: b.student_id, teacherId: req.user.teacher_id, sender: "teacher", senderName: req.user.full_name, body: b.text });
+  }));
+}));
+
+r.put("/hours", handle(async (req, res) => {
+  const hrs = parse(z.object({ hours: hoursSchema }), req.body).hours;
+  res.json(await inTenant(req, async (q) => {
+    await q("UPDATE teachers SET chat_hours = $2 WHERE id = $1", [req.user.teacher_id, hrs ? JSON.stringify(hrs) : null]);
+    return { hours: hrs, hours_label: hoursLabel(hrs) };
   }));
 }));
 

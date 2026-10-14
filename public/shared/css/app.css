@@ -1691,3 +1691,14 @@ button.kpi-card:hover { border-color: var(--line-2); }
 .chat-closed { margin: 0; padding: 12px; border-top: 1px solid var(--line); text-align: center; font-size: 13px; color: var(--muted); background: var(--bg); }
 .chat > .chat-note.small { margin: 0; border-radius: 0; font-size: 11.5px; padding: 6px 12px; border-top: 1px solid var(--line); }
 @media (min-width: 900px) { .ca-teachers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.chat-hours { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; margin: 10px 0; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.chat-hours > div { display: flex; flex-direction: column; min-width: 0; }
+.chat-hours b { font-size: 14px; color: var(--navy); }
+.chat-hours small { font-size: 12.5px; color: var(--muted); }
+.day-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; margin: 10px 0; }
+.day-chk { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; cursor: pointer; }
+.day-chk input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
+label.chk { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+label.chk input { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
+.tc-hours { color: var(--teal) !important; }
+.tc-hours.off { color: #B5650F !important; }

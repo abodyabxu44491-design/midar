@@ -19,11 +19,33 @@ const FLAG = new RegExp([
 ].join("|"), "i");
 export const needsReview = (text) => FLAG.test(String(text || "").replace(/[\u064B-\u0652]/g, ""));
 
+export const hoursSchema = z.object({
+  days: z.array(z.number().int().min(0).max(6)).min(1, "اختر يومًا واحدًا على الأقل").max(7),
+  from: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "وقت البداية غير صحيح"),
+  to: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "وقت النهاية غير صحيح"),
+}).refine((x) => x.from < x.to, { message: "وقت النهاية يجب أن يكون بعد وقت البداية" }).nullable();
+
+const DAY_NAMES = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const fmtTime = (t) => { const [h, m] = t.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "ص" : "م"}`; };
+export function hoursLabel(hrs) {
+  if (!hrs) return null;
+  const days = [...hrs.days].sort((a, b) => a - b);
+  const run = days.length > 2 && days.every((d, i) => i === 0 || d === days[i - 1] + 1);
+  const dayText = days.length === 7 ? "كل الأيام" : run ? `${DAY_NAMES[days[0]]} إلى ${DAY_NAMES[days.at(-1)]}` : days.map((d) => DAY_NAMES[d]).join("، ");
+  return `${dayText}، من ${fmtTime(hrs.from)} إلى ${fmtTime(hrs.to)}`;
+}
+async function localNow(q) {
+  const [r] = await q(`SELECT extract(dow FROM t)::int AS dow, to_char(t, 'HH24:MI') AS hm
+     FROM (SELECT now() AT TIME ZONE COALESCE((SELECT timezone FROM school_notify), 'Asia/Aden') AS t) x`);
+  return r;
+}
+export const withinHours = (hrs, now) => !hrs || (hrs.days.includes(now.dow) && now.hm >= hrs.from && now.hm < hrs.to);
+
 export async function teachersOfStudent(q, student) {
   if (!student.class_id) return [];
   return q(
     `SELECT t.id, t.full_name AS name, array_agg(DISTINCT sb.name ORDER BY sb.name) AS subjects,
-            (t.chat_enabled AND th.closed_at IS NULL) AS can_send, (th.closed_at IS NOT NULL) AS closed,
+            (t.chat_enabled AND th.closed_at IS NULL) AS can_send, (th.closed_at IS NOT NULL) AS closed, t.chat_hours,
             th.id AS thread_id, COALESCE(th.parent_unread, 0) AS unread, th.last_message_at, th.last_preview
        FROM teacher_assignments a
        JOIN teachers t ON t.id = a.teacher_id
@@ -31,7 +53,10 @@ export async function teachersOfStudent(q, student) {
        LEFT JOIN chat_threads th ON th.teacher_id = t.id AND th.student_id = $2
       WHERE a.class_id = $1
       GROUP BY t.id, th.id
-      ORDER BY th.last_message_at DESC NULLS LAST, t.full_name`, [student.class_id, student.id]);
+      ORDER BY th.last_message_at DESC NULLS LAST, t.full_name`, [student.class_id, student.id]).then(async (rows) => {
+    const now = await localNow(q);
+    return rows.map(({ chat_hours: hrs, ...t }) => ({ ...t, hours: hoursLabel(hrs), available_now: withinHours(hrs, now) }));
+  });
 }
 
 export async function teacherTeachesStudent(q, teacherId, studentId) {
@@ -59,9 +84,12 @@ async function threadOf(q, studentId, teacherId) {
 export async function sendMessage(q, { studentId, teacherId, sender, senderName, body }) {
   const text = parse(bodySchema, body);
   if (!(await teacherTeachesStudent(q, teacherId, studentId))) throw forbidden("المراسلة متاحة مع معلمي فصل الطالب فقط");
-  const [perm] = await q("SELECT chat_enabled FROM teachers WHERE id = $1", [teacherId]);
+  const [perm] = await q("SELECT chat_enabled, chat_hours FROM teachers WHERE id = $1", [teacherId]);
   if (!perm?.chat_enabled) {
     throw forbidden(sender === "teacher" ? "لم تفعّل إدارة المدرسة المراسلة لك بعد." : "المراسلة مع هذا المعلم غير مفعّلة من إدارة المدرسة.");
+  }
+  if (sender === "parent" && !withinHours(perm.chat_hours, await localNow(q))) {
+    throw badRequest(`المعلم يستقبل الرسائل في الأوقات التالية: ${hoursLabel(perm.chat_hours)}. أرسل رسالتك خلالها.`);
   }
   const th = await threadOf(q, studentId, teacherId);
   if (th.closed_at) throw forbidden("أغلقت إدارة المدرسة هذه المحادثة.");
