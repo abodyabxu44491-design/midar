@@ -1919,3 +1919,54 @@ dialog.ho-dlg { width: min(860px, 96vw); }
 .code-pick details input { margin-top: 6px; }
 .ro-val { padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); min-height: 42px; }
 .otp-show { font-size: 34px; font-weight: 800; letter-spacing: .3em; text-align: center; padding: 14px; margin: 6px 0 10px; border-radius: 14px; background: var(--navy-soft); color: var(--navy); }
+
+/* Stable dialogs: no auto-zoom on focus, no re-centering jumps while content changes, no background scroll. */
+html { scrollbar-gutter: stable; }
+html:has(dialog[open]:modal), html:has(dialog[open]:modal) body { overflow: hidden; }
+dialog:modal { touch-action: pan-x pan-y; scrollbar-gutter: stable; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+dialog:modal:not(.sheet) { position: fixed; inset: 0; margin: max(4vh, 16px) auto auto; max-height: calc(100dvh - max(8vh, 32px)); }
+@media (max-width: 719px) {
+  dialog:modal:not(.sheet):not(.dialog-lg) { width: calc(100% - 20px); margin: 10px auto auto; max-height: calc(100dvh - 20px); }
+  dialog:modal.dialog-lg { margin: 0; max-height: 100dvh; }
+}
+@media (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not(.av-otp), select, textarea { font-size: 16px !important; }
+}
+@media print { html, body { overflow: visible !important; } }
+
+/* Teachers list */
+.tc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.tc-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: #fff;
+  cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.tc-card:hover, .tc-card:focus-visible { border-color: var(--teal); box-shadow: 0 6px 18px rgba(22,36,74,.08); outline: none; }
+.tc-card.off { opacity: .72; }
+.tc-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tc-head .avatar, .tc-head > img, .tc-head > span:first-child { flex: none; }
+.tc-head > .badge { flex: none; align-self: flex-start; }
+.tc-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tc-name { font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-spec { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-subs { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; }
+.tc-chip { max-width: 100%; padding: 3px 10px; border-radius: 999px; background: var(--teal-soft); color: var(--teal); font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-chip.more { background: var(--navy-soft); color: var(--navy); }
+.tc-chip.none { background: var(--amber-soft); color: #8A5A00; }
+.tc-facts { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 6px; margin: 0; }
+.tc-facts > div { min-width: 0; padding: 8px 10px; border-radius: 12px; background: var(--bg); }
+.tc-facts dt { font-size: 11px; color: var(--muted); }
+.tc-facts dd { margin: 2px 0 0; font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-foot { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--muted); min-width: 0; }
+.tc-foot > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tf-hero { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 18px; background: var(--teal-soft); border: 1px solid #CFE8E5; min-width: 0; }
+.tf-hero > div:first-child { flex: none; }
+.tf-text { flex: 1; min-width: 0; }
+.tf-text h2 { margin: 0; font-size: 18px; color: var(--navy); overflow-wrap: anywhere; }
+.tf-text p { margin: 2px 0 8px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.tf-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.teacher-file .kpis-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.teacher-file .kpis-row .kpi { min-width: 0; overflow-wrap: anywhere; }
+.teacher-file .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.teacher-file .info-block, .teacher-file .cred-card { min-width: 0; }
+.teacher-file .line > b, .teacher-file .cred-val, .teacher-file a.ltr { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+@media (min-width: 720px) { dialog.dialog-lg:modal { height: min(88vh, 920px); } }
+@media (max-width: 719px) { .tf-hero { gap: 10px; padding: 12px; } .teacher-file .kpis-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
