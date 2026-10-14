@@ -1,4 +1,8 @@
-// تبويب التقارير: كشف درجات الطالب أو الصف كامل، جاهز للطباعة أو الحفظ PDF
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, btn, empty, sub, notice, docLogo } from "../../shared/js/ui.js";
@@ -12,7 +16,6 @@ export default async function reports({ me }) {
     { value: academic.current?.term_id ?? "" });
   const termQuery = () => (termPicker.value ? `?term_id=${termPicker.value}` : "");
   const classPicker = select([["", "اختر الصف"], ...classes.map((c) => [c.id, c.name])]);
-  // الطالب يُختار بعد الصف: تُحمّل أسماء طلاب الصف المختار فقط
   const studentClass = select([["", "اختر الصف أولًا"], ...classes.map((c) => [c.id, c.name])]);
   const studentPicker = select([["", "اختر الطالب"]]);
   studentClass.addEventListener("change", async () => {
@@ -67,7 +70,6 @@ function reportCard(c, me) {
         h("td", {}, s.subject), h("td", {}, s.score), h("td", {}, s.max),
         h("td", {}, s.percent === null ? "—" : `${s.percent}%`, s.partial ? h("div", { class: "small muted" }, "حتى الآن") : null), h("td", {}, s.grade),
         h("td", { class: "small muted" }, s.components
-          // مع توزيع الدرجات: كل نوع بوزنه وما حصّله الطالب منه
           ? s.components.map((p) => `${p.name} (${p.weight}): ${p.earned === null ? "لم يُرصد" : `${p.earned} — ${p.score}/${p.max}`}`).join(" · ")
           : s.exams.map((e) => `${e.title}: ${e.score}/${e.max}`).join(" — "))))))
       )

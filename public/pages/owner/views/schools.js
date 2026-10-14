@@ -1,5 +1,8 @@
-// المدارس: قائمة قابلة للبحث، وصفحة احترافية لكل مدرسة:
-// الروابط (الرابط ← نسخ ← فتح)، بيانات الدخول، الاشتراك والاستخدام، والإجراءات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, empty, badge, btn, sub, toast, confirmAction, input, notice, linkRow, copyRow, stats, skeleton } from "/shared/js/ui.js";
@@ -28,7 +31,6 @@ export default async function schools({ refresh }) {
   return root;
 }
 
-/* ---------- صفحة المدرسة ---------- */
 async function schoolPage(id, root, back) {
   mount(root, skeleton(8));
   const d = await api(`/api/owner/tenants/${id}/overview`);
@@ -40,7 +42,6 @@ async function schoolPage(id, root, back) {
     toast(msg); reload();
   };
 
-  // كلمة المرور: لا تُعرض القديمة أبدًا (محفوظة ببصمة لا تُعكس). الجديدة تظهر مرة واحدة هنا.
   const pwBox = h("div");
   const issuePassword = async () => {
     if (!confirmAction(`إصدار كلمة مرور جديدة لمدير ${s.name}؟ ستتوقف كلمة المرور الحالية، وتُغلق جلساته المفتوحة.`)) return;

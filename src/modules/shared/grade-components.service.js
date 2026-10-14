@@ -1,8 +1,11 @@
-// توزيع الدرجات: أنواع الدرجات وأوزانها، وحساب نتيجة المادة الموزونة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest } from "../../core/http/errors.js";
 
-// قوالب جاهزة يبدأ منها المدير ثم يعدّلها
 export const TEMPLATES = {
   standard: { name: "مشاركة وواجبات واختبارات", items: [
     ["المشاركة والأنشطة", 10], ["الواجبات", 10], ["الاختبارات القصيرة", 10], ["الاختبار الشهري", 20], ["الاختبار النهائي", 50, true]] },
@@ -22,7 +25,6 @@ export const saveSchema = z.object({
 
 const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
-// كل التوزيعات: العام وتوزيعات الصفوف، مع عدد الدرجات المرصودة على كل نوع
 export async function list(q) {
   const rows = await q(
     `SELECT gc.id, gc.grade_id, gc.name, gc.weight, gc.is_default, gc.sort_order, g.name AS grade_name,
@@ -32,7 +34,6 @@ export async function list(q) {
   return rows.map((r) => ({ ...r, weight: Number(r.weight) }));
 }
 
-// التوزيع الذي ينطبق على صف: الخاص به إن وُجد، وإلا العام
 export async function forGrade(q, gradeId) {
   const rows = await q(
     `SELECT id, grade_id, name, weight, is_default, sort_order FROM grade_components
@@ -46,7 +47,6 @@ export async function forClass(q, classId) {
   return c ? forGrade(q, c.grade_id) : [];
 }
 
-// النوع الذي يُسجَّل عليه «اختبار» جديد: المختار إن كان ضمن توزيع صفه، وإلا الافتراضي، وإلا بلا نوع
 export async function resolveForExam(q, classId, componentId) {
   const comps = await forClass(q, classId);
   if (!comps.length) {
@@ -60,7 +60,6 @@ export async function resolveForExam(q, classId, componentId) {
   return Number((comps.find((c) => c.is_default) || comps[comps.length - 1]).id);
 }
 
-// حفظ توزيع نطاق واحد (عام أو صف): الأوزان مجموعها 100، ونوع افتراضي واحد، ولا يُحذف نوع عليه درجات
 export async function save(q, b) {
   const scope = b.grade_id ?? null;
   if (scope) {
@@ -92,7 +91,6 @@ export async function save(q, b) {
     if (keep.has(Number(c.id))) continue;
     if (c.used) throw badRequest("لا يمكن حذف نوع عليه درجات مرصودة. عدّل اسمه أو وزنه بدل حذفه.");
   }
-  // الحذف أولًا، ثم إلغاء الافتراضي والأسماء مؤقتًا حتى لا تتعارض القيود الفريدة أثناء التبديل
   await q(`DELETE FROM grade_components WHERE grade_id IS NOT DISTINCT FROM $1 AND NOT (id = ANY($2::bigint[]))`, [scope, [...keep]]);
   await q(`UPDATE grade_components SET is_default = false, name = '~' || id WHERE grade_id IS NOT DISTINCT FROM $1`, [scope]);
   let order = 0;
@@ -109,12 +107,6 @@ export async function save(q, b) {
   return list(q);
 }
 
-/**
- * نتيجة مادة واحدة من صفوف درجاتها.
- * rows: [{ score, max_score, component_id }]، comps: توزيع صف الطالب.
- * بلا توزيع: مجموع الدرجات ÷ مجموع القصوى. مع توزيع: لكل نوع نسبته × وزنه، والأنواع التي لم تُرصد بعد
- * لا تُحسب صفرًا بل يُعاد توزيع الوزن على المرصود (partial = true حتى تكتمل).
- */
 export function subjectResult(rows, comps) {
   const raw = rows.reduce((a, r) => ({ s: a.s + Number(r.score), m: a.m + Number(r.max_score) }), { s: 0, m: 0 });
   if (!comps?.length) {

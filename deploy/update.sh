@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# تحديث مدار على السيرفر إلى آخر نسخة من main: نسخة احتياطية ← الكود ← الترحيلات ← إعادة التشغيل
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 #   sudo /opt/midar/deploy/update.sh
 set -euo pipefail
 APP=/opt/midar; BRANCH="${BRANCH:-main}"

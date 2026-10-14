@@ -1,5 +1,8 @@
-// الحضور المربوط: سبب الغياب يظهر لولي الأمر، عذر ولي الأمر وقبوله، متابعة اليوم والتقارير،
-// حد تنبيه الغياب، وتنبيهات الطالب من الإدارة والمعلم مع تأكيد اطلاع ولي الأمر
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -38,7 +41,6 @@ const parent = (path = "", body = {}) => client(srv.base).post(`/api/public/${sc
 const studyDays = [];
 
 test("سبب الغياب يُحفظ مع التسجيل ويظهر لولي الأمر، ويُمسح إن صار حاضرًا", async () => {
-  // أيام دراسة فعلية فقط (قد تكون بعض الأيام نهاية أسبوع)
   for (let n = 1; studyDays.length < 4 && n < 20; n++) {
     const ds = (await admin.get(`/api/admin/attendance/day-status?date=${day(n)}`)).data;
     if (ds.study_day && !ds.holiday) studyDays.push(day(n));
@@ -51,7 +53,6 @@ test("سبب الغياب يُحفظ مع التسجيل ويظهر لولي ا�
   assert.equal(rec.excuse, "موعد طبي");
   assert.equal(rec.can_excuse, true);
 
-  // تعديل السبب وحده لا يطلب سبب تعديل
   assert.equal((await admin.post("/api/admin/attendance", { date: d1, entries: [{ student_id: s.student, status: "absent", excuse: "مراجعة المستشفى" }] })).status, 200);
   p = (await parent()).data;
   assert.equal(p.attendance.find((a) => a.day === d1).excuse, "مراجعة المستشفى");

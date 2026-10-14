@@ -2,7 +2,9 @@
   "name": "midar",
   "version": "2.5.0",
   "description": "مدار | MIDAR — منصة إدارة المدارس. برمجة وتطوير: المبرمج عبدالله السكني",
-  "author": "المبرمج عبدالله السكني",
+  "author": "Abdullah Al-Sakkani (عبدالله السكني)",
+  "license": "SEE LICENSE IN LICENSE",
+  "copyright": "Copyright (c) 2026 Abdullah Al-Sakkani. All rights reserved.",
   "private": true,
   "type": "module",
   "engines": {

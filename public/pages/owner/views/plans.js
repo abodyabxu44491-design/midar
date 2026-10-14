@@ -1,4 +1,8 @@
-// الباقات وكتالوج المميزات: إنشاء، تعديل، أسعار، عروض، حدود، تجربة، إظهار وإخفاء، أرشفة — بلا أي تعديل في الكود
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, field, input, textarea, select, btn, badge, sub, notice, toast, dialog, empty, confirmAction } from "/shared/js/ui.js";
@@ -74,9 +78,7 @@ function editor(p, catalog, refresh) {
   };
   const chk = (key, label) => { const el = h("input", { type: "checkbox", checked: !!p[key], style: "width:18px;height:18px" }); f[key] = el; return h("label", { class: "row", style: "align-items:center;gap:6px;min-width:0" }, el, label); };
 
-  // المميزات: علامة لكل ميزة، والترتيب بأزرار أعلى/أسفل
   let order = [...p.features, ...catalog.filter((c) => !p.features.includes(c.key) && c.is_active).map((c) => c.key)];
-  // كل الأقسام والمميزات الأساسية مشمولة في كل باقة دائمًا (لا مميزات مدفوعة منفصلة)، والاختيار للخدمات فقط
   const always = (c) => c.kind === "core" || c.kind === "module";
   const on = new Set([...p.features, ...catalog.filter(always).map((c) => c.key)]);
   const featBox = h("div");
@@ -92,7 +94,6 @@ function editor(p, catalog, refresh) {
   }));
   drawFeats();
 
-  // الخصم: الحقول المناسبة لنوعه فقط، مع معاينة حية للسعر كما سيظهر في الصفحة العامة
   const discountBox = h("div");
   const preview = h("div", { class: "notice" });
   const drawDiscount = () => {
@@ -158,7 +159,6 @@ function editor(p, catalog, refresh) {
   d.classList.add("xb-wide");
 }
 
-// أين يُطبَّق التعديل: الاشتراكات الجديدة فقط (الافتراضي)، الحالية والجديدة، أو مدرسة محددة — مع تأكيد
 async function applyDialog(p, plan, done) {
   const subs = await api(`/api/owner/subscriptions?plan_id=${p.id}`);
   const scope = select([["new", "الاشتراكات الجديدة فقط"], ["existing", `الاشتراكات الحالية والجديدة (${p.schools} مدرسة)`], ["tenant", "مدرسة محددة"]]);
@@ -175,7 +175,6 @@ async function applyDialog(p, plan, done) {
   })]);
 }
 
-/* ---------- كتالوج المميزات ---------- */
 function catalogPanel(catalog, refresh) {
   const KIND = { core: "أساسي", module: "قسم برمجي", service: "خدمة" };
   return panel("كتالوج المميزات", btn("+ ميزة (خدمة)", () => featureDialog(null, refresh), "sm"),

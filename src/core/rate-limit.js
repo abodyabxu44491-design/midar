@@ -1,22 +1,18 @@
-// تحديد عدد المحاولات لمنع التخمين والإغراق
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// على Firebase (Cloud Functions) تعمل عدة نسخ من الخادم وتُصفَّر عند كل بدء بارد، فالعدّاد في الذاكرة
-// لا يُشارَك بين النسخ. لذلك نقاط الدخول الحساسة (دخول، معرّف الطالب، الدفع) تستخدم مخزنًا مشتركًا
-// في قاعدة البيانات، أما الحد العام فيبقى في الذاكرة حتى لا نضيف كتابة في قاعدة البيانات لكل طلب.
 import rateLimit from "express-rate-limit";
 import { transaction } from "./db/pool.js";
 import { isDemoSchool } from "../modules/shared/demo.service.js";
 
-// في بيئة الاختبار تُرفع الحدود حتى لا تتداخل مع الاختبارات الآلية، ويُستخدم مخزن الذاكرة
 const isTest = process.env.NODE_ENV === "test";
 const factor = isTest ? 100 : 1;
 
-/**
- * مخزن عدّاد مشترك (نافذة ثابتة) على جدول rate_limits.
- * إذا تعذّر الوصول لقاعدة البيانات يُسمح بالطلب (الحماية الأساسية للحسابات في قاعدة البيانات أصلًا).
- */
 export class PgStore {
-  localKeys = false;                       // العدّاد مشترك بين النسخ
+  localKeys = false;
   constructor(prefix) { this.prefix = prefix; this.windowMs = 60_000; }
   init(options) { this.windowMs = options.windowMs; }
   key(k) { return `${this.prefix}:${k}`; }
@@ -56,22 +52,18 @@ const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSucces
 });
 
 export const limits = {
-  api: make("api", 1, 180),                              // عام (في الذاكرة)
-  site: make("site", 1, 120),                            // /api/site: استعلام قاعدة بيانات بلا تسجيل دخول
+  api: make("api", 1, 180),
+  site: make("site", 1, 120),
   health: make("health", 1, 20),                         // /healthz/db
-  login: make("login", 15, 10, { shared: true }),        // الطلبات العامة الحساسة ودخول المالك
-  // دخول الموظفين: موظفو المدرسة غالبًا على شبكة واحدة (عنوان واحد)، فالحد لكل حساب وليس لكل شبكة.
-  // التخمين محمي أيضًا بقفل الحساب بعد 5 محاولات خاطئة. الدخول الناجح لا يُحسب.
+  login: make("login", 15, 10, { shared: true }),
   staffLogin: make("staffLogin", 15, 20, { shared: true, skipSuccessfulRequests: true,
     keyGenerator: (req) => `${req.ip}|${String(req.body?.school || "").toLowerCase()}|${String(req.body?.username || "").toLowerCase()}`.slice(0, 200) }),
-  staffLoginNet: make("staffLoginNet", 15, 300, { shared: true, skipSuccessfulRequests: true }),   // سقف واسع للشبكة الواحدة
-  // إدخال معرّف الطالب ورمز الصفحة. مدرسة العرض التجريبي مستثناة: معرّفها منشور للزوار ولا شيء يُخمَّن فيها
-  // طلبات حساب ولي الأمر (بلا معرّف) لا تُحسب هنا: لا تخمين فيها، والجلسة يتحقق منها الخادم ثم الارتباط بالطالب
+  staffLoginNet: make("staffLoginNet", 15, 300, { shared: true, skipSuccessfulRequests: true }),
   studentKey: make("studentKey", 10, 20, { shared: true,
     skip: (req) => (req.body && typeof req.body === "object" && !req.body.key && req.body.student_id ? true : isDemoSchool(req.params?.school).catch(() => false)) }),
   parentLogin: make("parentLogin", 15, 20, { shared: true, skipSuccessfulRequests: true,
     keyGenerator: (req) => `${req.ip}|${String(req.params?.school || "").toLowerCase()}|${String(req.body?.phone || "").slice(0, 25)}`.slice(0, 200) }),
-  demo: make("demo", 10, 40, { shared: true }),          // الدخول للعرض التجريبي من الصفحة الرئيسية
-  payment: make("payment", 10, 20, { shared: true }),    // الدفع
-  gatePair: make("gatePair", 15, 20, { shared: true }),  // فتح رابط جهاز البوابة (رمز لمرة واحدة)
+  demo: make("demo", 10, 40, { shared: true }),
+  payment: make("payment", 10, 20, { shared: true }),
+  gatePair: make("gatePair", 15, 20, { shared: true }),
 };

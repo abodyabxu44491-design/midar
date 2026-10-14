@@ -1,26 +1,22 @@
-// محرك المزامنة (الخادم): اللقطة الأولى، التغييرات منذ آخر نقطة، استقبال العمليات، والتعارضات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// قواعد ثابتة:
-//   1) لا منطق مختلف بين الاتصال وعدمه: العمليات تُطبَّق عبر نفس دوال الحضور والدرجات التي تستخدمها الشاشات
-//      (نفس الصلاحيات، نفس سبب التعديل المطلوب، نفس قفل الاختبار المُرسل للاعتماد).
-//   2) هوية العملية (operation_id) تمنع تكرار الأثر: إعادة الإرسال تعيد النتيجة المحفوظة ولا تُطبّق مرتين.
-//   3) لا كتابة صامتة فوق قيمة أحدث: إن تغيّر السجل بعد أن رآه الجهاز (الإصدار مختلف) فهو تعارض يُراجَع.
-//   4) الجهاز لا يستلم إلا نطاقه: فصول المعلم المسندة له فقط، وبأقل الحقول اللازمة.
 import { z, t } from "../../core/http/validate.js";
 import { AppError, badRequest, forbidden, notFound } from "../../core/http/errors.js";
 import * as attendance from "./attendance.service.js";
 import * as exams from "./exams.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 
-const ATTENDANCE_DAYS = 30;           // الحضور المحفوظ على الجهاز: آخر 30 يومًا فقط
+const ATTENDANCE_DAYS = 30;
 export const CHANGES_RETENTION_DAYS = 30;
 
 const myClasses = async (q, teacherId) =>
   (await q("SELECT DISTINCT class_id FROM teacher_assignments WHERE teacher_id = $1", [teacherId])).map((r) => Number(r.class_id));
 
-/* ======================= اللقطة الأولى ======================= */
 export async function bootstrap(q, teacherId) {
-  // المؤشر يُقرأ قبل اللقطة: أي تغيير يحدث أثناءها يصل في الدفعة التالية (التكرار آمن لأن التطبيق upsert)
   const [{ cursor }] = await q("SELECT COALESCE(max(seq), 0)::bigint AS cursor FROM sync_changes");
   const classes = await myClasses(q, teacherId);
   const load = await q(
@@ -44,11 +40,9 @@ const fmtAtt = (r) => ({ student_id: Number(r.student_id), day: iso(r.day), stat
   source: r.source, first_in_at: r.first_in_at, minutes_late: r.minutes_late });
 const iso = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
 
-/* ======================= التغييرات منذ آخر نقطة ======================= */
 export const changesQuery = z.object({ since: z.coerce.number().int().min(0), limit: z.coerce.number().int().min(1).max(2000).default(500) });
 
 export async function changes(q, teacherId, { since, limit }) {
-  // مؤشر أقدم من المحفوظ: التغييرات حُذفت من السجل، فعلى الجهاز إعادة اللقطة
   if (since > 0) {
     const [{ min }] = await q("SELECT min(seq)::bigint AS min FROM sync_changes");
     if (min !== null && since < Number(min) - 1) return { reset: true };
@@ -56,7 +50,6 @@ export async function changes(q, teacherId, { since, limit }) {
   const rows = await q("SELECT seq, entity, entity_key, class_id, op FROM sync_changes WHERE seq > $1 ORDER BY seq LIMIT $2", [since, limit]);
   const cursor = rows.length ? Number(rows[rows.length - 1].seq) : since;
   const classes = new Set(await myClasses(q, teacherId));
-  // آخر حالة لكل سجل ضمن نطاق المعلم فقط (تغييرات الفصول الأخرى تُتخطّى والمؤشر يتقدم)
   const latest = new Map();
   for (const r of rows) if (r.class_id !== null && classes.has(Number(r.class_id))) latest.set(`${r.entity}:${r.entity_key}:${r.class_id}`, r);
   const keys = (entity) => [...latest.values()].filter((r) => r.entity === entity);
@@ -106,7 +99,6 @@ export async function changes(q, teacherId, { since, limit }) {
   return out;
 }
 
-/* ======================= استقبال العمليات ======================= */
 const opSchema = z.object({
   operation_id: z.string().uuid("هوية العملية غير صحيحة"),
   type: z.enum(["attendance.mark", "score.set"]),
@@ -134,10 +126,6 @@ async function registerDevice(q, deviceId, user, req) {
   if (Number(d.user_id) !== Number(user.id)) throw forbidden("هذا الجهاز مسجل لمستخدم آخر");
 }
 
-/**
- * يطبق عمليات جهاز بالترتيب. كل عملية مستقلة (نقطة حفظ خاصة بها): فشل واحدة لا يلغي غيرها.
- * يعيد نتيجة لكل عملية: applied | conflict | rejected (مع duplicate=true إن كانت مكررة).
- */
 export async function push(q, { teacherId, user, actor, req }, body) {
   await registerDevice(q, body.device_id, user, req);
   const ops = [...body.operations].sort((a, b) => (a.client_seq ?? 0) - (b.client_seq ?? 0));
@@ -147,7 +135,6 @@ export async function push(q, { teacherId, user, actor, req }, body) {
 }
 
 async function applyOne(q, ctx, op) {
-  // المطالبة بالعملية: إن كانت موجودة (أُرسلت سابقًا) نعيد نتيجتها المحفوظة ولا نطبق شيئًا
   const key = op.type === "attendance.mark" ? `${op.payload.student_id}|${op.payload.day}` : `${op.payload.exam_id}|${op.payload.student_id}`;
   const claimed = await q(
     `INSERT INTO sync_operations (tenant_id, operation_id, device_id, user_id, actor, op_type, entity_key, payload, base_version, client_seq, client_time, status)
@@ -181,12 +168,10 @@ async function applyAttendance(q, ctx, op, { force = false } = {}) {
   if (!st) throw notFound("الطالب غير موجود");
   const [cur] = await q("SELECT status, version, recorded_by FROM attendance WHERE student_id = $1 AND day = $2", [p.student_id, p.day]);
   if (cur && cur.status === p.status && !p.excuse) return { status: "applied", classId: st.class_id, result: { version: cur.version, unchanged: true } };
-  // تغيّر السجل بعد أن رآه الجهاز: تعارض (لا كتابة صامتة)
   if (cur && cur.status !== p.status && !force && cur.version !== op.base_version) {
     return { status: "conflict", classId: st.class_id,
       result: { server: { status: cur.status, version: cur.version, by: cur.recorded_by }, local: { status: p.status } } };
   }
-  // نفس دالة شاشة الحضور: صلاحية الفصل، ومنع التاريخ المستقبلي، وسبب التعديل
   await attendance.mark(q, { date: p.day, reason: cur ? (p.reason || "تعديل تمت مزامنته من جهاز المعلم") : null,
     entries: [{ student_id: p.student_id, status: p.status, excuse: p.excuse ?? undefined }] }, {
     actor: ctx.actor, allowedClass: (classId) => classId !== null && teaches(q, ctx.teacherId, classId), source: "teacher",
@@ -208,7 +193,6 @@ async function applyScore(q, ctx, op, { force = false } = {}) {
     return { status: "conflict", classId: e.class_id,
       result: { server: { score: cur.score === null ? null : Number(cur.score), version: cur.version, by: cur.updated_by }, local: { score: p.score } } };
   }
-  // نفس دالة شاشة الدرجات
   const n = await exams.saveScores(q, e, { [p.student_id]: p.score }, ctx.actor);
   if (!n) throw badRequest("الطالب ليس في فصل هذا الاختبار");
   const [now] = await q("SELECT version FROM scores WHERE exam_id = $1 AND student_id = $2", [p.exam_id, p.student_id]);
@@ -220,7 +204,6 @@ const teaches = async (q, teacherId, classId) =>
 const teachesPairQ = async (q, teacherId, classId, subjectId) =>
   (await q("SELECT 1 FROM teacher_assignments WHERE teacher_id = $1 AND class_id = $2 AND subject_id = $3", [teacherId, classId, subjectId])).length > 0;
 
-/* ======================= التعارضات ======================= */
 export async function listConflicts(q, userId = null) {
   return q(
     `SELECT o.operation_id, o.op_type, o.payload, o.result, o.actor, o.device_id, o.received_at, o.client_time,
@@ -234,11 +217,10 @@ export async function listConflicts(q, userId = null) {
 
 export const resolveSchema = z.object({ choice: z.enum(["local", "server"]) });
 
-// الحل: «local» يطبّق قيمة الجهاز (بنفس القواعد والصلاحيات) — «server» يبقي القيمة الحالية. كلاهما يُسجَّل.
 export async function resolve(q, operationId, choice, { teacherId, userId, actor, admin }) {
   const [op] = await q("SELECT * FROM sync_operations WHERE operation_id = $1 AND status = 'conflict' FOR UPDATE", [operationId]);
   if (!op) throw notFound("التعارض غير موجود أو حُلّ مسبقًا");
-  if (!admin && Number(op.user_id) !== Number(userId)) throw notFound("التعارض غير موجود أو حُلّ مسبقًا");   // لا نكشف وجود تعارضات الآخرين
+  if (!admin && Number(op.user_id) !== Number(userId)) throw notFound("التعارض غير موجود أو حُلّ مسبقًا");
   let applied = null;
   if (choice === "local") {
     const ctx = { teacherId: admin ? null : teacherId, actor };
@@ -249,7 +231,6 @@ export async function resolve(q, operationId, choice, { teacherId, userId, actor
              result = result || jsonb_build_object('resolution', $3::text) WHERE operation_id = $1`, [operationId, actor, choice]);
   return { resolved: choice, applied };
 }
-// الإدارة تحل التعارض دون قيد «فصولي» (صلاحيتها على كل الفصول)، والمعلم ضمن فصوله فقط
 async function applyAttendanceAs(q, ctx, op, admin) {
   if (!admin) return applyAttendance(q, ctx, { payload: op.payload, base_version: 0 }, { force: true });
   const p = attPayload.parse(op.payload);
@@ -265,7 +246,6 @@ async function applyScoreAs(q, ctx, op, admin) {
   return { status: "applied" };
 }
 
-/* ======================= الأجهزة (للإدارة) ======================= */
 export const listDevices = (q) => q(
   `SELECT d.device_id, d.user_id, u.full_name, u.role, d.user_agent, d.first_seen, d.last_seen, d.revoked_at,
           (SELECT count(*)::int FROM sync_operations o WHERE o.device_id = d.device_id) AS operations
@@ -275,7 +255,6 @@ export async function revokeDevice(q, deviceId, actor) {
   if (!rows.length) throw notFound("الجهاز غير موجود أو موقوف مسبقًا");
 }
 
-/* ======================= مؤشرات المزامنة (للمراقبة) ======================= */
 export async function stats(q) {
   const [r] = await q(
     `SELECT count(*) FILTER (WHERE status = 'applied')::int AS applied, count(*) FILTER (WHERE status = 'conflict')::int AS conflicts,

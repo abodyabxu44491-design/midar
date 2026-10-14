@@ -1,10 +1,14 @@
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 @import url(./fonts.css);
 
 :root {
   --navy: #16244A; --teal: #0B7A75; --teal-soft: #E3F1F0; --amber: #F0A53A; --amber-soft: #FDF3E2;
   --bg: #F3F5F7; --ink: #1A2233; --muted: #5F6B7A; --line: #DCE1E7; --red: #B8412F; --red-soft: #F8E7E4;
   --accent: var(--teal);
-  /* ألوان حالات الحضور (نفس ألوان أزرار الحضور الأصلية) */
   --amber-ink: #8A5A00; --violet: #6B5B95; --violet-soft: #EFEBF7; --navy-soft: #EAEEF6;
 }
 body.owner { --accent: var(--navy); }
@@ -19,7 +23,6 @@ h2 { font-size: 19px; margin: 0 0 12px; color: var(--navy); }
 a { color: var(--accent); }
 :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 
-/* الشريط العلوي */
 .topbar { background: var(--accent); color: #fff; }
 .topbar .in { max-width: 960px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .topbar .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -36,14 +39,12 @@ a { color: var(--accent); }
 @media (max-width: 719px) { .hero-logo { height: 126px; } }
 .print-logo { height: 48px; }
 
-/* عناصر */
 .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .panel-head h2 { margin: 0; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .row > * { flex: 1; min-width: 150px; }
 .row > .btn, .row > .switch { flex: none; min-width: 0; }
-/* على الجوال: أي صف فيه 3 حقول أو أكثر (اسم/رمز/رقم...) يتراص عموديًا بدل ما يتزاحم بعرض ضيق */
 @media (max-width: 480px) {
   .row:has(> .f:nth-child(3)) { flex-direction: column; align-items: stretch; }
   .row:has(> .f:nth-child(3)) > .f { width: 100%; min-width: 0; }
@@ -56,15 +57,10 @@ label.f.remember-row input { margin: 0; width: 16px; height: 16px; flex: none; }
 label.f.remember-row span { display: inline; margin-bottom: 0; font-size: 14px; color: var(--text, #1c1c1c); }
 input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 15px; background: #fff; color: var(--ink); }
 input[type=checkbox] { width: auto; }
-/* خانة اختيار مع نصها: الخانة بجانب النص مباشرة في سطر واحد (كانت تنفصل عنه لأن label.f كتلة) */
 label.f.pill { display: flex; align-items: center; justify-content: flex-start; gap: 10px; cursor: pointer; }
 label.f.pill > input[type=checkbox], label.f.pill > input[type=radio] { width: 20px; height: 20px; min-height: 0; flex: none; margin: 0; accent-color: var(--accent); }
 .ltr { direction: ltr; text-align: left; }
 
-/* ---------- نظام الأزرار الموحد ----------
-   primary: الإجراء الرئيسي | secondary: إجراء ثانوي بإطار | ghost: محايد | soft: خفيف | danger: حذف وإلغاء
-   whatsapp / contact: التواصل | open: فتح رابط | copy: نسخ | trial: التجربة المجانية
-   كل زر له حالات: hover، pressed (active)، disabled، وتركيز لوحة المفاتيح (focus-visible). */
 .btn { --b-bg: var(--accent); --b-fg: #fff; --b-bd: transparent; --b-hover: var(--b-bg);
   font: inherit; font-weight: 600; font-size: 14px; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--b-bd);
   background: var(--b-bg); color: var(--b-fg); cursor: pointer; white-space: nowrap; text-decoration: none;
@@ -88,8 +84,6 @@ label.f.pill > input[type=checkbox], label.f.pill > input[type=radio] { width: 2
 .btn.sm { padding: 5px 10px; font-size: 13px; }
 .btn.wide { width: 100%; }
 
-/* التنقل بين الأقسام — الجوال والشاشات المتوسطة: شريط أفقي مثبّت أعلى الشاشة عند التمرير،
-   كل قسم أيقونة فوق اسمه، والقسم المفتوح يتوسط الشريط تلقائيًا */
 .tabs {
   display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
@@ -146,7 +140,6 @@ table.grid th, table.grid td { padding: 8px; border-bottom: 1px solid var(--line
 table.grid th { color: var(--muted); font-weight: 600; }
 .scroll { overflow-x: auto; }
 
-/* تسجيل الدخول */
 .auth-hero { background: var(--navy); color: #fff; padding: 36px 20px 70px; }
 .auth-hero .in { max-width: 420px; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .auth-hero .brand { font-size: 36px; }
@@ -155,16 +148,13 @@ table.grid th { color: var(--muted); font-weight: 600; }
 .auth-card > h2 { text-align: center; margin-bottom: 6px; }
 .auth-card > .sub { text-align: center; margin-bottom: 16px; }
 
-/* النوافذ */
 dialog { border: none; border-radius: 14px; padding: 0; width: min(440px, calc(100% - 32px)); }
 dialog::backdrop { background: rgba(22, 36, 74, .45); }
 dialog .d-in { padding: 18px; }
-/* أزرار الحوار ثابتة أسفله: زر الإرسال ظاهر دائمًا حتى لو كان النموذج أطول من شاشة الجوال */
 dialog:modal { max-height: calc(100dvh - 24px); overflow: auto; overscroll-behavior: contain; }
 dialog .d-in > .row.spaced:last-child { position: sticky; bottom: -18px; background: #fff; margin: 0 -18px -18px; padding: 12px 18px 18px;
   border-top: 1px solid var(--line); z-index: 2; }
 
-/* صفحة الطلاب */
 .class-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
 .class-card > h3 { margin: 0; padding: 12px 16px; background: var(--navy); color: #fff; font-size: 17px; display: flex; justify-content: space-between; }
 .class-head { width: 100%; font: inherit; font-size: 17px; font-weight: 700; text-align: right; color: #fff; background: var(--navy);
@@ -192,13 +182,10 @@ footer.dev { text-align: center; padding: 14px; font-size: 12px; color: var(--mu
 .hidden { display: none !important; }
 
 @media print {
-  /* هامش الصفحة صفر: المتصفح لا يجد مكانًا لطباعة الرابط والتاريخ وعنوان الصفحة أعلى الورقة وأسفلها،
-     والمسافة عن حافة الورقة تُعطى للمحتوى نفسه */
   @page { margin: 0; }
   body { padding: 12mm 12mm 14mm !important; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
   .topbar, .tabs, .btn, footer.dev { display: none !important; }
   body { background: #fff; }
-  /* القائمة الجانبية مخفية في الطباعة: المحتوى يأخذ عرض الورقة كاملًا */
   .tabs-layout { display: block !important; }
   main { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 }
@@ -235,7 +222,6 @@ table.timetable tbody th { text-align: right; white-space: nowrap; background: v
 table.timetable tr.today { background: var(--amber-soft); }
 table.timetable select { padding: 4px; font-size: 12px; }
 .muted { color: var(--muted); }
-/* كشف الدرجات */
 .report { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 .report header { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 2px solid var(--navy); padding-bottom: 10px; margin-bottom: 12px; }
 .report h2 { margin: 0; }
@@ -247,7 +233,6 @@ table.timetable select { padding: 4px; font-size: 12px; }
   .report { border: none; box-shadow: none; page-break-after: always; }
   .panel, .stats, .toolbar { box-shadow: none; }
 }
-/* الصفحة التسويقية */
 .mk-hero { background: var(--navy); color: #fff; padding: 46px 20px 54px; text-align: center; }
 .mk-hero h1 { font-size: 30px; margin: 18px 0 6px; }
 .mk-hero p { opacity: .9; margin: 0 auto; max-width: 560px; }
@@ -262,7 +247,6 @@ table.timetable select { padding: 4px; font-size: 12px; }
 .mk-section { max-width: 960px; margin: 0 auto; padding: 26px 16px; }
 .mk-section > h2 { text-align: center; margin-bottom: 16px; }
 
-/* تسجيل الحضور */
 .att-head { display: grid; grid-template-columns: 1fr; gap: 0 12px; }
 @media (min-width: 720px) { .att-head { grid-template-columns: 1fr 1fr; } }
 .att-date .f { margin-bottom: 6px; }
@@ -308,16 +292,13 @@ table.timetable select { padding: 4px; font-size: 12px; }
 .quick-name[data-state="late"] { border-color: var(--amber); background: var(--amber-soft); color: var(--amber-ink); }
 .quick-name[data-state="excused"] { border-color: var(--violet); background: var(--violet-soft); color: var(--violet); }
 
-/* ===================== التجاوب: جوال وكمبيوتر ===================== */
-/* مساحات آمنة في أجهزة iPhone وعند التثبيت كتطبيق */
 body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 
-/* --- الجوال: مساحات لمس مريحة --- */
 @media (max-width: 719px) {
   main { --gut: 12px; }
   .btn { min-height: 44px; padding: 11px 16px; }
   .btn.sm { min-height: 38px; }
-  input, select, textarea { min-height: 44px; font-size: 16px; }  /* 16px يمنع تكبير الشاشة في iOS */
+  input, select, textarea { min-height: 44px; font-size: 16px; }
   input[type=checkbox], input[type=radio] { min-height: 0; }
   .panel { padding: 14px; }
   .line { padding: 12px 0; }
@@ -329,17 +310,14 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   table.grid { font-size: 13px; }
 }
 
-/* --- اللوحي والكمبيوتر --- */
 @media (min-width: 720px) {
   main { --gut: 20px; max-width: 1120px; }
   .topbar .in { max-width: 1120px; }
   .stats { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 }
 
-/* --- الشاشات الكبيرة: التبويبات عمود جانبي ثابت --- */
 @media (min-width: 1080px) {
   .tabs-layout { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 18px; align-items: start; }
-  /* الكمبيوتر: عمود جانبي ثابت، أيقونة بجانب اسم القسم */
   .tabs-layout > .tabs {
     flex-direction: column; gap: 2px; overflow: visible; padding: 8px; margin: 0;
     position: sticky; top: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: none;
@@ -352,7 +330,6 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   .tabs-layout > .tabs button.on::before {
     content: ""; position: absolute; inset-inline-start: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--accent);
   }
-  /* الصفحة العامة وملف الطالب: عمودان على الشاشات الكبيرة */
   .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; align-items: start; }
   .cols-2 > * { min-width: 0; }
 }
@@ -361,7 +338,6 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   .topbar .in { max-width: 1280px; }
 }
 
-/* شريط عنوان التطبيق المثبّت على سطح المكتب */
 @media (display-mode: window-controls-overlay) {
   .topbar { position: sticky; top: 0; z-index: 20; -webkit-app-region: drag; }
   .topbar .btn { -webkit-app-region: no-drag; }
@@ -370,7 +346,6 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
   .install-hint { display: none !important; }
 }
 
-/* أيقونة تثبيت التطبيق: صغيرة في رأس الصفحة، تختفي بعد التثبيت */
 .top-acts { display: flex; align-items: center; gap: 8px; flex: none; }
 .install-ic { width: 38px; height: 38px; flex: none; display: inline-grid; place-items: center; border-radius: 12px; cursor: pointer;
   border: 1px solid var(--line); background: #fff; color: var(--navy); transition: transform .15s, background .15s; }
@@ -395,11 +370,9 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .alert-card.bad { border-color: var(--red); background: var(--red-soft); color: var(--red); }
 .search-result { display: block; width: 100%; text-align: right; background: none; border: none; border-top: 1px solid var(--line); padding: 10px 0; font: inherit; cursor: pointer; }
 .search-result:hover { background: var(--teal-soft); }
-/* بطاقة الترحيب (بوابة المعلم) */
 .welcome-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 14px; border-radius: 14px; background: var(--teal-soft); border: 1px solid rgba(15,118,110,.15); }
 .welcome-card .t-info b { font-size: 17px; color: var(--navy); white-space: normal; }
 .t-avatar.lg { width: 64px; height: 64px; font-size: 24px; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
-/* بطاقات المعلمين */
 .t-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
 .t-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; min-width: 0; }
 .t-avatar { width: 48px; height: 48px; flex: none; border-radius: 50%; object-fit: cover; background: var(--teal-soft); }
@@ -408,9 +381,7 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-are
 .t-info b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-info small { color: var(--muted); font-size: 12px; line-height: 1.5; }
 @media print { .t-card { break-inside: avoid; } }
-/* شعار المدرسة على الأوراق المطبوعة: بحجم شعار المنصة الذي يحل محله، بلا قص */
 img.doc-school-logo { object-fit: contain; width: auto; max-width: 140px; }
-/* شعار المدرسة في الإعدادات والمعالج */
 .logo-edit { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .logo-preview { width: 120px; height: 120px; flex: none; border: 1px solid var(--line); border-radius: 16px; background: #fff; display: grid; place-items: center; padding: 10px; }
 .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -418,7 +389,6 @@ img.doc-school-logo { object-fit: contain; width: auto; max-width: 140px; }
 .logo-acts { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 .lvl-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 8px; vertical-align: middle; background: var(--teal); }
 .lvl-dot.urgent { background: var(--red); } .lvl-dot.action { background: var(--amber); }
-/* رأس الرئيسية: شعار المدرسة واسمها واليوم */
 .dash-hero { display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 14px; border-radius: 16px; background: linear-gradient(135deg, var(--accent), #0b5d59); color: #fff; }
 .dash-logo { width: 60px; height: 60px; flex: none; border-radius: 14px; background: #fff; object-fit: contain; padding: 5px; }
 .dash-logo.ph { display: grid; place-items: center; color: var(--accent); font-size: 26px; font-weight: 700; }
@@ -428,8 +398,6 @@ img.doc-school-logo { object-fit: contain; width: auto; max-width: 140px; }
 @media (max-width: 480px) { .dash-hero { padding: 12px; } .dash-logo { width: 48px; height: 48px; } .dash-hero h2 { font-size: 17px; } }
 
 .receipt { max-width: 520px; }
-/* طباعة نافذة مفتوحة (إيصال، كشف حساب، بطاقة تسليم): النافذة وحدها. بدون نافذة مفتوحة تُطبع الصفحة نفسها
-   (كشوف الدرجات، البطاقات، سجل الحضور…) — كانت القاعدة تخفي كل شيء فتخرج الورقة فارغة */
 @media print {
   body:has(dialog[open]) > *:not(dialog) { display: none !important; }
   dialog[open] { position: static; display: block; border: none; width: 100%; max-width: none; }
@@ -437,7 +405,6 @@ img.doc-school-logo { object-fit: contain; width: auto; max-width: 140px; }
   dialog[open] .row, dialog[open] .btn { display: none !important; }
 }
 
-/* حقل كلمة المرور */
 .pw-wrap { position: relative; display: block; }
 .pw-wrap input { width: 100%; padding-inline-start: 44px; }
 .pw-toggle { position: absolute; inset-inline-start: 6px; top: 50%; transform: translateY(-50%);
@@ -445,7 +412,6 @@ img.doc-school-logo { object-fit: contain; width: auto; max-width: 140px; }
 .pw-toggle:hover { background: var(--bg); color: var(--ink); }
 input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display: none; }
 
-/* صف الطالب: أعمدة مرتبة على الكمبيوتر، وبطاقة مرتبة على الجوال */
 .student-row { display: grid; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); align-items: center; }
 .student-row:first-of-type { border-top: none; }
 .student-row .s-name { font-size: 15px; }
@@ -458,7 +424,6 @@ input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display:
   .student-row .s-actions .s-label { display: inline; }
 }
 
-/* قائمة الأقسام */
 .menu-title { margin: 0 0 12px; }
 .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .menu-card { display: flex; align-items: center; gap: 10px; text-align: right; font: inherit; cursor: pointer;
@@ -471,11 +436,9 @@ input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display:
 .section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .section-head h2 { margin: 0; font-size: 19px; }
 
-/* ثبات العرض مثل التطبيق: بلا تكبير أو تصغير بالإصبع، وبلا تمرير أفقي */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
 body { overflow-x: hidden; overscroll-behavior-y: contain; }
 
-/* بطاقات معرّفات الطلاب */
 .cards-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .id-card { border: 1px dashed var(--line); border-radius: 12px; padding: 14px; background: #fff; }
 .id-card header { display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -487,7 +450,6 @@ body { overflow-x: hidden; overscroll-behavior-y: contain; }
 .id-card .id-row.big b { font-family: ui-monospace, monospace; font-size: 17px; letter-spacing: 1px; color: var(--navy); }
 .id-card .id-note { color: var(--muted); font-size: 11.5px; line-height: 1.7; margin: 8px 0 0; }
 
-/* سجل الحضور الشهري */
 .report.wide { max-width: none; }
 table.month-sheet th, table.month-sheet td { padding: 4px 6px; text-align: center; font-size: 12px; }
 table.month-sheet tbody th { text-align: right; white-space: nowrap; position: sticky; inset-inline-start: 0; background: #fff; }
@@ -501,7 +463,6 @@ table.month-sheet .mark-excused { color: var(--violet); font-weight: 700; }
   table.month-sheet { font-size: 10px; }
 }
 
-/* معالج الإعداد */
 .steps { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; }
 .steps .step { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
   background: #fff; border: 2px solid var(--line); color: var(--muted); font-weight: 700; }
@@ -511,7 +472,6 @@ table.month-sheet .mark-excused { color: var(--violet); font-weight: 700; }
 .subject-pick { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; cursor: pointer; }
 .subject-pick:hover { border-color: var(--accent); }
 
-/* الهيكل الأكاديمي */
 .grade-block { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: #FBFCFD; }
 .grade-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
 .grade-head b { font-size: 15px; color: var(--navy); }
@@ -520,7 +480,6 @@ table.month-sheet .mark-excused { color: var(--violet); font-weight: 700; }
 .section-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--teal-soft); color: var(--navy);
   border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600; }
 
-/* التحديد المتعدد والإجراءات الجماعية */
 .student-row.head { padding: 8px 0; }
 .student-row .s-pick { display: flex; align-items: center; }
 .bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--teal-soft);
@@ -529,7 +488,6 @@ table.month-sheet .mark-excused { color: var(--violet); font-weight: 700; }
   .student-row { grid-template-columns: 28px minmax(180px, 1.3fr) 120px minmax(160px, 1.1fr) 120px auto; }
 }
 
-/* مصفوفة توزيع المعلمين */
 table.matrix th, table.matrix td { padding: 6px 8px; text-align: center; vertical-align: middle; }
 table.matrix tbody th { text-align: right; white-space: nowrap; background: var(--bg); position: sticky; inset-inline-start: 0; }
 table.matrix select { min-width: 130px; font-size: 12.5px; padding: 5px; }
@@ -537,12 +495,10 @@ table.matrix select { min-width: 130px; font-size: 12.5px; padding: 5px; }
 .subject-group { margin-bottom: 10px; }
 .subject-pick.suggested { border-color: var(--teal); background: var(--teal-soft); }
 
-/* شعب قابلة للضغط في تبويب الطلاب */
 button.section-chip { border: 1px solid transparent; cursor: pointer; font: inherit; }
 button.section-chip.on { background: var(--navy); color: #fff; }
 button.section-chip:hover { border-color: var(--accent); }
 
-/* ملف الطالب: قائمة أقسام جانبية ومحتوى واسع */
 .profile-page { max-width: 1180px; }
 .profile-layout { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
 .profile-nav { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
@@ -560,14 +516,12 @@ button.section-chip:hover { border-color: var(--accent); }
   .profile-nav button { width: 100%; }
 }
 
-/* ===== بوابات الدخول: خلفية تعليمية هادئة ونموذج مندمج ===== */
 .gate { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px;
   background:
     radial-gradient(1200px 600px at 85% 10%, rgba(19,124,118,.35), transparent 60%),
     radial-gradient(900px 500px at 10% 90%, rgba(201,162,77,.18), transparent 55%),
     linear-gradient(160deg, #0E2038 0%, #143354 45%, #0B1B2E 100%);
   position: relative; overflow: hidden; }
-/* رموز تعليمية خفيفة: سبورة وكتب وتقويم — مرسومة بالـ CSS بلا صور ثقيلة */
 .gate::before, .gate::after { content: ""; position: absolute; opacity: .08; pointer-events: none; }
 .gate::before { inset-inline-start: -60px; top: 12%; width: 320px; height: 210px; border: 10px solid #fff; border-radius: 12px;
   box-shadow: 0 0 0 18px rgba(255,255,255,.06); transform: rotate(-6deg); }
@@ -610,7 +564,6 @@ button.section-chip:hover { border-color: var(--accent); }
 @media (max-width: 899px) { .hide-sm { display: none !important; } }
 @media (min-width: 900px) { .show-sm { display: none !important; } }
 
-/* العنوان والوصف تحت الشعار يكونان في الوسط */
 .gate-card .hero-logo, .gate-aside .hero-logo { display: block; margin-inline: auto; }
 .gate-card h2, .gate-card .gate-sub { text-align: center; }
 .gate-aside { text-align: center; }
@@ -618,7 +571,6 @@ button.section-chip:hover { border-color: var(--accent); }
 .gate-roles h3 { text-align: center; }
 .gate-card .sub, .gate-card .empty { color: rgba(255,255,255,.62); text-align: center; }
 
-/* أداة إسناد المعلم: صفوف مطوية تُفتح واحدًا واحدًا */
 .assign-list { display: grid; gap: 6px; }
 .assign-item { border: 1px solid var(--line); border-radius: 10px; background: #fff; overflow: hidden; }
 .assign-item.open { border-color: var(--accent); }
@@ -634,7 +586,6 @@ button.section-chip:hover { border-color: var(--accent); }
   border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; }
 .assign-subject:hover { border-color: var(--accent); }
 
-/* مركز التنبيهات */
 .notif-group { margin-bottom: 12px; }
 .notif { display: flex; align-items: center; gap: 12px; width: 100%; text-align: right; cursor: pointer;
   background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 6px; font: inherit; }
@@ -647,7 +598,6 @@ button.section-chip:hover { border-color: var(--accent); }
 .notif.bad .notif-count { background: var(--red-soft); color: var(--red); }
 .notif .notif-text b { display: block; color: var(--ink); }
 
-/* ---------- الاشتراك داخل المدرسة ---------- */
 .sub-banner { display: flex; gap: 12px; align-items: center; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
   background: #EAF4FF; color: #1F4E8C; border: 1px solid #C9DFF7; }
 .sub-banner.trial { background: #FFF6E6; color: #7A4B00; border-color: #F3D9A8; }
@@ -670,7 +620,6 @@ button.section-chip:hover { border-color: var(--accent); }
 .sub-plan h3 { margin: 0; font-size: 17px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .sub-plan .btn { margin-top: auto; }
 
-/* ---------- الأداء: هيكل التحميل وشريط التحديث ---------- */
 .skel { padding: 14px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
 .skel-line { height: 14px; border-radius: 7px; margin: 12px 0; background: linear-gradient(90deg, var(--bg) 25%, #F7F9FB 37%, var(--bg) 63%);
   background-size: 400% 100%; animation: skel 1.3s ease infinite; }
@@ -679,9 +628,8 @@ button.section-chip:hover { border-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .skel-line { animation: none; } }
 .update-bar { position: fixed; bottom: 14px; inset-inline: 14px; z-index: 1000; display: flex; gap: 12px; align-items: center; justify-content: space-between;
   background: var(--navy); color: #fff; padding: 10px 14px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.2); max-width: 520px; margin-inline: auto; }
-.app-version { font-size: 11px; }   /* بلا شفافية: لون --muted وحده يحقق تباين القراءة */
+.app-version { font-size: 11px; }
 img[loading="lazy"] { content-visibility: auto; }
-/* صفوف القوائم على الجوال: أزرار الإجراءات تنزل لسطر مستقل بدل أن تدفع الصفحة للعرض */
 @media (max-width: 700px) {
   .line { flex-wrap: wrap; }
   .line > .row { flex: 1 1 100% !important; flex-wrap: wrap; justify-content: flex-start; min-width: 0; }
@@ -691,7 +639,6 @@ img[loading="lazy"] { content-visibility: auto; }
 .diag.ok { background: var(--teal-soft); color: var(--teal); }
 .diag.bad { background: #FDECEA; color: var(--red); }
 
-/* ---------- صف الرابط: الرابط ← نسخ ← فتح ---------- */
 .link-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; margin-bottom: 8px; }
 .link-row .lr-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .link-row .lr-text > b { display: flex; align-items: center; gap: 6px; font-size: 14px; }
@@ -707,7 +654,6 @@ img[loading="lazy"] { content-visibility: auto; }
 .school-row .go { color: var(--accent); font-size: 20px; }
 .sec-title { margin: 12px 0 6px; font-size: 13.5px; color: var(--muted); }
 
-/* ---------- مؤشر الاتصال والمزامنة ---------- */
 .sync-pill { font: inherit; font-size: 12.5px; font-weight: 600; border-radius: 999px; padding: 5px 12px; border: 1px solid transparent; cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
 .sync-pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
@@ -723,7 +669,6 @@ img[loading="lazy"] { content-visibility: auto; }
 .sync-pill .short { display: none; }
 @media (max-width: 560px) { .sync-pill .full { display: none; } .sync-pill .short { display: inline; } }
 
-/* ---------- قفل المحاولات الخاطئة: عد تنازلي ---------- */
 .lock-box { background: #FFF6E6; border: 1px solid #F3D9A8; color: #7A4B00; border-radius: 12px; padding: 14px; text-align: center; margin: 8px 0; }
 .lock-title { font-weight: 700; font-size: 14.5px; margin-bottom: 6px; }
 .lock-sub { font-size: 12.5px; opacity: .85; }
@@ -731,7 +676,6 @@ img[loading="lazy"] { content-visibility: auto; }
 .lock-bar { height: 6px; background: #F3D9A8; border-radius: 3px; overflow: hidden; margin: 0 auto 8px; max-width: 260px; }
 .lock-bar i { display: block; height: 100%; background: #E8A33D; border-radius: 3px; transition: width .25s linear; }
 
-/* ---- معالج إعداد المدرسة: شريط تقدم وبطاقات اختيار كبيرة ---- */
 .wiz-progress { margin-bottom: 14px; }
 .wiz-bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
 .wiz-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s; }
@@ -754,7 +698,6 @@ img[loading="lazy"] { content-visibility: auto; }
 .prev-list li { padding: 4px 0; }
 .prev-edit { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
 
-/* ===== صفحة الطلاب الجديدة (v2.2): إحصائيات، بحث، بطاقات، نوافذ كبيرة ===== */
 dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 @media (max-width: 640px) {
   dialog.dialog-lg { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; }
@@ -800,7 +743,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .student-file .profile-nav button.on { border-color: var(--accent); background: var(--teal-soft); font-weight: 700; }
 .student-file .profile-nav small { color: var(--muted); font-weight: 400; }
 .more-list { display: grid; gap: 8px; }
-/* معالج الاستيراد */
 .wiz-steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 14px; font-size: 13px; }
 .wiz-steps li { flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px; background: #EEF1F4; color: var(--muted); }
 .wiz-steps li.on { background: var(--accent); color: #fff; font-weight: 700; }
@@ -819,7 +761,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .wiz .scroll { overflow-x: auto; }
 .wiz table.grid { min-width: 520px; }
 
-/* المعلمون: تبويبات ملف المعلم */
 .tab-chip { cursor: pointer; }
 .chips .tab-chip { white-space: nowrap; border: 1px solid var(--line); border-radius: 20px; padding: 6px 14px; font-size: 14px; background: #fff; }
 .chips .tab-chip.on { border-color: var(--accent); background: var(--teal-soft); font-weight: 700; }
@@ -827,7 +768,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .tabs-scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .tabs-scroll .tab-chip { flex: none; }
 
-/* ---- منتقي المرحلة/الصف/الشعبة الموحّد ---- */
 .picker-btn { font: inherit; font-size: 14px; text-align: right; background: #fff; border: 1px solid var(--line); border-radius: 8px;
   padding: 10px 12px; color: var(--ink); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .picker-btn.has-value { border-color: var(--accent); color: var(--accent); font-weight: 700; }
@@ -839,7 +779,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .picker-row.on { color: var(--accent); font-weight: 700; }
 .picker-row.back { color: var(--muted); justify-content: flex-start; gap: 6px; }
 
-/* ملف المعلم في الإدارة */
 .file-hero { display: flex; gap: 14px; align-items: center; padding: 14px; margin-bottom: 12px; border-radius: 14px;
   background: var(--teal-soft); border: 1px solid rgba(15,118,110,.15); }
 .file-hero .s-photo.lg { width: 84px; height: 84px; }
@@ -862,7 +801,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   .cred-row { grid-template-columns: 1fr; gap: 2px; }
 }
 
-/* بوابة المعلم: الرئيسية وطلابي وحسابي */
 .today-list { display: flex; flex-direction: column; gap: 8px; }
 .today-item, .stu-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .today-no { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; color: var(--accent); background: var(--teal-soft); }
@@ -896,7 +834,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   .stu-stats:empty { display: none; }
 }
 
-/* الحضور: متابعة الإدارة والتقارير وملف الطالب */
 .att-parts { margin-bottom: 12px; }
 .att-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 0 0 14px; }
 .att-kpis > div { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 14px; color: var(--ink); }
@@ -939,7 +876,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .att-table tr.low td:first-child { box-shadow: inset -3px 0 0 var(--red); }
 .att-table .n-absent { color: var(--red); font-weight: 700; } .att-table .n-late { color: var(--amber-ink); font-weight: 700; }
 .table-wrap { overflow-x: auto; }
-/* ملف الطالب: أيام الحضور والتنبيهات */
 .att-days { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .att-day-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .att-day-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -973,13 +909,11 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   .att-parts, .att-person-acts, .att-table td:last-child, .att-table th:last-child { display: none !important; }
 }
 
-/* شرائح التصفية (مشتركة: الاختبارات والحضور وملف الطالب) */
 .xb-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .xb-chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; cursor: pointer; color: var(--ink); }
 .xb-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .xb-chip .n { opacity: .7; margin-inline-start: 4px; }
 
-/* منطقة الحذر — نفس مكونات المنصة: لوحات بيضاء، بطاقات مثل .menu-card، شريط .sub-banner، والخطورة بشارة فقط */
 .dz { display: flex; flex-direction: column; gap: 12px; }
 .dz-hero { margin: 0; align-items: flex-start; }
 .dz-hero b { font-size: 16px; }
@@ -1042,11 +976,9 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
   .dz-steps li { min-width: 64px; font-size: 11px; }
   .dz-wizard { padding: 12px; }
 }
-/* أرقام الحضور في ملف الطالب: شرائح مدمجة كما في بقية الملف */
 .att-inline .s-present b { color: var(--teal); } .att-inline .s-absent b { color: var(--red); }
 .att-inline .s-late b { color: var(--amber-ink); } .att-inline .s-excused b { color: var(--violet); }
 
-/* نافذة تقدم العمليات الطويلة */
 .job-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 6px; }
 .job-row b { color: var(--teal); font-variant-numeric: tabular-nums; }
 .job-bar { height: 10px; border-radius: 6px; margin: 8px 0 12px; }
@@ -1055,7 +987,6 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 .sub-banner.stack { flex-direction: column; align-items: stretch; }
 .sub-banner.stack .btn { align-self: flex-start; }
 
-/* المالية: شريط الأقسام، والبطاقات المختصرة، والموظفون، والرواتب */
 .fin-parts { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 6px 0; }
 .fin-range { align-items: end; margin-bottom: 10px; }
 .fin-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
@@ -1087,13 +1018,10 @@ dialog.dialog-lg { width: min(880px, calc(100% - 24px)); }
 }
 input.num { text-align: left; font-variant-numeric: tabular-nums; }
 
-/* محتوى الأقسام لا يتمدد بعرض أعرض جدول فيه (عمود الشبكة الافتراضي يتمدد بحسب المحتوى):
-   الجدول العريض يتمرر داخل لوحته بدل أن تتجاوز الصفحة عرض الشاشة */
 .tabs-layout > [role="tabpanel"], .profile-layout > * { min-width: 0; }
 .panel { min-width: 0; }
 .panel > table, .panel > .grid, .panel > div > table.grid { display: block; overflow-x: auto; max-width: 100%; }
 
-/* ===================== الإشعارات ===================== */
 .bell-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none;
   border-radius: 10px; border: 1px solid rgba(255,255,255,.35); background: transparent; color: #fff; cursor: pointer; -webkit-app-region: no-drag; }
 .bell-btn:hover { background: rgba(255,255,255,.12); }
@@ -1108,13 +1036,11 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .inbox-item .tx { display: grid; gap: 2px; min-width: 0; }
 .inbox-item .tx small { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
 .inbox-item .tx small.muted { font-size: 11.5px; }
-/* قائمة اختيار متعددة (الفئة المستهدفة للإعلان) */
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 260px; overflow-y: auto;
   padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .check-grid .check { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .check-grid .check:hover { background: var(--bg); }
 .check-grid .check input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
-/* مركز الإشعارات */
 .ncenter { display: grid; gap: 10px; }
 .ncenter-head { display: flex; gap: 8px; align-items: center; }
 .ncenter-head input { flex: 1; min-width: 0; }
@@ -1152,7 +1078,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .rules-table td.c, .rules-table th.c { text-align: center; width: 92px; }
 @media (max-width: 640px) { .bell-btn { width: 34px; height: 34px; } }
 
-/* ===================== السلوك ===================== */
 .beh-kpis .s-present b { color: var(--teal); } .beh-kpis .s-absent b { color: var(--red); }
 .beh-list { display: grid; gap: 6px; }
 .beh-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #fff; border: 1px solid var(--line); }
@@ -1172,7 +1097,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .score-pill { display: inline-block; min-width: 44px; text-align: center; padding: 2px 8px; border-radius: 12px; font-weight: 700; background: var(--teal-soft); color: var(--teal); }
 .score-pill.low { background: var(--red-soft); color: var(--red); }
 
-/* ===================== الشهادات ===================== */
 .verify-card .verify-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
 .verify-card .verify-head h1 { margin: 0; font-size: 22px; }
 .verify-card .verify-head p { margin: 2px 0 0; color: var(--muted); }
@@ -1205,7 +1129,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 }
 @media (max-width: 640px) { .cert { padding: 16px 12px; } .cert h2.cert-title { font-size: 19px; } .cert table { font-size: 12px; } }
 
-/* ===================== الاختبار الإلكتروني ===================== */
 .oe-take { display: grid; gap: 12px; }
 .oe-bar { position: sticky; top: 0; z-index: 15; display: flex; justify-content: space-between; align-items: center; gap: 10px;
   background: var(--navy); color: #fff; padding: 10px 14px; border-radius: 12px; }
@@ -1239,7 +1162,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .oe-essay { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 8px 10px; }
 @media (max-width: 640px) { .oe-match-row { grid-template-columns: 1fr; } }
 
-/* ===================== شؤون الموظفين ===================== */
 .sa-list { display: grid; gap: 6px; margin: 10px 0; }
 .sa-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .sa-btns { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -1270,7 +1192,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
   .cal-month { display: none; }
 }
 
-/* ===================== الاستبيانات والمواعيد ===================== */
 .sv-rating { display: flex; gap: 6px; }
 .sv-rating label { flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 10px; padding: 10px 0; cursor: pointer; }
 .sv-rating input { display: none; }
@@ -1282,7 +1203,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .mt-slot { border: 1px solid var(--teal); color: var(--teal); background: #fff; border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; direction: ltr; min-height: 38px; }
 .mt-slot:hover { background: var(--teal-soft); }
 
-/* ---------- المساعد الذكي ---------- */
 .ai-ask { display: flex; gap: 8px; align-items: flex-end; margin: 10px 0 4px; }
 .ai-ask textarea { flex: 1; min-height: 48px; resize: vertical; }
 .ai-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
@@ -1314,7 +1234,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .ai-tips { background: var(--amber-soft); border-radius: 12px; padding: 10px 14px; margin-top: 10px; }
 .ai-tips ul { margin: 6px 0 0; }
 @media (max-width: 600px) { .ai-cards { grid-template-columns: 1fr 1fr; } .ai-card { flex-direction: column; } }
-/* قائمة واتساب وبوابة المدرسة */
 .gw-steps { margin: 6px 0 10px; padding-inline-start: 20px; line-height: 1.9; }
 .wa-vars { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
 .wa-vars .chip { color: var(--teal); }
@@ -1328,7 +1247,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .wa-done { text-align: center; padding: 18px 0; }
 .sw-line { display: inline-flex; align-items: center; gap: 8px; }
 
-/* توزيع الدرجات */
 .gc-rows { display: grid; gap: 8px; margin: 12px 0; }
 .gc-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .gc-row .gc-n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); font-weight: 700; font-size: 13px; }
@@ -1338,7 +1256,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
   .gc-row .gc-w, .gc-row .gc-d { grid-column: 2; }
 }
 
-/* بطاقة ولي الأمر */
 .pc-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 430px), 1fr)); gap: 16px; }
 .pc-wrap { display: grid; gap: 8px; align-content: start; }
 .pc { background: #fff; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 6px 20px rgba(20, 33, 61, .06); break-inside: avoid; }
@@ -1373,7 +1290,6 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
   body.pc-print-one .pc.pc-printing { max-width: 120mm; margin: 0 auto; }
 }
 
-/* شريط مدرسة العرض التجريبي (أسفل الشاشة، لا يغطي المحتوى) */
 .demo-bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 900; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #16244A; color: #fff; font-size: 14px; font-weight: 600;
   box-shadow: 0 -6px 20px rgba(0,0,0,.18); }
@@ -1386,7 +1302,6 @@ html.demo-mode .att-bar { bottom: 58px; }
 html.demo-mode .toast { bottom: 78px; z-index: 950; }
 
 @media (max-width: 600px) { html.demo-mode .toast { bottom: 108px; }  }
-/* بطاقة الحضور (QR للبوابة) */
 .ac { width: 86mm; height: 54mm; box-sizing: border-box; border: 1px solid var(--line); border-radius: 3mm; background: #fff; color: var(--ink);
   display: flex; align-items: center; gap: 3mm; padding: 3.5mm 4mm; overflow: hidden; position: relative; border-top: 3mm solid var(--navy); }
 .ac-info { flex: 1; min-width: 0; display: grid; gap: 1mm; align-content: center; }
@@ -1403,13 +1318,10 @@ html.demo-mode .toast { bottom: 78px; z-index: 950; }
   body.ac-printing .ac-sheet { display: grid; grid-template-columns: repeat(2, 86mm); gap: 5mm 6mm; justify-content: center; padding: 6mm 0; }
   body.ac-printing .ac { break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
-/* صفحة رمز البطاقة (من يمسحه بجوال عادي) */
 .gate-card-page { max-width: 460px; margin: 0 auto; padding: 48px 20px; text-align: center; }
 .gate-card-page img { margin: 0 auto 12px; display: block; }
-/* حالات الحضور الجديدة */
 .stu-today.s-permitted, .gb-st.s-permitted { background: var(--navy-soft); color: var(--navy); }
 .stu-today.s-trip, .stu-today.s-activity { background: var(--teal-soft); color: var(--teal); }
-/* البوابة الذكية — شاشة الإدارة */
 .gate-admin { display: grid; gap: 14px; }
 .gate-phase { border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 14px; }
 .gate-phase.open { background: var(--teal-soft); color: var(--teal); }
@@ -1441,7 +1353,6 @@ html.demo-mode .toast { bottom: 78px; z-index: 950; }
 .gd-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .gate-link { display: grid; gap: 10px; justify-items: center; text-align: center; }
 .gate-link-qr { width: 220px; height: 220px; image-rendering: pixelated; }
-/* ربط جوال بالرمز */
 .gj-hero { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 16px 18px; border-radius: 16px;
   background: linear-gradient(135deg, var(--navy), #0B4D4A); color: #fff; margin-bottom: 14px; }
 .gj-hero b { font-size: 17px; }
@@ -1464,7 +1375,6 @@ html.demo-mode .toast { bottom: 78px; z-index: 950; }
 .gate-records td, .gate-records th { white-space: nowrap; }
 .gate-stage { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; margin-bottom: 8px; background: #fff; }
 
-/* محدد الأبناء في ملف الطالب */
 .kid-switch { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 6px; scrollbar-width: none; }
 .kid-switch::-webkit-scrollbar { display: none; }
 .kid-switch a, .kid-switch span { flex: none; padding: 7px 14px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: var(--ink);
@@ -1485,7 +1395,6 @@ button.link { background: none; border: 0; padding: 0; color: var(--teal); font:
 .pa-pick { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; cursor: pointer; text-align: start; }
 .pa-pick:hover { border-color: var(--teal); }
 
-/* «ابدأ هنا»: خطوات تجهيز المدرسة الجديدة في الرئيسية */
 .start-here { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 8px; margin-bottom: 16px; }
 .start-here .sh-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .start-here h3 { margin: 0; font-size: 18px; }
@@ -1508,7 +1417,6 @@ button.link { background: none; border: 0; padding: 0; color: var(--teal); font:
 .start-here .sh-go:hover { color: var(--teal, #0B7A75); }
 .start-here .sh-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 
-/* مراسلة المعلمين: قائمة المحادثات والمحادثة */
 .chat-rows { display: grid; gap: 8px; }
 .chat-row { font: inherit; color: inherit; text-align: start; width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px;
   background: #fff; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; transition: border-color .15s; }

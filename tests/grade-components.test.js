@@ -1,4 +1,8 @@
-// توزيع الدرجات: الأوزان، نوع الدرجة لكل رصد، النتيجة الموزونة في الكشف والشهادة، والقيود والعزل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, readySchool, endPool } from "./helpers.js";
@@ -30,13 +34,10 @@ test("الحساب الموزون: النسبة × الوزن، والأنواع
   const full = subjectResult([{ score: 10, max_score: 10, component_id: 1 }, { score: 40, max_score: 50, component_id: 2 }], comps);
   assert.equal(full.percent, 84);
   assert.equal(full.partial, false);
-  // درجة بلا نوع تُحسب على الافتراضي
   assert.equal(subjectResult([{ score: 5, max_score: 10, component_id: 1 }, { score: 25, max_score: 50, component_id: null }], comps).percent, 50);
-  // نوع واحد فقط مرصود: النسبة من المرصود حتى الآن
   const part = subjectResult([{ score: 8, max_score: 10, component_id: 1 }], comps);
   assert.equal(part.percent, 80);
   assert.equal(part.partial, true);
-  // بلا توزيع: الحساب القديم
   assert.equal(subjectResult([{ score: 18, max_score: 20 }, { score: 2, max_score: 20 }], []).percent, 50);
 });
 
@@ -68,7 +69,6 @@ test("المعلم يرصد كل أنواع الدرجات، والكشف وال
   const part = comps.find((c) => c.name === "المشاركة");
   const [, s2, s3] = A.students;
   await graded(A, { title: "مشاركة الشهر", max: 10, scores: { [s2.id]: 10, [s3.id]: 5 }, component_id: part.id });
-  // بلا اختيار نوع: يُرصد على الافتراضي (النهائي)
   const fin = await graded(A, { title: "النهائي", max: 50, scores: { [s2.id]: 40, [s3.id]: 25 } });
   assert.equal(fin.component_id, comps.find((c) => c.is_default).id);
 
@@ -90,7 +90,7 @@ test("المعلم يرصد كل أنواع الدرجات، والكشف وال
 
 test("توزيع خاص بصف يتقدم على العام، ولا يُقبل نوع من توزيع آخر", async () => {
   const g = (await A.admin.get("/api/admin/grade-components")).data;
-  const gradeId = g.grades.find((x) => x.name === "الأول").id;   // صف الشعبة «الأول - أ»
+  const gradeId = g.grades.find((x) => x.name === "الأول").id;
   const r = await A.admin.put("/api/admin/grade-components", { grade_id: gradeId, items: [{ name: "أعمال السنة", weight: 40 }, { name: "النهائي", weight: 60, is_default: true }] });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const comps = (await A.teacher.get(`/api/teacher/exams/components?class_id=${A.c1.id}`)).data;
@@ -98,7 +98,6 @@ test("توزيع خاص بصف يتقدم على العام، ولا يُقبل 
   const general = g.items.find((x) => x.grade_id === null);
   const wrong = await A.teacher.post("/api/teacher/exams", { class_id: A.c1.id, subject_id: A.math.id, title: "خطأ", max_score: 10, component_id: general.id });
   assert.equal(wrong.status, 400);
-  // نرجع للتوزيع العام لبقية الاختبارات
   assert.equal((await A.admin.put("/api/admin/grade-components", { grade_id: gradeId, items: [] })).status, 200);
 });
 
@@ -108,7 +107,6 @@ test("لا يُحذف نوع عليه درجات مرصودة", async () => {
   const r = await A.admin.put("/api/admin/grade-components", { items: keepOnly });
   assert.equal(r.status, 400);
   assert.match(r.data.error, /درجات مرصودة/);
-  // تعديل الاسم والوزن مسموح
   const renamed = items.map((x) => ({ id: x.id, name: x.name === "المشاركة" ? "المشاركة والأنشطة" : x.name, weight: x.name === "المشاركة" ? 30 : 70, is_default: x.is_default }));
   assert.equal((await A.admin.put("/api/admin/grade-components", { items: renamed })).status, 200);
 });

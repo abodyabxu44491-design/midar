@@ -1,4 +1,8 @@
-// الشهادات الرسمية: نتيجة الفصل أو العام من الاختبارات المنشورة، بنسخة ثابتة ورمز تحقق QR
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { z, t } from "../../core/http/validate.js";
@@ -8,7 +12,7 @@ import { featureSettings } from "./feature-settings.service.js";
 import { notify } from "./notify.service.js";
 
 const qrcode = createRequire(import.meta.url)("qrcode-generator");
-const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // بلا أحرف متشابهة (O و0، I و1)
+const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newCode = () => Array.from(crypto.randomBytes(10), (b) => ALPHA[b % ALPHA.length]).join("");
 
 export const issueSchema = z.object({
@@ -20,7 +24,6 @@ export const issueSchema = z.object({
   dry_run: z.boolean().default(false),
 });
 
-/** النتيجة: ناجح إذا تجاوزت كل مادة حد النجاح */
 export function resultOf(card, passMark) {
   if (!card.subjects.length) return { result: "لم تكتمل الدرجات", failed: [], passed: false };
   const failed = card.subjects.filter((s) => s.percent !== null && s.percent < passMark).map((s) => s.subject);
@@ -39,7 +42,6 @@ async function scopeOf(q, kind, termId) {
   return { term_id: null, year_id: year.id, label: `العام الدراسي ${year.name}`, cardTerm: null };
 }
 
-/** معاينة أو إصدار شهادات شعبة */
 export async function issue(q, b, actor) {
   const [cls] = await q("SELECT id, name FROM classes WHERE id = $1", [b.class_id]);
   if (!cls) throw notFound("الشعبة غير موجودة");
@@ -56,7 +58,7 @@ export async function issue(q, b, actor) {
   }
   const issued = [];
   for (const r of rows) {
-    if (!r.card.subjects.length) continue;   // لا شهادة بلا درجات منشورة
+    if (!r.card.subjects.length) continue;
     await q(`UPDATE certificates SET revoked_at = now(), revoke_reason = 'أُعيد إصدارها'
               WHERE student_id = $1 AND kind = $2 AND COALESCE(term_id, 0) = COALESCE($3::bigint, 0) AND COALESCE(year_id, 0) = COALESCE($4::bigint, 0) AND revoked_at IS NULL`,
       [r.card.student.id, b.kind, scope.term_id, scope.year_id]);
@@ -86,7 +88,6 @@ export async function issue(q, b, actor) {
   return { issued: issued.length, ids: issued.map((x) => x.id) };
 }
 
-/** شهادة مخصصة لطالب واحد (تفوق، حسن سيرة، مشاركة…) */
 export const customSchema = z.object({ student_id: t.id, title: t.shortText("عنوان الشهادة", 120), body: t.shortText("نص الشهادة", 600) });
 export async function issueCustom(q, b, actor) {
   const card = await buildReportCard(q, b.student_id);
@@ -112,7 +113,6 @@ export async function revoke(q, id, reason) {
   if (!rows.length) throw notFound("الشهادة غير موجودة أو ملغاة");
 }
 
-/** صورة QR (SVG) لرابط التحقق */
 export function qrDataUrl(text) {
   const g = qrcode(0, "M");
   g.addData(text);
@@ -120,7 +120,6 @@ export function qrDataUrl(text) {
   return `data:image/svg+xml;base64,${Buffer.from(g.createSvgTag({ cellSize: 4, margin: 1, scalable: true })).toString("base64")}`;
 }
 
-/** بيانات الطباعة: الشهادات كاملة مع رابط التحقق وصورة QR */
 export async function forPrint(q, ids, origin, { studentId = null } = {}) {
   const rows = await q(
     `SELECT id, code, kind, title, data, issued_at, revoked_at FROM certificates

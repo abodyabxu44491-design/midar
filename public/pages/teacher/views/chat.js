@@ -1,4 +1,8 @@
-// مراسلة أولياء الأمور: محادثات المعلم مع أولياء أمور طلاب فصوله
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, textarea, btn, empty, sub, toast, dialog } from "../../shared/js/ui.js";
@@ -32,7 +36,6 @@ export default async function chat({ me }) {
   return panel("مراسلة أولياء الأمور", null, body);
 }
 
-// رسالة جديدة لولي أمر طالب من فصول المعلم
 async function compose(me, done) {
   const classes = [...new Map(me.load.map((l) => [l.class_id, l.class_name])).entries()];
   if (!classes.length) return toast("لا توجد فصول مسندة لك", true);

@@ -1,4 +1,8 @@
-// اشتراكات المدارس: الفواتير، التجديدات، والتحصيل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, stats, field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, confirmAction } from "/shared/js/ui.js";

@@ -1,6 +1,8 @@
-// مركز الإشعارات: نفس المكوّن لولي الأمر (داخل ملف الطالب) وللمنسوبين (جرس الشريط العلوي).
-//   تصفية بالتصنيف وغير المقروء والبحث، وقراءة إشعار، وتحديد الكل كمقروء، وأرشفة، ورابط مباشر للقسم المرتبط.
-//   وبطاقة دعوة لتفعيل الإشعارات (لا نطلب الإذن فجأة عند فتح الصفحة)، وإعدادات أنواع الإشعارات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { btn, dialog, empty, notice, sub, toast, input, switchBtn } from "./ui.js";
@@ -14,7 +16,6 @@ const KIND_ICON = { absence: "alert", late: "clock", present: "check", grades: "
   calendar: "calendar", library: "book", leave: "briefcase", substitute: "clock", lesson_plan: "clipboard", timetable: "grid",
   grades_review: "clipboard", request: "userPlus", system: "settings" };
 const PRIORITY = { 1: ["عاجل", "p1"], 2: ["مهم", "p2"], 3: ["عادي", "p3"] };
-// التصنيفات الظاهرة كأزرار تصفية (حسب نوع المستخدم)
 const CHIPS = {
   parent: ["attendance", "grades", "homework", "exams", "finance", "announcements", "messages"],
   staff: ["tasks", "requests", "grades", "messages", "announcements", "timetable", "system"],
@@ -38,11 +39,6 @@ export function inboxList(items, { onOpen, onArchive } = {}) {
   }));
 }
 
-/**
- * مركز الإشعارات الكامل.
- * @param {{ audience: "parent"|"staff", load: (filter: object) => Promise<any>, read: (body: object) => Promise<any>,
- *   archive: (ids: number[]) => Promise<any>, onOpen?: (n: object) => void, onUnread?: (n: number) => void, initial?: any }} o
- */
 export function notificationCenter(o) {
   const box = h("div", { class: "ncenter" });
   const state = { category: null, unread: false, q: "", data: o.initial || null, items: o.initial?.items || [] };
@@ -112,7 +108,6 @@ export function notificationCenter(o) {
   return { el: box, reload };
 }
 
-/** إعدادات أنواع الإشعارات: ما يُنبَّه على الجوال. الإلزامي من المدرسة يظهر مقفلًا */
 export function notificationPrefs({ load, save }) {
   const box = h("div", { class: "nprefs" }, sub("جارٍ التحميل…"));
   (async () => {
@@ -139,16 +134,12 @@ export function notificationPrefs({ load, save }) {
 const DISMISS = "midar_push_invite_dismissed";
 const safe = (fn, fb) => { try { return fn(); } catch { return fb; } };
 
-/**
- * بطاقة دعوة لتفعيل الإشعارات: تشرح الفائدة ثم تطلب الإذن عند الضغط فقط.
- * تتعامل مع: مسموح، مرفوض، لم يُسأل بعد، غير مدعوم، والآيفون قبل تثبيت التطبيق.
- */
 export function pushInvite({ key, save, title = "فعّل إشعارات مدار", text, onDone, force = false }) {
   const box = h("div", { class: "push-invite", hidden: true });
   if (!key) return box;
   (async () => {
     const st = await pushStatus();
-    if (st === "on") { refreshPush(save).catch(() => {}); return; }   // تجديد الجهاز بصمت (إن تغيّر الرمز)
+    if (st === "on") { refreshPush(save).catch(() => {}); return; }
     if (!force && safe(() => localStorage.getItem(DISMISS), null)) return;
     const close = () => { box.hidden = true; safe(() => localStorage.setItem(DISMISS, "1")); };
     const head = h("div", { class: "pi-head" }, h("span", { class: "pi-ic" }, icons.bell({ size: 22 })), h("b", {}, title));
@@ -172,7 +163,6 @@ export function pushInvite({ key, save, title = "فعّل إشعارات مدا�
   return box;
 }
 
-/** مفتاح الإشعارات الفورية لهذا الجهاز (في الإعدادات) */
 export function pushToggle({ key, save, remove, label = "الإشعارات على هذا الجهاز" }) {
   const box = h("div", { class: "push-toggle" });
   const draw = async () => {
@@ -190,11 +180,6 @@ export function pushToggle({ key, save, remove, label = "الإشعارات عل
   return box;
 }
 
-/**
- * جرس الإشعارات للمنسوبين: يعرض عدد غير المقروء، ويفتح مركز الإشعارات وإعداداته.
- * @param {string} base مثل /api/admin
- * @param {(n: object) => void} [go] فتح القسم المرتبط بالإشعار
- */
 export function notificationsBell(base, go) {
   const count = h("span", { class: "bell-count", hidden: true });
   const bell = h("button", { type: "button", class: "bell-btn", "aria-label": "الإشعارات", title: "الإشعارات", onclick: () => open() },
@@ -212,7 +197,7 @@ export function notificationsBell(base, go) {
     return api(`${base}/notifications${qs.toString() ? `?${qs}` : ""}`);
   };
   const refresh = async () => {
-    try { data = await loadPage(); setCount(data.unread); } catch { /* بدون اتصال */ }
+    try { data = await loadPage(); setCount(data.unread); } catch { /* ignore */ }
   };
   const save = (s) => api(`${base}/notifications/push`, s);
   const open = async () => {
@@ -221,7 +206,7 @@ export function notificationsBell(base, go) {
     const view = h("div");
     const showList = () => mount(view, notificationCenter({ audience: "staff", initial: data, load: loadPage,
       read: (b) => api(`${base}/notifications/read`, b), archive: (ids) => api(`${base}/notifications/archive`, { ids }),
-      onUnread: setCount, onOpen: (n) => { let ok = false; try { ok = go?.(n); } catch { /* قسم غير متاح */ } if (ok) d.close(); } }).el);
+      onUnread: setCount, onOpen: (n) => { let ok = false; try { ok = go?.(n); } catch { /* ignore */ } if (ok) d.close(); } }).el);
     const showSettings = () => mount(view,
       pushToggle({ key: data.push.key, save, remove: (e) => api(`${base}/notifications/push/remove`, { endpoint: e }) }),
       needsInstallFirst() ? notice("على الآيفون تصل الإشعارات بعد تثبيت التطبيق على الشاشة الرئيسية.", "") : null,
@@ -231,16 +216,13 @@ export function notificationsBell(base, go) {
       [btn("الإشعارات", showList, "ghost"), btn("الإعدادات", showSettings, "ghost")]);
   };
   refresh();
-  // تجديد اشتراك الجهاز بصمت إن كانت الإشعارات مفعّلة (يغطي تغيّر رمز الجهاز)
   setTimeout(() => { if (data?.push?.key) refreshPush(save).catch(() => {}); }, 3000);
   setInterval(() => { if (!document.hidden) refresh(); }, 120_000);
   navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data?.type === "midar:notification") refresh(); });
-  // فتح إشعار من الجوال (?n=) يفتح المركز مباشرة
   if (new URLSearchParams(location.search).get("n")) setTimeout(open, 600);
   return bell;
 }
 
-/** إضافة الجرس للشريط العلوي قبل زر الخروج */
 export function attachBell(bar, base, go) {
   const row = bar.querySelector(".in");
   if (!row) return;

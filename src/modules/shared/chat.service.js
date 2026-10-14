@@ -1,14 +1,16 @@
-// مراسلة المعلمين: محادثة واحدة لكل (طالب، معلم). ولي الأمر يراسل المعلمين الذين يدرّسون فصل ابنه فقط،
-// والمعلم يرد على أولياء أمور طلاب فصوله فقط. كل رسالة تُشعر الطرف الآخر (مركز الإشعارات + الجوال).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { badRequest, forbidden, notFound } from "../../core/http/errors.js";
 import { parse, z } from "../../core/http/validate.js";
 import { notify } from "./notify.service.js";
 
 export const bodySchema = z.string().trim().min(1, "اكتب الرسالة").max(1000, "الرسالة طويلة (1000 حرف كحد أقصى)");
 const PAGE = 60;
-const PARENT_HOURLY = 20;   // حد رسائل ولي الأمر في المحادثة الواحدة كل ساعة (منع الإزعاج)
+const PARENT_HOURLY = 20;
 
-// معلمو فصل الطالب ومواد كل معلم، مع حالة المحادثة إن وُجدت
 export async function teachersOfStudent(q, student) {
   if (!student.class_id) return [];
   return q(
@@ -45,7 +47,6 @@ async function threadOf(q, studentId, teacherId) {
   return th;
 }
 
-// إرسال رسالة من أحد الطرفين، وإشعار الطرف الآخر
 export async function sendMessage(q, { studentId, teacherId, sender, senderName, body }) {
   const text = parse(bodySchema, body);
   if (!(await teacherTeachesStudent(q, teacherId, studentId))) throw forbidden("المراسلة متاحة مع معلمي فصل الطالب فقط");
@@ -77,7 +78,6 @@ export async function sendMessage(q, { studentId, teacherId, sender, senderName,
   return { thread_id: th.id, message: msg };
 }
 
-// قراءة محادثة: تصفير غير المقروء لصاحب القراءة
 export async function openThread(q, th, reader, before) {
   if (!before) await q(`UPDATE chat_threads SET ${reader === "parent" ? "parent_unread" : "teacher_unread"} = 0 WHERE id = $1`, [th.id]);
   return threadMessages(q, th.id, before);

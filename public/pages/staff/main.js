@@ -1,5 +1,8 @@
-// باب منسوبي المدرسة: المدير والمعلم يدخلان من هنا،
-// والنظام يفتح لكل واحد لوحته حسب دوره في هذه المدرسة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, $, mount } from "../shared/js/dom.js";
 import { offlineProfile } from "../shared/js/offline/sync.js";
 import { api } from "../shared/js/api.js";
@@ -7,13 +10,11 @@ import { brandLogo, footer, field, input, select, textarea, btn, notice, sub, di
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 
-
 const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 
-// كل لوحة تُحمّل بعد معرفة دور الحساب فقط (صفحة الدخول لا تحمل كود اللوحات الثلاث)
 const portal = (rel, fn) => async (...args) => {
-  preloadModule(new URL(rel, import.meta.url).pathname);   // كل ملفات اللوحة معًا بالتوازي
+  preloadModule(new URL(rel, import.meta.url).pathname);
   return (await import(rel))[fn](...args);
 };
 const open = {
@@ -22,8 +23,6 @@ const open = {
   accountant: portal("../accountant/app.js", "startAccountant"),
 };
 
-// التطبيق المثبّت يتبع الدور: بعد معرفة دور الحساب يصبح رابط الصفحة وملف التطبيق لهذا الدور،
-// فإذا ثبّت المدير التطبيق يفتح على الإدارة، والمعلم على بوابة المعلم، والمحاسب على المحاسب.
 const urlRole = new URLSearchParams(location.search).get("role");
 function setAppRole(role) {
   const u = new URL(location.href);
@@ -40,14 +39,9 @@ function setAppRole(role) {
 const enter = (role, ...args) => { setAppRole(role); return open[role](...args); };
 
 async function start() {
-  // لو كانت هناك جلسة سارية نفتح لوحتها مباشرة.
-  // كوكي كل دور مقصور على مسار واجهته (/api/admin …)، فنسأل الدور الأخير أولًا (طلب واحد غالبًا)،
-  // ثم بقية الأدوار معًا بالتوازي بدل واحد بعد الآخر.
-  // تطبيق مثبّت لدور معيّن يفتح ذلك الدور فقط (لا يفتح لوحة دور آخر مسجل على الجهاز نفسه)
   const pinned = open[urlRole] ? urlRole : null;
   const last = pinned || sessionStorage.getItem("midar_role") || localStorage.getItem("midar_last_role");
   const roles = ["admin", "teacher", "accountant"];
-  // الشبكة لا تستجيب (حتى لو قال المتصفح إنه متصل: واي فاي بلا إنترنت، أو الخادم غير متاح)
   let netDown = !navigator.onLine;
   const probe = (role) => api(`/api/${role}/me`).then(() => role, (e) => {
     if (e.code === "network" || e.code === "timeout") netDown = true;
@@ -59,7 +53,6 @@ async function start() {
     if (!role && !pinned) role = await Promise.any(roles.filter((r) => r !== last).map(probe)).catch(() => null);
   }
   if (role) { sessionStorage.setItem("midar_role", role); localStorage.setItem("midar_last_role", role); return enter(role); }
-  // بدون اتصال: المعلم يكمل عمله من بيانات جهازه (إن سبق تجهيزها خلال آخر 7 أيام)
   const profile = offlineProfile();
   if (netDown && (!pinned || pinned === "teacher") && profile?.role === "teacher" && profile.me?.school?.id === school && Date.now() - profile.savedAt < 7 * 86400000) {
     return enter("teacher", profile.me);
@@ -70,11 +63,9 @@ async function start() {
 function showLogin(error) {
   const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
   const pass = passwordInput({ autocomplete: "current-password", placeholder: "كلمة المرور" });
-  // البقاء مسجلًا هو الافتراضي: الجلسة تبقى حتى تسجيل الخروج (يمكن إلغاؤه على جهاز مشترك)
   const remember = h("input", { type: "checkbox", id: "remember-me", checked: true });
-  // اختيار الدور: يوضّح للمستخدم أي لوحة سيدخلها (والنظام يتحقق من الدور الفعلي للحساب)
   const ROLES = [["admin", "الإداري", "الطلاب والفصول"], ["accountant", "المحاسب", "الرسوم والمالية"], ["teacher", "المعلم", "الدرجات والحضور"]];
-  const fromLink = new URLSearchParams(location.search).get("role");   // رابط الدور من صفحة المدرسة
+  const fromLink = new URLSearchParams(location.search).get("role");
   let chosen = ["admin", "teacher", "accountant"].includes(fromLink) ? fromLink : (localStorage.getItem("midar_last_role") || "admin");
   const roleCards = h("div", { class: "role-cards", role: "radiogroup", "aria-label": "اختر دورك" });
   const drawRoles = () => {
@@ -85,7 +76,6 @@ function showLogin(error) {
   };
   const msg = h("div", {}, error ? notice(error, "err") : null);
 
-  // قفل المحاولات الخاطئة: عد تنازلي واضح، وزر الدخول معطل حتى ينتهي (ويبقى بعد تحديث الصفحة)
   const lockKey = () => `midar_lock_${school}_${user.value.trim().toLowerCase()}`;
   let lockTimer = null;
   const runLock = (until) => {
@@ -106,21 +96,19 @@ function showLogin(error) {
         submit.disabled = false;
         return mount(msg, notice("انتهى الإيقاف. يمكنك المحاولة الآن.", ""));
       }
-      submit.disabled = true;   // يبقى معطلًا طوال القفل (حتى لو أعاد غلاف الزر تفعيله بعد انتهاء الطلب)
+      submit.disabled = true;
       time.textContent = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`;
       bar.style.width = `${Math.min(100, (left / total) * 100)}%`;
     };
     tick();
     lockTimer = setInterval(tick, 250);
   };
-  // عند كتابة اسم مستخدم مقفول سابقًا (أو بعد تحديث الصفحة) يعود العد التنازلي
   const checkLock = () => {
     const until = Number(sessionStorage.getItem(lockKey()) || 0);
     if (until > Date.now()) runLock(until);
     else if (lockTimer) { clearInterval(lockTimer); lockTimer = null; submit.disabled = false; mount(msg); }
   };
   const submit = btn("تسجيل الدخول", async () => {
-    // (زر btn يعطّل نفسه أثناء التنفيذ لمنع الضغط المزدوج، فلا نعتمد على disabled هنا بل على حالة القفل)
     if (lockTimer) return;
     mount(msg);
     try {
@@ -150,7 +138,6 @@ function showLogin(error) {
   mount(app,
     h("div", { class: "gate" }, h("div", { class: "gate-wrap" },
 
-      // الجانب التعليمي (يختفي على الجوال)
       h("aside", { class: "gate-aside hide-sm" },
         brandLogo("hero-logo", true, "stacked"),
         h("h1", {}, "بوابة إدارة المدرسة"),
@@ -160,7 +147,6 @@ function showLogin(error) {
           h("li", {}, icons.calendar({ size: 18 }), "الجداول والاختبارات والدرجات"),
           h("li", {}, icons.money({ size: 18 }), "الرسوم والفواتير والتقارير"))),
 
-      // نموذج الدخول
       h("section", { class: "gate-card" },
         h("div", { class: "show-sm", style: "margin-bottom:10px" }, brandLogo("hero-logo", true, "stacked")),
         h("h2", {}, "بوابة إدارة المدرسة"),
@@ -188,10 +174,6 @@ function showLogin(error) {
   startAnalytics("staff-login");
 }
 
-/* ---------- نسيت كلمة المرور ----------
-   المعلم والمحاسب ← إدارة المدرسة تتحقق وترسل رابط التغيير
-   مدير المدرسة    ← مالك المنصة يتحقق ويرسل رابط التغيير
-   (المسار الفعلي يحدده الخادم من دور الحساب نفسه، لا من المسمى المكتوب هنا) */
 function requestDialog(schoolCode) {
   const f = {
     full_name: input({ placeholder: "الاسم الكامل كما في السجلات" }),

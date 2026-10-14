@@ -1,4 +1,8 @@
-// الاختبارات الإلكترونية: النشر من ورقة معتمدة، الحل من ملف الطالب بلا كشف الإجابات، الوقت، التصحيح الآلي واليدوي، الرصد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -58,7 +62,6 @@ test("الطالب يبدأ: لا إجابات صحيحة في ما يصله، �
   assert.equal(qs.find((q) => q.id === "q_fil1").blanks, 2);
   const again = await pub(`/student/online-exams/${online.id}/start`, who(s1));
   assert.deepEqual(again.data.content, st.data.content, "نفس الترتيب عند الاستئناف");
-  // إجابات: كلها صحيحة عدا الترتيب جزئيًا، والمقالي يحتاج المعلم
   const right = Object.fromEntries(mat.left.map((l, i) => [l.id, mat.right.find((r) => r.text === (i === 0 ? "4" : "6")).id]));
   const answers = { q_mcq1: "o_sana", q_tf01: true, q_fil1: ["المشترى", " عطارد "], q_mat1: right, q_ord1: ["i_aaa1", "i_ccc1", "i_bbb1"], q_ess1: "اليمن بلد جميل" };
   assert.equal((await pub(`/student/online-exams/${online.id}/save`, { ...who(s1), answers })).status, 200);
@@ -73,7 +76,6 @@ test("الطالب يبدأ: لا إجابات صحيحة في ما يصله، �
 test("التصحيح: الآلي صحيح (مع التشكيل والهمزات)، والمعلم يصحح المقالي، والدرجة ترصد في الاختبار", async () => {
   const res = (await A.teacher.get(`/api/teacher/online-exams/${online.id}`)).data;
   const row = res.students.find((s) => s.attempt_id);
-  // 2 + 1 + 2 (الفراغان مع «المشترى» = «المشتري») + 2 + 1/3 من الترتيب = 7.33
   assert.equal(row.auto_score, 7.33);
   assert.equal(row.needs_grading, true);
   const d = (await A.teacher.get(`/api/teacher/online-exams/${online.id}/attempts/${row.attempt_id}`)).data;
@@ -82,7 +84,6 @@ test("التصحيح: الآلي صحيح (مع التشكيل والهمزات)
   assert.equal(m.status, 200);
   assert.equal(m.data.score, 8.83);
   assert.equal(m.data.needs_grading, false);
-  // درجة أكبر من درجة السؤال تُقصّ
   assert.equal((await A.teacher.put(`/api/teacher/online-exams/${online.id}/attempts/${row.attempt_id}/marks`, { marks: { q_ess1: 50 } })).data.score, 9.33);
   const sync = await A.teacher.post(`/api/teacher/online-exams/${online.id}/sync`, {});
   assert.equal(sync.data.synced, 1);
@@ -104,7 +105,6 @@ test("الوقت: محاولة تجاوزت مدتها تُسلَّم بما ح�
   const rv = await pub(`/student/online-exams/${online.id}/review`, who(s2));
   assert.equal(rv.status, 200);
   assert.deepEqual(rv.data.questions.find((q) => q.id === "q_mcq1").correct, ["o_sana"]);
-  // طالب لم يبدأ: لا يبدأ بعد الإغلاق
   assert.equal((await pub(`/student/online-exams/${online.id}/start`, who(A.students[2]))).status, 400);
 });
 

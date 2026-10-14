@@ -1,5 +1,8 @@
-// أولياء الأمور (الإدارة): حساب واحد لكل ولي أمر مرتبط بكل أبنائه، وإنشاء الحسابات تلقائيًا من أرقام الجوال،
-// وربط وفك ارتباط الأبناء، وإعادة كلمة المرور، والإيقاف، ومراجعة طلبات الربط.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";

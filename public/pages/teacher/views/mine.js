@@ -1,4 +1,8 @@
-// حضوري وإجازاتي: تسجيل الحضور والانصراف بضغطة، ملخص الشهر، طلب إجازة، وحصص الانتظار المسندة لي
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, stats, toast, notice } from "../../shared/js/ui.js";

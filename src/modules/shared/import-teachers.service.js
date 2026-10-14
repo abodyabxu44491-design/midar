@@ -1,9 +1,8 @@
-// استيراد المعلمين (Excel/CSV): مطابقة أعمدة ← تحليل بلا كتابة ← تأكيد ← نتيجة.
-// القواعد:
-//   • التعرّف على المعلم الموجود بالرقم الوظيفي (أو اسم المستخدم) فقط، ولا يُعتمد على الاسم وحده.
-//   • الصف والمادة والشعبة تُقرأ من الهيكل الأكاديمي المركزي بمعرّفاتها، بلا أسماء ثابتة.
-//   • الإسناد عند التحديث يُضاف على الموجود (لا يحذف إسنادًا قائمًا).
-//   • كلمات المرور المؤقتة تُعاد مرة واحدة فقط في نتيجة التنفيذ، ولا تُخزَّن إلا مُجزّأة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { badRequest } from "../../core/http/errors.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword } from "../../core/auth/codes.js";
@@ -13,7 +12,7 @@ import { structure } from "./structure.service.js";
 import { buildXlsx } from "../../core/xlsx.js";
 import { norm, buildIndex, matchGrade, pickSection } from "./grade-match.js";
 
-export const MAX_ROWS = 200;   // تجزئة كلمة المرور بطيئة عمدًا، فنحدّ الدفعة
+export const MAX_ROWS = 200;
 
 export const FIELDS = [
   { key: "employee_no", label: "الرقم الوظيفي", aliases: ["الرقم الوظيفي", "رقم الموظف", "الرقم", "employee no", "employee number", "employee id", "id"] },
@@ -39,7 +38,6 @@ const ALIAS = new Map();
 for (const f of FIELDS) { ALIAS.set(norm(f.label), f.key); for (const a of f.aliases) ALIAS.set(norm(a), f.key); }
 const clean = (h) => norm(String(h ?? "").replace(/[*：:]/g, " "));
 
-/** اقتراح مطابقة الأعمدة: { "عنوان العمود في الملف": مفتاح الحقل | "" } — يُعدَّل يدويًا في الواجهة */
 export function suggestMapping(headers) {
   const used = new Set(), out = {};
   for (const h of headers) {
@@ -50,7 +48,6 @@ export function suggestMapping(headers) {
   return out;
 }
 
-/* ---------- القيم ---------- */
 const AR = "٠١٢٣٤٥٦٧٨٩";
 const latin = (v) => String(v ?? "").replace(/[٠-٩]/g, (d) => String(AR.indexOf(d))).trim();
 const GENDER = new Map([["ذكر", "male"], ["male", "male"], ["m", "male"], ["معلم", "male"], ["انثى", "female"], ["أنثى", "female"], ["female", "female"], ["f", "female"], ["معلمة", "female"]]);
@@ -77,10 +74,6 @@ const USERNAME = /^[a-z0-9._-]{3,40}$/;
 const splitList = (v) => String(v ?? "").split(/[,،;؛|\n]+/).map((x) => x.trim()).filter(Boolean);
 export const gradeKey = (grade, stage) => `${norm(grade)}|${norm(stage)}`;
 
-/**
- * تحليل بلا أي كتابة. rows: صفوف بمفاتيح الحقول (بعد مطابقة الأعمدة في الواجهة).
- * @param {{gradeMap?:Record<string,number>, maxTeachers?:number|null}} opts
- */
 export async function analyze(q, rawRows, { gradeMap = {}, maxTeachers = null } = {}) {
   const struct = await structure(q);
   const index = buildIndex(struct);
@@ -133,7 +126,6 @@ export async function analyze(q, rawRows, { gradeMap = {}, maxTeachers = null } 
     if (r.national_id) { const n = latin(r.national_id); if (!/^[0-9]{5,20}$/.test(n)) fail("رقم الهوية أرقام فقط (5 إلى 20)"); else data.national_id = n; }
     for (const k of ["specialty", "department", "job_title", "qualification"]) if (r[k]) data[k] = r[k].slice(0, k === "qualification" ? 120 : k === "job_title" ? 80 : 60);
 
-    // الإسناد: مادة/مواد + صف (+ مرحلة وشعبة). بلا شعبة = كل شعب ذلك الصف.
     const subjectTexts = splitList(r.subject);
     const wantsLoad = subjectTexts.length || r.grade || r.section;
     if (wantsLoad) {
@@ -173,7 +165,6 @@ export async function analyze(q, rawRows, { gradeMap = {}, maxTeachers = null } 
       }
     }
 
-    // التعرّف على المعلم: الرقم الوظيفي ثم اسم المستخدم. الاسم وحده لا يكفي أبدًا.
     const ex = (res.employee_no && byNo.get(res.employee_no)) || (username && byUser.get(username)) || null;
     if (ex) {
       res.action = "update"; res.existing_id = Number(ex.id);
@@ -188,7 +179,6 @@ export async function analyze(q, rawRows, { gradeMap = {}, maxTeachers = null } 
       res.changes = changes;
       if (!Object.keys(changes).length && !res.load.length && !res.errors.length) res.action = "unchanged";
     } else if (!res.errors.length) {
-      // معلم جديد: يحتاج اسم مستخدم (من الملف أو من الرقم الوظيفي)
       if (!username && res.employee_no) { const gen = `t${res.employee_no}`.toLowerCase().replace(/[^a-z0-9._-]/g, ""); if (USERNAME.test(gen)) { username = gen; res.notes.push(`اسم المستخدم المُنشأ: ${gen}`); } }
       if (!username) fail("اسم المستخدم مطلوب لمعلم جديد (أو رقم وظيفي ليُنشأ منه)");
       else if (takenUsers.has(username) || (byUser.get(username))) fail(`اسم المستخدم «${username}» مستخدم مسبقًا`);
@@ -215,7 +205,6 @@ export async function analyze(q, rawRows, { gradeMap = {}, maxTeachers = null } 
   };
 }
 
-/** التنفيذ: يعيد التحليل في الخادم، ثم يكتب الصحيح. كلمات المرور المؤقتة تُعاد هنا مرة واحدة فقط. */
 export async function commit(q, tenantId, rawRows, opts = {}) {
   if (rawRows.length > MAX_ROWS) throw badRequest(`الحد ${MAX_ROWS} معلم في المرة`);
   const a = await analyze(q, rawRows, opts);
@@ -263,17 +252,12 @@ export async function commit(q, tenantId, rawRows, opts = {}) {
   };
 }
 
-/* ---------- القالب والتصدير ---------- */
 const HEADERS = FIELDS.map((f) => f.label + (f.required ? " *" : ""));
 const IDX = Object.fromEntries(FIELDS.map((f, i) => [f.key, i]));
 const G_LABEL = { male: "ذكر", female: "أنثى" };
 const E_LABEL = { full_time: "دوام كامل", part_time: "دوام جزئي", contract: "عقد", volunteer: "تطوع" };
 const TEXT_COLS = ["employee_no", "username", "national_id", "phone", "birth_date", "hire_date", "grade", "section"].map((k) => IDX[k]);
 
-/**
- * قالب Excel. stage_id/subject_id اختياريان: يعبّئان عمودي المرحلة والمادة مسبقًا. existing=1 يضيف المعلمين الحاليين لتحديثهم.
- * لا أسماء صفوف ثابتة: القوائم من الهيكل الأكاديمي الحالي للمدرسة.
- */
 export async function buildTemplate(q, { stage_id, subject_id, existing = false } = {}) {
   const struct = await structure(q);
   const subjects = await q("SELECT id, name FROM subjects ORDER BY name");
@@ -310,7 +294,6 @@ export async function buildTemplate(q, { stage_id, subject_id, existing = false 
   return { buffer: buildXlsx([sheet, help]), filename: stage || subject ? `قالب-معلمين${stage ? `-${stage.name}` : ""}${subject ? `-${subject.name}` : ""}.xlsx` : "قالب-المعلمين.xlsx" };
 }
 
-/** تصدير Excel للمعلمين: لا كلمات مرور ولا hash ولا أي سر */
 export async function exportXlsx(q) {
   const list = await q(
     `SELECT t.employee_no, t.full_name, u.username, t.national_id, t.phone, t.email, t.gender, t.birth_date::text AS birth_date, t.specialty, t.qualification,

@@ -1,23 +1,23 @@
-// الاتصال بالخادم: منع الطلبات المكررة، كاش قصير للبيانات المرجعية، إعادة محاولة ذكية، مهلة زمنية،
-// واكتشاف نشر إصدار جديد من المنصة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export class ApiError extends Error {
   constructor(message, status, code, details) {
     super(message); this.status = status; this.code = code;
-    if (details?.errors) this.errors = details.errors;   // أخطاء أسطر الاستيراد
-    if (details?.invalid) this.invalid = details.invalid;   // مواضع معرّفات الأبناء الخاطئة
-    if (details?.retry_after) this.retryAfter = Number(details.retry_after);   // ثوانٍ حتى فتح القفل
+    if (details?.errors) this.errors = details.errors;
+    if (details?.invalid) this.invalid = details.invalid;
+    if (details?.retry_after) this.retryAfter = Number(details.retry_after);
   }
 }
 
-/* ======================= الإصدار والتحديث ======================= */
-// إصدار الصفحة المفتوحة (يكتبه الخادم في HTML). كل استجابة API تحمل إصدار الخادم؛ إن اختلفا فهناك نشر جديد.
 export const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || "dev";
 let updateShown = false;
 export function announceUpdate() {
   if (updateShown || APP_VERSION === "dev") return;
   updateShown = true;
   window.__midarUpdatePending = true;
-  // شريط ثابت أعلى الصفحة (بدون الاعتماد على ui.js لتجنب الاستيراد الدائري)
   const bar = document.createElement("div");
   bar.className = "update-bar";
   bar.setAttribute("role", "status");
@@ -29,14 +29,11 @@ export function announceUpdate() {
   bar.append(txt, b);
   document.body.append(bar);
 }
-// نقطة آمنة للتحديث التلقائي: عند الانتقال بين الأقسام (لا يُقطع أي عمل مفتوح)
 export function applyPendingUpdate() {
   if (window.__midarUpdatePending) { location.reload(); return true; }
   return false;
 }
 
-/* ======================= العرض التجريبي ======================= */
-// الخادم يعلّم كل استجابة من مدرسة العرض (X-Demo)، فيظهر شريط ثابت يوضح أنها للتصفح فقط
 let demoShown = false;
 function announceDemo() {
   if (demoShown) return;
@@ -55,10 +52,8 @@ function announceDemo() {
   document.body.append(bar);
 }
 
-/* ======================= الطلبات ======================= */
-const inflight = new Map();   // GET نفسه أثناء التنفيذ ← نفس الوعد (لا تكرار)
-const cache = new Map();      // كاش قصير للبيانات المرجعية
-// بيانات تتغير نادرًا وتطلبها أقسام كثيرة (الهيكل، السنة الدراسية، سياق الاختبارات…)
+const inflight = new Map();
+const cache = new Map();
 const CACHEABLE = [/\/api\/admin\/setup$/, /\/api\/admin\/academic$/, /\/api\/admin\/structure$/, /\/api\/(admin|teacher)\/papers\/context$/,
   /\/api\/admin\/custom-fields/, /\/api\/admin\/settings\/modules$/];
 const CACHE_MS = 60_000;
@@ -88,17 +83,14 @@ async function once(url, method, body, timeoutMs) {
   const v = res.headers.get("X-App-Version");
   if (v && APP_VERSION !== "dev" && v !== APP_VERSION) announceUpdate(v);
   let data = null;
-  try { data = await res.json(); } catch { /* رد بدون محتوى */ }
+  try { data = await res.json(); } catch { /* ignore */ }
   if (!res.ok) {
-    // توقف الاشتراك أثناء الاستخدام: إعادة التحميل تُظهر شاشة الاشتراك بدل أخطاء متفرقة
     if (data?.code === "subscription_inactive" && !window.__midarLockReload) { window.__midarLockReload = true; setTimeout(() => location.reload(), 1200); }
     throw new ApiError(data?.error || "حدث خطأ غير متوقع", res.status, data?.code, data);
   }
   return data;
 }
 
-// إعادة المحاولة لطلبات القراءة فقط (آمنة للتكرار) عند انقطاع الشبكة أو ضغط مؤقت على الخادم.
-// طلبات الكتابة لا تُعاد تلقائيًا حتى لا تتكرر عملية (والعمليات المالية لها مفتاح منع تكرار مستقل).
 const RETRYABLE = new Set([0, 502, 503, 504]);
 async function withRetry(fn) {
   for (let attempt = 0; ; attempt++) {
@@ -112,13 +104,11 @@ async function withRetry(fn) {
 export async function api(url, body, method) {
   const m = method || (body !== undefined ? "POST" : "GET");
   if (m !== "GET") {
-    cache.clear();   // أي تعديل يبطل الكاش المرجعي فورًا (لا بيانات قديمة بعد الحفظ)
+    cache.clear();
     return once(url, m, body, 60_000);
   }
   const hit = cache.get(url);
   if (hit && hit.until > Date.now()) return structuredClone(hit.data);
-  // النسخ فقط حين تكون الاستجابة مشتركة (كاش أو طلب مدمج)، حتى لا تعدّل شاشة بيانات شاشة أخرى.
-  // الاستجابة العادية تُعاد كما هي (النسخ العميق لبيانات كبيرة مكلف على معالجات الجوال).
   if (inflight.has(url)) { const shared = inflight.get(url); shared.shared = true; return structuredClone(await shared); }
   const p = withRetry(() => once(url, "GET", undefined, 25_000));
   inflight.set(url, p);
@@ -133,6 +123,5 @@ export async function api(url, body, method) {
 }
 api.invalidate = () => cache.clear();
 
-// مفتاح فريد لكل عملية مالية: لو ضُغط الزر مرتين أو انقطع الاتصال لا تتكرر العملية
 export const idempotencyKey = () =>
   (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, "");

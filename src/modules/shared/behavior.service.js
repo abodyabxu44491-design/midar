@@ -1,10 +1,13 @@
-// السلوك والانضباط: بنود بنقاط، وتسجيل لطالب أو لمجموعة طلاب، ودرجة سلوك لكل طالب في الفصل الحالي
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict, forbidden } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 
-// بنود افتتاحية لكل مدرسة (تُعدَّل وتُضاف من الإعدادات)
 const STARTER = [
   ["مشاركة متميزة", "positive", 5], ["إنجاز أو تفوق", "positive", 10], ["تعاون مع الزملاء", "positive", 3],
   ["الالتزام بالواجبات", "positive", 3], ["النظافة والترتيب", "positive", 2], ["مساعدة المعلم", "positive", 2],
@@ -24,7 +27,6 @@ export const categorySchema = z.object({
 export const recordSchema = z.object({
   student_ids: z.array(t.id).min(1, "اختر طالبًا على الأقل").max(200),
   category_id: t.optId,
-  // بند غير مسجل: نوع ونقاط وعنوان يدوي
   kind: z.enum(["positive", "negative"]).optional(),
   points: z.coerce.number().int().min(1).max(100).optional(),
   title: z.string().trim().min(2).max(80).optional(),
@@ -65,7 +67,6 @@ export async function updateCategory(q, id, b) {
   if (!rows.length) throw notFound("البند غير موجود");
 }
 
-// بند مستخدم في سجلات لا يُحذف (يوقف فقط) حتى يبقى تاريخ الطلاب واضحًا
 export async function removeCategory(q, id) {
   const [used] = await q("SELECT 1 FROM behavior_records WHERE category_id = $1 LIMIT 1", [id]);
   if (used) { await q("UPDATE behavior_categories SET is_active = false WHERE id = $1", [id]); return { deactivated: true }; }
@@ -74,10 +75,6 @@ export async function removeCategory(q, id) {
   return { deleted: true };
 }
 
-/**
- * تسجيل سلوك لطالب أو أكثر.
- * @param {{teacherId?: number|null, actor: string, allowedClass?: (classId:number)=>Promise<boolean>}} ctx
- */
 export async function record(q, b, ctx) {
   let kind, points, title;
   if (b.category_id) {
@@ -129,7 +126,6 @@ export const list = (q, f, { teacherId = null } = {}) => q(
     ORDER BY r.day DESC, r.id DESC LIMIT 500`,
   [f.class_id ?? null, f.student_id ?? null, f.kind ?? null, f.from ?? null, f.to ?? null, teacherId]);
 
-/** ملخص الفصل الحالي لكل طالب: الإيجابي والسلبي والدرجة */
 export async function summary(q, { class_id = null, teacherId = null } = {}) {
   const { base_score, warn_below } = await featureSettings(q, "behavior");
   const rows = await q(
@@ -145,7 +141,6 @@ export async function summary(q, { class_id = null, teacherId = null } = {}) {
   return { base_score, warn_below, students: rows.map((r) => ({ ...r, score: base_score + r.positive - r.negative })) };
 }
 
-/** ملف سلوك طالب (لولي الأمر والإدارة) */
 export async function forStudent(q, studentId) {
   const { base_score, warn_below } = await featureSettings(q, "behavior");
   const records = await q(

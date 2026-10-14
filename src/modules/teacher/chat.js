@@ -1,4 +1,8 @@
-// مراسلة أولياء الأمور من جهة المعلم: محادثاته مع أولياء أمور طلاب فصوله فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, forbidden } from "../../core/http/errors.js";
@@ -7,7 +11,6 @@ import { sendMessage, threadFor, openThread, teacherTeachesStudent } from "../sh
 
 const r = Router();
 
-// المحادثات: الأحدث أولًا، مع عدد غير المقروء
 r.get("/", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const threads = await q(
@@ -19,7 +22,6 @@ r.get("/", handle(async (req, res) => {
   }));
 }));
 
-// بدء محادثة مع ولي أمر طالب من فصول المعلم
 r.post("/start", handle(async (req, res) => {
   const b = parse(z.object({ student_id: t.id, text: z.string().max(2000) }), req.body);
   res.status(201).json(await inTenant(req, async (q) => {

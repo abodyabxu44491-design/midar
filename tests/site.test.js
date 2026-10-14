@@ -1,4 +1,8 @@
-// اختبارات: موقع المدرسة المصغّر، الروابط المولَّدة، إصلاحات الدخول والجلسات، وصفحة المدرسة عند المالك
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -21,7 +25,6 @@ before(async () => {
   s.adminPw = r.data.credentials.password;
   admin = client(srv.base);
   assert.equal((await admin.post("/api/staff/login", { school: s.id, username: "admin", password: s.adminPw })).status, 200);
-  // الهيكل: مرحلة ← صفان ← شعب
   const st = await admin.post("/api/admin/setup/stages", { name: "الابتدائية" });
   assert.equal(st.status, 201, JSON.stringify(st.data));
   s.stage = st.data.id;
@@ -121,7 +124,6 @@ test("الجلسات: «ابقني مسجلًا» افتراضي بكوكي دا
   const res = await fetch(`${srv.base}/api/staff/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: srv.base },
     body: JSON.stringify({ school: s.id, username: "admin", password: pw }) });
   assert.equal(res.status, 200);
-  // في وضع single (Firebase) كل الأدوار في كوكي واحد __session، وله دائمًا مدة صلاحية
   const single = process.env.SESSION_COOKIE_MODE === "single";
   const cookieName = single ? "__session" : "midar_a";
   const cookie = res.headers.getSetCookie().find((c) => c.includes(cookieName));
@@ -133,7 +135,6 @@ test("الجلسات: «ابقني مسجلًا» افتراضي بكوكي دا
   assert.equal(res2.status, 200);
   if (!single) assert.doesNotMatch(res2.headers.getSetCookie().find((c) => c.includes(cookieName)), /Max-Age/, "بدون تذكر: كوكي جلسة المتصفح");
 
-  // جلسة «ابقني مسجلًا» خاملة يومين: كانت تُحذف في التنظيف (خطأ سابق)
   await transaction({ platform: true }, (q) => q(
     "UPDATE sessions SET last_seen_at = now() - interval '2 days' WHERE tenant_id = $1 AND idle_minutes IS NOT NULL", [s.id]));
   await purgeExpiredSessions();

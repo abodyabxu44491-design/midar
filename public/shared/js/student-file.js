@@ -1,5 +1,8 @@
-// عرض «ملف الطالب» الكامل: مصدر واحد تستخدمه صفحة ولي الأمر ونافذة الإدارة.
-// الفرق الوحيد: الإدارة ترى كل الأقسام بلا معرّف دخول، وولي الأمر يرى ما تفعّله المدرسة ويستطيع الدفع.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { empty, badge, line, sub, teacherCards, btn, dialog, field, textarea, toast } from "./ui.js";
 import { money, fmtDate, fmtDay, ATTENDANCE } from "./format.js";
@@ -16,7 +19,6 @@ export const gradeLine = (g) => line(
   h("b", {}, `${g.score} / ${g.max_score}`));
 const GENDER = { male: "ذكر", female: "أنثى" };
 
-/** عرض الرسوم للقراءة فقط (الإدارة). ولي الأمر يمرّر دالته الخاصة التي فيها زر الدفع. */
 export function feesReadOnly(f, compact = false) {
   const open = f.invoices.filter((i) => i.status === "open");
   return section("الرسوم والسداد",
@@ -30,11 +32,6 @@ export function feesReadOnly(f, compact = false) {
         : empty("لا توجد فواتير.")]);
 }
 
-/**
- * @param {object} d بيانات الملف من الخادم
- * @param {{fees?: (f, compact) => Node, toolbar?: Node|Node[], photo?: string|null}} opts
- * @returns {{ el: HTMLElement, open: (key:string)=>void }}
- */
 export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = null, scrollTop = false, actions = {}, extra = [] } = {}) {
   const s = d.student, f = d.fees;
   const avg = d.grades_percent !== undefined && d.grades_percent !== null ? Math.round(d.grades_percent)
@@ -43,10 +40,8 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   const alerts = d.alerts || [];
   const unread = alerts.filter((a) => a.for_parent && !a.acknowledged_at).length;
   const recorded = d.attendance.length;
-  // الغياب بعذر لا يُحسب على الطالب
   const counted = recorded - count("excused");
   const rate = counted > 0 ? Math.round(((count("present") + count("late")) / counted) * 100) : null;
-  // التنبيهات أعلى الملف: غياب بلغ الحد، وتنبيهات لم يطّلع عليها ولي الأمر
   const banners = () => [
     d.absence_warning ? h("div", { class: "sub-banner warn", role: "alert" }, icons.alert({ size: 20 }),
       h("div", {}, h("b", {}, "تنبيه غياب"),
@@ -68,7 +63,6 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     ...(f ? [{ key: "fees", name: "الرسوم والسداد", note: f.status === "unpaid" ? money(f.remaining) : "مسدد" }] : []),
     ...(d.settings.profile_show_teachers && d.teachers.length ? [{ key: "teachers", name: "المعلمون والمواد", note: "" }] : []),
     ...(d.announcements.length ? [{ key: "news", name: "التعاميم", note: `${d.announcements.length}` }] : []),
-    // أقسام إضافية (الإشعارات، السلوك، الصحة، النقل، الاختبارات الإلكترونية، الشهادات…) كل منها يأتي بعرضه
     ...featureSections(d, actions),
     ...extra.map(({ key, name, note }) => ({ key, name, note })),
   ];
@@ -111,7 +105,6 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     ...Object.fromEntries(extra.map((x) => [x.key, () => x.view({ reopen: () => open(x.key, true) })])),
   };
 
-  // الحضور: ملخص، ونسبة، وتصفية، وسبب كل غياب أو تأخر، وإرسال عذر من ولي الأمر
   let attFilter = "absences";
   function attendanceView() {
     const FILTERS = [["absences", "الغياب والتأخر"], ["absent", "غياب"], ["late", "تأخر"], ["excused", "بعذر"], ["all", "كل الأيام"]];
@@ -143,7 +136,6 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
             ? btn(a.parent_excuse_state === "rejected" ? "إعادة إرسال عذر" : "إرسال عذر", () => excuseDialog(a), "ghost sm") : null))))
         : empty(recorded ? "لا توجد أيام بهذا التصنيف." : "لا توجد سجلات حضور بعد."));
   }
-  // إحصاءات كل شهر: أيام الحضور، الغياب، التأخر، النسبة، ومتوسط التأخر بالدقائق
   function monthly() {
     const by = new Map();
     for (const a of d.attendance) {

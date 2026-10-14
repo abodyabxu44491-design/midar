@@ -1,4 +1,8 @@
-// ملف الطالب الكامل — يُفتح بمعرّف الطالب فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api, idempotencyKey } from "../shared/js/api.js";
 import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl } from "../shared/js/ui.js";
@@ -15,7 +19,6 @@ const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLower
 const P = `/api/public/${encodeURIComponent(school)}`;
 const back = () => { location.href = `/${encodeURIComponent(school)}`; };
 let creds = currentChild(school);
-// بحساب ولي الأمر: لا معرّف، والخادم يتحقق من ارتباط الطالب بالحساب
 const viaParent = () => !creds?.key && parentSignedIn(school);
 const whoOf = () => (creds.key ? { student_id: creds.id, key: creds.key } : { student_id: creds.id });
 const family = () => { location.href = `/${encodeURIComponent(school)}#/family`; };
@@ -25,7 +28,7 @@ async function load() {
   try {
     const who = whoOf();
     const [d, inbox, chat] = await Promise.all([api(`${P}/student`, who), api(`${P}/student/inbox`, who).catch(() => null),
-      api(`${P}/student/chat`, who).catch(() => null)]);   // المراسلة غير مفعّلة في المدرسة: لا قسم
+      api(`${P}/student/chat`, who).catch(() => null)]);
     render(d, inbox, chat);
   } catch (e) {
     if (viaParent() && e.status === 401) { setParentSignedIn(school, false); closeChild(school); return back(); }
@@ -44,10 +47,9 @@ function render(d, inbox, chat) {
   schoolName = d.school; studentName = s.name; className = s.class_name;
   document.title = `مدار — ${s.name}`;
 
-  // ملف الطالب: مصدره المشترك public/shared/js/student-file.js (نفسه الذي تراه الإدارة، لكن هنا مع زر الدفع)
   const who = whoOf();
   const remember = () => rememberChild(school, { id: creds.id, key: creds.key, name: s.name, class_name: s.class_name });
-  if (isRemembered(school, creds.id)) remember();   // تحديث الاسم والفصل المحفوظين
+  if (isRemembered(school, creds.id)) remember();
   const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
     view: ({ reopen }) => inboxSection(inbox, who, remember, reopen, (k) => file.open(k)) }] : [];
   if (chat) {
@@ -75,18 +77,15 @@ function render(d, inbox, chat) {
         text: `لتصلك أخبار ${s.name} مباشرة: الغياب والدرجات والواجبات والرسوم، حتى والتطبيق مغلق.` }) : null,
       file.el),
     footer());
-  // فتح القسم المطلوب من الإشعار (#attendance مثلًا) أو صندوق الإشعارات
   const want = location.hash.slice(1);
-  // من إشعار الجوال: يُعلَّم مقروءًا ويُفتح القسم المرتبط مباشرة (أو مركز الإشعارات إن لم يكن له قسم)
   const nid = Number(new URLSearchParams(location.search).get("n")) || null;
   if (nid && inbox) api(`${P}/student/inbox/read`, { ...who, ids: [nid] }).catch(() => {});
   const target = { absence: "attendance", late: "attendance", present: "attendance" }[want] || want;
   let opened = false;
-  if (target) { try { file.open(target); opened = true; } catch { /* قسم غير متاح */ } }
+  if (target) { try { file.open(target); opened = true; } catch { /* ignore */ } }
   if (!opened && nid && inbox) file.open("inbox");
 }
 
-// مراسلة المعلمين: قائمة معلمي فصل الطالب، والضغط يفتح المحادثة في نفس المكان
 function chatSection(chat, who) {
   const body = h("div");
   const list = async () => {
@@ -102,13 +101,11 @@ function chatSection(chat, who) {
     load: (before) => api(`${P}/student/chat/thread`, { ...who, teacher_id: t.id, before }),
     send: (text) => api(`${P}/student/chat/send`, { ...who, teacher_id: t.id, text }),
     onBack: list }));
-  // من إشعار رسالة: افتح محادثة المعلم صاحب آخر رسالة غير مقروءة مباشرة
   const first = chat.teachers.find((t) => t.unread);
   if (first && location.hash.slice(1) === "chat") open(first); else list();
   return section("مراسلة المعلمين", body);
 }
 
-// محدد الأبناء (حساب ولي الأمر): ضغطة على اسم الابن تعرض ملفه في نفس الصفحة بلا خروج ولا دخول
 function kidSwitcher(s) {
   let kids = [];
   try { kids = JSON.parse(sessionStorage.getItem(`midar_family_${school}`) || "[]"); } catch { /* */ }
@@ -135,8 +132,6 @@ function switchTo(id) {
   load();
 }
 
-// تسجيل هذا الجهاز لإشعارات هذا الابن ولكل الأبناء المحفوظين على الجهاز (ولي أمر لديه أكثر من طالب):
-// كل ابن مسجّل بمعرّفه، فيصل إشعار كل طالب لولي أمره فقط. وبحساب ولي الأمر: كل أبنائه المرتبطين دفعة واحدة
 async function savePushAll(sub, who, remember) {
   if (!who.key) { await api(`${P}/parent/push`, { subscription: sub }); return; }
   remember();
@@ -146,7 +141,6 @@ async function savePushAll(sub, who, remember) {
   }
 }
 
-// مركز الإشعارات وإعداداته وتفعيلها على هذا الجهاز
 function inboxSection(inbox, who, remember, reopen, openSection) {
   const saved = isRemembered(school, who.student_id);
   const center = notificationCenter({ audience: "parent", initial: inbox,
@@ -154,7 +148,7 @@ function inboxSection(inbox, who, remember, reopen, openSection) {
     read: (b) => api(`${P}/student/inbox/read`, { ...who, ...b }),
     archive: (ids) => api(`${P}/student/inbox/archive`, { ...who, ids }),
     onUnread: (n) => { inbox.unread = n; if (navigator.setAppBadge) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge?.())?.catch?.(() => {}); },
-    onOpen: (n) => { const k = { absence: "attendance", late: "attendance", present: "attendance" }[n.link] || n.link; if (k) { try { openSection(k); } catch { /* قسم غير متاح */ } } } });
+    onOpen: (n) => { const k = { absence: "attendance", late: "attendance", present: "attendance" }[n.link] || n.link; if (k) { try { openSection(k); } catch { /* ignore */ } } } });
   return [
     section("الإشعارات", center.el),
     section("إعدادات الإشعارات",
@@ -169,8 +163,6 @@ function inboxSection(inbox, who, remember, reopen, openSection) {
           : btn("حفظ", () => { remember(); toast("حُفظ على هذا الجهاز"); reopen(); }, "sm"))),
   ];
 }
-
-// سطر درجة واحد
 
 let schoolName = "", studentName = "", className = "";
 
@@ -218,7 +210,6 @@ function feesSection(f, compact = false) {
           }), "ghost sm"))))] : null);
 }
 
-// نافذة السداد: الحساب البنكي + إشعار التحويل + الدفع النقدي
 function payDialog(f, inv, available) {
   const reference = `فاتورة ${inv.id} - ${document.title.replace("مدار — ", "")}`;
   const copy = (text) => btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }, "ghost sm");

@@ -1,6 +1,8 @@
-// كتالوج جاهز: المراحل وصفوفها، والمواد المقترحة لكل مرحلة، وقوالب المدارس.
-// كل ما يُولَّد منه قابل للتعديل والحذف والإضافة لاحقًا من لوحة الإدارة.
-
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export const STAGES = {
   primary: {
     name: "المرحلة الابتدائية",
@@ -63,7 +65,6 @@ export const STAGES = {
   },
 };
 
-// قوالب المدارس: أي قالب مجموعة مراحل
 export const TEMPLATES = {
   primary: { name: "مدرسة ابتدائية", stages: ["primary"] },
   middle: { name: "مدرسة متوسطة", stages: ["middle"] },
@@ -75,7 +76,6 @@ export const TEMPLATES = {
   empty: { name: "بدون قالب (أبني الهيكل بنفسي)", stages: [] },
 };
 
-// أنماط تسمية الشعب
 export const SECTION_NAMING = {
   arabic: { name: "أ ب ج", labels: ["أ", "ب", "ج", "د", "هـ", "و", "ز", "ح", "ط", "ي"] },
   english: { name: "A B C", labels: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"] },
@@ -85,19 +85,11 @@ export const SECTION_NAMING = {
 export const SCHOOL_TYPES = { private: "أهلية", public: "حكومية", international: "عالمية", quran: "تحفيظ قرآن", other: "أخرى" };
 export const GENDERS = { boys: "بنين", girls: "بنات", mixed: "مختلطة" };
 
-/** اسم الشعبة: «الأول - أ» أو «Grade 1 - A» حسب النمط المختار */
 export const sectionName = (gradeName, index, naming = "arabic") => {
   const labels = (SECTION_NAMING[naming] || SECTION_NAMING.arabic).labels;
   return `${gradeName} - ${labels[index] ?? index + 1}`;
 };
 
-
-
-/* =====================================================================
- * مكتبة المواد الكاملة: كل ما يُدرَّس في المدارس العربية (اليمن، السعودية،
- * الخليج، مصر، الأردن…) وما يُستخدم عالميًا في المدارس الدولية.
- * المدرسة تفعّل ما تحتاجه فقط، وتضيف أي مادة أخرى يدويًا.
- * ===================================================================== */
 export const SUBJECT_LIBRARY = [
   { group: "العلوم الشرعية", items: [
     { name: "القرآن الكريم", code: "QUR", weekly: 4 },
@@ -163,16 +155,10 @@ export const SUBJECT_LIBRARY = [
   ]},
 ];
 
-/**
- * إعدادات الدولة: تُقترح تلقائيًا عند اختيار دولة المدرسة (وكلها قابلة للتغيير بعد ذلك).
- * dial: رمز الدولة لروابط واتساب، grade_set: تسمية الصفوف، days: أيام الدوام (0 = الأحد)،
- * holidays: إجازات رسمية ثابتة بالتاريخ الميلادي تُقترح في المعالج (الأعياد الهجرية تتغير كل سنة فتُضاف يدويًا).
- */
 export const COUNTRIES = {
   YE: {
     name: "اليمن", currency: "YER", dial: "967", grade_set: "yemen", days: [0, 1, 2, 3, 4],
     phone_hint: "77xxxxxxx",
-    // لا مناسبات ثابتة مقترحة: الأعياد الهجرية تتغير كل سنة وتضيفها المدرسة بتواريخها
     holidays: [],
   },
   SA: {
@@ -180,11 +166,9 @@ export const COUNTRIES = {
     phone_hint: "05xxxxxxxx",
     holidays: [{ name: "اليوم الوطني", month: 9, day: 23 }, { name: "يوم التأسيس", month: 2, day: 22 }],
   },
-  // دولة أخرى: لا تُغيَّر العملة ولا رمز الاتصال تلقائيًا (تُضبط يدويًا من الإعدادات)
   OTHER: { name: "دولة أخرى", currency: null, dial: "", grade_set: "arabic_basic", days: [0, 1, 2, 3, 4], phone_hint: "", holidays: [] },
 };
 export const DEFAULT_COUNTRY = "YE";
-/** مفتاح الدولة من الاسم المحفوظ في ملف المدرسة (نص حر في المدارس القديمة) */
 export const countryKey = (name) => {
   const v = String(name || "").trim();
   if (!v) return null;
@@ -195,7 +179,6 @@ export const countryKey = (name) => {
   return "OTHER";
 };
 
-/* أنماط تسمية الصفوف: عربية كاملة، عربية مختصرة، ودولية */
 export const GRADE_SETS = {
   arabic_full: {
     name: "السعودية والخليج (أول ابتدائي…)",
@@ -232,7 +215,6 @@ export const GRADE_SETS = {
     secondary: ["Grade 10", "Grade 11", "Grade 12"],
     kindergarten: ["KG1", "KG2", "KG3"],
   },
-  // اليمن: الصفوف تُسمّى الأول والثاني… كما يقولها الناس، بلا كلمة «الأساسي»؛ والمرحلة وحدها تبيّن أنه أساسي
   yemen: {
     name: "اليمن (الأول… التاسع، ثم أول ثانوي)",
     primary: ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس"],
@@ -243,15 +225,11 @@ export const GRADE_SETS = {
   },
 };
 
-/** اسم المرحلة حسب نمط التسمية (اليمن: الأساسي والثانوي بدل الابتدائي والمتوسط) */
 export const stageName = (stageKey, set) => GRADE_SETS[set]?.stage_names?.[stageKey] || STAGES[stageKey].name;
 
-/** أسماء صفوف مرحلة حسب نمط التسمية المختار */
 export const gradeNames = (stageKey, set = "arabic_full") =>
   (GRADE_SETS[set] || GRADE_SETS.arabic_full)[stageKey] || STAGES[stageKey].grades;
 
-
-/** الكتالوج كاملًا للواجهة */
 export const catalog = () => ({
   subject_library: SUBJECT_LIBRARY,
   grade_sets: Object.entries(GRADE_SETS).map(([key, g]) => ({

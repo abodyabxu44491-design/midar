@@ -1,9 +1,12 @@
-// واجهات مشتركة: نموذج الإجابة عن استبيان، وقائمة المواعيد المتاحة للحجز
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 import { btn, sub, toast, textarea, empty, line, badge, input, field } from "./ui.js";
 import { fmtDay } from "./format.js";
 
-/** نموذج استبيان. send(answers) يرسل الإجابات */
 export function surveyForm(s, send, onDone) {
   const answers = {};
   const qEl = (q) => {
@@ -28,7 +31,6 @@ export function surveyForm(s, send, onDone) {
     }, "primary wide"));
 }
 
-/** المواعيد المتاحة لولي الأمر: مجمعة حسب الجهة واليوم */
 export function meetingsBoard(slots, { book, cancel }) {
   if (!slots.length) return empty("لا توجد مواعيد متاحة حاليًا.");
   const mine = slots.filter((s) => s.mine);
@@ -50,5 +52,4 @@ export function meetingsBoard(slots, { book, cancel }) {
       })] : null,
   ];
 }
-
 

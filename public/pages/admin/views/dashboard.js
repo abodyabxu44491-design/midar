@@ -1,4 +1,8 @@
-// الرئيسية: الملخص، التنبيهات، والبحث السريع
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { stats, panel, notice, line, sub, input, empty, badge, btn, keyText, linkRow, copyRow, schoolLogoUrl } from "../../shared/js/ui.js";
@@ -22,7 +26,6 @@ export default async function dashboard({ me, goTo }) {
     info: { name: "معلومات", cls: "" },
   };
 
-  // مركز التنبيهات: مرتبة بالأهمية، والضغط ينقلك للقسم
   const center = (data, goTo) => {
     if (!data.items.length) return null;
     return panel("مركز التنبيهات", null,
@@ -38,7 +41,6 @@ export default async function dashboard({ me, goTo }) {
       }));
   };
 
-  // حالة اليوم في سطر واحد تحت اسم المدرسة
   const todayText = d.today?.holiday ? `اليوم إجازة: ${d.today.holiday.name}`
     : d.today && !d.today.study_day ? "اليوم ليس يوم دراسة" : null;
   const logo = schoolLogoUrl(me.school.id, me.school.logo);
@@ -83,7 +85,6 @@ export default async function dashboard({ me, goTo }) {
             fees: { remaining: i.remaining }, link: directoryLink(me) }), label: "تذكير واتساب" }) : null),
       () => goTo?.("finance"), "كل الفواتير في قسم الرسوم"),
 
-    // الروابط: كل رابط يُفتح بالضغط ويُنسخ بزر واحد
     panel("روابط مدرستك", null,
       linkRow("صفحة الطلاب وأولياء الأمور", L?.public?.home || directoryLink(me), { note: "شاركها مع الأهالي" }),
       linkRow("دخول الإدارة والمعلمين والمحاسبين", staffLink(me), { note: "خاص بمنسوبي المدرسة" }),
@@ -91,7 +92,6 @@ export default async function dashboard({ me, goTo }) {
   ];
 }
 
-// قائمة مختصرة في الرئيسية: أول 5 فقط، و«عرض المزيد» يكمل هنا، ورابط للقسم الكامل
 const SHORT = 5;
 function shortList(title, rows, total, row, openTab, openLabel) {
   if (!rows.length) return null;
@@ -102,7 +102,6 @@ function shortList(title, rows, total, row, openTab, openLabel) {
     h("div", { class: "row spaced" }, more, count > SHORT ? btn(openLabel, openTab, "ghost sm") : null));
 }
 
-// بحث سريع في الطلاب والمعلمين والفواتير
 function quickSearch(goTo) {
   const box = h("div");
   const q = input({ type: "search", placeholder: "ابحث عن طالب أو معلم أو فاتورة أو معرّف طالب" });
@@ -118,10 +117,9 @@ function quickSearch(goTo) {
         ...r.teachers.map((t) => ({ kind: "معلم", main: t.name, note: t.username ? `اسم المستخدم: ${t.username}` : "", tab: "teachers", term: t.name })),
         ...r.invoices.map((i) => ({ kind: "فاتورة", main: `${i.student_name} — ${money(i.amount)}`, note: `${i.title} — المدفوع ${money(i.paid)}`, tab: "ledger", term: i.student_name })),
       ];
-      // الضغط على نتيجة ينقلك للقسم المناسب، مع تعبئة بحثه تلقائيًا (بدل ما يعيد البحث من الصفر)
       mount(box, rows.length ? rows.map((x) => h("button", { class: "search-result", type: "button",
           onclick: () => {
-            if (x.tab === "students") { try { sessionStorage.setItem("midar_filter_students-q", x.term); } catch { /* تجاهل */ } }
+            if (x.tab === "students") { try { sessionStorage.setItem("midar_filter_students-q", x.term); } catch { /* ignore */ } }
             goTo(x.tab);
           } },
         h("div", { class: "pill" }, badge(x.kind, "gray"), h("b", {}, x.main)),

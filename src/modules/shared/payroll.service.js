@@ -1,21 +1,20 @@
-// الموظفون والرواتب (جزء من المالية):
-//   الموظفون بأنواعهم، والمعلمون منهم تلقائيًا (من قائمة المعلمين، الترحيل 0049).
-//   مسير شهري: يُنشأ من رواتب الموظفين النشطين (أساسي + بدل ثابت) ← تعديل البدلات والخصومات ← اعتماد ← صرف.
-//   الصرف يُنشئ حركة مصروف لكل موظف في سجل الحركات (تصنيف الرواتب)، فتظهر في كل التقارير المالية.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { addSystemEntry } from "./ledger.service.js";
 import { absenceDeductions } from "./staff-affairs.service.js";
 import { activeModules } from "./notify.service.js";
 
-// الأنواع بالترتيب الذي تظهر به: [المفرد، الجمع]
 export const CATEGORIES = {
   teacher: ["معلم", "المعلمون"], admin: ["إداري", "الإداريون"], accountant: ["محاسب", "المحاسبون"],
   supervisor: ["مشرف", "المشرفون"], guard: ["حارس", "الحراسة"], driver: ["سائق", "السائقون"],
   cleaner: ["عامل نظافة", "النظافة"], worker: ["عامل", "العمال"], other: ["أخرى", "أخرى"],
 };
 const CAT_KEYS = Object.keys(CATEGORIES);
-// المبالغ: أرقام عربية وفواصل الآلاف مقبولة (١٥٠٬٠٠٠ ← 150000)
 const money = z.preprocess((v) => (typeof v === "string" ? asciiDigits(v).replace(/[,،٬\s]/g, "").replace("٫", ".") : v),
   z.coerce.number({ invalid_type_error: "المبلغ أرقام فقط" }).min(0, "المبلغ لا يكون سالبًا").max(100_000_000));
 const optNumber = z.preprocess((v) => (typeof v === "string" ? asciiDigits(v).replace(/\s+/g, "") : v),
@@ -38,7 +37,7 @@ export const staffSchema = z.object({
 });
 export const salarySchema = z.object({ base_salary: money, allowance: money.default(0) });
 export const runSchema = z.object({
-  period: t.date,                       // أي يوم في الشهر المطلوب
+  period: t.date,
   note: t.optText(300),
 });
 export const itemSchema = z.object({
@@ -50,7 +49,7 @@ export const itemSchema = z.object({
 });
 export const paySchema = z.object({
   method: z.enum(["cash", "transfer", "card", "online"]).default("cash"),
-  paid_on: t.optDate,                   // تاريخ الصرف (افتراضيًا اليوم)
+  paid_on: t.optDate,
 });
 
 const STAFF_SELECT = `SELECT s.id, s.full_name, s.job_title, s.category, s.phone, s.iban, s.base_salary, s.allowance,
@@ -63,7 +62,6 @@ const STAFF_SELECT = `SELECT s.id, s.full_name, s.job_title, s.category, s.phone
 export const listStaff = (q) => q(`${STAFF_SELECT}
   ORDER BY s.is_active DESC, array_position($1::text[], s.category), s.full_name`, [CAT_KEYS]);
 
-/** ملخص الموظفين: العدد والرواتب لكل نوع (النشطون فقط) */
 export async function staffSummary(q) {
   const rows = await q(`SELECT category, count(*)::int AS count, COALESCE(SUM(base_salary + allowance), 0) AS monthly,
                                count(*) FILTER (WHERE base_salary = 0)::int AS no_salary
@@ -86,7 +84,6 @@ export async function addStaff(q, b) {
   return row;
 }
 
-// المعلم المرتبط: اسمه وجواله ونوعه من ملف المعلم (يُعدَّلان هناك)، والباقي من هنا
 export async function updateStaff(q, id, b) {
   const [cur] = await q("SELECT teacher_id FROM staff WHERE id = $1", [id]);
   if (!cur) throw notFound("الموظف غير موجود");
@@ -109,7 +106,6 @@ export async function setStaffActive(q, id, active) {
   if (!rows.length) throw notFound("الموظف غير موجود");
 }
 
-// احتياط للمدارس القديمة: أي معلم بلا سجل وظيفي يُضاف (المعلمون الجدد يُضافون تلقائيًا بمشغّل في القاعدة)
 export async function importTeachers(q) {
   const rows = await q(
     `INSERT INTO staff (tenant_id, full_name, job_title, category, phone, teacher_id, hire_date)
@@ -119,7 +115,6 @@ export async function importTeachers(q) {
   return rows.length;
 }
 
-/* ---------- المسيرات ---------- */
 export const listRuns = (q) => q(
   `SELECT r.id, r.period::text AS period, r.status, r.note, r.created_by, r.approved_by, r.paid_at, r.created_at,
           COALESCE(SUM(i.net), 0) AS total, count(i.id)::int AS employees
@@ -135,7 +130,6 @@ export const runItems = (q, runId) => q(
 
 const monthOf = (d) => `${String(d).slice(0, 7)}-01`;
 
-/** شهر واحد: المسير إن وُجد مع سطوره، وإلا معاينة من سيدخل فيه ورواتبهم */
 export async function month(q, period) {
   const p = monthOf(period);
   const [run] = await q(
@@ -149,14 +143,12 @@ export async function month(q, period) {
   return { period: p, run: null, preview, total: preview.reduce((n, x) => n + Number(x.net), 0) };
 }
 
-// إنشاء مسير الشهر لكل الموظفين النشطين: الأساسي والبدل الثابت من ملف الموظف
 export async function createRun(q, b, actor) {
   const period = monthOf(b.period);
   const [dup] = await q("SELECT id, status FROM payroll_runs WHERE period = $1 FOR UPDATE", [period]);
   if (dup && dup.status !== "void") throw conflict("يوجد مسير رواتب لهذا الشهر");
   const staff = await q("SELECT id, base_salary, allowance FROM staff WHERE is_active");
   if (!staff.length) throw badRequest("لا يوجد موظفون نشطون. أضف الموظفين أولًا.");
-  // مسير ملغى للشهر نفسه يُعاد فتحه مسودة (الشهر الواحد له مسير واحد)
   const [run] = dup
     ? await q("UPDATE payroll_runs SET status = 'draft', note = $2, created_by = $3, approved_by = NULL, paid_at = NULL WHERE id = $1 RETURNING id", [dup.id, b.note ?? null, actor])
     : await q("INSERT INTO payroll_runs (tenant_id, period, note, created_by) VALUES (app_tenant(), $1, $2, $3) RETURNING id",
@@ -164,7 +156,6 @@ export async function createRun(q, b, actor) {
   await q(`INSERT INTO payroll_items (tenant_id, run_id, staff_id, base, allowances)
            SELECT app_tenant(), $1, s, b, a FROM unnest($2::bigint[], $3::numeric[], $4::numeric[]) AS x(s, b, a)`,
     [run.id, staff.map((s) => s.id), staff.map((s) => s.base_salary), staff.map((s) => s.allowance)]);
-  // خصم الغياب تلقائيًا من حضور الموظفين (إن كان القسم مفعّلًا وخصم الغياب مفعّلًا في إعداداته)
   let deducted = 0;
   if ((await activeModules(q)).staff_attendance) {
     const { map, working_days } = await absenceDeductions(q, period);
@@ -198,12 +189,11 @@ export async function updateItem(q, runId, itemId, b) {
   return rows[0];
 }
 
-// حذف مسودة (خطأ في الشهر مثلًا): المسودة فقط، والمعتمد والمصروف يبقيان في السجل
 export async function deleteDraft(q, runId) {
   const run = await getRun(q, runId, true);
   if (run.status !== "draft") throw badRequest("لا يُحذف إلا المسير المسودة");
   await q("DELETE FROM payroll_items WHERE run_id = $1", [runId]);
-  await q("UPDATE payroll_runs SET status = 'void' WHERE id = $1", [runId]);   // يبقى في السجل، وإنشاء مسير للشهر نفسه يعيد استخدامه
+  await q("UPDATE payroll_runs SET status = 'void' WHERE id = $1", [runId]);
 }
 
 export async function approveRun(q, runId, actor) {
@@ -212,7 +202,6 @@ export async function approveRun(q, runId, actor) {
   await q("UPDATE payroll_runs SET status = 'approved', approved_by = $2 WHERE id = $1", [runId, actor]);
 }
 
-// الصرف: حركة مصروف لكل موظف مرتبطة بسطره في المسير
 export async function payRun(q, runId, { method = "cash", paid_on = null } = {}, actor) {
   const run = await getRun(q, runId, true);
   if (run.status === "paid") throw badRequest("المسير مصروف مسبقًا");

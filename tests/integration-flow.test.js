@@ -1,5 +1,8 @@
-// ترابط الأقسام (فحص شامل): طالب واحد يُتتبَّع عبر النظام كله، وتغيير اسم صف ينعكس في كل مكان،
-// ونقل الطالب وأرشفته تتعامل معهما كل الأقسام. الهدف: أن تكون المنصة نظامًا واحدًا لا صفحات منفصلة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -21,7 +24,6 @@ before(async () => {
   admin = client(srv.base);
   assert.equal((await admin.post("/api/staff/login", { school: id, username: "admin", password: r.data.credentials.password })).status, 200);
   await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false WHERE username = 'admin'"));
-  // هيكل: الأساسي (1–6) بشعبتين، ومادة الرياضيات
   assert.ok([200, 201].includes((await admin.post("/api/admin/setup/template", { template: "primary", sections_per_grade: 2, grade_set: "yemen" })).status));
   const classes = (await admin.get("/api/admin/structure/classes")).data;
   S.c1 = classes.find((c) => c.name === "الأول - أ"); S.c2 = classes.find((c) => c.name === "الأول - ب");

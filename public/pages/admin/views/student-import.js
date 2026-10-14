@@ -1,5 +1,8 @@
-// معالج استيراد الطلاب: طريقة الاستيراد ← فحص الملف ← معاينة وتأكيد ← نتيجة.
-// لا يُكتب شيء في قاعدة البيانات قبل الضغط على «تأكيد الاستيراد».
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, sub, notice, badge, dialog, toast, textarea } from "../../shared/js/ui.js";
@@ -11,7 +14,6 @@ import { runJob } from "../../shared/js/job.js";
 const MAX_ROWS = 2000;
 const download = (url) => { location.href = url; };
 
-/** قسم «قالب الاستيراد»: قالب فارغ، أو جاهز حسب الصف (اختياري) */
 export function templateSection(structure) {
   const box = h("div", { class: "tpl-box" });
   const sectionsOn = structure.sections_enabled;
@@ -66,7 +68,6 @@ export const problemsTable = (list) => h("div", { class: "scroll" }, h("table", 
     h("td", {}, r.status === "error" ? badge("خطأ", "red") : badge("مراجعة", "amber")),
     h("td", {}, [...r.errors, ...r.notes].join(" — ")))))));
 
-/** قراءة الملف (Excel أو CSV) إلى صفوف */
 export async function readTable(file, method, max = MAX_ROWS) {
   if (file.size > 5 * 1024 * 1024) throw new Error("حجم الملف أكبر من 5 ميجابايت");
   const isX = /\.xlsx$/i.test(file.name);
@@ -88,7 +89,6 @@ export async function openStudentImport({ structure, onDone } = {}) {
     h("li", { class: i + 1 === n ? "on" : i + 1 < n ? "done" : "" }, t)));
   const payload = () => ({ rows, grade_map: gradeMap, include_duplicates: includeDup });
 
-  /* 1) اختيار الطريقة والملف */
   const stepMethod = () => {
     const msg = h("div");
     const pick = (method) => {
@@ -122,7 +122,6 @@ export async function openStudentImport({ structure, onDone } = {}) {
       chooser, msg, templateSection(structure));
   };
 
-  /* 2) فحص الملف */
   async function stepAnalyze() {
     set(stepper(2), notice("جارٍ تحليل الملف…"));
     const a = await api(`${A}/import/students/analyze`, payload());
@@ -169,7 +168,6 @@ export async function openStudentImport({ structure, onDone } = {}) {
     if (dupBox && dupCount) dupBox.addEventListener("change", async () => { includeDup = dupBox.checked; await stepAnalyze(); });
   }
 
-  /* 3) معاينة وتأكيد */
   function stepPreview(a) {
     const s = a.summary, good = a.rows.filter((r) => r.status === "ok");
     const total = s.create + s.update;
@@ -195,7 +193,6 @@ export async function openStudentImport({ structure, onDone } = {}) {
         })));
   }
 
-  /* 4) النتيجة */
   function stepResult(r) {
     set(stepper(4),
       h("h2", { class: "wiz-done" }, "تم الاستيراد بنجاح"),

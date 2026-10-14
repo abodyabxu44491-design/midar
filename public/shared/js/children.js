@@ -1,6 +1,8 @@
-// الأبناء على هذا الجهاز:
-//  - بحساب ولي الأمر (موصى به): جلسة واحدة لكل الأبناء، والخادم يتحقق من ارتباط كل طالب بالحساب. لا معرّفات محفوظة.
-//  - أو بمعرّف كل طالب (الطريقة القديمة): المعرّف يُحفظ على هذا الجهاز فقط ويمكن إزالته في أي وقت.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 const REM = (school) => `midar_children_${school}`;
 const SESSION = (school) => `midar_student_${school}`;
 const PARENT = (school) => `midar_parent_${school}`;
@@ -18,12 +20,9 @@ export function forgetChild(school, id) {
 }
 export const isRemembered = (school, id) => rememberedChildren(school).some((c) => c.id === id);
 
-/* ---------- حساب ولي الأمر ---------- */
-// علامة فقط (الجلسة نفسها في كوكي محمي لا تقرؤه الصفحة): لمعرفة أن هذا الجهاز مسجّل بحساب ولي أمر
 export const parentSignedIn = (school) => safe(() => localStorage.getItem(PARENT(school)) === "1", false);
 export const setParentSignedIn = (school, on) => safe(() => (on ? localStorage.setItem(PARENT(school), "1") : localStorage.removeItem(PARENT(school))));
 
-/** الطالب المفتوح الآن: من الرابط (?s= من الإشعار أو من «أبنائي»)، أو من الجلسة، أو الابن الوحيد المحفوظ */
 export function currentChild(school) {
   const fromUrl = Number(new URLSearchParams(location.search).get("s")) || null;
   const saved = rememberedChildren(school);

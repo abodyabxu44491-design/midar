@@ -1,4 +1,8 @@
-// إعدادات صفحة المدرسة العامة: كل عنصر اختياري وتتحكم به إدارة المدرسة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z } from "../../core/http/validate.js";
 
 export const FIELDS = [
@@ -30,8 +34,6 @@ export const settingsSchema = z.object({
   allow_parent_excuses: z.boolean(),
 }).partial();
 
-// تُنشأ تلقائيًا عند أول قراءة (بالقيم الافتراضية المتحفظة).
-// القراءة العادية SELECT فقط: الكتابة عند كل زيارة كانت تقفل الصف وتُنشئ نسخة جديدة منه في كل طلب عام.
 export async function getSettings(q) {
   const read = () => q(`SELECT ${FIELDS.join(", ")} FROM school_public_settings WHERE tenant_id = app_tenant()`);
   const [row] = await read();

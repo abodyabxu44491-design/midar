@@ -1,10 +1,12 @@
-// الإعدادات: يتم التحقق منها عند التشغيل، وأي خطأ يوقف الخادم قبل أن يبدأ
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import fs from "node:fs";
 import dotenv from "dotenv";
 import { z } from "zod";
 
-// التطوير المحلي: .env.local (لا يُرفع إلى Git)
-// السيرفر الخاص: .env — وعلى Render: متغيرات البيئة في لوحة الخدمة
 dotenv.config({ path: fs.existsSync(".env.local") ? ".env.local" : ".env" });
 
 const bool = z.enum(["true", "false"]).transform((v) => v === "true");
@@ -13,7 +15,6 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("production"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   PUBLIC_URL: z.union([z.string().url(), z.literal("")]).optional().transform((v) => v || undefined),
-  // تطبيق Google Play (TWA): اسم الحزمة وبصمات شهادة التوقيع (SHA-256، أكثر من واحدة بفاصلة)
   ANDROID_PACKAGE: z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/).optional().or(z.literal("")).transform((v) => v || undefined),
   ANDROID_SHA256: z.string().optional().transform((v) => (v || "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(x))),
   DATABASE_URL: z.string().startsWith("postgres"),
@@ -25,18 +26,13 @@ const schema = z.object({
   OWNER_PASSWORD_HASH: z.string().startsWith("scrypt$", "أنشئ OWNER_PASSWORD_HASH بالأمر: npm run owner:password"),
   OWNER_TOTP_SECRET: z.string().regex(/^[A-Z2-7]{16,64}$/).optional().or(z.literal("")),
   OWNER_ALLOWED_IPS: z.string().default(""),
-  // مفتاح تشفير كلمات المرور المؤقتة للمعلمين (64 خانة hex). بدونه لا تُحفظ نسخة قابلة للعرض ويعمل النظام كالسابق. أنشئه: npm run credential:key
   CREDENTIAL_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "CREDENTIAL_KEY يجب أن يكون 64 خانة hex (npm run credential:key)").optional().or(z.literal("")),
-  // الإشعارات الفورية (Web Push): مفاتيح VAPID اختيارية. بدونها تُشتق تلقائيًا من مفتاح الخادم (ثابتة ما دام ثابتًا)
   VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/).optional().or(z.literal("")),
   VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/).optional().or(z.literal("")),
-  // المساعد الذكي: يظهر للمدارس فقط عند ضبط المفتاح
   ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional().or(z.literal("")),
   AI_MODEL: z.string().regex(/^claude-[a-z0-9.-]+$/).optional().or(z.literal("")),
   COOKIE_SECURE: bool.default("true"),
-  // separate = كوكي منفصل لكل دور (سيرفر خاص) | single = كوكي واحد باسم __session (مطلوب في Firebase Hosting)
   SESSION_COOKIE_MODE: z.enum(["separate", "single"]).default("separate"),
-  // تحليلات Firebase في الصفحات العامة فقط
   FIREBASE_ANALYTICS: bool.default("false"),
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(1),
 });
@@ -54,8 +50,6 @@ export const env = Object.freeze({
   ownerIps: parsed.data.OWNER_ALLOWED_IPS.split(",").map((s) => s.trim()).filter(Boolean),
 });
 
-// التحقق الثنائي لدخول المالك اختياري: الدخول باسم مستخدم وكلمة مرور ما لم يُضبط OWNER_TOTP_SECRET.
-// لكنه في الإنتاج خط الدفاع الأخير عن لوحة المالك، فننبّه عند التشغيل بدونه.
 if (env.isProd && !env.OWNER_TOTP_SECRET) {
   console.warn("⚠ لوحة المالك تعمل بدون تحقق ثنائي. لتفعيله: npm run owner:totp ثم ضع الناتج في OWNER_TOTP_SECRET.");
 }
@@ -63,8 +57,7 @@ if (env.isProd && !env.OWNER_TOTP_SECRET) {
 if (env.isProd && !env.COOKIE_SECURE) {
   console.error("✗ في وضع الإنتاج يجب أن تكون COOKIE_SECURE=true (مع HTTPS)");
   process.exit(1);
-}// على Render/Firebase/nginx يمر كل الطلب عبر وكيل: بدون TRUST_PROXY يظهر كل الزوار بعنوان الوكيل نفسه،
-// فتصبح حدود المحاولات (لكل عنوان) مشتركة بين كل المستخدمين وقد تمنع الجميع من الدخول.
+}
 if (parsed.data.NODE_ENV === "production" && parsed.data.TRUST_PROXY === 0) {
   console.warn("⚠ TRUST_PROXY=0 في وضع الإنتاج: كل الزوار سيظهرون بعنوان الوكيل نفسه. على Render ضع TRUST_PROXY=1.");
 }

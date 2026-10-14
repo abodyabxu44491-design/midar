@@ -1,9 +1,11 @@
-// شاشة افتتاحية (3 ثوانٍ) لشعار مدار: تظهر مرة واحدة في كل جلسة عند فتح الموقع أو صفحة المدرسة.
-// سكربت عادي صغير يُحمَّل مبكرًا (قبل الصفحة) فلا يظهر محتوى ثم يختفي. الحركة كلها CSS (ملف splash.css).
-// الضغط أو أي مفتاح يتخطاها، ومن يفضّل تقليل الحركة يراها مختصرة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 (() => {
   const KEY = "midar_splash";
-  try { if (sessionStorage.getItem(KEY)) return; sessionStorage.setItem(KEY, "1"); } catch { /* التخزين غير متاح: نعرضها */ }
+  try { if (sessionStorage.getItem(KEY)) return; sessionStorage.setItem(KEY, "1"); } catch { /* ignore */ }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const root = document.documentElement;
   root.classList.add("splash-on");
@@ -11,7 +13,6 @@
   el.id = "splash";
   el.setAttribute("aria-hidden", "true");
   if (reduced) el.className = "reduced";
-  // نفس مسارات الشعار الرسمي، مقسّمة لأجزاء تتحرك كلٌ في وقتها
   el.innerHTML = `
   <div class="sp-glow"></div><div class="sp-ring"></div>
   <div class="sp-logo">

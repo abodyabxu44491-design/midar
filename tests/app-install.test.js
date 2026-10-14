@@ -1,4 +1,8 @@
-// تثبيت التطبيق حسب الدور، وصفحة المدرسة مفتوحة للجميع بلا رمز
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, ownerPath, endPool } from "./helpers.js";

@@ -1,10 +1,12 @@
-// تشفير كلمات المرور المؤقتة (AES-256-GCM). المفتاح في متغير بيئة خارج قاعدة البيانات، فلا تكفي نسخة القاعدة وحدها لقراءتها.
-// الصيغة: v1.<iv>.<tag>.<ciphertext> (base64url). AAD = رمز المدرسة، فلا يصلح صف منقول لمدرسة أخرى.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import crypto from "node:crypto";
 
 const parseKey = (hex) => (typeof hex === "string" && /^[0-9a-fA-F]{64}$/.test(hex) ? Buffer.from(hex, "hex") : null);
 
-/** createBox(hexKey) — للاختبارات؛ الاستخدام العادي عبر seal/open/enabled */
 export function createBox(hexKey) {
   const key = parseKey(hexKey);
   const b64 = (b) => b.toString("base64url");
@@ -27,14 +29,11 @@ export function createBox(hexKey) {
         d.setAAD(Buffer.from(String(aad)));
         d.setAuthTag(Buffer.from(tag, "base64url"));
         return Buffer.concat([d.update(Buffer.from(ct, "base64url")), d.final()]).toString("utf8");
-      } catch { return null; }   // مفتاح خاطئ أو بيانات معبوث بها
+      } catch { return null; }
     },
   };
 }
 
-// المفتاح: CREDENTIAL_KEY إن ضُبط، وإلا يُشتق (HKDF) من سر الاتصال بقاعدة البيانات DATABASE_URL.
-// السر في إعدادات الخادم لا داخل القاعدة، فنسخة القاعدة وحدها لا تكشف كلمات المرور، والميزة تعمل دون إعداد يدوي.
-// تغيير كلمة مرور قاعدة البيانات (أو المفتاح) يجعل النسخ القديمة غير مقروءة فقط: تبقى الحسابات تعمل وتُنشأ كلمة مؤقتة جديدة.
 function resolveKey(env = process.env) {
   if (parseKey(env.CREDENTIAL_KEY)) return env.CREDENTIAL_KEY;
   if (!env.DATABASE_URL) return null;
@@ -46,11 +45,9 @@ export const credentialsEnabled = box.enabled;
 export const sealCredential = box.seal;
 export const openCredential = box.open;
 
-// مفتاح مشتق لغرض محدد (مثل مفاتيح الإشعارات الفورية) من المصدر نفسه: ثابت ما دام المصدر ثابتًا، ولا يُخزَّن في القاعدة
 export function deriveSecret(info, env = process.env) {
   const base = resolveKey(env);
   return base ? Buffer.from(crypto.hkdfSync("sha256", Buffer.from(base, "hex"), "midar", String(info), 32)) : null;
 }
-// صندوق تشفير لغرض محدد (AAD يحدد السياق)، للأسرار الصغيرة مثل مفتاح مزوّد الرسائل
 export const sealSecret = (plain, aad) => box.seal(plain, aad);
 export const openSecret = (blob, aad) => box.open(blob, aad);

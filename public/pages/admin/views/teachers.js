@@ -1,4 +1,8 @@
-// تبويب المعلمين: صفحة رئيسية بسيطة (إحصائيات + بحث + بطاقات). التفاصيل في نوافذ: إضافة، وملف المعلم الكامل.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction, skeleton,
@@ -26,7 +30,6 @@ const bigDialog = (title, body, actions) => { const d = dialog(title, body, acti
 const uniq = (list, key) => [...new Set(list.map((t) => (t[key] || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
 const kv = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
 
-// تصغير صورة المعلم في المتصفح (الكاميرا أو الملفات) قبل الرفع
 async function resizePhoto(file) {
   if (!/^image\//.test(file.type)) throw new Error("اختر صورة");
   const bmp = await createImageBitmap(file);
@@ -40,7 +43,6 @@ async function resizePhoto(file) {
 export default async function teachers({ me, refresh }) {
   const [classes, subjects, list, setup] = await Promise.all([loadClasses(), loadSubjects(), api(`${A}/teachers`), api(`${A}/setup`)]);
   const structure = setup.structure, sectionsOn = structure.sections_enabled;
-  // الفصل ← المرحلة/الصف/الشعبة من الهيكل الأكاديمي المركزي (لا أسماء صفوف مكتوبة هنا)
   const info = new Map();
   for (const stg of structure.stages) for (const g of stg.grades) for (const c of g.sections) info.set(Number(c.id), { stage: stg, grade: g, cls: c });
   const placesOf = (t) => {
@@ -53,7 +55,6 @@ export default async function teachers({ me, refresh }) {
   const unassigned = list.filter((t) => !t.load.length).length;
   const pending = list.filter((t) => ["not_activated", "initial"].includes(t.account_state) && t.is_active).length;
 
-  /* ---------- البحث والفلاتر (في المتصفح: عدد المعلمين صغير) ---------- */
   const q = rememberField("teachers-q", input({ placeholder: "ابحث بالاسم أو الرقم الوظيفي أو اسم المستخدم أو الهوية أو البريد أو الجوال…", type: "search", "aria-label": "بحث" }));
   const picker = gradePicker(structure, { sectionsOn, onChange: () => draw() });
   const subjectSel = select([["", "كل المواد"], ...subjects.map((s) => [s.id, s.name])]);
@@ -102,7 +103,6 @@ export default async function teachers({ me, refresh }) {
   for (const el of [subjectSel, specialty, status]) el.addEventListener("change", draw);
   draw();
 
-  /* ---------- ملف المعلم الكامل ---------- */
   async function openFile(t0) {
     const body = h("div", { class: "teacher-file" }, skeleton(4));
     const d = bigDialog("ملف المعلم", body);
@@ -131,13 +131,11 @@ export default async function teachers({ me, refresh }) {
     const subjectNames = [...new Set(data.load.map((l) => l.subject_name))];
     const pl = placesOf({ load: data.load });
 
-    // بطاقة بيانات الدخول: اسم المستخدم دائمًا، وكلمة المرور المؤقتة ما دام المعلم لم يغيّرها
-    let revealed = null;   // تُجلب مرة واحدة عند أول «إظهار» (كل عرض يُسجَّل في سجل النشاط)
+    let revealed = null;
     const resetPw = async (tab) => {
       if (!confirmAction(`إنشاء كلمة مرور مؤقتة جديدة لـ ${t.name}؟ ستنتهي جلساته الحالية ويُطلب منه تغييرها عند أول دخول.`)) return;
       try {
         const r = await api(`${A}/teachers/${t.id}/reset-password`, {});
-        // تبقى ظاهرة في الملف حتى يغيّرها المعلم
         Object.assign(acc, { initial_password_active: true, initial_password_available: true, state: acc.last_login_at ? "initial" : "not_activated" });
         revealed = r.credentials?.password ?? null;
         show(tab); refresh(); toast("أُنشئت كلمة مرور مؤقتة جديدة");
@@ -189,7 +187,6 @@ export default async function teachers({ me, refresh }) {
           sectionsOn ? ["الشعب", pl.sections.join("، ")] : [null, null]]),
         infoBlock("الوظيفة", [["الرقم الوظيفي", t.employee_no, "ltr"], ["المسمى الوظيفي", t.job_title], ["التخصص", t.specialty],
           ["المؤهل", t.qualification], ["القسم", t.department], ["نوع التوظيف", EMPLOYMENT[t.employment_type]], ["تاريخ التعيين", t.hire_date ? fmtDate(t.hire_date) : null],
-          // الراتب من المالية ← الموظفون (المعلم موظف تلقائيًا)
           ["الراتب الشهري", t.monthly_salary === null || t.monthly_salary === undefined ? null : Number(t.monthly_salary) ? money(t.monthly_salary) : "لم يُحدد (المالية ← الموظفون)"]]),
         infoBlock("التواصل", [["الجوال", t.phone, "ltr"], ["البريد", t.email, "ltr"], ["العنوان", t.address],
           ["الطوارئ", [t.emergency_name, t.emergency_phone].filter(Boolean).join(" — ")]]),
@@ -198,7 +195,6 @@ export default async function teachers({ me, refresh }) {
       h("div", { class: "row spaced", style: "justify-content:flex-start" }, btn("تعديل البيانات", () => show("data"), "soft sm")));
 
     const dateVal = (v) => (v ? String(v).slice(0, 10) : "");
-    // البيانات: شخصية وتواصل ووظيفية في نموذج واحد وحفظ واحد
     views.data = () => {
       const F = {
         name: input({ value: t.name }), short_name: input({ value: t.short_name || "" }),
@@ -287,7 +283,6 @@ export default async function teachers({ me, refresh }) {
           }, acc.is_active ? "danger sm" : "soft sm")));
     };
 
-    // رأس الملف والصورة
     let photoBox = h("div");
     const drawPhoto = (src) => mount(photoBox, src ? h("img", { class: "s-photo lg", src, alt: "" }) : avatar({ ...t, has_photo: false }, true));
     drawPhoto(t.has_photo ? photoUrl({ id: t.id, updated_at: t.updated_at }) : null);
@@ -309,7 +304,6 @@ export default async function teachers({ me, refresh }) {
     show("overview");
   }
 
-  /* ---------- نافذة إضافة معلم ---------- */
   function addDialog() {
     const f = {
       name: input(), short_name: input(), gender: select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]]), birth_date: input({ type: "date" }),
@@ -409,7 +403,6 @@ function moreMenu(setStatus) {
     btn("كل الحالات", () => { d.close(); setStatus("all"); }, "ghost")));
 }
 
-// التصدير لا يتضمن كلمات مرور ولا hash ولا أي سر
 function exportTeachers(list) {
   csv("المعلمون.csv", [
     ["الاسم", "اسم المستخدم", "الرقم الوظيفي", "رقم الهوية", "الجوال", "البريد", "التخصص", "المسمى الوظيفي", "القسم", "نوع التوظيف", "الحالة", "الإسناد"],
@@ -419,16 +412,11 @@ function exportTeachers(list) {
   ]);
 }
 
-/**
- * أداة الإسناد: قائمة الصفوف فقط.
- * الضغط على صف يفتح مواده لاختيارها، ثم «حفظ الصف» يغلقه ويعرض ما اخترته.
- */
 function loadPicker(classes, subjects, current = []) {
   if (!classes.length || !subjects.length) {
     return { el: empty("أضف الصفوف والمواد أولًا من «الهيكل الأكاديمي»."), value: () => [], setSubjects: () => {} };
   }
 
-  // الحالة: صف ← مجموعة المواد المختارة
   const picked = new Map(classes.map((c) => [Number(c.id), new Set()]));
   for (const l of current) picked.get(Number(l.class_id))?.add(Number(l.subject_id));
 
@@ -452,7 +440,6 @@ function loadPicker(classes, subjects, current = []) {
 
       if (Number(openId) !== Number(c.id)) return h("div", { class: "assign-item" }, head);
 
-      // فتح الصف: مواده فقط
       const boxes = subjects.map((s2) => {
         const cb = input({ type: "checkbox", checked: picked.get(Number(c.id)).has(Number(s2.id)) });
         cb.addEventListener("change", () => {
@@ -476,7 +463,6 @@ function loadPicker(classes, subjects, current = []) {
     el,
     value: () => [...picked.entries()].flatMap(([classId, set]) =>
       [...set].map((subjectId) => ({ class_id: classId, subject_id: subjectId }))),
-    // اقتراح التخصص: تحديد مواد معيّنة في كل الصفوف
     setSubjects: (subjectIds) => {
       const wanted = subjectIds.map(Number);
       for (const set of picked.values()) for (const id of wanted) set.add(id);

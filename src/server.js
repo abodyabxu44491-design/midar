@@ -1,4 +1,8 @@
-// تشغيل الخادم مع إيقاف آمن (لا تنقطع عملية في منتصفها)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { getPool, closePool, healthCheck } from "./core/db/pool.js";
@@ -18,16 +22,14 @@ try {
   process.exit(1);
 }
 
-await failInterruptedJobs();   // عمليات خلفية انقطعت بإعادة التشغيل
+await failInterruptedJobs();
 
 const server = createApp().listen(env.PORT, () => {
   console.log(`✓ مدار يعمل على المنفذ ${env.PORT}`);
   console.log("  /admin  إدارة المدرسة   |  /teacher  المعلمون   |  /<رمز-المدرسة>  صفحة الطلاب");
   console.log(`  ${env.OWNER_PATH}  لوحة المالك (سرّي)`);
 });
-// مدرسة العرض التجريبي تُجهَّز مرة واحدة في الخلفية (لا تؤخر بدء الخادم)
 if (process.env.DEMO_AUTO !== "false") ensureDemoSchool().catch((e) => console.error("[العرض التجريبي]", e.message));
-// طابور الإشعارات: يلتقط ما تأجل (ساعات الهدوء) وما ينتظر إعادة المحاولة، ويكمل ما انقطع بإعادة التشغيل
 const stopDeliveries = startDeliveryWorker();
 kickDeliveries();
 server.headersTimeout = 20_000;
@@ -35,10 +37,9 @@ server.requestTimeout = 30_000;
 
 const timer = setInterval(() => {
   runMaintenance().catch((e) => console.error("[purge]", e.message));
-  runReminders().catch((e) => console.error("[تذكيرات]", e.message));   // الأقساط والمكتبة والمواعيد
+  runReminders().catch((e) => console.error("[تذكيرات]", e.message));
 }, 60 * 60 * 1000);
 timer.unref();
-// البوابة الذكية: إغلاق نافذة الحضور وتنبيه المراجعة، وإشعارات الغياب المعتمد في وقتها، ورموز الطلاب الجدد
 const gateTimer = setInterval(() => runGateTick().catch((e) => console.error("[البوابة]", e.message)), 5 * 60 * 1000);
 gateTimer.unref();
 
@@ -48,9 +49,9 @@ async function shutdown(signal) {
   closing = true;
   console.log(`\n${signal}: إيقاف آمن...`);
   server.close(async () => {
-    await drainJobs();          // لا تُقطع عملية خلفية في منتصفها (الاستيراد في معاملة واحدة، فلا يبقى نصفه)
+    await drainJobs();
     stopDeliveries();
-    await deliveriesIdle();     // دفعة الإشعارات الجارية تكتمل (والباقي محفوظ في الطابور)
+    await deliveriesIdle();
     await closePool().catch(() => {});
     process.exit(0);
   });

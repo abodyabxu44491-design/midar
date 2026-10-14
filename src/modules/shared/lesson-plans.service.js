@@ -1,4 +1,8 @@
-// تحضير الدروس: خطة أسبوعية لكل شعبة ومادة يكتبها المعلم، ويعتمدها المدير أو يعيدها بملاحظة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
@@ -12,7 +16,6 @@ export const planSchema = z.object({
 });
 export const STATUS = { draft: "مسودة", submitted: "مرسلة للمراجعة", approved: "معتمدة", returned: "معادة للتعديل" };
 
-// بداية الأسبوع الدراسي (الأحد) لأي تاريخ
 export const weekOf = (day) => { const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - d.getUTCDay()); return d.toISOString().slice(0, 10); };
 
 const SELECT = `SELECT p.id, p.teacher_id, t.full_name AS teacher, p.class_id, c.name AS class_name, p.subject_id, s.name AS subject,
@@ -63,7 +66,6 @@ export async function review(q, id, { approve, note }, actor) {
     body: `${p.topic} — ${p.class_name}${note ? ` — ${note}` : ""}` });
 }
 
-/** متابعة الإدارة: لكل معلم ومادة وشعبة هل سلّم تحضير الأسبوع */
 export async function coverage(q, week) {
   return q(
     `SELECT a.teacher_id, t.full_name AS teacher, a.class_id, c.name AS class_name, a.subject_id, s.name AS subject, p.id AS plan_id, p.status

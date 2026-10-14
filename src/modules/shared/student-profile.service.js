@@ -1,4 +1,8 @@
-// ملف الطالب الكامل: مصدر واحد لما يراه ولي الأمر (بمعرّف الطالب) وما تراه الإدارة (بدون رمز)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { studentSummary, listInvoices, listPayments } from "./finance.service.js";
 import { listAccounts, claimsForStudent } from "./payments.service.js";
 import { getSettings } from "./public-settings.service.js";
@@ -15,10 +19,6 @@ const mask = (phone) => (phone ? phone.replace(/\s/g, "").replace(/.(?=.{3})/g, 
 const ALL_ON = { profile_show_grades: true, profile_show_attendance: true, profile_show_teachers: true,
   profile_show_timetable: true, profile_show_homework: true };
 
-/**
- * @param {object} s صف الطالب من قاعدة البيانات
- * @param {{admin?: boolean}} opts admin=true: كل الأقسام + جوال غير مقنّع + حقول الطالب الإضافية، ولا يُعاد أي معرّف دخول
- */
 export async function buildProfile(q, tenant, s, { admin = false } = {}) {
   const parentSettings = await getSettings(q);
   const settings = admin ? { ...parentSettings, ...ALL_ON } : parentSettings;
@@ -28,7 +28,6 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
                       (SELECT g.name FROM gates g WHERE g.id = attendance.gate_id) AS gate_name,
                       (status IN ('absent', 'late') AND day >= CURRENT_DATE - 30 AND parent_excuse_state IS DISTINCT FROM 'accepted') AS can_excuse
                  FROM attendance WHERE student_id = $1 ORDER BY day DESC LIMIT 180`, [s.id]) : [];
-  // تنبيه الغياب التلقائي: غياب بلا عذر خلال 30 يومًا بلغ الحد الذي حددته المدرسة
   const threshold = parentSettings.absence_alert_threshold;
   const recentAbsent = attendance.filter((a) => a.status === "absent" && a.day >= new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)).length;
   const absenceWarning = settings.profile_show_attendance && threshold && recentAbsent >= threshold
@@ -41,7 +40,6 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
        FROM exams e JOIN scores sc ON sc.exam_id = e.id AND sc.student_id = $1 JOIN subjects sub ON sub.id = e.subject_id
        LEFT JOIN grade_components gc ON gc.id = e.component_id
       WHERE e.status = 'published' AND sc.score IS NOT NULL ORDER BY e.exam_date DESC NULLS LAST, e.id DESC`, [s.id]) : [];
-  // معلم واحد بكل مواده في الفصل، وصورته للإدارة دائمًا ولولي الأمر إن فعّلت المدرسة نشر صور المعلمين
   const teachers = settings.profile_show_teachers ? await q(
     `SELECT t.full_name AS teacher, string_agg(DISTINCT sub.name, '، ' ORDER BY sub.name) AS subject,
             CASE WHEN $2 AND t.photo IS NOT NULL
@@ -80,7 +78,6 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
     settings: { ...settings, allow_parent_excuses: settings.allow_parent_excuses && settings.profile_show_attendance },
     has_gate: (await q("SELECT EXISTS (SELECT 1 FROM gates WHERE is_active) AS x"))[0].x,
     academic: term, attendance, absence_warning: absenceWarning, alerts, grades, teachers, announcements: news, fees,
-    // النسبة العامة للفصل الحالي بنفس حساب كشف الدرجات والشهادة (موزونة بتوزيع الدرجات إن وُجد)
     grades_percent: settings.profile_show_grades && grades.length ? (await buildReportCard(q, s.id))?.summary.percent ?? null : null,
     timetable: settings.profile_show_timetable && s.class_id ? await forClass(q, s.class_id) : [],
     homework: settings.profile_show_homework && s.class_id ? await listForStudent(q, s) : [],
@@ -88,7 +85,6 @@ export async function buildProfile(q, tenant, s, { admin = false } = {}) {
   };
 }
 
-// الحقول المخصصة: لولي الأمر ما فعّلت المدرسة إظهاره، وللإدارة ما فعّلت إظهاره في الإدارة
 async function customValues(q, studentId, admin) {
   const fields = (await listFields(q, "student")).filter((f) => f.is_active && (admin ? f.show_admin : f.show_parent));
   if (!fields.length) return [];

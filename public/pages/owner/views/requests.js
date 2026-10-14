@@ -1,4 +1,8 @@
-// الطلبات: تجربة، اشتراك، ميزة، تواصل، ترقية، تجديد — من الصفحة العامة ومن المدارس، في مكان واحد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, field, input, select, btn, badge, sub, notice, toast, dialog, empty, textarea, confirmAction, line, keyText } from "/shared/js/ui.js";
@@ -54,7 +58,6 @@ function row(r, refresh, root) {
       r.source === "public" ? btn("حذف", async () => { if (!confirmAction("حذف الطلب نهائيًا؟")) return; await api(`/api/owner/requests/${r.id}`, undefined, "DELETE"); refresh(); }, "danger sm") : null));
 }
 
-// من الطلب إلى مدرسة تعمل: رمز المدرسة وحساب المدير والاشتراك (تجربة أو مدفوع) في خطوة واحدة
 async function convert(r, refresh) {
   const refs = await loadRefs();
   const suggested = (r.email?.split("@")[0] || "school").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20) || "school";

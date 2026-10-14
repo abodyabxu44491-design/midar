@@ -1,4 +1,8 @@
-// بناء كشف الدرجات من الاختبارات المنشورة فقط، موزونة حسب توزيع الدرجات إن حددته المدرسة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { forClass, subjectResult } from "./grade-components.service.js";
 
 const round = (n, d = 1) => (n === null || n === undefined ? null : Math.round(n * 10 ** d) / 10 ** d);
@@ -11,7 +15,6 @@ export async function buildReportCard(q, studentId, termId = null) {
   if (!student) return null;
   const [school] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
 
-  // فصل دراسي محدد، أو السنة الحالية كاملة إذا لم يُحدد
   const [scope] = await q(
     `SELECT t.id AS term_id, t.name AS term_name, t.year_id, y.name AS year_name
        FROM terms t JOIN academic_years y ON y.id = t.year_id
@@ -47,7 +50,6 @@ export async function buildReportCard(q, studentId, termId = null) {
   const total = subjects.reduce((a, s) => a + s.score, 0);
   const totalMax = subjects.reduce((a, s) => a + s.max, 0);
 
-  // الحضور داخل نطاق الفصل أو السنة
   const [range] = await q(
     `SELECT COALESCE(MIN(t.start_date), '1900-01-01') AS a, COALESCE(MAX(t.end_date), '2999-01-01') AS b
        FROM terms t WHERE ($1::bigint IS NULL OR t.id = $1) AND ($2::bigint IS NULL OR t.year_id = $2)`,
@@ -78,7 +80,6 @@ export async function classReportCards(q, classId, termId = null) {
   const students = await q("SELECT id FROM students WHERE class_id = $1 AND archived_at IS NULL ORDER BY full_name", [classId]);
   const cards = [];
   for (const s of students) cards.push(await buildReportCard(q, s.id, termId));
-  // ترتيب الطلاب حسب النسبة (للترتيب داخل الصف)
   const ranked = [...cards].filter((c) => c.summary.percent !== null).sort((a, b) => b.summary.percent - a.summary.percent);
   for (const c of cards) {
     const i = ranked.findIndex((x) => x.student.id === c.student.id);

@@ -1,15 +1,14 @@
-// تشغيل عملية طويلة في الخلفية مع نافذة تقدم: يبدأها الطلب، ثم تُسأل حالتها كل ثانية حتى تنتهي.
-// الإغلاق لا يوقف العملية (تكمل في الخادم)، ويمكن فتح النتيجة لاحقًا من نفس الصفحة ما دامت مفتوحة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { api, ApiError } from "./api.js";
 import { sub } from "./ui.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * runJob("/api/admin/import/students/commit", body, { title, jobsBase: "/api/admin/jobs" })
- * يعيد { summary, secret } عند النجاح، ويرمي ApiError برسالة الخادم عند الفشل.
- */
 export async function runJob(url, body, { title = "جارٍ التنفيذ", jobsBase, note = null } = {}) {
   const { id } = await api(url, body);
   const bar = h("i", { style: "width:0%" });
@@ -20,7 +19,7 @@ export async function runJob(url, body, { title = "جارٍ التنفيذ", job
       h("div", { class: "job-row" }, step, pct),
       h("div", { class: "bar job-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100" }, bar),
       sub(note || "تعمل العملية في الخادم، ولن تتوقف إن ضعف الاتصال. أبقِ الصفحة مفتوحة لترى النتيجة.")));
-  d.addEventListener("cancel", (e) => e.preventDefault());     // لا إغلاق بزر Esc أثناء التنفيذ
+  d.addEventListener("cancel", (e) => e.preventDefault());
   document.body.append(d);
   d.showModal();
   try {

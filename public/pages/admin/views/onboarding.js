@@ -1,5 +1,8 @@
-// «ابدأ هنا»: خطوات واضحة للمدير في مدرسة جديدة، كل خطوة تُشطب تلقائيًا من بيانات المدرسة الفعلية،
-// والضغط على الخطوة ينقله للقسم المناسب. تختفي القائمة عند اكتمالها أو إذا أخفاها المدير.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { icons } from "../../shared/js/icons.js";
 import { toast } from "../../shared/js/ui.js";
@@ -7,12 +10,11 @@ import { directoryLink } from "./common.js";
 
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* تخزين غير متاح */ } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
 };
 
 export function startHere({ me, d, goTo }) {
   const key = (s) => `midar_start_${me.school.id}_${s}`;
-  // للمدارس الجديدة فقط (أول 60 يومًا): المدارس القائمة لا تحتاجها
   if (!d.new_school || store.get(key("hidden"))) return null;
   const shared = () => Boolean(store.get(key("shared")));
   const link = me.links?.public?.home || directoryLink(me);

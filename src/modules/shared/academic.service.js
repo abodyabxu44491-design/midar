@@ -1,4 +1,8 @@
-// السنة الدراسية والفصول الدراسية، وبدء سنة جديدة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 
@@ -19,34 +23,28 @@ export const ACTION_LABEL = {
   promote: "ترفيع للصف التالي", repeat: "إعادة السنة", graduate: "تخرّج",
   transfer: "نقل لمدرسة أخرى", withdraw: "انسحاب",
 };
-// نتيجة السنة ← الإجراء المقترح
 const RESULT_OF_ACTION = { promote: "promoted", repeat: "repeated", graduate: "graduated", transfer: "transferred", withdraw: "withdrawn" };
 const STATUS_OF_ACTION = { promote: "active", repeat: "active", graduate: "graduated", transfer: "transferred", withdraw: "withdrawn" };
 
 export const rolloverSchema = z.object({
   year: yearSchema,
-  // خريطة الصفوف: إلى أي صف يُرفَّع كل صف (أو تخرّج طلابه)
   moves: z.array(z.object({
     from_class_id: t.id,
     action: z.enum(["promote", "graduate", "repeat"]).default("promote"),
     to_class_id: t.optId,
   })).max(200).default([]),
-  // استثناءات لطلاب بأعينهم (تتقدم على خريطة الصف)
   overrides: z.array(z.object({
     student_id: t.id,
     action: z.enum(ACTIONS),
     to_class_id: t.optId,
     note: t.optText(300),
   })).max(2000).default([]),
-  // الراسب يعيد السنة تلقائيًا ولا يُرفَّع
   repeat_failed: z.boolean().default(true),
-  // السنة التي رآها المدير عند فتح النافذة: إن تغيرت (بدأ مدير آخر سنة جديدة) يُرفض الطلب
   expected_year_id: t.optId,
 });
 
 export const passMarkSchema = z.object({ pass_mark: z.coerce.number().min(0).max(100) });
 
-// حالة السنة أو الفصل تُحسب من التواريخ (لا تُخزَّن فلا تتقادم): قادمة، نشطة، منتهية، أو مؤرشفة
 export const STATES = { upcoming: "قادمة", active: "نشطة", ended: "منتهية", archived: "مؤرشفة" };
 const stateSql = (a) => `CASE WHEN ${a}.start_date > current_date THEN 'upcoming' WHEN ${a}.end_date < current_date THEN 'ended' ELSE 'active' END`;
 
@@ -62,12 +60,11 @@ export const listTerms = (q, yearId = null) => q(
      FROM terms t JOIN academic_years y ON y.id = t.year_id
     WHERE ($1::bigint IS NULL OR t.year_id = $1) ORDER BY y.start_date DESC, t.ordinal`, [yearId]);
 
-// كل مدرسة جديدة تبدأ بسنة دراسية وثلاثة فصول جاهزة (تُنشأ عند أول استخدام)
 export async function ensureDefaults(q) {
   const [exists] = await q("SELECT 1 FROM academic_years LIMIT 1");
   if (exists) return;
   const now = new Date();
-  const startYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;   // السنة تبدأ في أغسطس
+  const startYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
   const start = `${startYear}-08-01`;
   const end = `${startYear + 1}-06-30`;
   await createYear(q, { name: `${startYear}/${startYear + 1}`, start_date: start, end_date: end, terms: 3, make_current: true });
@@ -84,7 +81,6 @@ export async function current(q) {
 
 const TERM_NAMES = ["الفصل الأول", "الفصل الثاني", "الفصل الثالث", "الفصل الرابع", "الفصل الخامس", "الفصل السادس"];
 
-// إنشاء سنة وفصولها بتواريخ موزعة تلقائيًا
 export async function createYear(q, b) {
   if (b.end_date <= b.start_date) throw badRequest("نهاية السنة يجب أن تكون بعد بدايتها");
   const [dup] = await q("SELECT 1 FROM academic_years WHERE name = $1", [b.name]);
@@ -94,7 +90,6 @@ export async function createYear(q, b) {
     `INSERT INTO academic_years (tenant_id, name, start_date, end_date, is_current)
      VALUES (app_tenant(), $1, $2, $3, $4) RETURNING id`, [b.name, b.start_date, b.end_date, b.make_current]);
 
-  // تقسيم مدة السنة على عدد الفصول بالتساوي
   const start = new Date(b.start_date), end = new Date(b.end_date);
   const span = (end - start) / b.terms;
   for (let i = 0; i < b.terms; i++) {
@@ -125,10 +120,6 @@ export async function updateTerm(q, termId, b) {
   if (!rows.length) throw notFound("الفصل الدراسي غير موجود");
 }
 
-/**
- * نتائج كل الطلاب في سنة: المتوسط من الاختبارات المنشورة، ونسبة الحضور داخل مدة السنة،
- * والنتيجة (ناجح / راسب / غير مكتمل) حسب درجة النجاح المعتمدة للسنة.
- */
 export async function yearResults(q, yearId) {
   const [year] = await q("SELECT id, pass_mark, start_date, end_date FROM academic_years WHERE id = $1", [yearId]);
   if (!year) return { year: null, students: [] };
@@ -162,7 +153,6 @@ export async function yearResults(q, yearId) {
   };
 }
 
-/** أرشفة سنة سابقة أو إعادتها. السنة الحالية لا تُؤرشف (تُؤرشف تلقائيًا عند بدء سنة جديدة). */
 export const yearStatusSchema = z.object({ status: z.enum(["active", "archived"]) });
 export async function setYearStatus(q, yearId, status) {
   const [y] = await q("SELECT id, is_current FROM academic_years WHERE id = $1", [yearId]);
@@ -176,9 +166,6 @@ export async function setPassMark(q, yearId, passMark) {
   if (!rows.length) throw notFound("السنة غير موجودة");
 }
 
-/**
- * معاينة الترفيع: لكل طالب نتيجته والإجراء المقترح، قبل تنفيذ بدء السنة.
- */
 export async function promotionPreview(q, moves = []) {
   const cur = await current(q);
   if (!cur) return { year: null, students: [] };
@@ -189,22 +176,14 @@ export async function promotionPreview(q, moves = []) {
     students: students.map((s) => {
       const move = s.class_id ? moveOf.get(Number(s.class_id)) : null;
       let action = move?.action || "promote";
-      if (action === "promote" && s.outcome === "failed") action = "repeat";      // الراسب يعيد
-      if (action === "graduate" && s.outcome === "failed") action = "repeat";     // لا تخرّج براسب
+      if (action === "promote" && s.outcome === "failed") action = "repeat";
+      if (action === "graduate" && s.outcome === "failed") action = "repeat";
       return { ...s, suggested_action: action, to_class_id: action === "promote" ? move?.to_class_id ?? null : null };
     }),
   };
 }
 
-/**
- * بدء سنة دراسية جديدة:
- *   1) يحفظ سجل كل طالب في السنة المنتهية (صفه ونتيجته ومتوسطه)
- *   2) ينقل الطلاب حسب الخريطة: ترفيع، أو بقاء، أو تخرّج
- *   3) ينشئ السنة الجديدة وفصولها ويجعلها الحالية
- * كل ذلك في معاملة واحدة: إما تتم كاملة أو لا تتم.
- */
 export async function startNewYear(q, b) {
-  // عملية واحدة في المرة لكل مدرسة (نفس قفل إضافة الطلاب)، ثم نتأكد أن السنة الحالية هي التي رآها المدير
   await q("SELECT id FROM tenants WHERE id = app_tenant() FOR UPDATE");
   const old = await current(q);
   if (b.expected_year_id && Number(old?.year_id) !== Number(b.expected_year_id)) {
@@ -222,7 +201,6 @@ export async function startNewYear(q, b) {
       if (!b.repeat_failed && action === "repeat" && st.outcome === "failed" && st.to_class_id) action = "promote";
       const toClass = override?.to_class_id ?? st.to_class_id;
 
-      // سجل السنة المنتهية: النتيجة والإجراء والمتوسط ونسبة الحضور
       await q(
         `INSERT INTO student_years (tenant_id, student_id, year_id, class_id, class_name, result, outcome, average, attendance_rate, note)
          VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -238,9 +216,8 @@ export async function startNewYear(q, b) {
         if (toClass) await q("UPDATE students SET class_id = $2 WHERE id = $1", [st.id, toClass]);
         summary.promoted++;
       } else if (action === "repeat") {
-        summary.repeated++;                                   // يبقى في صفه نفسه
+        summary.repeated++;
       } else {
-        // تخرّج أو نقل أو انسحاب: تتغير حالة الطالب ويخرج من القوائم مع بقاء سجله
         await q("UPDATE students SET status = $2, status_note = $3 WHERE id = $1",
           [st.id, STATUS_OF_ACTION[action], override?.note ?? null]);
         summary[RESULT_OF_ACTION[action]]++;
@@ -254,11 +231,6 @@ export async function startNewYear(q, b) {
   return summary;
 }
 
-
-/**
- * إعداد السنة الدراسية من المعالج أو الإعدادات (نفس الدالة للاثنين):
- * لا سنة ← تُنشأ؛ توجد سنة ← تُحدَّث بياناتها، وتُعاد قسمة الفصول إن لم تكن مرتبطة باختبارات أو فواتير.
- */
 export async function configureYear(q, b) {
   const [cur] = await q("SELECT id FROM academic_years WHERE is_current");
   if (!cur) return createYear(q, { ...b, make_current: true });
@@ -287,7 +259,6 @@ export async function configureYear(q, b) {
   return { id: cur.id };
 }
 
-/* ---------- الإجازات والعطل ---------- */
 export const HOLIDAY_KINDS = {
   official: "إجازة رسمية", mid_term: "إجازة منتصف الفصل", term_end: "إجازة نهاية الفصل",
   eid: "إجازة عيد", emergency: "إجازة طارئة", school: "إجازة خاصة بالمدرسة", custom: "عطلة مخصصة",
@@ -324,7 +295,6 @@ export async function deleteHoliday(q, id) {
   const rows = await q("DELETE FROM holidays WHERE id = $1 RETURNING id", [id]);
   if (!rows.length) throw notFound("الإجازة غير موجودة");
 }
-/** هل هذا التاريخ ضمن إجازة تؤثر على الحضور؟ (يستخدمها الحضور والجدول) */
 export async function holidayOn(q, date) {
   const [row] = await q(
     "SELECT id, name FROM holidays WHERE affects_attendance AND $1::date BETWEEN start_date AND end_date LIMIT 1", [date]);

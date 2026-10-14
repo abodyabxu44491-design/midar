@@ -1,4 +1,8 @@
-// المعلمون وحساباتهم (حسابات منفصلة تمامًا عن الإدارة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
@@ -11,7 +15,6 @@ import * as file from "../shared/teacher-file.service.js";
 
 const r = Router();
 const loadSchema = z.array(z.object({ class_id: t.id, subject_id: t.id })).max(200).default([]);
-// ملف المعلم: الرقم الوظيفي والهوية والبريد والتخصص والقسم — كلها اختيارية
 const profileFields = {
   employee_no: t.optText(30),
   national_id: z.string().trim().regex(/^[0-9]{5,20}$/, "رقم الهوية أرقام فقط").optional().or(z.literal("")).transform((v) => v || null),
@@ -35,12 +38,10 @@ const createSchema = z.object({ name: t.name("اسم المعلم"), username: t
 const updateSchema = z.object({ name: t.name("اسم المعلم").optional(), phone: t.phone, load: loadSchema.optional(), ...profileFields });
 
 async function setLoad(q, teacherId, load) {
-  // لا يتكرر الإسناد نفسه (مادة + فصل) حتى لو أُرسل مرتين
   const seen = new Set();
   load = load.filter((l) => { const k = `${l.class_id}:${l.subject_id}`; if (seen.has(k)) return false; seen.add(k); return true; });
   await q("DELETE FROM teacher_assignments WHERE teacher_id = $1", [teacherId]);
   for (const l of load) {
-    // المفاتيح الأجنبية المركبة ترفض أي فصل أو مادة من مدرسة أخرى
     await q(`INSERT INTO teacher_assignments (tenant_id, teacher_id, class_id, subject_id)
              VALUES (app_tenant(), $1, $2, $3) ON CONFLICT DO NOTHING`, [teacherId, l.class_id, l.subject_id]);
   }
@@ -128,7 +129,6 @@ r.patch("/:id/active", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// الحذف مسموح فقط إن لم يكن له سجل؛ غير ذلك استخدم الإيقاف
 r.delete("/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   await inTenant(req, async (q) => {
@@ -139,16 +139,14 @@ r.delete("/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// تعديل ملف المعلم وإسناده
 r.patch("/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(updateSchema, req.body);
   await inTenant(req, async (q) => {
     const [cur] = await q("SELECT * FROM teachers WHERE id = $1", [id]);
     if (!cur) throw notFound("المعلم غير موجود");
-    if (b.load && Object.keys(req.body).length === 1) { await setLoad(q, id, b.load); return; }   // تعديل الإسناد وحده لا يمس البيانات
+    if (b.load && Object.keys(req.body).length === 1) { await setLoad(q, id, b.load); return; }
     await file.ensureUniqueEmployeeNo(q, b.employee_no, id);
-    // الحقول الجديدة: ما لم يُرسل يبقى كما هو (لا تُمسح بيانات المدارس الحالية بطلب قديم)
     const pick = (k) => (req.body[k] === undefined ? cur[k] : b[k] ?? null);
     await q(
       `UPDATE teachers SET full_name = COALESCE($2, full_name), phone = $3, employee_no = $4,
@@ -164,10 +162,6 @@ r.patch("/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/**
- * توزيع المعلمين: حفظ إسناد عدة خلايا (شعبة × مادة ← معلم) دفعة واحدة.
- * teacher_id فارغ = إزالة الإسناد من هذه الخلية.
- */
 const matrixSchema = z.object({
   items: z.array(z.object({ class_id: t.id, subject_id: t.id, teacher_id: t.optId })).min(1).max(2000),
 });
@@ -190,7 +184,6 @@ r.post("/assignments/bulk", handle(async (req, res) => {
   }));
 }));
 
-// ملف المعلم الكامل (للإدارة فقط: الموجّه مقيّد بدور المدير). لا يعيد أي سر: لا كلمة مرور ولا hash.
 r.get("/:id/file", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   res.json(await inTenant(req, (q) => file.fullProfile(q, id)));
@@ -214,7 +207,6 @@ r.delete("/:id/photo", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// عرض بيانات الدخول الأولية: POST (لا يُخزَّن ولا يُجلب مسبقًا)، بطلب صريح، ويُسجَّل كل عرض في سجل النشاط
 r.post("/:id/initial-credentials", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const out = await inTenant(req, async (q) => {

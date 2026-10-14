@@ -1,5 +1,8 @@
-// الموظفون والرواتب داخل المالية: المعلمون موظفون تلقائيًا، أنواع الموظفين، الراتب (أساسي + بدل)،
-// مسير الشهر (معاينة ← إنشاء ← تعديل ← اعتماد ← صرف بتاريخ) وقيوده في السجل، وحذف المسودة، والنظرة العامة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -34,7 +37,6 @@ test("المعلم موظف تلقائيًا: يُضاف ويتبعه اسمه �
   await admin.patch(`/api/admin/teachers/${teacherId}`, { name: "أ. سعيد علي الحكيمي (معدّل)", phone: "733000111" });
   staff = (await admin.get(`${L}/staff`)).data.staff;
   assert.equal(staff.find((s) => s.teacher_id === teacherId).full_name, "أ. سعيد علي الحكيمي (معدّل)");
-  // المعلم المرتبط: الاسم والنوع لا يتغيران من المالية
   await admin.patch(`${L}/staff/${me.id}`, { full_name: "اسم آخر", category: "guard", base_salary: 120000, allowance: 20000, pay_method: "transfer", account_number: "٣٠١٢٠٤٥" });
   const after = (await admin.get(`${L}/staff`)).data.staff.find((s) => s.id === me.id);
   assert.equal(after.category, "teacher");

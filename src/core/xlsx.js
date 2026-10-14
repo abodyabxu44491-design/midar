@@ -1,5 +1,8 @@
-// كتابة ملف Excel (.xlsx) بلا أي مكتبة خارجية: XML داخل حزمة ZIP بدون ضغط.
-// يكفي للقوالب: ورقة أو أكثر، عناوين بخط عريض، عرض أعمدة، اتجاه من اليمين لليسار، وقوائم منسدلة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import zlib from "node:zlib";
 
 const CRC_TABLE = (() => {
@@ -13,7 +16,6 @@ export function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** حزمة ZIP: files = [{ name, data: Buffer|string }] — تُخزَّن بلا ضغط (deflate اختياري) */
 export function zip(files) {
   const parts = [], central = [];
   let offset = 0;
@@ -49,11 +51,6 @@ const esc = (v) => String(v).replace(/[<>&"\u0000-\u0008\u000b\u000c\u000e-\u001
   ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c] || "");
 const colName = (i) => { let s = ""; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };
 
-/**
- * sheets: [{ name, headers:[string], rows:[[value]], widths?:[number], notes?:boolean,
- *            lists?: { [colIndex]: string[] }, textColumns?: number[] }]
- * القيم النصية تُخزَّن نصًا دائمًا (حتى لا يحوّل Excel 0501 إلى 501 أو الصف 1 إلى رقم).
- */
 export function buildXlsx(sheets) {
   const files = [];
   files.push({ name: "[Content_Types].xml", data:
@@ -64,7 +61,6 @@ export function buildXlsx(sheets) {
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${esc(s.name).slice(0, 31)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>` });
   files.push({ name: "xl/_rels/workbook.xml.rels", data:
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` });
-  // الأنماط: 0 عادي، 1 عنوان (عريض + خلفية)، 2 نص (تنسيق @)
   files.push({ name: "xl/styles.xml", data:
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDCE8F5"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>` });
 

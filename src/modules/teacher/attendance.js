@@ -1,4 +1,8 @@
-// حضور فصول المعلم فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, forbidden } from "../../core/http/errors.js";
@@ -30,7 +34,6 @@ r.post("/", handle(async (req, res) => {
   })));
 }));
 
-// عذر أو ملاحظة على غياب أو تأخر طالب في فصله (إن سمحت المدرسة)
 r.patch("/excuse", handle(async (req, res) => {
   const b = parse(attendance.excuseSchema, req.body);
   res.json(await inTenant(req, async (q) => {

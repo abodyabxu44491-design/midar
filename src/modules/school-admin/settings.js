@@ -1,4 +1,8 @@
-// إعدادات المدرسة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant, transaction } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";
@@ -11,20 +15,17 @@ import { toOld, kindOld } from "../shared/subscription.service.js";
 
 const r = Router();
 
-// رمز جديد لصفحة الطلاب (القديم يتوقف فورًا)
 r.post("/directory-code", handle(async (req, res) => {
   const code = newDirectoryCode();
   await inTenant(req, (q) => q("UPDATE tenants SET directory_code = $1 WHERE id = app_tenant()", [code]));
   res.json({ directory_code: code });
 }));
 
-// إنهاء كل جلسات المدرسة (عند الاشتباه بتسريب)
 r.post("/sign-out-all", handle(async (req, res) => {
   await inTenant(req, (q) => q("DELETE FROM sessions WHERE tenant_id = app_tenant() AND user_id <> $1", [req.user.id]));
   res.json({ ok: true });
 }));
 
-/* ---------- الاشتراك والدعم ---------- */
 const renewalSchema = z.object({
   kind: z.enum(["renew", "upgrade", "support"]).default("renew"),
   months: z.coerce.number().int().min(1).max(36).optional(),
@@ -41,7 +42,6 @@ r.get("/subscription", handle(async (req, res) => {
               (SELECT count(*) FROM students WHERE status = 'active')::int AS students,
               (t.subscription_end - CURRENT_DATE)::int AS days_left
          FROM tenants t WHERE t.id = app_tenant()`);
-    // طلبات المدرسة من الجدول الموحد بأسماء الحالات السابقة (توافق مع الواجهات القديمة)
     const requests = (await q(
       `SELECT id, kind, months, students_count AS students_wanted, note, status, owner_note, created_at
          FROM leads WHERE source = 'school' AND kind IN ('renewal', 'upgrade', 'contact') ORDER BY id DESC LIMIT 20`))
@@ -70,7 +70,6 @@ r.post("/subscription/renew", handle(async (req, res) => {
   res.status(201).json(row);
 }));
 
-/* ---------- أقسام المنصة ---------- */
 r.get("/modules", handle(async (req, res) => {
   res.json(await inTenant(req, getModules));
 }));
@@ -80,7 +79,6 @@ r.put("/modules", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => updateModules(q, b)));
 }));
 
-/* ---------- عملة المدرسة ---------- */
 r.get("/currency", handle(async (req, res) => {
   const [row] = await inTenant(req, (q) => q("SELECT currency FROM tenants WHERE id = app_tenant()"));
   res.json(row);
@@ -97,7 +95,6 @@ r.put("/currency", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* ---------- إعدادات الصفحة العامة ---------- */
 r.get("/public-page", handle(async (req, res) => {
   res.json(await inTenant(req, getSettings));
 }));
@@ -107,7 +104,6 @@ r.put("/public-page", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => updateSettings(q, b)));
 }));
 
-/* ---------- طرق السداد ---------- */
 r.get("/payment", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const [tn] = await q("SELECT payment_note FROM tenants WHERE id = app_tenant()");

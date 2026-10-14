@@ -1,4 +1,8 @@
-// اختبارات المعلم: إنشاء، إدخال درجات، إرسال للاعتماد
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, forbidden, badRequest } from "../../core/http/errors.js";
@@ -17,7 +21,6 @@ async function myExam(q, req) {
 
 r.get("/", handle(async (req, res) => res.json(await inTenant(req, (q) => exams.listForTeacher(q, req.user.teacher_id)))));
 
-// أنواع الدرجات المتاحة لفصل يدرّسه المعلم (توزيع الدرجات الذي حددته الإدارة)
 r.get("/components", handle(async (req, res) => {
   const classId = parse(t.id, req.query.class_id);
   res.json(await inTenant(req, async (q) => {

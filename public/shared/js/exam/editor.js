@@ -1,6 +1,8 @@
-// محرر السؤال: نموذج لكل نوع، شريط المعادلات مع معاينة فورية، الصور، الجداول مع دمج الخلايا،
-// والإجابة الصحيحة والحل النموذجي وملاحظات التصحيح (للمعلم فقط، لا تظهر في ورقة الطالب).
-// المحرر يعدّل كائن السؤال مباشرة ثم يستدعي onChange (الحفظ التلقائي عند المصمم).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../dom.js";
 import { api } from "../api.js";
 import { field, input, textarea, select, btn, toast } from "../ui.js";
@@ -8,7 +10,6 @@ import { icons } from "../icons.js";
 import { rich, loadMath, hasMath, MATH_SNIPPETS, insertMath, countBlanks } from "./math.js";
 import { QTYPES, DIFFICULTY, ANSWER_SPACE, OPTION_LETTERS, newQuestion, newTable, uid } from "./engine.js";
 
-/* ---------- حقل نص مع شريط المعادلات ومعاينة ---------- */
 export function richInput(value, onInput, { rows = 2, placeholder = "", math = true } = {}) {
   const ta = textarea({ rows, placeholder, value: value || "", dir: "auto" });
   const prev = h("div", { class: "xb-rich-prev hidden" });
@@ -26,8 +27,6 @@ export function richInput(value, onInput, { rows = 2, placeholder = "", math = t
     h("small", { class: "sub" }, "المعادلات بين علامتي $ … $"), toggle) : null, bar, prev);
 }
 
-/* ---------- الصور ---------- */
-// تصغير الصور الكبيرة قبل الرفع (جودة كافية للطباعة، وحجم أقل من 2 ميجابايت)
 async function prepareImage(file) {
   const bitmap = await createImageBitmap(file);
   const max = 2000;
@@ -50,7 +49,6 @@ const toBase64 = (file) => new Promise((res, rej) => {
   r.readAsDataURL(file);
 });
 
-// صورة مصغرة (حتى 480 بكسل) للمعاينات: WebP إن دعمه المتصفح وإلا JPEG
 async function makeThumb(file) {
   try {
     const bitmap = await createImageBitmap(file);
@@ -81,7 +79,6 @@ function imageControls(q, base, changed) {
     try {
       toast("جارٍ رفع الصورة…");
       const r = await uploadImage(base, f);
-      // الافتراضي صغير وبجانب السؤال حتى لا يأخذ مساحة كبيرة (يُكبَّر من شريط الحجم عند الحاجة)
       q.image = { id: r.id, width: q.image?.width || 30, align: q.image?.align || "center", position: q.image?.position || "side" };
       changed(); draw();
     } catch (e) { toast(e.message, true); }
@@ -94,7 +91,6 @@ function imageControls(q, base, changed) {
     }
     const width = input({ type: "range", min: 10, max: 100, step: 5, value: q.image.width });
     const preview = h("img", { src: `${base}/images/${q.image.id}?size=thumb`, alt: "", loading: "lazy", decoding: "async", style: `width:${q.image.width}%;max-height:220px;object-fit:contain;display:block;margin:6px auto;border:1px solid var(--line);border-radius:6px` });
-    // المعاينة بالمصغرة، والأصلية تُفتح فقط عند الضغط عليها
     const previewLink = h("a", { href: `${base}/images/${q.image.id}`, target: "_blank", rel: "noopener", title: "فتح الصورة الأصلية" }, preview);
     width.addEventListener("input", () => { q.image.width = Number(width.value); preview.style.width = `${width.value}%`; changed(); });
     const align = select([["start", "يمين"], ["center", "وسط"], ["end", "يسار"]], { value: q.image.align });
@@ -111,10 +107,9 @@ function imageControls(q, base, changed) {
   return box;
 }
 
-/* ---------- محرر الجدول ---------- */
 export function tableEditor(table, changed) {
   const box = h("div");
-  let sel = null;   // [صف، عمود]
+  let sel = null;
   const draw = () => {
     const rows = table.rows;
     const grid = h("table", {}, rows.map((row, ri) => h("tr", {}, row.map((c, ci) => {
@@ -130,7 +125,6 @@ export function tableEditor(table, changed) {
     const delRow = () => { if (rows.length > 1) { unmergeAll(); rows.pop(); changed(); draw(); } };
     const delCol = () => { if (cols > 1) { unmergeAll(); rows.forEach((r) => r.pop()); changed(); draw(); } };
     const unmergeAll = () => rows.forEach((r) => r.forEach((c) => { delete c.cs; delete c.rs; delete c.hide; }));
-    // الدمج: الخلية المحددة مع التي بجانبها (يسار في العربية) أو تحتها
     const mergeRight = () => {
       if (!sel) return toast("اختر خلية أولًا", true);
       const [r, c] = sel; const cell = rows[r][c]; const span = cell.cs || 1;
@@ -164,7 +158,6 @@ export function tableEditor(table, changed) {
   return box;
 }
 
-/* ---------- المحرر ---------- */
 const PLACEHOLDER = {
   mcq: "مثال: عاصمة المملكة العربية السعودية هي:", multi: "مثال: من الأعداد الأولية:", truefalse: "مثال: الشمس نجم",
   fill: "مثال: عاصمة مصر هي ____", short: "مثال: عرّف التمثيل الضوئي", essay: "مثال: اكتب فقرة عن…",
@@ -190,7 +183,6 @@ export function questionEditor(q, { base, onChange, onTypeChange, bankFields = n
     const diff = select(Object.entries(DIFFICULTY), { value: q.difficulty || "medium" });
     diff.addEventListener("change", () => { q.difficulty = diff.value; changed(); });
 
-    // الأساسي فقط ظاهر: النوع والدرجة، نص السؤال، الخيارات والإجابة. الباقي في «خيارات إضافية».
     const parts = [
       h("div", { class: "xb-ed-top" }, field("نوع السؤال", type), field("الدرجة", marks)),
       bankFields,
@@ -235,7 +227,6 @@ function insertPlain(ta, text) {
   ta.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-// الأجزاء الخاصة بكل نوع
 function typeBody(q, changed, redraw) {
   switch (q.type) {
     case "mcq": case "multi": return optionsEditor(q, changed, redraw);
@@ -317,7 +308,6 @@ function optionsEditor(q, changed) {
         const shown = h("span", { class: "xb-opt-math" });
         const paint = async () => { if (hasMath(o.text)) { await loadMath(); mount(shown, rich(o.text)); } else shown.replaceChildren(); };
         text.addEventListener("input", () => { o.text = text.value; changed(); paint(); });
-        // Enter ينقل للخيار التالي (ويضيف خيارًا جديدًا عند آخر خيار)
         text.addEventListener("keydown", (e) => {
           if (e.key !== "Enter" || e.isComposing) return;
           e.preventDefault();
@@ -327,7 +317,6 @@ function optionsEditor(q, changed) {
           }
           focusOpt(i + 1);
         });
-        // لصق عدة أسطر في خانة واحدة: كل سطر خيار، والنجمة * تحدد الإجابة الصحيحة
         text.addEventListener("paste", (e) => {
           const lines = (e.clipboardData?.getData("text") || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
           if (lines.length < 2) return;

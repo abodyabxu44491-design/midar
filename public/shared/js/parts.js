@@ -1,12 +1,11 @@
-// أقسام فرعية داخل تبويب واحد (شريط رقائق مثل المالية)، ولكل قسم رابط: #/التبويب/القسم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { empty, notice } from "./ui.js";
 
-/**
- * @param {Array<[string, string]>} parts [المفتاح، الاسم]
- * @param {(key: string, api: {show: Function}) => Promise<Node|Node[]>|Node|Node[]} render
- * @returns {HTMLElement}
- */
 export function partsView(parts, render, { intro = null } = {}) {
   const keys = parts.map(([k]) => k);
   const [tab, want] = (location.hash.match(/^#\/([\w-]+)(?:\/([\w-]+))?/) || []).slice(1);

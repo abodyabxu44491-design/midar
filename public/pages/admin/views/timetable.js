@@ -1,4 +1,8 @@
-// تبويب الجدول الدراسي: تعديل مباشر في الشبكة، ومنع تعارض المعلمين
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, confirmAction, sectionMenu } from "../../shared/js/ui.js";
@@ -29,7 +33,6 @@ async function editor({ refresh }) {
   const msg = h("div");
   const box = h("div");
 
-  // الخيارات المتاحة للصف = المواد المسندة لمعلميه، مع خيار «بدون معلم»
   const optionsFor = (classId) => {
     const out = [["", "—"]];
     for (const s of subjects) {
@@ -75,8 +78,6 @@ async function editor({ refresh }) {
     msg, box);
 }
 
-
-/* ---------------- إعدادات الجدول ---------------- */
 async function settingsView({ show }) {
   const d = await api(`${A}/timetable/settings`);
   const s = d.settings;
@@ -117,7 +118,6 @@ async function settingsView({ show }) {
     h("h3", { class: "sec-title" }, "أوقات الحصص"), times);
 }
 
-/* ---------------- التوليد التلقائي ---------------- */
 async function generateView({ show }) {
   const classes = await loadClasses();
   const picks = classes.map((c) => {
@@ -173,7 +173,6 @@ async function generateView({ show }) {
   }
 }
 
-/* ---------------- فحص التعارضات ---------------- */
 async function conflictsView() {
   const c = await api(`${A}/timetable/conflicts`);
   const rows = [
@@ -189,8 +188,6 @@ async function conflictsView() {
       : notice("لا توجد تعارضات في الجدول الحالي.", ""));
 }
 
-
-/* ---------------- نسخ جدول شعبة ---------------- */
 async function copyView({ show }) {
   const classes = await loadClasses();
   if (classes.length < 2) return panel("نسخ جدول شعبة", null, empty("تحتاج شعبتين على الأقل."));

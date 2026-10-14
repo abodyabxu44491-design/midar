@@ -1,4 +1,8 @@
-// الخدمات: النقل المدرسي، المكتبة، العهد والمخزون، العيادة المدرسية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
@@ -9,7 +13,6 @@ const opt = (max) => z.string().trim().max(max).optional().nullable().transform(
 const localDay = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
 const addDays = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 
-/* ===================== النقل المدرسي ===================== */
 export const busSchema = z.object({
   name: z.string().trim().min(1, "اكتب اسم الحافلة أو الخط").max(60),
   plate: opt(30), driver_name: opt(80), driver_phone: t.phone, supervisor: opt(80),
@@ -88,7 +91,6 @@ export async function recordBusEvent(q, busId, b, actor) {
 }
 export const busDay = (q, busId, day) => q("SELECT student_id, kind, at FROM bus_events WHERE bus_id = $1 AND day = $2", [busId, day]);
 
-/** فواتير رسوم النقل لركاب الحافلة (بند واحد لكل طالب) */
 export async function billRiders(q, busId, { title, due_date }, actor) {
   const [bus] = await q("SELECT name, fee FROM buses WHERE id = $1", [busId]);
   if (!bus) throw notFound("الحافلة غير موجودة");
@@ -108,7 +110,6 @@ export async function transportOf(q, studentId) {
   return { ...x, events: events.map((e) => ({ ...e, text: EVENT_TEXT[e.kind] })) };
 }
 
-/* ===================== المكتبة ===================== */
 export const bookSchema = z.object({ title: z.string().trim().min(1).max(200), author: opt(120), isbn: opt(20), category: opt(60), shelf: opt(30),
   copies: z.coerce.number().int().min(0).max(10000).default(1), notes: opt(300) });
 export const books = (q, search = null) => q(
@@ -169,7 +170,6 @@ export const loansOf = (q, studentId) => q(
   `SELECT b.title, l.loaned_on::text, l.due_on::text, l.returned_on::text, (l.returned_on IS NULL AND l.due_on < CURRENT_DATE) AS overdue
      FROM library_loans l JOIN library_books b ON b.id = l.book_id WHERE l.student_id = $1 ORDER BY l.loaned_on DESC LIMIT 30`, [studentId]);
 
-/* ===================== العهد والمخزون ===================== */
 export const itemSchema = z.object({ name: z.string().trim().min(1).max(120), category: opt(60), unit: z.string().trim().min(1).max(20).default("قطعة"),
   min_quantity: z.coerce.number().min(0).max(1e9).default(0), location: opt(80), note: opt(300) });
 export const items = (q) => q(
@@ -189,7 +189,6 @@ export async function saveItem(q, b, id = null) {
 }
 export const moveSchema = z.object({ kind: z.enum(["in", "out", "custody", "return", "adjust"]), qty: z.coerce.number().positive("الكمية أكبر من صفر").max(1e9),
   staff_id: t.optId, note: opt(300), set_to: z.coerce.number().min(0).optional() });
-// in: إضافة للمخزون، out: صرف (استهلاك)، custody: تسليم عهدة لموظف (تنقص من المخزون)، return: إرجاع عهدة (تعود للمخزون)، adjust: جرد (تعيين الكمية)
 export async function move(q, itemId, b, actor) {
   const [it] = await q("SELECT id, quantity, name FROM inventory_items WHERE id = $1 FOR UPDATE", [itemId]);
   if (!it) throw notFound("الصنف غير موجود");
@@ -202,7 +201,7 @@ export async function move(q, itemId, b, actor) {
       WHERE item_id = $1 AND staff_id = $2 AND kind IN ('custody', 'return')`, [itemId, b.staff_id]);
     if (b.qty > Number(held)) throw badRequest(`عهدة الموظف من هذا الصنف ${held} فقط`);
     next += b.qty;
-  } else next = b.qty;   // جرد: الكمية الفعلية
+  } else next = b.qty;
   if (next < 0) throw badRequest(`الكمية المتوفرة ${it.quantity} فقط`);
   await q("UPDATE inventory_items SET quantity = $2 WHERE id = $1", [itemId, next]);
   await q(`INSERT INTO inventory_moves (tenant_id, item_id, kind, qty, staff_id, note, created_by) VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)`,
@@ -218,7 +217,6 @@ export const custodyByStaff = (q) => q(
     WHERE m.kind IN ('custody', 'return') GROUP BY s.id, i.id HAVING sum(CASE WHEN m.kind = 'custody' THEN m.qty ELSE -m.qty END) > 0
     ORDER BY s.full_name, i.name`);
 
-/* ===================== العيادة ===================== */
 export const healthSchema = z.object({
   blood_type: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional().nullable().or(z.literal("").transform(() => null)),
   allergies: opt(500), chronic: opt(500), medications: opt(500), emergency_phone: t.phone, notes: opt(1000) });

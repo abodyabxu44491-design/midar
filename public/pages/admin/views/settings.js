@@ -1,4 +1,8 @@
-// الإعدادات — مقسّمة إلى أقسام قصيرة بدل صفحة واحدة طويلة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { waLink } from "../../shared/js/whatsapp.js";
 import syncView from "./sync.js";
@@ -43,7 +47,6 @@ export default function settings(ctx) {
   });
 }
 
-/* ===================== 1) أقسام المنصة ===================== */
 const MODULE_GROUPS = [
   ["الأكاديمي", [
     ["attendance", "الحضور والغياب", "تسجيل الحضور اليومي وتقاريره"],
@@ -93,7 +96,6 @@ const MODULE_GROUPS = [
 
 async function modulesView() {
   const [mods, subInfo] = await Promise.all([api(`${A}/settings/modules`), api(`${A}/subscription`).catch(() => null)]);
-  // القسم غير المشمول في الباقة يظهر مقفلًا (والخادم يرفضه حتى لو فُعّل)
   const locked = new Set((subInfo?.features || []).filter((f) => !f.included).map((f) => f.key));
   const msg = h("div");
   const box = h("div");
@@ -102,7 +104,6 @@ async function modulesView() {
     try {
       const before = { ...mods };
       Object.assign(mods, await api(`${A}/settings/modules`, patch, "PUT"));
-      // إيقاف قسم أساسي يوقف ما يعتمد عليه: نعيد الرسم ليظهر ذلك
       const cascaded = Object.keys(mods).filter((k) => !(k in patch) && mods[k] !== before[k]);
       toast(cascaded.length ? "تم الحفظ، وأُوقفت الأقسام المعتمدة عليه أيضًا. حدّث الصفحة لتتغير التبويبات." : "تم الحفظ. حدّث الصفحة لتظهر التبويبات الجديدة.");
       if (cascaded.length) setTimeout(draw, 0);
@@ -118,7 +119,6 @@ async function modulesView() {
   return [msg, box];
 }
 
-/* ===================== الحقول المخصصة ===================== */
 const FIELD_TYPES = { text: "نص", number: "رقم", date: "تاريخ", select: "قائمة", boolean: "نعم / لا" };
 
 async function customFieldsView({ show }) {
@@ -172,7 +172,6 @@ async function customFieldsView({ show }) {
   ];
 }
 
-/* ===================== 2) صفحة المدرسة العامة ===================== */
 const PAGE_OPTIONS = [
   ["show_classes", "عرض قائمة الصفوف", "الزائر يرى الصفوف ويضغط على الصف ليفتحه"],
   ["show_student_names", "عرض أسماء الطلاب داخل الصف", "عند إيقافه لا تظهر الأسماء، ويبقى البحث فقط"],
@@ -199,7 +198,6 @@ async function pageView({ me }) {
     catch (e) { mount(msg, notice(e.message, "err")); return false; }
   };
 
-  // واجهة الموقع المصغّر: النبذة وبيانات التواصل
   const about = textarea({ rows: 3, value: pub.about || "", placeholder: "نبذة قصيرة عن المدرسة تظهر في أعلى الصفحة (اختياري)", maxLength: 800 });
   const L = me.links;
   return [
@@ -233,7 +231,6 @@ async function pageView({ me }) {
   ];
 }
 
-/* ===================== 3) طرق السداد ===================== */
 async function paymentView({ show }) {
   const pay = await api(`${A}/settings/payment`);
   const acc = { bank: input({ placeholder: "مثال: بنك الكريمي، محفظة جوالي" }), holder: input(),
@@ -267,7 +264,6 @@ async function paymentView({ show }) {
   ];
 }
 
-/* ===================== 4) رسائل واتساب ===================== */
 const TPL = [["absence", "رسالة الغياب"], ["late", "رسالة التأخر"], ["fees", "رسالة تذكير الرسوم"], ["general", "الرسالة العامة"]];
 
 async function messagesView({ me }) {
@@ -296,7 +292,6 @@ async function messagesView({ me }) {
     }));
 }
 
-/* ===================== 5) المستخدمون والصلاحيات ===================== */
 async function usersView({ show }) {
   const list = await api(`${A}/users`);
   const f = { name: input(), username: input({ class: "ltr", placeholder: "حروف إنجليزية وأرقام" }),
@@ -363,7 +358,6 @@ function permsDialog(u, refresh) {
   })]);
 }
 
-/* ===================== طلبات كلمات المرور ===================== */
 const PR_JOBS = { admin: "إداري", accountant: "محاسب", teacher: "معلم" };
 const PR_CONTACT = { phone: "اتصال هاتفي", whatsapp: "واتساب", email: "بريد إلكتروني" };
 const PR_STATUS = {
@@ -373,8 +367,6 @@ const PR_STATUS = {
 };
 const ROLE_AR = { teacher: "معلم", accountant: "محاسب", admin: "إداري" };
 
-// طلبات «نسيت كلمة المرور» للمعلمين والمحاسبين: الإدارة تتحقق وتعتمد وتُصدر الرابط بنفسها.
-// (طلبات مدير المدرسة تذهب لمالك المنصة مباشرة ولا تظهر هنا)
 async function passwordRequestsView({ show }) {
   const list = await api(`${A}/password-requests`);
   const waiting = list.filter((x) => x.status === "new").length;
@@ -406,26 +398,24 @@ function reviewDialog(r, decision, show) {
     note, msg);
   const d = dialog(decision === "approve" ? `اعتماد طلب ${r.ref}` : `رفض طلب ${r.ref}`, body,
   [btn(decision === "approve" ? "اعتماد وإصدار الرابط" : "رفض", async (e) => {
-    const button = e.currentTarget;   // يُحفظ قبل الانتظار (currentTarget يصبح فارغًا بعده)
+    const button = e.currentTarget;
     mount(msg);
     button.disabled = true;
     try {
       const res = await api(`${A}/password-requests/${r.id}/review`, { decision, note: note.value || null });
       if (res.escalated) { d.close(); toast("تبيّن أنه حساب إداري: أُحيل الطلب لمالك المنصة"); return show(); }
       if (decision === "reject") { d.close(); toast("رُفض الطلب"); return show(); }
-      // الرابط يظهر مرة واحدة فقط: نسخ أو إرسال بواتساب لرقم صاحب الطلب
       const text = `مرحبًا ${r.full_name}، هذا رابط تغيير كلمة المرور لحسابك في مدار (صالح ساعتين ولمرة واحدة):\n${res.link}`;
       const wa = waLink(r.phone, text);
       mount(body, notice("اعتُمد الطلب. هذا الرابط يظهر الآن فقط، أرسله لصاحب الطلب:", "warn"),
         copyRow("رابط تغيير كلمة المرور", res.link, { note: `صالح ${res.expires_hours} ساعة ولمرة واحدة` }),
         wa ? h("a", { class: "btn whatsapp", href: wa, target: "_blank", rel: "noopener" }, "إرسال عبر واتساب") : null);
-      button.remove();   // اعتُمد: لا زر اعتماد ثانٍ
+      button.remove();
       show();
     } catch (err) { button.disabled = false; mount(msg, notice(err.message, "err")); }
   }, decision === "reject" ? "danger" : "primary")]);
 }
 
-/* ===================== 6) العملة ===================== */
 async function moneyView({ show }) {
   const cur = await api(`${A}/settings/currency`);
   const pick = select(Object.entries(CURRENCIES).map(([k, v]) => [k, v.name]), { value: cur.currency });
@@ -441,7 +431,6 @@ async function moneyView({ show }) {
     msg);
 }
 
-/* ===================== 7) الدخول والأمان ===================== */
 async function accessView({ me, refresh }) {
   const cur = passwordInput({ autocomplete: "current-password" });
   const nxt = passwordInput({ autocomplete: "new-password" });
@@ -464,7 +453,6 @@ async function accessView({ me, refresh }) {
   ];
 }
 
-/* ===================== 8) البيانات والاشتراك ===================== */
 async function dataView({ me }) {
   return [
     panel("نسخة من بياناتك", null,

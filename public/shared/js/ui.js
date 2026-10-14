@@ -1,4 +1,8 @@
-// مكونات الواجهة المشتركة — برمجة وتطوير: المبرمج عبدالله السكني
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { $, h, mount } from "./dom.js";
 import { api, APP_VERSION, announceUpdate, applyPendingUpdate } from "./api.js";
 import { startAnalytics } from "./analytics.js";
@@ -6,14 +10,10 @@ import { icons } from "./icons.js";
 
 export const DEV = "مدار MIDAR — برمجة وتطوير: المبرمج عبدالله السكني";
 
-// ===================== تثبيت التطبيق =====================
-// أيقونة صغيرة في رأس كل صفحة (بجانب «حساب ولي الأمر» أو «خروج»)، تظهر فقط حين يمكن التثبيت،
-// وتختفي عند التثبيت أو عند فتح الصفحة من التطبيق المثبّت. لا أشرطة ولا لافتات.
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; refreshInstall(); });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((reg) => {
-    // فحص وجود إصدار جديد عند العودة للتطبيق وكل 15 دقيقة
     document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
     setInterval(() => reg.update().catch(() => {}), 15 * 60 * 1000);
   }).catch(() => {}));
@@ -28,7 +28,6 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.p
 const INSTALLED_KEY = `midar_installed:${location.pathname.split("/").slice(0, 3).join("/")}`;
 const installed = () => { try { return localStorage.getItem(INSTALLED_KEY) === "1"; } catch { return false; } };
 const markInstalled = () => { try { localStorage.setItem(INSTALLED_KEY, "1"); } catch { /* */ } refreshInstall(); };
-/** يمكن التثبيت الآن؟ (متصفح يعرض نافذة التثبيت، أو آيفون لم يُثبَّت عليه بعد) */
 const canInstall = () => !isStandalone() && (Boolean(installEvent) || (isIOS() && !installed()));
 function refreshInstall() {
   const on = canInstall();
@@ -44,7 +43,6 @@ function iosSteps() {
       h("li", {}, "اختر «إضافة إلى الشاشة الرئيسية»"),
       h("li", {}, "اضغط «إضافة»، وستظهر أيقونة مدار على شاشتك"))));
 }
-/** نافذة التثبيت (أو خطوات آيفون) */
 export async function promptInstall() {
   if (isStandalone()) return toast("مدار مثبّت على هذا الجهاز");
   if (!installEvent) {
@@ -57,16 +55,11 @@ export async function promptInstall() {
   const { outcome } = await e.userChoice;
   if (outcome === "accepted") markInstalled(); else { installEvent = e; refreshInstall(); }
 }
-/** أيقونة التثبيت لرأس الصفحة (مخفية تلقائيًا حين لا يمكن التثبيت) */
 export function installButton(cls = "") {
   const label = document.documentElement.dataset.app ? `ثبّت تطبيق ${document.documentElement.dataset.app}` : "ثبّت مدار على جهازك";
   return h("button", { type: "button", class: `install-ic ${cls}`.trim(), title: label, "aria-label": label, hidden: !canInstall(),
     onclick: () => promptInstall() }, icons.install({ size: 19, stroke: 2.2 }));
 }
-/**
- * للصفحات التي قد تُعرض بلا رأس (شاشة الدخول): أيقونة عائمة صغيرة في الزاوية،
- * تختفي تلقائيًا متى ظهر رأس فيه أيقونة التثبيت (بعد الدخول مثلًا) فلا تتكرر.
- */
 let floatingIc = null;
 export function showInstallBar() {
   if (floatingIc) return;
@@ -80,15 +73,9 @@ export function showInstallBar() {
   new MutationObserver(sync).observe(document.body, { childList: true, subtree: true });
 }
 
-// بعد التثبيت تختفي الأيقونة على هذا الجهاز
 window.addEventListener("appinstalled", markInstalled);
 matchMedia("(display-mode: standalone)").addEventListener?.("change", refreshInstall);
 
-/* ---------- الهوية ---------- */
-/**
- * شعار المنصة.
- * variant: "row" (أفقي، للشريط العلوي) أو "stacked" (عمودي: العلامة ثم الاسم، للصفحات الرئيسية)
- */
 export function brandLogo(cls = "brand-logo", light = true, variant = "row") {
   const file = variant === "stacked"
     ? (light ? "/brand/logo-stacked-light.svg" : "/brand/logo-stacked.svg")
@@ -97,18 +84,14 @@ export function brandLogo(cls = "brand-logo", light = true, variant = "row") {
   return h("img", { src: file, alt: "مدار", class: cls, ...size });
 }
 
-// رابط شعار المدرسة العام (الرقم يتغير مع كل شعار جديد فيظهر فورًا)
 export const schoolLogoUrl = (schoolId, logo, size) => (logo ? `/api/public/${encodeURIComponent(schoolId)}/logo?v=${logo}${size ? `&size=${size}` : ""}` : null);
 export const schoolLogoImg = (url, cls = "school-logo") => (url ? h("img", { class: cls, src: url, alt: "", decoding: "async" }) : null);
 
-// بطاقات المعلمين: الصورة (أو أول حرف من الاسم) والاسم والمواد — في ملف الطالب وصفحة الصف
 export const teacherCards = (list) => h("div", { class: "t-cards" }, list.map((t) => h("div", { class: "t-card" },
   t.photo ? h("img", { class: "t-avatar", src: t.photo, alt: "", loading: "lazy", decoding: "async" })
     : h("span", { class: "t-avatar ph", "aria-hidden": "true" }, String(t.teacher || "؟").replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0)),
   h("div", { class: "t-info" }, h("b", {}, t.teacher), h("small", {}, t.subject)))));
 
-// شعار المدرسة الحالية للأوراق المطبوعة (كشوف، إيصالات، بطاقات): يُضبط مرة بعد معرفة المدرسة،
-// وبدونه يُستخدم شعار المنصة
 let currentLogo = null;
 export const setSchoolLogo = (url) => { currentLogo = url || null; };
 export const docLogo = (cls = "print-logo") => (currentLogo ? h("img", { class: `${cls} doc-school-logo`, src: currentLogo, alt: "" }) : brandLogo(cls, false));
@@ -121,13 +104,9 @@ export function topbar({ subtitle, school, onLogout, logo }) {
         h("div", { class: "school-text" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle)))),
     h("div", { class: "top-acts" }, installButton("on-dark"), onLogout && btn("خروج", onLogout, "ghost sm"))));
 }
-// لا يظهر اسم المنصة ولا المطوّر أسفل الصفحات؛ بيانات التواصل في الإعدادات ← الدعم والاشتراك
-// التذييل يعرض رقم الإصدار الحالي (لمعرفة النسخة التي يعمل عليها أي مستخدم)
 export const footer = () => h("footer", { class: "dev" }, h("small", { class: "app-version", title: "رقم إصدار المنصة" }, "الإصدار ", h("bdi", { dir: "ltr" }, APP_VERSION)));
 
-/* ---------- عناصر ---------- */
 export const field = (label, control, hint) => h("label", { class: "f" }, h("span", {}, label), control, hint && h("small", { class: "sub" }, hint));
-// حقول الأرقام (الجوال، المبالغ، الأرقام): الأرقام العربية ٠١٢ تتحول فورًا إلى 012 أثناء الكتابة
 const NUMERIC_MODES = new Set(["tel", "numeric", "decimal"]);
 export const toAsciiDigits = (v) => String(v).replace(/[\u0660-\u0669]/g, (d) => d.charCodeAt(0) - 0x0660).replace(/[\u06F0-\u06F9]/g, (d) => d.charCodeAt(0) - 0x06F0);
 export const input = (props = {}) => {
@@ -135,22 +114,14 @@ export const input = (props = {}) => {
   if (NUMERIC_MODES.has(props.inputMode) || props.type === "tel") {
     el.addEventListener("input", () => {
       const next = toAsciiDigits(el.value);
-      if (next !== el.value) { const at = el.selectionStart; el.value = next; try { el.setSelectionRange(at, at); } catch { /* نوع لا يدعم التحديد */ } }
+      if (next !== el.value) { const at = el.selectionStart; el.value = next; try { el.setSelectionRange(at, at); } catch { /* ignore */ } }
     });
   }
   return el;
 };
 
-/**
- * حقل كلمة مرور مع زر إظهار واضح.
- * الزر يعرض «عين» عندما تكون مخفية، و«عين مشطوبة» عندما تكون ظاهرة،
- * فلا يلتبس معناه. يُستخدم مثل input تمامًا (.value و.focus()).
- */
 export function passwordInput(props = {}) {
-  // لوحات مفاتيح الجوال: لا حروف كبيرة ولا تصحيح تلقائي (يغيّران كلمة المرور خاصة بعد إظهارها كنص)
   const el = h("input", { autocapitalize: "none", autocorrect: "off", spellcheck: false, ...props, type: "password", class: `ltr ${props.class || ""}`.trim() });
-  // الأيقونة تعكس الحالة الحالية: عين مشطوبة = مخفية، عين مفتوحة = ظاهرة.
-  // البداية مخفية دائمًا، والضغط يُظهر، والضغط مرة ثانية يُخفي.
   const toggle = h("button", { class: "pw-toggle", type: "button", tabindex: "-1" });
   const paint = () => {
     const visible = el.type === "text";
@@ -159,7 +130,6 @@ export function passwordInput(props = {}) {
     toggle.setAttribute("title", visible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور");
     toggle.setAttribute("aria-pressed", String(visible));
   };
-  // pointerdown يمنع فقدان التركيز من الحقل (لا قفز للوحة المفاتيح على الجوال)
   toggle.addEventListener("pointerdown", (e) => e.preventDefault());
   toggle.addEventListener("click", () => {
     el.type = el.type === "password" ? "text" : "password";
@@ -184,10 +154,8 @@ export const btn = (text, onclick, cls = "") => h("button", { class: `btn ${cls}
 export const panel = (title, action, ...kids) =>
   h("section", { class: "panel" }, (title || action) && h("div", { class: "panel-head" }, title && h("h2", {}, title), action), ...kids);
 export const empty = (text) => h("p", { class: "empty" }, text);
-// هيكل تحميل بدل صفحة فارغة: يعطي شكل المحتوى القادم فورًا
 export const skeleton = (rows = 5) => h("div", { class: "skel", "aria-busy": "true", "aria-label": "جارٍ التحميل" },
   h("div", { class: "skel-line w40" }), Array.from({ length: rows }, (_, i) => h("div", { class: `skel-line ${["w90", "w75", "w85", "w60"][i % 4]}` })));
-// تحميل مسبق متوازٍ لكل ملفات وحدة واعتمادياتها (من خريطة يضعها الخادم في الصفحة)
 let GRAPH = null;
 const VPREFIX = (import.meta.url.match(/^(.*?\/v\/[^/]+)\//) || [])[1] || "";
 export function preloadModule(url) {
@@ -206,7 +174,6 @@ export function preloadModule(url) {
     if (!document.querySelector(`link[rel="modulepreload"][href="${href}"]`)) document.head.append(h("link", { rel: "modulepreload", href }));
   }
 }
-// تحميل القسم عند فتحه فقط (بدل تحميل كل أقسام اللوحة عند الدخول)، مع تحميل كل ملفاته معًا
 export const lazy = (load, url) => {
   const fn = async (ctx) => { preloadModule(url); return (await load()).default(ctx); };
   fn.preload = () => preloadModule(url);
@@ -220,7 +187,6 @@ export const keyText = (text) => h("span", { class: "key" }, text);
 export const stats = (items) => h("div", { class: "stats" },
   items.filter(Boolean).map(([label, value, hint]) => h("div", { class: "stat" }, h("b", {}, value), label, hint && sub(hint))));
 
-// مفتاح تشغيل/إيقاف: onToggle يعيد false لإلغاء التغيير
 export function switchBtn(on, label, onToggle) {
   const el = h("button", { class: "switch", type: "button", role: "switch", "aria-checked": String(!!on), "aria-label": label });
   el.addEventListener("click", async () => {
@@ -235,10 +201,6 @@ export function switchBtn(on, label, onToggle) {
   return el;
 }
 
-/**
- * قائمة أقسام: تعرض بطاقات لكل قسم، والضغط على بطاقة يفتح صفحتها مع زر رجوع.
- * items: [{ key, name, note }] و render(key) تُعيد محتوى القسم.
- */
 export function sectionMenu({ title, items, render, intro }) {
   const box = h("div");
 
@@ -269,7 +231,6 @@ export function sectionMenu({ title, items, render, intro }) {
   return title ? [h("h2", { class: "menu-title" }, title), box] : box;
 }
 
-// يمنع الضغط المزدوج أثناء تنفيذ العملية ويعرض الأخطاء
 function guardClick(fn) {
   if (!fn) return undefined;
   return async (ev) => {
@@ -295,8 +256,6 @@ export function confirmAction(message) {
   return window.confirm(message);
 }
 
-/* ---------- التبويبات ---------- */
-// أيقونة كل قسم حسب مفتاحه (نفس المفتاح في كل البوابات: الإدارة، المعلم، المحاسب، المالك)
 const TAB_ICONS = {
   dashboard: "home", home: "home", overview: "chart", students: "users", parents: "userPlus", teachers: "user", academic: "calendar",
   attendance: "check", distribution: "shuffle", timetable: "grid", exams: "clipboard", papers: "file", reports: "award",
@@ -312,18 +271,16 @@ export function tabs(list, views, ctx) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
   let current;
-  // رابط لكل قسم (#/students): يبقى القسم نفسه بعد التحديث، ويعمل زر الرجوع، ويمكن مشاركة الرابط
   const keys = new Set(list.filter(([k]) => k).map(([k]) => k));
   const fromHash = () => { const k = decodeURIComponent((location.hash.match(/^#\/([\w-]+)/) || [])[1] || ""); return keys.has(k) ? k : null; };
   const show = async (key, { push = true } = {}) => {
-    if (current && applyPendingUpdate()) return;   // إصدار جديد منشور: التحديث عند الانتقال بين الأقسام
+    if (current && applyPendingUpdate()) return;
     if (push && keys.has(key) && fromHash() !== key) history.pushState(null, "", `#/${key}`);
     current = key;
     bar.querySelectorAll("button").forEach((b) => {
       b.setAttribute("aria-selected", String(b.dataset.k === key));
       b.classList.toggle("on", b.dataset.k === key);
     });
-    // الجوال: الشريط أفقي قابل للتمرير، فنُظهر القسم المفتوح في منتصفه
     const active = bar.querySelector(`[data-k="${key}"]`);
     if (active && bar.scrollWidth > bar.clientWidth + 4) {
       bar.scrollTo({ left: active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
@@ -339,7 +296,7 @@ export function tabs(list, views, ctx) {
     }
   };
   for (const [key, label] of list) {
-    if (key === null) continue;   // لا عناوين تجميع: الأقسام القابلة للضغط فقط
+    if (key === null) continue;
     const icon = icons[TAB_ICONS[key]];
     bar.append(h("button", { type: "button", role: "tab", "data-k": key, title: label, onclick: () => show(key),
       onpointerdown: () => views[key]?.preload?.(), onfocus: () => views[key]?.preload?.() },
@@ -347,7 +304,6 @@ export function tabs(list, views, ctx) {
   }
   let home = null;
   window.addEventListener("popstate", () => { const k = fromHash() || home; if (k && k !== current) show(k, { push: false }); });
-  // البداية: القسم المذكور في الرابط إن وُجد، وإلا القسم الافتراضي (دون إضافة خطوة في سجل المتصفح)
   const start = (fallback) => {
     home = fallback;
     const k = fromHash();
@@ -357,7 +313,6 @@ export function tabs(list, views, ctx) {
   return { el: h("div", { class: "tabs-layout" }, bar, body), show, start };
 }
 
-/* ---------- النوافذ ---------- */
 export function dialog(title, content, actions = []) {
   const d = h("dialog", { "aria-label": title },
     h("div", { class: "d-in" }, h("h2", {}, title), content,
@@ -370,7 +325,6 @@ export function dialog(title, content, actions = []) {
 
 const CRED_LABELS = { school: "رمز المدرسة", username: "اسم المستخدم", password: "كلمة المرور المؤقتة",
   access_key: "معرّف الطالب" };
-// شاشة إلزامية عند الدخول بكلمة مرور مؤقتة: لا يُفتح شيء في اللوحة قبل اختيار كلمة مرور خاصة
 export function passwordChangeScreen({ endpoint, logoutEndpoint, school, name }) {
   const cur = passwordInput({ autocomplete: "current-password" });
   const nxt = passwordInput({ autocomplete: "new-password" });
@@ -393,7 +347,6 @@ export function passwordChangeScreen({ endpoint, logoutEndpoint, school, name })
 }
 
 export function showCredentials(title, all, note) {
-  // صفحة المدرسة مفتوحة بلا رمز، فلا يُعرض رمزها القديم
   const creds = Object.fromEntries(Object.entries(all).filter(([k]) => k !== "directory_code"));
   const text = Object.entries(creds).map(([k, v]) => `${CRED_LABELS[k] || k}: ${v}`).join("\n");
   dialog(title, h("div", {},
@@ -402,11 +355,6 @@ export function showCredentials(title, all, note) {
     [btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); })]);
 }
 
-/* ---------- شاشة الدخول ---------- */
-/**
- * شاشة دخول بوابة مستقلة.
- * بوابة مالك المنصة لا تعرض أي أدوار أو بطاقات لمستخدمي المدرسة.
- */
 export function loginScreen({ role, endpoint, withSchool = true, withCode = false, onSuccess,
   title = "بوابة مالك المنصة", subtitle = "إدارة المدارس والاشتراكات من مكان واحد", points = [] }) {
   const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem("midar_school") || "", "aria-label": "رمز المدرسة" });
@@ -426,7 +374,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
     } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "wide");
   for (const el of [school, user, pass, code]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
-  if (withSchool) startAnalytics(`login:${role}`);   // لا تحليلات على دخول المالك
+  if (withSchool) startAnalytics(`login:${role}`);
 
   const recovery = h("div");
 
@@ -462,8 +410,6 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
   ];
 }
 
-
-/* ---------- الروابط والقيم القابلة للنسخ (تصميم موحد: الرابط ← نسخ ← فتح) ---------- */
 async function copyText(text, button) {
   try { await navigator.clipboard.writeText(text); } catch {
     const ta = h("textarea", { style: "position:fixed;opacity:0" }, text);

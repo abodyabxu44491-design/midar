@@ -1,5 +1,8 @@
-// دخول المالك: اسم مستخدم + كلمة مرور (بصمة scrypt) + رمز تحقق ثنائي اختياري
-// قفل بعد 5 محاولات خاطئة خلال 15 دقيقة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { env } from "../../config/env.js";
 import { transaction } from "../../core/db/pool.js";
@@ -25,8 +28,6 @@ r.get("/config", (req, res) => res.json({ totp: Boolean(env.OWNER_TOTP_SECRET) }
 r.post("/login", limits.login, handle(async (req, res) => {
   const b = parse(schema, req.body);
   const ctx = { actor: "مالك المنصة", ip: req.ip, platform: true };
-  // القفل لكل عنوان IP (5 محاولات)، مع سقف أعلى عام يقاوم التخمين الموزّع.
-  // لو كان القفل عامًا فقط لاستطاع أي شخص إبقاء المالك خارج لوحته بإرسال 5 محاولات كل 15 دقيقة.
   const ip = req.ip || "unknown";
   const locked = await transaction(ctx, async (q) =>
     (await recentFailures(q, "owner_login_failed", `owner:${ip}`, 15)) >= 5
@@ -43,7 +44,7 @@ r.post("/login", limits.login, handle(async (req, res) => {
       await securityEvent(q, { kind: "owner_login_failed", subject: "owner", ip: req.ip });
       await logEvent(q, { actor: "مجهول", action: "محاولة دخول فاشلة للوحة المالك" });
     });
-    throw unauthorized("بيانات الدخول غير صحيحة");   // رسالة واحدة: لا نكشف أن كلمة المرور صحيحة وأن الرمز وحده الخاطئ
+    throw unauthorized("بيانات الدخول غير صحيحة");
   }
   await transaction(ctx, async (q) => {
     await createSession(res, "owner", { ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);

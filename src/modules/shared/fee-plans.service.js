@@ -1,5 +1,8 @@
-// قوالب الرسوم والتقسيط والخصومات
-// القالب يُطبَّق على صف أو شعبة أو طلاب محددين، ويُنشئ فواتير الدفعات دفعة واحدة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { notify, activeModules } from "./notify.service.js";
@@ -32,7 +35,6 @@ export const adjustmentSchema = z.object({
   note: t.optText(200),
 });
 
-/* ---------- القوالب ---------- */
 export const listPlans = (q) => q(
   `SELECT p.id, p.name, p.grade_id, g.name AS grade_name, p.amount, p.installments, p.first_due,
           p.interval_months, p.note, p.is_active,
@@ -61,7 +63,6 @@ export async function updatePlan(q, id, b) {
   if (!rows.length) throw notFound("القالب غير موجود");
 }
 
-/* ---------- الخصومات ---------- */
 export const listAdjustments = (q, studentId = null) => q(
   `SELECT a.id, a.student_id, s.full_name AS student_name, a.kind, a.percent, a.amount, a.note, a.created_by, a.created_at
      FROM fee_adjustments a JOIN students s ON s.id = a.student_id
@@ -83,7 +84,6 @@ export const removeAdjustment = async (q, id) => {
   if (!rows.length) throw notFound("السجل غير موجود");
 };
 
-/** صافي مبلغ الطالب بعد الخصومات والإضافات */
 export function netAmount(base, adjustments) {
   let amount = Number(base);
   for (const a of adjustments) {
@@ -100,10 +100,6 @@ const addMonths = (dateStr, months) => {
   return d.toISOString().slice(0, 10);
 };
 
-/**
- * خصم الإخوة التلقائي (إن فعّلته المدرسة): الإخوة = الطلاب النشطون بنفس جوال ولي الأمر.
- * الأقدم تسجيلًا يدفع كاملًا، والثاني بنسبة، والثالث فأكثر بنسبة أكبر.
- */
 export async function siblingRanks(q) {
   const out = new Map();
   if (!(await activeModules(q)).installments) return out;
@@ -119,10 +115,6 @@ export async function siblingRanks(q) {
   return out;
 }
 
-/**
- * تطبيق القالب: فاتورة لكل دفعة لكل طالب، مع خصم الطالب إن وُجد.
- * لا يتكرر: إعادة التطبيق تُنشئ الناقص فقط (قيد فريد في قاعدة البيانات).
- */
 export async function applyPlan(q, planId, b, actor) {
   const [plan] = await q("SELECT * FROM fee_plans WHERE id = $1 AND is_active", [planId]);
   if (!plan) throw notFound("القالب غير موجود أو موقوف");
@@ -167,7 +159,6 @@ export async function applyPlan(q, planId, b, actor) {
     if (p.exempt) { skipped++; continue; }
     await q("UPDATE students SET fees_enabled = true WHERE id = $1 AND NOT fees_enabled", [p.student_id]);
     for (let n = 1; n <= installments; n++) {
-      // آخر دفعة تحمل فرق التقريب
       const amount = n === installments
         ? Math.round((p.total - p.per_installment * (installments - 1)) * 100) / 100
         : p.per_installment;

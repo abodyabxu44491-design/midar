@@ -1,5 +1,8 @@
-// إشعارات ولي الأمر: مركز الإشعارات، واختياراته، وتسجيل الجهاز للإشعار الفوري (بمعرّف الطالب فقط)
-// كل طلب يُتحقق فيه من معرّف الطالب داخل مدرسته؛ فلا يصل ولي أمر لإشعارات طالب آخر أو مدرسة أخرى.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { handle, badRequest } from "../../core/http/errors.js";
 import { limits } from "../../core/rate-limit.js";
@@ -38,7 +41,6 @@ r.post("/student/inbox/archive", limits.studentKey, handle(async (req, res) => {
   }));
 }));
 
-// اختيارات ولي الأمر: الأنواع التي لا يريد تنبيهها على الجوال (الإلزامي من المدرسة لا يُكتم)
 const prefsHandler = (save) => handle(async (req, res) => {
   const patch = save ? parse(prefsSchema, { muted: req.body.muted }) : null;
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {

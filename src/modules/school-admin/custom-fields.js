@@ -1,4 +1,8 @@
-// الحقول المخصصة: تعريفها من الإعدادات، وقيمها مع كل طالب
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
@@ -31,7 +35,6 @@ r.delete("/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// قيم كيان (طالب مثلًا)
 r.get("/values/:entity/:id", handle(async (req, res) => {
   const e = parse(entity, req.params.entity);
   const id = parse(t.id, req.params.id);

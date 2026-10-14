@@ -1,5 +1,8 @@
-// توليد جدول مبدئي: يوزّع حصص المواد على الأيام والحصص بلا تعارض،
-// ويُعيد مسودة تحتاج موافقة المدير قبل الاعتماد. لا يكتب شيئًا قبل الموافقة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { notifyChange } from "./timetable.service.js";
@@ -14,8 +17,8 @@ export const settingsSchema = z.object({
 });
 
 export const generateSchema = z.object({
-  class_ids: z.array(t.id).max(200).optional(),     // فارغ = كل الشعب
-  replace: z.boolean().default(false),              // استبدال الجدول الحالي لهذه الشعب
+  class_ids: z.array(t.id).max(200).optional(),
+  replace: z.boolean().default(false),
 });
 
 export const applySchema = z.object({
@@ -47,7 +50,6 @@ export async function saveSettings(q, b) {
   return getSettings(q);
 }
 
-/** أوقات الحصص المحسوبة من وقت البداية ومدة الحصة والفسحة */
 export function periodTimes(settings) {
   const [hh, mm] = settings.start_time.split(":").map(Number);
   let minutes = hh * 60 + mm;
@@ -67,11 +69,6 @@ export function periodTimes(settings) {
 }
 const fmt = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
-/**
- * توليد مسودة جدول.
- * المدخلات من النظام نفسه: حصص كل مادة أسبوعيًا (من المواد)، وإسناد المعلمين (من الفصول والمواد).
- * القيود: لا معلم في فصلين بنفس الوقت، ولا شعبة بحصتين، والتوزيع على الأيام قدر الإمكان.
- */
 export async function generate(q, b) {
   const settings = await getSettings(q);
   const classes = await q(
@@ -92,7 +89,6 @@ export async function generate(q, b) {
     return a ? Number(a.teacher_id) : null;
   };
 
-  // الحصص المحجوزة حاليًا للشعب الأخرى (حتى لا تتعارض المسودة مع جدول قائم)
   const existing = b.replace
     ? await q("SELECT class_id, teacher_id, day, period FROM timetable_slots WHERE NOT (class_id = ANY($1::bigint[]))",
       [classes.map((c) => c.id)])
@@ -110,7 +106,6 @@ export async function generate(q, b) {
     const mine = subjects.filter((s) => !s.grade_ids.length || s.grade_ids.map(Number).includes(Number(cls.grade_id)));
     if (!mine.length) { warnings.push(`لا توجد مواد مرتبطة بصف ${cls.name}`); continue; }
 
-    // قائمة الحصص المطلوبة: مادة مكررة بعدد حصصها الأسبوعية
     const demand = [];
     for (const s of mine) demand.push(...Array(Math.max(1, s.weekly_periods || 1)).fill(s));
     const capacity = days.length * perDay;
@@ -118,15 +113,14 @@ export async function generate(q, b) {
       warnings.push(`${cls.name}: الحصص المطلوبة ${demand.length} أكبر من سعة الجدول ${capacity}. وُزّع الممكن فقط.`);
     }
 
-    // توزيع: نمرّ على الأيام بالتناوب حتى لا تتكدس المادة في يوم واحد
-    const perDayCount = new Map();      // يوم:مادة ← عدد
+    const perDayCount = new Map();
     let placed = 0;
     for (const subject of demand) {
       let done = false;
       for (let round = 0; round < 2 && !done; round++) {
         for (const day of days) {
           const used = perDayCount.get(`${day}:${subject.id}`) || 0;
-          if (round === 0 && used >= 1) continue;        // جولة أولى: حصة واحدة لكل مادة في اليوم
+          if (round === 0 && used >= 1) continue;
           for (let period = 1; period <= perDay; period++) {
             if (busyClass.has(`${cls.id}:${day}:${period}`)) continue;
             const teacher = teacherOf(cls.id, subject.id);
@@ -154,7 +148,6 @@ export async function generate(q, b) {
   return { settings, times: periodTimes(settings), slots, warnings, classes: classes.length };
 }
 
-/** اعتماد المسودة: يكتبها في الجدول الفعلي داخل معاملة واحدة */
 export async function apply(q, b) {
   if (!b.slots.length) throw badRequest("لا توجد حصص للاعتماد");
   const classIds = [...new Set(b.slots.map((s) => Number(s.class_id)))];
@@ -172,7 +165,6 @@ export async function apply(q, b) {
       [s.class_id, s.day, s.period, s.subject_id, s.teacher_id ?? null, s.room ?? null]);
     saved++;
   }
-  // إشعار واحد لكل شعبة تغيّر جدولها
   for (const c of classIds) {
     const tids = [...new Set(b.slots.filter((s) => Number(s.class_id) === c).map((s) => s.teacher_id).filter(Boolean))];
     await notifyChange(q, c, tids);
@@ -180,7 +172,6 @@ export async function apply(q, b) {
   return { saved, classes: classIds.length };
 }
 
-/** فحص التعارضات في الجدول القائم (معلم، شعبة، قاعة) */
 export async function conflicts(q) {
   const teacher = await q(
     `SELECT t.full_name AS teacher, s.day, s.period, array_agg(c.name) AS classes

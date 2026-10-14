@@ -1,5 +1,8 @@
-// لوحة إدارة المدرسة. كل تبويب في ملف داخل views/
-// تُشغَّل من باب المدرسة الموحّد بعد التعرف على دور الحساب.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { $, mount, h } from "../shared/js/dom.js";
 import { mySubscription, accessBanner, lockScreen } from "./views/my-subscription.js";
 import { api } from "../shared/js/api.js";
@@ -45,11 +48,9 @@ export async function startAdmin() {
   if (me.must_change_password) {
     return passwordChangeScreen({ endpoint: "/api/admin/password", logoutEndpoint: "/api/admin/logout", school: me.school.name, name: me.name });
   }
-  // اشتراك متوقف: شاشة الاشتراك وحدها (البيانات محفوظة، والتجديد من هنا)
   if (me.access?.locked) return lockScreen(me, app);
   setCurrency(me.school.currency);
   const on = (key) => me.modules?.[key] !== false;
-  // مدرسة جديدة: المعالج يملأ الشاشة قبل ظهور اللوحة، ويمكن تخطيه
   if (me.setup_completed === false) {
     mount(app,
       topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: "إعداد المدرسة",
@@ -59,19 +60,16 @@ export async function startAdmin() {
     return;
   }
 
-  // التبويب يظهر فقط إذا كان قسمه مفعّلًا في هذه المدرسة
   const MODULE_OF = {
     attendance: "attendance", timetable: "timetable", exams: "exams", reports: "reports",
     analytics: "analytics", finance: "fees", ledger: "finance", admissions: "admissions", sheets: "attendance",
     distribution: "timetable",
     announcements: "announcements", papers: "exam_papers",
-    // الأقسام الجامعة: تظهر إذا كان أي قسم فيها مفعّلًا
     communication: ["notifications", "messaging", "sms", "surveys", "meetings"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
     behavior: "behavior", calendar: "calendar", certificates: "certificates",
     services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant",
   };
   const enabled = (m) => [].concat(m).some((k) => me.modules?.[k]);
-  // الأقسام بترتيب العمل اليومي، بلا عناوين تجميع
   const allTabs = [
     ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
     ["students", "الطلاب"], ["parents", "أولياء الأمور"], ["teachers", "المعلمون"], ["staff", "شؤون الموظفين"],
@@ -83,7 +81,6 @@ export async function startAdmin() {
     ["settings", "الإعدادات"], ["audit", "السجل"],
   ]
     .filter(([key]) => !MODULE_OF[key] || enabled(MODULE_OF[key]))
-    // مع النظام المالي تصبح «الرسوم» جزءًا من «المالية» (تبويب واحد لكل المال)
     .filter(([key]) => !(key === "finance" && me.modules?.finance));
 
   const ctx = { me };
@@ -91,9 +88,8 @@ export async function startAdmin() {
     { dashboard, setup: setupWizard, students, parents, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
       communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant }, ctx);
   ctx.goTo = (key) => {
-    // روابط «الرسوم» القديمة (من الرئيسية والتنبيهات) تفتح قسم الرسوم داخل المالية
     if (key === "finance" && me.modules?.finance) {
-      try { sessionStorage.setItem("midar_finance_part", "fees"); } catch { /* تجاهل */ }
+      try { sessionStorage.setItem("midar_finance_part", "fees"); } catch { /* ignore */ }
       key = "ledger";
     }
     return t.show(key);

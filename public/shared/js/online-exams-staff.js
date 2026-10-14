@@ -1,4 +1,8 @@
-// الاختبارات الإلكترونية للمعلم والإدارة: النشر، والنتائج، وتصحيح الأسئلة المقالية، ورصد الدرجات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, dialog, confirmAction, stats } from "./ui.js";

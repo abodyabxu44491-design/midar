@@ -1,5 +1,8 @@
-// الدخول لمدرسة جديدة: كلمة المرور الصحيحة تُقبل مهما أضاف لها الجوال أو النسخ من واتساب أحرفًا لا تُرى،
-// دون إضعاف الأمان (كلمات المرور التي يختارها المستخدم تبقى حساسة لحالة الأحرف)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -63,7 +66,6 @@ test("كلمة المرور التي يختارها المستخدم: الأحر
 });
 
 test("توافق مع كلمات مرور حُفظت قبل التوحيد (بالشكل الأصلي كما كُتب)", async () => {
-  // بصمة بالصيغة القديمة: كلمة مرور بأرقام عربية دون تحويل
   const salt = crypto.randomBytes(16);
   const hash = await promisify(crypto.scrypt)("قديم٢٠٢٤".normalize("NFKC"), salt, 64, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
   await transaction({ tenantId: s.id }, (q) => q("UPDATE users SET password_hash = $1, must_change_password = false WHERE username = 'admin'",

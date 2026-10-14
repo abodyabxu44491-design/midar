@@ -1,5 +1,8 @@
-// تحليلات Firebase — تعمل في الصفحات العامة وصفحات الدخول فقط
-// لا تُحمَّل أبدًا في صفحات بيانات الطلاب أو لوحات الإدارة، حفاظًا على خصوصية الطلاب.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { firebaseConfig } from "./firebase-config.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2";
@@ -15,10 +18,8 @@ export async function startAnalytics(pageName) {
     const { initializeAnalytics, isSupported, logEvent } = await import(`${SDK}/firebase-analytics.js`);
     if (!(await isSupported())) return;
     const app = initializeApp(firebaseConfig);
-    // نوقف page_view التلقائي لأنه يرسل العنوان الحقيقي (وفيه رمز المدرسة)، ونرسل اسم الصفحة فقط
     const analytics = initializeAnalytics(app, { config: { send_page_view: false } });
     logEvent(analytics, "page_view", { page_title: pageName, page_location: `${location.origin}/${pageName}`, page_path: `/${pageName}` });
   } catch {
-    // التحليلات اختيارية؛ فشلها لا يؤثر على المنصة
   }
 }

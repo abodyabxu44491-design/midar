@@ -1,4 +1,8 @@
-// السلوك والانضباط (الإدارة): كل الشعب، والبنود والإعدادات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { api } from "../../shared/js/api.js";
 import { behaviorBoard } from "../../shared/js/behavior-board.js";
 import { A } from "./common.js";

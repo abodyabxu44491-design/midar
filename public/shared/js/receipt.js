@@ -1,14 +1,14 @@
-// إيصال السداد وكشف حساب الطالب — جاهزان للطباعة أو الحفظ PDF
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 import { docLogo, dialog, btn, line, sub } from "./ui.js";
 import { money, fmtDate, fmtDateTime, METHODS } from "./format.js";
 
 const row = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value));
 
-/**
- * إيصال سداد واحد.
- * @param {{school, student, class_name, receipt_no, amount, method, created_at, title, kind, currency}} r
- */
 export function receiptDialog(r) {
   const refund = r.kind === "refund";
   const card = h("article", { class: "report receipt" },
@@ -24,9 +24,6 @@ export function receiptDialog(r) {
   dialog("إيصال", card, [btn("طباعة / حفظ PDF", () => window.print())]);
 }
 
-/**
- * كشف حساب الطالب: الفواتير والدفعات والمتبقي.
- */
 export function statementDialog({ school, student, class_name, invoices = [], payments = [], currency }) {
   const billed = invoices.filter((i) => i.status !== "void").reduce((s, i) => s + Number(i.amount), 0);
   const paid = payments.reduce((s, p) => s + (p.kind === "refund" ? -Number(p.amount) : Number(p.amount)), 0);

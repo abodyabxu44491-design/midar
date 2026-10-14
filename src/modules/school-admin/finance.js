@@ -1,4 +1,8 @@
-// الرسوم: الفواتير، الدفعات النقدية، الاسترداد، الإلغاء
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -11,7 +15,6 @@ import { requirePermission } from "../../core/auth/guards.js";
 
 const r = Router();
 
-// الفواتير: صفحة بعد صفحة مع البحث والتصفية في الخادم (بدون limit: أول 1000 كما كان)
 const invoiceQuery = z.object({
   q: z.string().trim().max(80).optional(), class_id: t.optId, student_id: t.optId,
   status: z.enum(["all", "open", "void", "unpaid"]).default("all"),
@@ -50,7 +53,6 @@ r.post("/invoices/:id/payments", handle(async (req, res) => {
   })));
 }));
 
-// الاسترداد يُخرج مبلغًا من الصندوق، فيحتاج صلاحية الاعتماد المالي
 const canRefund = requirePermission("can_approve_finance", "الاسترداد يحتاج صلاحية اعتماد الحركات المالية");
 r.post("/invoices/:id/refunds", canRefund, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
@@ -75,7 +77,6 @@ r.get("/students/:id/payments", handle(async (req, res) => {
   }));
 }));
 
-// إشعارات التحويل البنكي من أولياء الأمور
 r.get("/claims", handle(async (req, res) => {
   const { status } = parse(z.object({ status: z.enum(["pending", "confirmed", "rejected"]).optional() }), req.query);
   res.json(await inTenant(req, (q) => payments.listClaims(q, status)));
@@ -87,7 +88,6 @@ r.post("/claims/:id/review", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => payments.reviewClaim(q, id, b, req.actor)));
 }));
 
-/* ---------- قوالب الرسوم والتقسيط ---------- */
 r.get("/plans", handle(async (req, res) => res.json(await inTenant(req, plans.listPlans))));
 
 r.post("/plans", handle(async (req, res) => {
@@ -121,7 +121,6 @@ r.post("/plans/:id/apply", handle(async (req, res) => {
   res.json(await inTenant(req, (q) => plans.applyPlan(q, id, b, req.actor)));
 }));
 
-/* ---------- الخصومات والمنح ---------- */
 r.get("/adjustments", handle(async (req, res) => {
   const studentId = req.query.student_id ? parse(t.id, req.query.student_id) : null;
   res.json(await inTenant(req, (q) => plans.listAdjustments(q, studentId)));

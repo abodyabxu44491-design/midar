@@ -1,6 +1,8 @@
-// مدرسة عرض كاملة: مدارس بنين في عدن (الأساسي والثانوي) أنهت عامًا دراسيًا كاملًا بكل أقسام المنصة.
-// npm run seed:showcase -- [رمز المدرسة]   — يطبع بيانات دخول المدير وعينات من المعلمين وأولياء الأمور.
-// كلمات المرور عشوائية وتُطبع مرة واحدة فقط، ومتاحة أيضًا من زر «مدرسة عرض كاملة» في لوحة المالك.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { closePool } from "../src/core/db/pool.js";
 import { createShowcase } from "../src/modules/owner/tenants.js";
 

@@ -1,27 +1,22 @@
-// العمليات الطويلة في الخلفية: يُرد على الطلب فورًا برقم العملية، وتعمل العملية بعده،
-// وتحدّث تقدمها في جدول jobs (في معاملة مستقلة قصيرة فتظهر فورًا)، والواجهة تسأل عنها كل ثانية.
-// النتيجة السرية (كلمات مرور مؤقتة) لا تُكتب في القاعدة: تبقى في الذاكرة 30 دقيقة لصاحب العملية فقط.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { transaction } from "./db/pool.js";
 import { conflict, notFound, publicError } from "./http/errors.js";
 
 const SECRET_TTL = 30 * 60_000;
 const secrets = new Map();          // jobId ← { data, until }
-const active = new Set();           // العمليات الجارية في هذه النسخة (ينتظرها الإيقاف الآمن)
+const active = new Set();
 const DONE_LABELS = { import_students: "استيراد الطلاب", import_teachers: "استيراد المعلمين" };
 const scopeOf = (tenantId) => (tenantId ? { tenantId } : { platform: true });
 
-/** صاحب العملية: المالك، أو مستخدم المدرسة الذي بدأها */
 export const ownerKeyOf = (req) => (req.user ? `user:${req.user.id}` : "owner");
 
-/**
- * يبدأ عملية في الخلفية ويعيد رقمها فورًا.
- * run({ progress }) يعيد { summary, secret }: summary يُحفظ ويُعرض، وsecret في الذاكرة فقط.
- * لا تُشغَّل عمليتان من النوع نفسه للمدرسة نفسها معًا (حماية من الضغط المزدوج).
- */
 export async function startJob({ tenantId = null, kind, total = 0, step = null, req }, run) {
   const ownerKey = ownerKeyOf(req), actor = req.actor, ip = req.ip;
   const [job] = await transaction({ ...scopeOf(tenantId), actor, ip }, async (q) => {
-    // عملية عالقة أكثر من ساعة تُعد متوقفة
     await q(`UPDATE jobs SET status = 'failed', error = 'توقفت العملية قبل اكتمالها.', finished_at = now()
               WHERE status = 'running' AND created_at < now() - interval '1 hour'`);
     const rows = await q(`INSERT INTO jobs (tenant_id, kind, total, step, owner_key, created_by) VALUES ($1, $2, $3, $4, $5, $6)
@@ -30,8 +25,6 @@ export async function startJob({ tenantId = null, kind, total = 0, step = null, 
     return rows;
   });
 
-  // تحديث التقدم: بحد أقصى مرة كل نصف ثانية، ولا ينتظر العمل الأساسي عليه
-  // (الكتابات متسلسلة فلا يصل تحديث قديم بعد أحدث منه)
   let last = 0, pending = Promise.resolve();
   const write = (done, tot, stp) => transaction({ ...scopeOf(tenantId), actor }, (q) =>
     q("UPDATE jobs SET done = $2, total = COALESCE($3, total), step = COALESCE($4, step) WHERE id = $1 AND status = 'running'",
@@ -44,7 +37,7 @@ export async function startJob({ tenantId = null, kind, total = 0, step = null, 
   };
 
   const task = (async () => {
-    await new Promise((r) => setImmediate(r));      // الرد على الطلب أولًا
+    await new Promise((r) => setImmediate(r));
     let status = "done", summary = null, error = null;
     try {
       const out = (await run({ progress })) || {};
@@ -60,7 +53,6 @@ export async function startJob({ tenantId = null, kind, total = 0, step = null, 
     await transaction({ ...scopeOf(tenantId), actor }, (q) =>
       q(`UPDATE jobs SET status = $2, summary = $3, error = $4, finished_at = now(), done = CASE WHEN $2 = 'done' THEN GREATEST(total, done) ELSE done END
           WHERE id = $1`, [job.id, status, summary, error])).catch((e) => console.error("job finish", e));
-    // إشعار صاحب العملية باكتمالها أو فشلها (يصله حتى لو أغلق الصفحة)
     const label = DONE_LABELS[kind];
     if (label && tenantId && ownerKey.startsWith("user:")) {
       const { notify } = await import("../modules/shared/notify.service.js");
@@ -75,7 +67,6 @@ export async function startJob({ tenantId = null, kind, total = 0, step = null, 
   return { id: job.id };
 }
 
-/** حالة العملية لصاحبها فقط. عند الانتهاء تُسلَّم النتيجة السرية (إن وُجدت) مرة واحدة. */
 export async function readJob({ tenantId = null, id, req }) {
   const [job] = await transaction({ ...scopeOf(tenantId), actor: req.actor }, (q) => q(
     `SELECT id, kind, status, done, total, step, summary, error, owner_key, created_at, finished_at FROM jobs
@@ -90,16 +81,13 @@ export async function readJob({ tenantId = null, id, req }) {
   return out;
 }
 
-// تنظيف دوري للنتائج السرية المنتهية
 setInterval(() => { const now = Date.now(); for (const [k, v] of secrets) if (v.until < now) secrets.delete(k); }, 5 * 60_000).unref();
 
-/** الإيقاف الآمن: انتظار العمليات الجارية (بحد أقصى) قبل إغلاق الاتصالات */
 export async function drainJobs(ms = 25_000) {
   if (!active.size) return;
   await Promise.race([Promise.allSettled([...active]), new Promise((r) => setTimeout(r, ms))]);
 }
 
-/** عند تشغيل الخادم (نسخة واحدة): أي عملية كانت تعمل قبل إعادة التشغيل لن تكتمل */
 export async function failInterruptedJobs() {
   await transaction({ platform: true, actor: "system" }, (q) =>
     q(`UPDATE jobs SET status = 'failed', error = 'توقف الخادم أثناء التنفيذ. تحقق من البيانات ثم أعد المحاولة إن لزم.', finished_at = now()

@@ -1,11 +1,13 @@
-/* الصفحة الرسمية لمدار: هادئة ومرتبة، متجاوبة من الجوال الصغير إلى الشاشات الكبيرة */
-/* ألوان الموقع للصفحة وللنوافذ أيضًا (النوافذ تُضاف خارج .st) */
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 .st, dialog.st-dlg { --ink: #16244A; --acc: #0B7A75; --acc2: #E8A33D; --soft: #F4F7FA; --line: #E4E9F0; --muted: #5A6478; }
 .st { background: #fff; color: var(--ink); overflow-x: clip; }
 .st a { color: inherit; }
 .st .in { max-width: 1120px; margin: 0 auto; }
 
-/* الشريط العلوي */
 .st-nav { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.92); backdrop-filter: saturate(1.4) blur(10px);
   border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
 .st-nav .in { padding: 10px 20px; display: flex; align-items: center; gap: 28px; }
@@ -16,7 +18,6 @@
 .st-nav .links a:hover { color: var(--acc); }
 .st-nav .install-ic { margin-inline-start: auto; }
 
-/* الأزرار */
 .st-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-weight: 700; font-size: 16px;
   min-height: 50px; padding: 0 24px; border-radius: 12px; border: 1.5px solid transparent; cursor: pointer; text-decoration: none; white-space: nowrap;
   transition: background .15s, border-color .15s, transform .15s; }
@@ -27,7 +28,6 @@
 .st-btn.ghost { border-color: rgba(255,255,255,.35); background: transparent; color: #fff; } .st-btn.ghost:hover { background: rgba(255,255,255,.1); }
 .st-btn.wide { width: 100%; }
 
-/* الواجهة */
 .st-hero { color: #fff; padding: 88px 20px 96px; text-align: center;
   background: linear-gradient(160deg, #16244A 0%, #132C4C 60%, #0F3F45 100%); }
 .st-hero .txt { max-width: 720px; margin: 0 auto; }
@@ -36,13 +36,11 @@
 .st-hero .cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .st-hero .note { margin: 18px 0 0; font-size: 14px; color: #A9B8CF; }
 
-/* الأقسام */
 .st-sec { padding: 84px 20px; }
 .st-sec.soft { background: var(--soft); }
 .st-sec h2 { text-wrap: balance; text-align: center; font-size: clamp(24px, 3vw, 34px); line-height: 1.4; margin: 0 0 10px; }
 .st-sec .sub-h { text-align: center; color: var(--muted); margin: 0 auto 40px; max-width: 560px; line-height: 1.8; font-size: 16px; }
 
-/* المميزات: عنوان لكل فئة ثم بطاقات المميزات */
 .st-cat + .st-cat { margin-top: 34px; }
 .st-cat h3 { display: flex; align-items: center; gap: 10px; font-size: 17px; margin: 0 0 14px; color: var(--ink); }
 .st-cat h3 .ic { width: 34px; height: 34px; border-radius: 10px; background: #E6F4F3; color: var(--acc); display: grid; place-items: center; flex: none; }
@@ -52,7 +50,6 @@
 .st-feat b { display: block; font-size: 15px; margin-bottom: 4px; }
 .st-feat p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
 
-/* العرض التجريبي */
 .st-demo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .st-demo-card { font: inherit; text-align: start; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px;
   display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 6px; align-items: center; cursor: pointer; color: var(--ink);
@@ -63,7 +60,6 @@
 .st-demo-card small { grid-column: 1 / -1; color: var(--muted); line-height: 1.8; font-size: 14px; }
 .st-demo-card.busy { opacity: .6; cursor: progress; }
 
-/* الباقات */
 .st-toggle { display: flex; justify-content: center; margin: -14px 0 34px; }
 .st-toggle .box { display: inline-flex; background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
 .st-toggle button { font: inherit; border: 0; background: none; padding: 9px 22px; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 600; }
@@ -93,7 +89,6 @@
 .st-plan .acts { display: grid; gap: 4px; margin-top: auto; }
 .st-plan .try { font: inherit; font-size: 14px; background: none; border: 0; color: var(--acc); font-weight: 700; cursor: pointer; padding: 8px; }
 
-/* الخاتمة: التجربة والتواصل */
 .st-end { max-width: 1120px; margin: 0 auto; border-radius: 26px; padding: 44px; color: #fff; display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: center;
   background: radial-gradient(600px 300px at 90% 0%, rgba(46,196,182,.25), transparent 70%), linear-gradient(135deg, #16244A, #0E3B4A); }
 .st-end h2 { text-align: start; color: #fff; }
@@ -106,7 +101,6 @@
 .st-end .way span { min-width: 0; } .st-end .way b { display: block; font-size: 15px; }
 .st-end .way small { display: block; color: #B7C4D8; font-size: 13px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* الأسئلة الشائعة */
 .st .in.narrow { max-width: 780px; }
 .st-faq { display: grid; gap: 10px; margin-top: 26px; }
 .st-faq details, .seo .faq details { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 0 18px; }
@@ -116,14 +110,12 @@
 .st-faq details[open] summary::after, .seo .faq details[open] summary::after { content: "−"; }
 .st-faq p, .seo .faq p { margin: 0 0 16px; color: var(--muted); line-height: 1.9; }
 
-/* التذييل */
 .st-foot { border-top: 1px solid var(--line); padding: 28px 20px calc(28px + env(safe-area-inset-bottom)); color: var(--muted); font-size: 14px; }
 .st-foot .in { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
 .st-foot .in > :first-child { height: 28px; }
 .st-foot .legal { display: flex; gap: 8px 20px; flex: 1; flex-wrap: wrap; }
 .st-foot .legal a { text-decoration: none; } .st-foot .legal a:hover { color: var(--acc); }
 
-/* النماذج والنوافذ */
 .st-form .row { display: flex; gap: 10px; } .st-form .row > * { flex: 1; min-width: 0; }
 .st-form label.chk { display: flex; gap: 8px; align-items: center; font-size: 14px; margin: 4px 0 10px; cursor: pointer; }
 .st-form label.chk input { width: 18px; height: 18px; flex: none; }
@@ -135,18 +127,15 @@ dialog.st-dlg .d-in > .row.spaced:last-child .st-btn.wide { width: auto; flex: 1
 .st-dlg-note { display: flex; align-items: center; gap: 8px; color: #9A5B00; background: #FFF4E0; border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; font-size: 14px; }
 .st-ok { text-align: center; padding: 10px; } .st-ok svg { color: var(--acc); }
 
-/* الصفحة الفاضية (الشعار فقط) */
 .blank-legal { display: flex; justify-content: center; gap: 18px; font-size: 14px; margin: 8px 0; }
 .blank-legal a { color: #5A6478; text-decoration: none; }
 
-/* تابلت */
 @media (max-width: 1000px) {
   .st-feats { grid-template-columns: repeat(2, 1fr); }
   .st-demo { grid-template-columns: repeat(2, 1fr); }
   .st-end { grid-template-columns: 1fr; text-align: center; } .st-end h2 { text-align: center; }
 }
 @media (max-width: 760px) { .st-nav .links { display: none; } }
-/* جوال */
 @media (max-width: 560px) {
   .st-nav .in { padding: 8px 16px; }
   .st-hero { padding: 52px 16px 60px; }
@@ -168,7 +157,6 @@ dialog.st-dlg .d-in > .row.spaced:last-child .st-btn.wide { width: auto; flex: 1
   .st-foot .in { flex-direction: column; text-align: center; gap: 12px; } .st-foot .legal { justify-content: center; }
 }
 
-/* شاشة بداية التطبيق (?app): مدارس الجهاز ورمز المدرسة */
 .st.ln { background: transparent; }
 .ln { max-width: 460px; margin: 0 auto; padding: calc(36px + env(safe-area-inset-top)) 18px 40px; display: grid; gap: 22px; color: #16244A; }
 .ln .ln-logo { height: 120px; justify-self: center; }

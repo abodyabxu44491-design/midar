@@ -1,10 +1,8 @@
-// موقع المدرسة المصغّر: صفحة الطلاب وأولياء الأمور
-//   #/                 الرئيسية: الشعار، الاسم، النبذة، البحث بالمعرّف، التسجيل، الإعلانات، التواصل
-//   #/account[/new]    دخول ولي الأمر / إنشاء حسابه بنفسه (زر الحساب أعلى كل صفحة)
-//   #/family           «أبنائي» (ولي الأمر المسجّل يُفتح له مباشرة عند فتح الموقع أو التطبيق)
-//   #/students         الطلاب: المراحل ← الصفوف
-//   #/grade/<id>[/<شعبة>]  صفحة الصف: شعبه كتبويبات، وطلاب الشعبة كبطاقات (30 في كل مرة)
-// كل عنصر يظهر فقط إذا فعّلته إدارة المدرسة، وبطاقة الطالب لا تحمل إلا ما سمحت بنشره.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { footer, field, input, textarea, btn, notice, dialog, sub, badge, brandLogo, skeleton, installButton, teacherCards } from "../shared/js/ui.js";
@@ -20,9 +18,8 @@ const app = $("#app");
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
 const PAGE = 30;
-let home = null;   // بيانات الرئيسية (تُحمّل مرة واحدة)
+let home = null;
 
-/* ======================= الهيكل العام ======================= */
 function shell(content, { crumbs = [] } = {}) {
   const logo = home?.school.logo ? h("img", { class: "ss-logo", src: `${P}/logo?v=${home.school.logo_v}&size=thumb`, alt: "", width: 44, height: 44 }) : null;
   mount(app,
@@ -39,9 +36,7 @@ function shell(content, { crumbs = [] } = {}) {
 }
 const emptyState = (icon, title, text) => h("div", { class: "ss-empty" }, icon, h("b", {}, title), text ? h("p", {}, text) : null);
 
-/* ======================= الموجّه ======================= */
 async function route() {
-  // فتح الموقع (أو التطبيق المثبّت) بلا مسار: ولي الأمر المسجّل يدخل مباشرة إلى حسابه
   if (!location.hash && parentSignedIn(school) && !new URLSearchParams(location.search).get("k")) { location.replace("#/family"); return; }
   const [, page, a, b] = (location.hash || "#/").split("/");
   try {
@@ -58,11 +53,9 @@ async function route() {
 }
 window.addEventListener("hashchange", route);
 
-/* ======================= الرئيسية ======================= */
 function homePage() {
   const f = home.features;
   document.title = `مدار — ${home.school.name}`;
-  // الأقسام: كل واحد مرة واحدة فقط (التواصل له بطاقته الخاصة في الأسفل)
   const tiles = [
     f.directory ? tile(icons.users({ size: 26 }), "الطلاب", "المراحل والصفوف والشعب", () => { location.hash = "#/students"; }) : null,
     f.admissions ? tile(icons.plus({ size: 26 }), "طلب تسجيل طالب", "للطلاب الجدد", admissionForm) : null,
@@ -83,7 +76,6 @@ function homePage() {
   ]);
 }
 
-// التواصل: بطاقة واحدة مرتبة — كل وسيلة في سطر بأيقونتها وزر إجرائها
 function contactCard(c) {
   if (!c || !(c.phone || c.email || c.address || c.city)) return null;
   const intl = c.phone ? detectPhone(c.phone)?.intl : null;
@@ -102,7 +94,6 @@ function contactCard(c) {
 }
 const tile = (icon, title, note, onclick) => h("button", { class: "ss-tile", type: "button", onclick }, h("span", { class: "ic" }, icon), h("b", {}, title), note ? h("small", {}, note) : null);
 
-// البحث بالمعرّف: يفتح ملف الطالب مباشرة
 function findByKey() {
   const key = input({ class: "ltr ss-key", placeholder: "XXXX-XXXX", autocomplete: "off", maxLength: 9, inputMode: "text", "aria-label": "معرّف الطالب" });
   const msg = h("div");
@@ -116,20 +107,17 @@ function findByKey() {
       location.href = `/${encodeURIComponent(school)}/student`;
     } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "primary");
-  // تنسيق تلقائي: شرطة بعد 4 أحرف
   key.addEventListener("input", () => {
     const v = key.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
     key.value = v.length > 4 ? `${v.slice(0, 4)}-${v.slice(4)}` : v;
   });
   key.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
-  // رابط البطاقة (رمز QR): ?k=المعرّف يفتح الملف مباشرة، ثم يُحذف المعرّف من شريط العنوان
   const fromCard = new URLSearchParams(location.search).get("k");
   if (fromCard) {
     history.replaceState(null, "", location.pathname + location.hash);
     key.value = fromCard.toUpperCase().slice(0, 9);
     queueMicrotask(() => go.click());
   }
-  // الأبناء المحفوظون على هذا الجهاز: فتح مباشر بضغطة
   const kids = rememberedChildren(school);
   return h("div", {},
     kids.length ? h("div", { class: "ss-kids" }, kids.map((c) => h("button", { type: "button", class: "ss-kid",
@@ -138,7 +126,6 @@ function findByKey() {
     h("div", { class: "ss-keyrow" }, key, go), msg);
 }
 
-/* ======================= الطلاب: المراحل والصفوف ======================= */
 async function studentsPage() {
   shell(skeleton(6), { crumbs: [["الطلاب", "#/students"]] });
   const data = await api(`${P}/structure`, {});
@@ -156,7 +143,6 @@ async function studentsPage() {
   ], { crumbs: [["الطلاب", "#/students"]] });
 }
 
-// البحث بالاسم على مستوى المدرسة (إن فعّلته الإدارة)
 function nameSearch() {
   const q = input({ type: "search", placeholder: "ابحث باسم الطالب", "aria-label": "ابحث باسم الطالب" });
   const out = h("div");
@@ -177,7 +163,6 @@ function nameSearch() {
   return h("section", { class: "ss-card" }, q, out);
 }
 
-/* ======================= صفحة الصف: الشعب والطلاب ======================= */
 async function gradePage(gradeId, sectionId) {
   shell(skeleton(6), { crumbs: [["الطلاب", "#/students"], ["…", "#"]] });
   const g = await api(`${P}/grade`, { grade_id: gradeId });
@@ -229,16 +214,14 @@ async function sectionView(body, section, namesShown) {
   await load(true);
 }
 
-// بطاقة الطالب: الحرف الأول، الاسم، الشعبة، وحالة السداد (إن سمحت المدرسة)
 function studentCard(s, className) {
-  const initials = String(s.name).trim().charAt(0);   // حرف واحد (حرفان عربيان يتصلان ويصعب قراءتهما)
+  const initials = String(s.name).trim().charAt(0);
   return h("button", { class: "ss-student", type: "button", onclick: () => askKey(s) },
     h("span", { class: "av", "aria-hidden": "true" }, initials),
     h("span", { class: "nm" }, h("b", {}, s.name), className ? h("small", {}, className) : null),
     s.fees === "paid" ? badge("مسدد") : s.fees === "unpaid" ? badge("لم يسدد", "red") : null);
 }
 
-/* ======================= نماذج ======================= */
 function admissionForm() {
   const f = {
     student_name: input(), grade_wanted: input({ placeholder: "الصف المطلوب" }), birth_date: input({ type: "date" }),

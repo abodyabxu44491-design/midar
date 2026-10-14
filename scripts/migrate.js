@@ -1,4 +1,8 @@
-// تطبيق ترحيلات قاعدة البيانات: npm run migrate
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import fs from "node:fs";
 import dotenv from "dotenv";
 dotenv.config({ path: fs.existsSync(".env.local") ? ".env.local" : ".env" });

@@ -1,4 +1,8 @@
-// سجل العمليات (قراءة فقط)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { tableLabel } from "../shared/danger-zone.service.js";
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
@@ -19,7 +23,6 @@ const TABLES = { students: "الطلاب", attendance: "الحضور", exams: "�
   payment_claims: "إشعارات الدفع", custom_fields: "الحقول المخصصة", attachments: "المرفقات", subscriptions: "الاشتراك" };
 const OPS = { insert: "إضافة", update: "تعديل", delete: "حذف" };
 
-// قائمة الأقسام للتصفية في الواجهة
 r.get("/filters", handle(async (req, res) => {
   res.json({
     tables: Object.entries(TABLES).map(([key, name]) => ({ key, name })),

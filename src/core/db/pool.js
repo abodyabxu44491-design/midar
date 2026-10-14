@@ -1,14 +1,16 @@
-// الاتصال بقاعدة البيانات
-// كل عملية تتم داخل معاملة (Transaction): إما تنجح كاملة أو تُلغى كاملة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import pg from "pg";
 import { env } from "../../config/env.js";
 import { performance } from "node:perf_hooks";
 import { recordQuery, recordTx } from "../perf.js";
 
-// الأرقام المالية تُقرأ كنص ثم تحول بحذر (تجنب أخطاء الكسور)
 pg.types.setTypeParser(1700, (v) => (v === null ? null : Number(v)));   // numeric
-pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));     // bigint (المعرفات أقل بكثير من الحد الآمن)
-pg.types.setTypeParser(1082, (v) => v);                                  // date كنص YYYY-MM-DD
+pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
+pg.types.setTypeParser(1082, (v) => v);
 
 const common = {
   max: 20,
@@ -38,13 +40,6 @@ export async function closePool() {
   poolPromise = null;
 }
 
-/**
- * تنفيذ دالة داخل معاملة مع سياق محدد.
- * @param {{tenantId?: string|null, actor?: string, ip?: string|null, platform?: boolean, sessionHash?: string}} ctx
- * @param {(q: (sql: string, params?: any[]) => Promise<any[]>, client: pg.PoolClient) => Promise<T>} fn
- * @template T
- */
-// فتح اتصال مع محاولة ثانية واحدة: قواعد مثل Neon تتوقف بعد الخمول، وأول اتصال قد يفشل أثناء الاستيقاظ
 async function connect() {
   const pool = await getPool();
   try { return await pool.connect(); } catch (e) {
@@ -56,13 +51,10 @@ async function connect() {
 export async function transaction(ctx, fn) {
   const client = await connect();
   recordTx();
-  // كل رحلة لقاعدة البيانات تُقاس (Server-Timing)
   const raw = client.query.bind(client);
   const timed = async (...a) => { const t = performance.now(); try { return await raw(...a); } finally { recordQuery(performance.now() - t); } };
   client.query = timed;
   try {
-    // بدء المعاملة وإعدادات السياق في رحلة واحدة لقاعدة البيانات بدل رحلتين
-    // (القيم تمر عبر escapeLiteral الرسمية من مكتبة pg، والإعدادات محلية للمعاملة فقط وتُمسح عند انتهائها)
     const lit = (v) => client.escapeLiteral(String(v));
     await client.query(
       `BEGIN ISOLATION LEVEL READ COMMITTED;
@@ -70,7 +62,6 @@ export async function transaction(ctx, fn) {
               set_config('app.ip', ${lit(ctx.ip || "")}, true), set_config('app.platform', ${lit(ctx.platform ? "on" : "off")}, true),
               set_config('app.session_hash', ${lit(ctx.sessionHash || "")}, true)`);
     const q = async (sql, params = []) => (await client.query(sql, params)).rows;
-    // أعمال تُنفذ بعد نجاح المعاملة فقط (إرسال إشعار أو رسالة): لا يُرسل شيء عن بيانات أُلغيت
     const after = [];
     q.afterCommit = (job) => after.push(job);
     const result = await fn(q, client);
@@ -86,7 +77,6 @@ export async function transaction(ctx, fn) {
   }
 }
 
-// اختصار: تنفيذ في سياق مدرسة
 export const inTenant = (req, fn) =>
   transaction({ tenantId: req.tenantId, actor: req.actor, ip: req.ip }, fn);
 

@@ -1,5 +1,8 @@
-// بوابة المحاسب: المالية والرسوم فقط.
-// تُشغَّل من باب المدرسة الموحّد بعد التعرف على دور الحساب.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { $, mount, h } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { setCurrency } from "../shared/js/format.js";
@@ -27,7 +30,7 @@ export async function startAccountant() {
   const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
   const list = [
     ...(me.modules?.finance ? [["ledger", "المالية"]] : []),
-    ...(me.modules?.fees && !me.modules?.finance ? [["fees", "الرسوم"]] : []),   // مع المالية تكون الرسوم داخلها
+    ...(me.modules?.fees && !me.modules?.finance ? [["fees", "الرسوم"]] : []),
     ["account", "حسابي"],
   ];
   const t = tabs(list, { ledger, fees, account }, { me });

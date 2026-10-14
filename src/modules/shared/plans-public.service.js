@@ -1,4 +1,8 @@
-// الباقات كما تظهر للزائر وللمدرسة: من قاعدة البيانات مباشرة (لا أسعار ولا مميزات ثابتة في الكود)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { transaction } from "../../core/db/pool.js";
 import { demoSchool } from "./demo.service.js";
 
@@ -6,7 +10,6 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const iso = (d) => (d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10) : null);
 
-// هل الخصم ساري اليوم؟ (بلا تواريخ = دائم حتى يلغيه المالك)
 export function discountActive(p, now = today()) {
   if (!p.discount_kind || p.discount_kind === "none") return false;
   if (p.discount_starts_at && iso(p.discount_starts_at) > now) return false;
@@ -14,10 +17,6 @@ export function discountActive(p, now = today()) {
   return true;
 }
 
-/**
- * السعر الفعلي لمدة (شهري/سنوي) — مصدر واحد للسعر في كل المنصة.
- * يعيد { base, final, percent, promo, ends } أو null إن لم تكن المدة متاحة.
- */
 export function displayPrice(p, cycle, now = today()) {
   const base = p[`${cycle}_price`];
   if (base == null) return null;
@@ -46,7 +45,6 @@ export async function publicPlans() {
       id: p.id, code: p.code, name: p.name, tagline: p.tagline, description: p.description, badge: p.badge,
       highlight: p.highlight, currency: p.currency, contact_only: p.contact_only, setup_fee: Number(p.setup_fee),
       monthly: displayPrice(p, "monthly"), yearly: displayPrice(p, "yearly"),
-      // نص العرض اختياري (لا يلزم ذكر سبب الخصم)، وتاريخ انتهاء العرض إن حدده المالك
       promo_label: discountActive(p) ? p.promo_label || null : null,
       promo_ends_at: discountActive(p) ? iso(p.discount_ends_at) : null,
       max_students: p.max_students, max_teachers: p.max_teachers,
@@ -56,15 +54,12 @@ export async function publicPlans() {
   });
 }
 
-// كل ما تحتاجه الصفحة العامة في طلب واحد
 export async function siteData() {
   const [s] = await transaction({}, (q) => q(
     `SELECT landing_mode, brand_phone, brand_email, brand_instagram, support_whatsapp, trial_enabled, trial_days, trial_without_plan,
             site_headline, site_subheadline FROM platform_settings WHERE id`));
-  // الصفحة الفاضية: لا باقات ولا مميزات، وبيانات التواصل فقط (تظهر في صفحتي الخصوصية والشروط)
   if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp };
   const features = await transaction({}, (q) => q(
     `SELECT key, name, description, category, kind, requestable FROM features WHERE is_active ORDER BY sort, key`));
-  // العرض التجريبي متاح إذا اختار المالك مدرسة عرض (ولا يُكشف رمزها هنا)
   return { ...s, plans: await publicPlans(), features, demo: Boolean(await demoSchool()) };
 }

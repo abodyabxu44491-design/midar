@@ -1,4 +1,8 @@
-// طلبات التجربة الواردة من الصفحة التسويقية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -33,7 +37,6 @@ r.patch("/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// حذف طلب مزعج
 r.delete("/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const rows = await platform(req, (q) => q("DELETE FROM leads WHERE id = $1 RETURNING id", [id]));

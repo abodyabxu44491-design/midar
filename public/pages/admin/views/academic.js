@@ -1,4 +1,8 @@
-// السنة الدراسية والفصول الدراسية، وبدء سنة جديدة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, confirmAction, stats } from "../../shared/js/ui.js";
@@ -12,8 +16,6 @@ const OUTCOME = { passed: ["ناجح", ""], failed: ["راسب", "red"], incompl
 const ACTIONS = [["promote", "ترفيع للصف التالي"], ["repeat", "إعادة السنة"], ["graduate", "تخرّج"],
   ["transfer", "نقل لمدرسة أخرى"], ["withdraw", "انسحاب"]];
 
-// الشاشة مقسّمة إلى جزأين يعيد «السجل الأكاديمي» في الإعدادات استخدامهما نفسيهما:
-// السنة والفصول، وأيام الدراسة والإجازات.
 export default async function academic({ refresh }) {
   const [year, days] = await Promise.all([yearParts({ refresh }), daysParts({ refresh })]);
   const [head, ...rest] = year;
@@ -44,7 +46,6 @@ export async function yearParts({ refresh }) {
       ["عدد فصول السنة", currentYearTerms.length],
       ["السنوات المؤرشفة", years.filter((y) => y.status === "archived").length],
     ]),
-
 
     yearPanel(current, currentYearTerms.length, refresh),
     curYear?.state === "ended" ? notice(`انتهت مدة ${curYear.name}. ابدأ السنة الجديدة من «السنوات الدراسية» أدناه لترفيع الطلاب.`, "warn") : null,
@@ -80,7 +81,6 @@ export async function yearParts({ refresh }) {
   ];
 }
 
-// سنة قادمة تُجهَّز مسبقًا (تواريخها وفصولها) دون أن تصبح الحالية
 function upcomingYear(refresh) {
   const y = new Date().getFullYear() + 1;
   const name = input({ value: `${y}–${y + 1}` });
@@ -95,7 +95,6 @@ function upcomingYear(refresh) {
   })]);
 }
 
-// درجة النجاح المعتمدة للسنة الحالية
 function passMarkPanel(current, years, refresh) {
   const year = years.find((y) => y.is_current);
   if (!year) return null;
@@ -120,7 +119,6 @@ function editTerm(t, refresh) {
     })]);
 }
 
-// معالج بدء السنة: بيانات السنة، خريطة الصفوف، ثم مراجعة نتيجة كل طالب
 function startYear(classes, current, refresh) {
   const nextName = current?.year_name?.includes("/")
     ? current.year_name.split("/").map((n) => Number(n) + 1).join("/") : "";
@@ -129,7 +127,6 @@ function startYear(classes, current, refresh) {
   const end = input({ type: "date", value: current ? addYear(current.year_end, 366) : "" });
   const count = select([[2, "فصلان"], [3, "ثلاثة فصول"]], { value: 2 });
 
-  // خريطة الصفوف: إلى أي صف يُرفَّع كل صف
   const rows = classes.map((c) => {
     const action = select([["promote", "ترفيع إلى صف"], ["graduate", "تخرّج طلابه"], ["repeat", "إعادة الجميع"]]);
     const to = select(classOptions(classes, "اختر الصف"));
@@ -203,8 +200,6 @@ function addYear(dateStr, days = 1) {
   return d.toISOString().slice(0, 10);
 }
 
-
-// تعديل السنة الحالية وعدد فصولها — نفس خدمة معالج الإعداد الأول
 function yearPanel(current, termCount, refresh) {
   if (!current) return null;
   const name = input({ value: current.year_name });
@@ -222,7 +217,6 @@ function yearPanel(current, termCount, refresh) {
     }, "soft"));
 }
 
-// أيام الدراسة الأسبوعية (نفس الإعداد المستخدم في الجدول والحضور)
 function studyDaysPanel(settings, refresh) {
   const on = new Set(settings.days.map(Number));
   const boxes = DAY_NAMES.map((d, i) => {

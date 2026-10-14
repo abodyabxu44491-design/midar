@@ -1,5 +1,8 @@
-// منطقة الحذر: لا تنفيذ دون المراحل (تأكيد برمز المدرسة + إعادة التحقق + نسخة احتياطية تلقائية)،
-// ورمز العملية لا يُستخدم مرتين، والاستعادة ترجع البيانات كما كانت، والعزل بين المدارس، وصلاحيات المدير، والتسجيل.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -24,7 +27,6 @@ async function school(o, name) {
     o.student ??= s.data.id ?? s.data[0]?.id; o.key ??= s.data.access_key ?? s.data[0]?.access_key;
   }
   await o.admin.post("/api/admin/announcements", { title: "تعميم تجريبي", body: "نص" });
-  // حضور ليوم دراسي
   for (let n = 1; n < 15; n++) {
     const d = new Date(); d.setDate(d.getDate() - n); const day = d.toLocaleDateString("en-CA");
     const ds = (await o.admin.get(`/api/admin/attendance/day-status?date=${day}`)).data;
@@ -42,8 +44,6 @@ const run = async (o, op, params = {}, extra = {}) => {
 };
 
 before(async () => {
-  // محاولات التحقق الخاطئة المقصودة في هذا الملف تُحسب على «المالك» 15 دقيقة؛ تشغيل الحزمة مرتين متتاليتين
-  // كان يقفل التحقق في التشغيل الثاني. نبدأ كل تشغيل بعدّاد نظيف (الحماية نفسها يختبرها الاختبار أدناه).
   await transaction({ platform: true }, (q) => q("DELETE FROM security_events WHERE kind = 'danger_reauth_failed'"));
   srv = await startServer();
   owner = client(srv.base);
@@ -98,7 +98,6 @@ test("الاستعادة ترجع البيانات كما كانت (مع نسخ�
   const [row] = await transaction({ tenantId: A.id }, (q) => q("SELECT excuse FROM attendance WHERE student_id = $1", [A.student]));
   assert.equal(row.excuse, "مرض", "بالتفاصيل نفسها");
   assert.equal(await count(A, "sessions"), 0, "الجلسات انتهت");
-  // الحسابات عادت بكلمات مرورها: المدير يدخل من جديد
   A.admin = client(srv.base);
   assert.equal((await A.admin.post("/api/staff/login", { school: A.id, username: "admin", password: A.pw })).status, 200);
   const p = await client(srv.base).post(`/api/public/${A.id}/student`, { access: A.code, student_id: A.student, key: A.key });
@@ -115,9 +114,7 @@ test("المدير: عمليات محدودة بصلاحيته وبكلمة مر
   const ok = await go({ password: A.pw });
   assert.equal(ok.status, 200, JSON.stringify(ok.data));
   assert.equal(await count(A, "announcements"), 0);
-  // مدرسة أخرى لا تُمس من حساب مدير هذه المدرسة
   assert.equal((await A.admin.post(`/api/admin/danger/${p.id}/execute`, { token: p.token, confirm: A.id, password: A.pw })).status, 409);
-  // بدون الصلاحية: لا شيء
   await transaction({ tenantId: A.id }, (q) => q("UPDATE users SET can_danger_zone = false WHERE role = 'admin'"));
   assert.equal((await plan({ op: "sessions_kill" })).status, 403);
   assert.equal((await A.admin.get("/api/admin/danger/catalog")).data.allowed, false);

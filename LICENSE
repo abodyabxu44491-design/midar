@@ -1,0 +1,43 @@
+Midar (مدار) - School Management Platform
+Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+
+PROPRIETARY SOFTWARE LICENSE
+
+This software, including its source code, database schema, user interface,
+designs, documentation and all related files (the "Software"), is the
+exclusive property of Abdullah Al-Sakkani, its author and developer.
+
+No license or right is granted to any person to copy, modify, merge, publish,
+distribute, sublicense, sell, rent, reverse engineer or create derivative
+works of the Software, in whole or in part, without the prior written
+permission of the author.
+
+Schools and organizations that subscribe to the Midar service receive the
+right to use the hosted service only, under its Terms of Use. A subscription
+does not transfer any ownership of, or any right to, the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE OUTSIDE A WRITTEN
+AGREEMENT WITH THE AUTHOR.
+
+Third-party components keep their own licenses (see public/shared/vendor and
+public/shared/fonts).
+
+-------------------------------------------------------------------------------
+
+رخصة برمجية خاصة
+
+منصة مدار لإدارة المدارس، بما فيها الشيفرة المصدرية وبنية قاعدة البيانات
+والواجهات والتصاميم والتوثيق وكل الملفات المرتبطة بها، ملكية حصرية للمبرمج
+عبدالله السكني، مبرمجها ومطورها. جميع الحقوق محفوظة.
+
+لا يحق لأي شخص أو جهة نسخ المنصة أو تعديلها أو نشرها أو توزيعها أو بيعها أو
+تأجيرها أو الهندسة العكسية لها أو بناء نسخة مشتقة منها، كليًا أو جزئيًا، إلا
+بإذن كتابي مسبق من المبرمج.
+
+اشتراك المدارس والجهات في خدمة مدار يمنحها حق استخدام الخدمة المستضافة فقط
+وفق شروط الاستخدام، ولا ينقل إليها أي ملكية أو حق في البرنامج نفسه.
+
+المكونات الخارجية تبقى على رخصها الخاصة (انظر public/shared/vendor و
+public/shared/fonts).

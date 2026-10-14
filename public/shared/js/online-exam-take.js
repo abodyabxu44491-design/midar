@@ -1,4 +1,8 @@
-// شاشة حل الاختبار الإلكتروني للطالب: عدّاد الوقت من الخادم، حفظ تلقائي، كل أنواع الأسئلة الموضوعية والمقالية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { btn, sub, toast, notice, textarea, input, confirmAction } from "./ui.js";
 import { rich } from "./exam/math.js";
@@ -9,7 +13,7 @@ import { rich } from "./exam/math.js";
 export async function takeExam({ call, id, onExit }) {
   const d = await call(`/student/online-exams/${id}/start`);
   const answers = { ...(d.answers || {}) };
-  const offset = Date.now() - new Date(d.server_now).getTime();          // فرق ساعة الجهاز عن الخادم
+  const offset = Date.now() - new Date(d.server_now).getTime();
   const deadline = new Date(d.deadline_at).getTime() + offset;
   const qs = d.content.sections.flatMap((s) => s.questions.map((q) => ({ ...q, section: s })));
   let dirty = false, saving = false, finished = false;
@@ -61,7 +65,6 @@ export async function takeExam({ call, id, onExit }) {
     if (left <= 0) submit(true);
   }, 500);
   const autosave = setInterval(save, 15000);
-  // إغلاق الصفحة أو الانتقال لتطبيق آخر: حفظ فوري
   document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
 
   const imageCache = new Map();

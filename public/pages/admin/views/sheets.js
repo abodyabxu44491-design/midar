@@ -1,4 +1,8 @@
-// أوراق للطباعة: بطاقات معرّفات الطلاب، وسجل الحضور الشهري
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, input, btn, empty, sub, notice, docLogo, sectionMenu } from "../../shared/js/ui.js";
@@ -19,7 +23,6 @@ export default function sheets(ctx) {
   });
 }
 
-/* ---------- بطاقات ولي الأمر ---------- */
 async function cardsView() {
   const classes = await loadClasses();
   const pick = select([["", "كل الفصول"], ...classes.map((c) => [c.id, c.name])]);
@@ -41,7 +44,6 @@ async function cardsView() {
     field("الفصل", pick)), out];
 }
 
-/* ---------- سجل الحضور الشهري ---------- */
 async function attendanceView() {
   const classes = await loadClasses();
   if (!classes.length) return panel("سجل الحضور الشهري", null, empty("أضف الفصول أولًا."));

@@ -1,5 +1,8 @@
-// التواصل: الإشعارات (لكل حدث: إشعار فوري و/أو رسالة نصية و/أو واتساب)، والرسائل النصية (بوابة المدرسة المجانية
-// أو رصيد المنصة)، وقائمة واتساب للإرسال المتتابع، والاستبيانات ومواعيد أولياء الأمور.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, textarea, btn, empty, badge, line, sub, stats, toast, notice, switchBtn, confirmAction, input, passwordInput } from "../../shared/js/ui.js";
@@ -74,7 +77,6 @@ async function notifyRules(me) {
   ];
 }
 
-// ساعات الهدوء: غير العاجل يُؤجَّل لنهايتها، والعاجل (كالغياب) يصل فورًا
 function quietPanel(quiet) {
   const on = Boolean(quiet.quiet_start);
   const start = input({ type: "time", value: quiet.quiet_start || "21:30" });
@@ -92,7 +94,6 @@ function quietPanel(quiet) {
     fields);
 }
 
-// سجل الإشعارات: لكل إشعار مستلمه وأجهزته وحالة كل تسليم وسبب الفشل
 async function notifyLog() {
   const box = h("div");
   const kind = select([["", "كل الأنواع"]]);
@@ -172,7 +173,6 @@ async function smsView(nav) {
   ];
 }
 
-/* بوابة المدرسة: جوال أندرويد بشريحة المدرسة يرسل الرسائل (تكلفتها على باقة الشريحة فقط) */
 async function schoolGateway(nav, active) {
   const d = await api(`${A}/communication/sms/gateway`);
   const g = d.gateway;

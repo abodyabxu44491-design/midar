@@ -1,6 +1,8 @@
-/* الشاشة الافتتاحية لشعار مدار (3 ثوانٍ):
-   0.0 الخلفية والتوهج ← 0.2 المدار الخلفي يُرسم ← 0.45 الشكل يصعد من خلف المدار ← 0.9 المدار الأمامي يلتف
-   ← 1.25 النقطة الذهبية تومض وتنتشر حلقة ضوء ← 1.4 «مدار» ثم MIDAR ← 2.5 الشعار يقترب بهدوء وتتلاشى الشاشة */
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 html.splash-on, html.splash-on body { overflow: hidden; }
 #splash {
   position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; cursor: default;
@@ -42,6 +44,5 @@ html.splash-on, html.splash-on body { overflow: hidden; }
 @keyframes sp-text { to { opacity: 1; transform: none; filter: none; } }
 @keyframes sp-track { from { letter-spacing: 1.2em; margin-inline-start: 1.2em; opacity: 0; } to { letter-spacing: .5em; margin-inline-start: .5em; opacity: 1; } }
 
-/* تقليل الحركة: ظهور هادئ قصير بلا رسم ولا حلقات */
 #splash.reduced *, #splash.reduced { animation-duration: .01s !important; animation-delay: 0s !important; }
 #splash.reduced.out { animation: sp-out .3s ease forwards !important; }

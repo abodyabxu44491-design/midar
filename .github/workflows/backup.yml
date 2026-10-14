@@ -1,20 +1,14 @@
-# نسخة احتياطية يومية مشفّرة من قاعدة بيانات الإنتاج (مجانًا على GitHub Actions)
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 #
-# المستودع عام، فالنسخة تُشفَّر قبل حفظها (AES-256 بكلمة سر لا يعرفها غيرك)، ولا تُرفع أبدًا بدون تشفير.
-# تُحفظ كملف مرفق بالتشغيل لمدة 30 يومًا (Actions ← «نسخة احتياطية» ← آخر تشغيل ← Artifacts).
 #
-# الإعداد مرة واحدة: Settings ← Secrets and variables ← Actions ← New repository secret
-#   BACKUP_DATABASE_URL : رابط قاعدة البيانات (رابط المالك من Neon)
-#   BACKUP_PASSPHRASE   : كلمة سر طويلة للتشفير — احفظها عندك، فبدونها لا يمكن فتح النسخة
 #
-# الاسترجاع:
 #   gpg --decrypt midar-XXXX.dump.gpg > midar.dump
-#   pg_restore --no-owner --dbname "رابط قاعدة بيانات جديدة في نفس مشروع Neon" midar.dump   (التفاصيل: docs/MONITORING.md)
 name: نسخة احتياطية
 
 on:
   schedule:
-    - cron: "17 0 * * *"   # يوميًا 3:17 فجرًا بتوقيت السعودية واليمن
+    - cron: "17 0 * * *"
   workflow_dispatch:
 
 permissions:
@@ -37,7 +31,6 @@ jobs:
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-      # أحدث pg_dump يقرأ قواعد البيانات الأقدم منه، فنثبت الإصدار 17
       - name: تثبيت أدوات PostgreSQL
         if: steps.cfg.outputs.ready == 'true'
         run: |
@@ -52,9 +45,7 @@ jobs:
           umask 077
           NAME="midar-$(date -u +%F-%H%M)"
           echo "NAME=$NAME" >> "$GITHUB_ENV"
-          # الصلاحيات تُحفظ مع النسخة (صلاحيات midar_app الدقيقة لكل جدول)، فيعمل التطبيق مباشرة بعد الاسترجاع
           /usr/lib/postgresql/17/bin/pg_dump --format=custom --no-owner --dbname "$DB_URL" --file "$NAME.dump"
-          # فحص سلامة الملف قبل التشفير
           /usr/lib/postgresql/17/bin/pg_restore --list "$NAME.dump" > /dev/null
           printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
             --symmetric --cipher-algo AES256 --output "$NAME.dump.gpg" "$NAME.dump"

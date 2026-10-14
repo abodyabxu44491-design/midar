@@ -1,10 +1,12 @@
-// روابط المدرسة: تُولَّد من رابط المنصة (PUBLIC_URL) والمسارات الفعلية في الخادم، وليست مكتوبة يدويًا في الواجهة.
-// تغيير النطاق (مثلًا من onrender.com إلى نطاق خاص) يكفيه تعديل PUBLIC_URL فقط.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { env } from "../config/env.js";
 
 export const baseUrl = (req) => (env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
 
-// public: صفحة الطلاب وأولياء الأمور (عامة) — staff: دخول المنسوبين (خاص، لا يظهر في الصفحة العامة)
 export function schoolLinks(req, schoolId) {
   const b = `${baseUrl(req)}/${encodeURIComponent(schoolId)}`;
   return {

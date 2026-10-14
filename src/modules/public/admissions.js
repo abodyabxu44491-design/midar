@@ -1,4 +1,8 @@
-// طلب التحاق طالب جديد من صفحة المدرسة (إذا فعّلته الإدارة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { handle, forbidden } from "../../core/http/errors.js";
 import { parse } from "../../core/http/validate.js";

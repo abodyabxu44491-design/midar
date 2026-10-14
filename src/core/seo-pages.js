@@ -1,6 +1,8 @@
-// صفحات تعريفية ثابتة لمحركات البحث: كل صفحة تجيب عن بحث محدد (نظام إدارة مدارس، برنامج حضور وغياب...)
-// وتُرسل HTML كاملًا من الخادم، فيقرؤها جوجل مباشرة دون تشغيل جافاسكربت. المحتوى هنا فقط، والقالب في renderSeoPage.
-// أي صفحة جديدة: أضفها هنا فقط، فتدخل تلقائيًا في المسارات وخريطة الموقع وروابط الصفحة الرئيسية والرموز المحجوزة.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { APP_VERSION } from "./version.js";
 
 export const SEO_PAGES = [
@@ -211,7 +213,6 @@ const json = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
 
 export const SEO_SLUGS = SEO_PAGES.map((p) => p.slug);
 
-// الأسئلة الشائعة في الصفحة الرئيسية: تُضمَّن بيانات منظمة (FAQPage) وتعرضها الواجهة من نفس العنصر
 export const HOME_FAQ = [
   ["ما هو مدار؟", "مدار نظام سحابي عربي لإدارة المدارس: الطلاب والمعلمون، الحضور والغياب، الدرجات والشهادات، الجداول، الرسوم والرواتب، وتطبيق لولي الأمر بإشعارات فورية."],
   ["هل يعمل مدار من الجوال؟", "نعم، يعمل من الجوال والكمبيوتر، ويُثبَّت على الجوال كتطبيق، وفيه واجهة خاصة للمدير والمعلم والمحاسب وولي الأمر وحارس البوابة."],
@@ -240,7 +241,6 @@ export function homeLd(origin, site = {}) {
 }
 export const ldScripts = (list) => list.map((o, i) => `<script type="application/ld+json"${i === list.length - 1 && o["@type"] === "FAQPage" ? ' id="faq-ld"' : ""}>${json(o)}</script>`).join("\n  ");
 
-// الملفات بمسار الإصدار: كاش دائم في المتصفح، ويتجدد تلقائيًا مع كل نشر
 const V = `/v/${APP_VERSION}`;
 export function renderSeoPage(page, origin) {
   const url = `${origin}/${page.slug}`;

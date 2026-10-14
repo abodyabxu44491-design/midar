@@ -1,10 +1,8 @@
-// مركز الإشعارات: مكان واحد تمر منه كل رسائل المدرسة لأولياء الأمور والمنسوبين
-//   1) صندوق إشعارات داخل المنصة (يبقى في ملف الطالب أو لوحة المستخدم)
-//   2) إشعار فوري على الجهاز (Web Push) لمن ثبّت التطبيق وسمح بالإشعارات
-//   3) رسالة نصية SMS: عبر بوابة المدرسة الخاصة (جوالها بشريحتها، بلا رصيد ولا تكلفة على المنصة)
-//      أو عبر مزوّد يضبطه المالك برصيد رسائل لكل مدرسة
-//   4) قائمة إرسال واتساب: رسائل جاهزة يرسلها الإداري من جواله واحدة تلو الأخرى (مجانًا)
-// المدرسة تختار لكل حدث: إشعار فوري، رسالة نصية، واتساب، أو لا شيء. والإرسال يتم بعد نجاح المعاملة فقط.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import webpush from "web-push";
 import crypto from "node:crypto";
 import { env } from "../../config/env.js";
@@ -15,12 +13,6 @@ import { detectPhone } from "../../../public/shared/js/phone.js";
 import { getModules, effectiveModules } from "./modules.service.js";
 import { accessContext } from "./subscription.service.js";
 
-/* ---------- الأحداث ---------- */
-// كل حدث في المنصة يمر من هنا، والمحرك يقرر: من يستلم، وبأي أولوية، وهل يصل للجوال، وهل يُدمج مع إشعار سابق.
-//   audience: parent (ولي أمر الطالب/الطالب نفسه في ملفه) أو staff (حساب من المنسوبين) أو both
-//   category: تصنيف مركز الإشعارات. topic: ما يتحكم فيه ولي الأمر من «إعدادات الإشعارات»
-//   priority: 1 عاجل، 2 مهم، 3 عادي. optIn: لا يُنشأ أصلًا إلا إذا فعّلته المدرسة (أحداث كثيرة التكرار)
-//   collapse: إشعار عام (إعلان، تقويم…) يصل الجهاز مرة واحدة حتى لو كان لولي الأمر أكثر من ابن
 export const EVENTS = {
   absence:      { name: "غياب الطالب", audience: "parent", push: true, sms: false, category: "attendance", topic: "absence", priority: 1 },
   late:         { name: "تأخر الطالب", audience: "parent", push: true, sms: false, category: "attendance", topic: "late", priority: 2 },
@@ -58,13 +50,11 @@ export const EVENTS = {
   system:       { name: "تنبيهات النظام (اكتمال استيراد أو خطأ)", audience: "staff", push: true, sms: false, category: "system", topic: "system", priority: 3 },
 };
 
-// ما يراه ولي الأمر في «إعدادات الإشعارات» (والمنسوب في إعداداته)
 export const TOPICS = {
   parent: { absence: "الغياب", late: "التأخر", present: "الحضور", grades: "الدرجات والشهادات", exams: "الاختبارات", homework: "الواجبات",
     announcements: "الإعلانات", messages: "الرسائل والملاحظات", finance: "المالية", timetable: "الجدول", behavior: "السلوك", services: "العيادة والحافلة والمكتبة" },
   staff: { tasks: "التكليفات والمهام", requests: "الطلبات", messages: "الرسائل", announcements: "الإعلانات", timetable: "الجدول", grades: "الدرجات", system: "تنبيهات النظام" },
 };
-// تصنيفات مركز الإشعارات (أزرار التصفية)
 export const CATEGORIES = { attendance: "الحضور", grades: "الدرجات", homework: "الواجبات", exams: "الاختبارات", finance: "المالية",
   announcements: "الإعلانات", messages: "الرسائل", timetable: "الجدول", tasks: "المهام", requests: "الطلبات", system: "النظام", other: "أخرى" };
 const staffTopic = (e) => (e.audience === "staff" ? e.topic : ({ grades: "grades", exams: "grades", homework: "tasks", announcements: "announcements",
@@ -93,7 +83,6 @@ export async function updateRules(q, patch) {
   return cur;
 }
 
-/* ---------- ساعات الهدوء (إعداد المدرسة) ---------- */
 const hhmm = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, "الوقت بصيغة 22:00");
 export const quietSchema = z.object({ quiet_start: hhmm.nullable(), quiet_end: hhmm.nullable() })
   .refine((v) => (v.quiet_start === null) === (v.quiet_end === null), "حدد البداية والنهاية معًا أو اتركهما فارغين");
@@ -106,7 +95,6 @@ export async function setQuiet(q, b) {
            ON CONFLICT (tenant_id) DO UPDATE SET quiet_start = EXCLUDED.quiet_start, quiet_end = EXCLUDED.quiet_end`, [b.quiet_start, b.quiet_end]);
   return getQuiet(q);
 }
-/** كم دقيقة حتى تنتهي ساعات الهدوء الآن (0 = خارجها). تعمل مع الفترات التي تعبر منتصف الليل */
 export function quietDelayMinutes({ quiet_start, quiet_end, timezone }, now = new Date()) {
   if (!quiet_start || !quiet_end || quiet_start === quiet_end) return 0;
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone || "Asia/Aden", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
@@ -117,7 +105,6 @@ export function quietDelayMinutes({ quiet_start, quiet_end, timezone }, now = ne
   return inside ? (b - cur + 1440) % 1440 : 0;
 }
 
-/* ---------- اختيارات المستلم ---------- */
 export const prefsSchema = z.object({ muted: z.array(z.string().regex(/^[a-z_]{2,20}$/)).max(30) });
 const prefCol = (target) => (target.student_id ? "student_id" : "user_id");
 export async function getPrefs(q, target) {
@@ -126,7 +113,6 @@ export async function getPrefs(q, target) {
   const rules = await getRules(q);
   const aud = target.student_id ? "parent" : "staff";
   const topics = TOPICS[aud];
-  // الموضوع «إلزامي» إذا كانت كل أحداثه إلزامية (لا يمكن كتمه). «بعضه إلزامي» يُكتم غير الإلزامي فقط
   const topicOf = (e) => (aud === "parent" ? e.topic : staffTopic(e));
   const info = Object.fromEntries(Object.keys(topics).map((t) => {
     const evs = Object.entries(EVENTS).filter(([, e]) => (aud === "parent" ? e.audience !== "staff" : e.audience !== "parent") && topicOf(e) === t);
@@ -145,12 +131,10 @@ export async function setPrefs(q, target, { muted }) {
   return getPrefs(q, target);
 }
 
-/** حسابات الإدارة (لإشعارات الطلبات والنظام) */
 export async function adminUserIds(q) {
   return (await q("SELECT id FROM users WHERE role = 'admin' AND is_active")).map((u) => u.id);
 }
 
-// الأقسام الفعالة (مفعّلة ومشمولة في الاشتراك) مرة واحدة لكل معاملة
 const modCache = new WeakMap();
 export async function activeModules(q) {
   if (!modCache.has(q)) {
@@ -160,14 +144,12 @@ export async function activeModules(q) {
   return modCache.get(q);
 }
 
-/* ---------- مفاتيح الإشعار الفوري ---------- */
 let vapid = null;
 export function vapidKeys() {
   if (vapid !== null) return vapid || null;
   if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
     vapid = { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY };
   } else {
-    // مشتقة من مفتاح الخادم: ثابتة بين إعادة التشغيل، ولا تُخزَّن في قاعدة البيانات
     vapid = false;
     for (let i = 0; i < 4 && !vapid; i++) {
       const seed = deriveSecret(`web-push-vapid-v1:${i}`);
@@ -176,15 +158,14 @@ export function vapidKeys() {
         const ecdh = crypto.createECDH("prime256v1");
         ecdh.setPrivateKey(seed);
         vapid = { publicKey: ecdh.getPublicKey().toString("base64url"), privateKey: seed.toString("base64url") };
-      } catch { /* نادر جدًا: قيمة خارج نطاق المنحنى، نجرب التالية */ }
+      } catch { /* ignore */ }
     }
   }
-  if (vapid) webpush.setVapidDetails(env.PUBLIC_URL || "mailto:support@midar.app", vapid.publicKey, vapid.privateKey);
+  if (vapid) webpush.setVapidDetails(env.PUBLIC_URL?.startsWith("https:") ? env.PUBLIC_URL : "mailto:support@midar.app", vapid.publicKey, vapid.privateKey);
   return vapid || null;
 }
 export const pushPublicKey = () => vapidKeys()?.publicKey || null;
 
-/* ---------- وسائل الإرسال (قابلة للاستبدال في الاختبارات) ---------- */
 const realTransport = {
   async push(sub, payload) {
     if (!vapidKeys()) throw Object.assign(new Error("الإشعارات الفورية غير مهيأة"), { statusCode: 0 });
@@ -207,10 +188,8 @@ const realTransport = {
 };
 let transport = realTransport;
 export const setTransport = (t) => { transport = t ? { ...realTransport, ...t } : realTransport; };
-// إرسال مباشر (رسالة المالك التجريبية)
 export const sendRaw = (gateway, msg) => transport.sms(gateway, msg);
 
-/* ---------- عدد أجزاء الرسالة النصية ---------- */
 const GSM = /^[A-Za-z0-9 \r\n@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/;
 export function smsSegments(text) {
   const gsm = GSM.test(text);
@@ -224,13 +203,6 @@ export async function smsBalance(q) {
   return r.n;
 }
 
-/**
- * إرسال إشعار: نقطة الدخول الوحيدة لكل الأحداث. يُستدعى داخل معاملة المدرسة (q)، ولا يُرسل شيء إلا بعد نجاحها.
- * @param {{ event: string, students?: number[], users?: number[], title: string, body?: string, link?: string, sms?: string,
- *           urgent?: boolean, priority?: 1|2|3, dedupKey?: string, dedupMinutes?: number }} n
- * students: أولياء أمور هؤلاء الطلاب (كل طالب يصل لأجهزة ولي أمره فقط). users: حسابات منسوبين.
- * dedupKey: نفس المفتاح لنفس المستلم خلال dedupMinutes يحدّث الإشعار السابق بدل إنشاء جديد (لا تنبيه مكرر).
- */
 export async function notify(q, n) {
   const e = EVENTS[n.event];
   if (!e) throw new Error(`حدث غير معروف: ${n.event}`);
@@ -246,15 +218,12 @@ export async function notify(q, n) {
   const title = String(n.title).slice(0, 140);
   const body = n.body ? String(n.body).slice(0, 1000) : null;
   const priority = n.urgent ? 1 : (n.priority ?? e.priority ?? 3);
-  // منع التكرار: مفتاح صريح (تعديل نفس الشيء) أو تلقائي (نفس النص لنفس المستلم خلال دقيقتين)
   const dedupKey = n.dedupKey ? `${n.event}:${n.dedupKey}`.slice(0, 200)
     : `${n.event}:${crypto.createHash("sha1").update(`${title}\n${body || ""}`).digest("base64url").slice(0, 16)}`;
   const windowMin = n.dedupKey ? (n.dedupMinutes ?? 15) : 2;
 
-  // 1) مركز الإشعارات (داخل المنصة): يبقى دائمًا حتى لو لم يصل الإشعار للجوال
   let ids = [], merged = 0, freshStudents = students;
   if (mods.notifications) {
-    // إشعار سابق لنفس الحدث ونفس المستلم خلال المدة: يُحدَّث ويعود غير مقروء، ولا يُنشأ تنبيه جديد
     const upd = await q(
       `UPDATE notifications SET title = CASE WHEN student_id IS NULL OR $9::boolean THEN $4::text ELSE COALESCE((
                 SELECT CASE WHEN position(split_part(full_name, ' ', 1) IN $4::text) > 0 THEN $4::text
@@ -285,17 +254,14 @@ export async function notify(q, n) {
     }
   }
 
-  // 2) الإشعار على الجوال: طابور تسليم لكل جهاز نشط للمستلم، حسب اختيار المدرسة واختيار المستلم
   let push = 0;
   if (ids.length && rule.push && mods.notifications) push = await queuePush(q, ids, { event: n.event, e, rule, priority });
 
-  // 3) الرسائل النصية: لأولياء الأمور فقط، حسب اختيار المدرسة والرصيد (لا تتكرر عند الدمج)
   let smsIds = [];
   if (mods.sms && rule?.sms && freshStudents.length) {
     smsIds = await queueSms(q, freshStudents, String(n.sms || [title, body].filter(Boolean).join(": ")), n.event);
   }
 
-  // 4) قائمة واتساب: تُجهّز الرسائل ليرسلها الإداري من جواله (مجانًا)
   let wa = 0;
   if (mods.messaging && rule?.wa && freshStudents.length) {
     wa = await queueWhatsApp(q, freshStudents, [title, body].filter(Boolean).join("\n"), n.event);
@@ -307,10 +273,8 @@ export async function notify(q, n) {
   return { inbox: ids.length, merged, push, sms: smsIds.length, wa };
 }
 
-// حد الإشعارات على الجوال لكل مستلم في الساعة (غير العاجلة). الزائد يبقى في مركز الإشعارات فقط
 export const PUSH_HOURLY_LIMIT = 30;
 
-/** إضافة الإشعارات لطابور التسليم: جهاز × إشعار، مع اختيارات المستلم وساعات الهدوء وحد الإرسال والتجميع */
 async function queuePush(q, ids, { event, e, rule, priority }) {
   const quiet = priority > 1 ? quietDelayMinutes(await getQuiet(q)) : 0;
   const topic = e.topic, sTopic = staffTopic(e);
@@ -345,10 +309,6 @@ async function queuePush(q, ids, { event, e, rule, priority }) {
   return rows.filter((r) => r.status === "pending").length;
 }
 
-/**
- * إضافة رسائل لقائمة واتساب: رسالة لكل رقم (الإخوة رقم واحد)، ولا تكرار لنفس النص المنتظر.
- * vars: دالة اختيارية تعطي نص كل طالب (للرسائل بمتغيرات). @returns عدد الرسائل المضافة
- */
 export async function queueWhatsApp(q, studentIds, text, kind, { perStudent = null } = {}) {
   const [{ dial, school }] = await q(`SELECT COALESCE((SELECT country_code FROM school_messages WHERE tenant_id = app_tenant()), '967') AS dial,
                                              (SELECT name FROM tenants WHERE id = app_tenant()) AS school`);
@@ -372,20 +332,16 @@ export async function queueWhatsApp(q, studentIds, text, kind, { perStudent = nu
   return added;
 }
 
-/**
- * تجهيز رسائل نصية لأولياء أمور طلاب: تُحسب الأجزاء ويُحجز الرصيد الآن، وتُرسل بعد المعاملة.
- * @returns {Promise<number[]>} معرّفات الرسائل التي سترسل (الطلاب بلا رقم صحيح أو بلا رصيد لا يُرسل لهم)
- */
 export async function queueSms(q, studentIds, rawText, kind) {
   const text = String(rawText).trim().slice(0, 600);
   if (!text) return [];
   const [{ dial }] = await q("SELECT COALESCE((SELECT country_code FROM school_messages WHERE tenant_id = app_tenant()), '967') AS dial");
   const rows = await q("SELECT id, guardian_phone FROM students WHERE id = ANY($1) AND guardian_phone IS NOT NULL", [studentIds]);
   const seg = smsSegments(text);
-  const own = await schoolGatewayOn(q);        // بوابة المدرسة: بلا رصيد
+  const own = await schoolGatewayOn(q);
   let balance = own ? Infinity : await smsBalance(q);
   const ids = [];
-  const seen = new Set();   // الإخوة لهم رقم واحد: رسالة واحدة لنفس الرقم ونفس النص
+  const seen = new Set();
   for (const s of rows) {
     const ph = detectPhone(s.guardian_phone, dial);
     if (!ph?.intl || !/^[0-9]{8,15}$/.test(ph.intl) || seen.has(ph.intl)) continue;
@@ -397,7 +353,6 @@ export async function queueSms(q, studentIds, rawText, kind) {
       [s.id, ph.intl, text, kind, seg, enough ? "queued" : "no_credit", enough ? null : "رصيد الرسائل لا يكفي", own ? "school" : "platform"]);
     if (!enough) continue;
     if (own) { ids.push(m.id); continue; }
-    // حجز الرصيد الآن (يُعاد تلقائيًا إذا فشل الإرسال)
     await q("INSERT INTO sms_ledger (tenant_id, delta, reason, message_id, created_by) VALUES (app_tenant(), $1, 'رسالة نصية', $2, current_setting('app.actor', true))", [-seg, m.id]);
     balance -= seg;
     ids.push(m.id);
@@ -405,7 +360,6 @@ export async function queueSms(q, studentIds, rawText, kind) {
   return ids;
 }
 
-/** رسالة نصية يدوية من الإدارة لمجموعة طلاب (تُرسل بعد المعاملة) */
 export async function sendManualSms(q, studentIds, text) {
   const ids = await queueSms(q, studentIds, text, "manual");
   const [{ tenant }] = await q("SELECT app_tenant() AS tenant");
@@ -413,7 +367,6 @@ export async function sendManualSms(q, studentIds, text) {
   return ids.length;
 }
 
-/* ---------- التسليم (بعد المعاملة) ---------- */
 export async function deliver(tenantId, { smsIds = [] }) {
   const results = { sms: 0, sms_failed: 0 };
   if (smsIds.length) {
@@ -430,10 +383,9 @@ export async function deliver(tenantId, { smsIds = [] }) {
       await transaction({ tenantId, actor: "النظام" }, (q) => q(
         "UPDATE sms_messages SET status = $2, error = $3, sent_at = CASE WHEN $2 = 'sent' THEN now() END WHERE id = $1",
         [m.id, error ? (gateway ? "failed" : "disabled") : "sent", error]));
-      if (error && m.via === "school") results.sms_failed++;   // بوابة المدرسة: لا رصيد يُعاد
+      if (error && m.via === "school") results.sms_failed++;
       else if (error) {
         results.sms_failed++;
-        // الرسالة لم تُرسل: يعود رصيدها للمدرسة
         await transaction({ platform: true, actor: "النظام" }, (q) => q(
           "INSERT INTO sms_ledger (tenant_id, delta, reason, message_id, created_by) VALUES ($1, $2, 'استرجاع رسالة لم تُرسل', $3, 'النظام')",
           [tenantId, m.segments, m.id]));
@@ -443,16 +395,11 @@ export async function deliver(tenantId, { smsIds = [] }) {
   return results;
 }
 
-/* ---------- طابور التسليم للجوال (عامل في الخلفية) ---------- */
-// كل تسليم: pending → processing → sent | retrying (بانتظار متزايد) | failed (مع السبب)
-// الأخطاء المؤقتة (انقطاع، 429، 5xx) تُعاد تلقائيًا: 30ث، 1د، 2د، 4د، 8د، 16د ثم تفشل.
-// الجهاز الذي ألغى الاشتراك (404/410) يُحذف فورًا، والجهاز الذي يفشل 8 مرات متتالية يُحذف.
 export const MAX_ATTEMPTS = 6;
 export const backoffSeconds = (attempt) => Math.min(3600, 30 * 2 ** Math.max(0, attempt - 1));
 const BATCH = 200, PARALLEL = 10;
 export const deliveryStats = { runs: 0, sent: 0, failed: 0, retried: 0, removed_devices: 0, last_run_at: null, last_error: null };
 
-// مفاتيح جهاز تالفة (يرفضها مولّد الإشعار قبل الإرسال): خطأ دائم، والجهاز يُحذف
 const badKeys = (err) => !err?.statusCode && /public key|curve|p256dh|auth secret|subscription/i.test(String(err?.message || ""));
 const errorText = (err) => {
   const c = err?.statusCode;
@@ -466,7 +413,6 @@ const errorText = (err) => {
 };
 const retryable = (err) => { const c = err?.statusCode; return !badKeys(err) && (!c || c === 429 || c >= 500); };
 
-/** معالجة تسليمات مدرسة واحدة: تُحجز بقفل (لا يرسلها عاملان معًا) ثم تُرسل خارج المعاملة */
 async function processTenant(tenantId) {
   const ctx = { tenantId, actor: "النظام" };
   const jobs = await transaction(ctx, (q) => q(
@@ -487,7 +433,6 @@ async function processTenant(tenantId) {
          FROM notification_deliveries d JOIN notifications n ON n.id = d.notification_id
          LEFT JOIN push_subscriptions p ON p.id = d.subscription_id
         WHERE d.id = ANY($1)`, [jobs.map((j) => j.id)]);
-    // عدد غير المقروء لكل مستلم (يظهر رقمًا على أيقونة التطبيق في الأجهزة التي تدعمه)
     const badge = new Map((await q(
       `SELECT COALESCE(student_id, 0) AS s, COALESCE(user_id, 0) AS u, count(*)::int AS c FROM notifications
         WHERE read_at IS NULL AND archived_at IS NULL AND (student_id = ANY($1) OR user_id = ANY($2)) GROUP BY 1, 2`,
@@ -535,7 +480,6 @@ async function processTenant(tenantId) {
   return results.length;
 }
 
-/** دورة واحدة: كل المدارس التي لديها تسليمات مستحقة. @returns عدد ما عولج */
 export async function processDeliveries() {
   const tenants = await transaction({ platform: true, actor: "النظام" }, (q) => q(
     `SELECT DISTINCT tenant_id FROM notification_deliveries
@@ -553,7 +497,6 @@ export async function processDeliveries() {
   return total;
 }
 
-// تشغيل فوري بعد كل حدث، مع منع تشغيلين متزامنين (إن جاء حدث أثناء الدورة تُعاد بعدها)
 let running = null, again = false;
 export function kickDeliveries() {
   if (running) { again = true; return running; }
@@ -564,7 +507,6 @@ export function kickDeliveries() {
   })();
   return running;
 }
-/** العامل الدوري: يلتقط المؤجل (ساعات الهدوء) وإعادة المحاولة. @returns دالة الإيقاف */
 export function startDeliveryWorker(everyMs = 15_000) {
   const t = setInterval(() => { kickDeliveries(); }, everyMs);
   t.unref?.();
@@ -572,15 +514,12 @@ export function startDeliveryWorker(everyMs = 15_000) {
 }
 export const deliveriesIdle = () => running || Promise.resolve();
 
-/* ---------- مزوّد الرسائل ---------- */
 export async function loadGateway() {
   const [g] = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT * FROM sms_gateway WHERE id = 1"));
   if (!g?.enabled || !g.url) return null;
   return { ...g, headers: g.headers_sealed ? openSecret(g.headers_sealed, "sms-gateway") : null };
 }
 
-/* ---------- بوابة المدرسة الخاصة (جوال أندرويد بشريحتها أو مزوّدها) ---------- */
-// إعداد جاهز لتطبيق «SMS Gateway for Android» مفتوح المصدر بوضعه السحابي: الجوال يرسل من شريحته
 export const ANDROID_PRESET = {
   url: "https://api.sms-gate.app/3rdparty/v1/message", method: "POST", content_type: "json",
   body_template: '{"textMessage":{"text":"{message}"},"phoneNumbers":["+{to}"]}', success_match: "",
@@ -591,7 +530,6 @@ async function schoolGatewayOn(q) {
   const [g] = await q("SELECT enabled, url FROM school_sms_gateway WHERE tenant_id = app_tenant()");
   return Boolean(g?.enabled && g.url);
 }
-/** بوابة المدرسة جاهزة للإرسال (داخل معاملة المدرسة)، أو null */
 export async function loadSchoolGateway(q) {
   const [g] = await q("SELECT * FROM school_sms_gateway WHERE tenant_id = app_tenant()");
   if (!g?.enabled || !g.url) return null;

@@ -1,4 +1,8 @@
-// شؤون الموظفين: الحضور والحضور الذاتي، الإجازات وخصم الراتب، حصص الانتظار، تحضير الدروس، التقويم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool, uid } from "./helpers.js";
@@ -7,7 +11,6 @@ import { transaction } from "../src/core/db/pool.js";
 
 let srv, A, B, t2, t2c, staffT1, staffT2;
 const day = (n = 0) => new Date(Date.now() + n * 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
-// يوم دراسي سابق (الأحد إلى الخميس)
 const lastSchoolDay = () => { for (let i = 1; i < 8; i++) { const d = day(-i); if (new Date(`${d}T00:00:00Z`).getUTCDay() <= 4) return d; } };
 
 before(async () => {
@@ -80,7 +83,6 @@ test("الرواتب: الغياب والإجازة بدون راتب تُخصم
 });
 
 test("حصص الانتظار: حصص الغائب، والمقترحون الفارغون، ومنع التعارض، وإشعار البديل", async () => {
-  // حصة للمعلم الأول يوم الأحد الحصة 1، وللثاني الحصة 2
   await A.admin.put("/api/admin/timetable/slot", { class_id: A.c1.id, day: 0, period: 1, subject_id: A.math.id, teacher_id: A.teacherId });
   await A.admin.put("/api/admin/timetable/slot", { class_id: A.c2.id, day: 0, period: 2, subject_id: A.math.id, teacher_id: t2.id });
   let sunday = day(1); for (let i = 1; i < 8; i++) { sunday = day(i); if (new Date(`${sunday}T00:00:00Z`).getUTCDay() === 0) break; }
@@ -94,7 +96,6 @@ test("حصص الانتظار: حصص الغائب، والمقترحون الف
   const mine = (await t2c.get("/api/teacher/me-staff")).data.substitutions;
   assert.ok(mine.some((x) => x.period === 1));
   assert.ok((await t2c.get("/api/teacher/notifications")).data.items.some((x) => x.kind === "substitute"));
-  // البديل لا يُعيَّن لحصة يدرّس فيها
   const slot2 = (await transaction({ tenantId: A.id }, (q) => q("SELECT id FROM timetable_slots WHERE period = 2 AND day = 0")))[0];
   await A.admin.post("/api/admin/staff-affairs/attendance/leaves", { staff_id: staffT2, kind: "official", from_day: sunday, to_day: sunday }).catch(() => {});
   assert.equal((await A.admin.post("/api/admin/staff-affairs/substitutes", { day: sunday, slot_id: slot2.id, substitute_teacher_id: t2.id })).status, 400, "معلم الحصة نفسه");

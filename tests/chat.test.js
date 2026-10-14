@@ -1,4 +1,8 @@
-// مراسلة المعلمين: ولي الأمر يراسل معلمي فصل ابنه فقط، والمعلم يرد على أولياء أمور طلاب فصوله فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, uid, endPool } from "./helpers.js";
@@ -10,7 +14,6 @@ const pub = (path, body) => client(srv.base).post(`/api/public/${S.id}${path}`, 
 before(async () => {
   srv = await startServer();
   S = await readySchool(srv.base, { prefix: "chat", students: 2 });
-  // معلم ثانٍ يدرّس الشعبة «ب» فقط (طلاب الاختبار في «أ»)
   const t = await S.admin.post("/api/admin/teachers", { name: "أ. ناصر علي", username: `tch${uid()}`.slice(0, 18),
     load: [{ class_id: S.c2.id, subject_id: S.math.id }] });
   assert.equal(t.status, 201, JSON.stringify(t.data));
@@ -31,7 +34,6 @@ test("ولي الأمر يرى معلمي فصل ابنه ويراسلهم، و�
   const sent = await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "السلام عليكم، كيف مستوى أحمد في الرياضيات؟" });
   assert.equal(sent.status, 201, JSON.stringify(sent.data));
 
-  // المعلم: المحادثة في قائمته بغير مقروء، ووصله إشعار
   const inbox = await S.teacher.get("/api/teacher/chat");
   assert.equal(inbox.status, 200);
   const th = inbox.data.threads.find((x) => x.student_id === S.students[0].id);
@@ -65,11 +67,8 @@ test("العزل: لا مراسلة لمعلم خارج فصل الطالب، و
   assert.equal((await other.get(`/api/teacher/chat/${th.id}`)).status, 403, "المعلم الآخر لا يقرأ");
   assert.equal((await other.post(`/api/teacher/chat/${th.id}`, { text: "تدخل" })).status, 403);
   assert.equal((await other.post("/api/teacher/chat/start", { student_id: S.students[0].id, text: "مرحبا" })).status, 403);
-  // ولي أمر الطالب الثاني: محادثته مع نفس المعلم فارغة (لا يرى محادثة غيره)
   assert.deepEqual((await pub("/student/chat/thread", { ...p2, teacher_id: S.teacherId })).data.messages, []);
-  // معرّف خاطئ
   assert.equal((await pub("/student/chat", { student_id: S.students[0].id, key: "ZZZZ-ZZZZ" })).status, 401);
-  // رسالة فارغة
   assert.equal((await pub("/student/chat/send", { ...p1, teacher_id: S.teacherId, text: "   " })).status, 400);
 });
 

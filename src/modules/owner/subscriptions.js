@@ -1,4 +1,8 @@
-// لوحة المالك: الاشتراكات (قائمة، إحصاءات، تفاصيل وسجل، تفعيل وعمليات) والطلبات الموحدة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, badRequest } from "../../core/http/errors.js";
@@ -9,7 +13,6 @@ import { createTenant } from "./tenants.js";
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 const tenantParam = z.string().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/);
 
-/* ======================= الاشتراكات ======================= */
 export const subscriptions = Router();
 
 const FILTERS = {
@@ -59,7 +62,6 @@ subscriptions.get("/stats", handle(async (req, res) => {
   }));
 }));
 
-// تشغيل فحص الانتهاء يدويًا (يعمل تلقائيًا كل ساعة)
 subscriptions.post("/run-expiry", handle(async (req, res) => {
   res.json({ changed: await platform(req, runExpiry) });
 }));
@@ -95,7 +97,6 @@ subscriptions.post("/:tenant/action", handle(async (req, res) => {
   res.json(await platform(req, (q) => act(q, tenant, b, req.actor)));
 }));
 
-/* ======================= الطلبات (Leads) ======================= */
 export const requests = Router();
 
 const KINDS = ["trial", "subscription", "feature", "contact", "upgrade", "renewal"];
@@ -129,7 +130,6 @@ requests.get("/", handle(async (req, res) => {
   }));
 }));
 
-// عدّاد «طلب جديد» على قائمة لوحة المالك
 requests.get("/badge", handle(async (req, res) => {
   const [r] = await platform(req, (q) => q(
     `SELECT count(*) FILTER (WHERE seen_at IS NULL)::int AS unseen, count(*) FILTER (WHERE status = 'new')::int AS new,
@@ -155,11 +155,6 @@ requests.patch("/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/**
- * تحويل طلب (تجربة أو اشتراك) إلى مدرسة فعلية:
- * إنشاء المدرسة وحساب مديرها واشتراكها في خطوة واحدة، ثم ربط الطلب بها.
- * التجربة: تاريخ نهايتها يُحسب تلقائيًا (لا يُدخل يدويًا).
- */
 const convertSchema = z.object({
   id: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)"),
   name: t.shortText("اسم المدرسة", 150),
@@ -180,10 +175,6 @@ requests.post("/:id/convert", handle(async (req, res) => {
   res.status(201).json({ ...created, lead: { phone: lead.phone, contact_name: lead.contact_name } });
 }));
 
-/**
- * الموافقة على طلب ميزة أو ترقية من مدرسة قائمة:
- * mode = free (مجانًا)، priced (بسعر)، أو مدة محددة (until). تُضاف الميزة كإضافة لاشتراكها الحالي.
- */
 requests.post("/:id/grant-feature", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(z.object({ price: z.coerce.number().min(0).default(0), until: t.optDate, note: z.string().max(100).optional() }), req.body);

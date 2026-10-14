@@ -1,4 +1,8 @@
-// لوحة مالك المنصة — نقطة البداية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { topbar, footer, tabs, loginScreen, toast } from "/shared/js/ui.js";
@@ -34,12 +38,10 @@ async function start() {
     ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["billing", "الفواتير"], ["passwords", "طلبات كلمات المرور"],
     ["sms", "الرسائل النصية"], ["settings", "إعدادات المنصة والتجربة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
     { overview, requests, subscriptions, plans, schools, create, billing, passwords: passwordRequests, sms, settings, audit, danger }, {});
-  // عدّاد «طلب جديد» على تبويب الطلبات، مع تنبيه عند وصول طلب جديد
   let lastUnseen = null;
   const badgeTick = async () => {
     try {
       const b = await api(`${API}/requests/badge`);
-      // النص فقط: الأيقونة داخل الزر تبقى
       const label = t.el.querySelector('[data-k="requests"] .tab-label');
       if (label) label.textContent = b.unseen ? `الطلبات (${b.unseen} جديد)` : "الطلبات";
       if (lastUnseen !== null && b.unseen > lastUnseen && b.latest) {
@@ -47,7 +49,7 @@ async function start() {
         toast(`طلب جديد: ${b.latest.school} ${kinds[b.latest.kind] || ""}`);
       }
       lastUnseen = b.unseen;
-    } catch { /* خارج الجلسة */ }
+    } catch { /* ignore */ }
   };
   badgeTick();
   setInterval(badgeTick, 60000);

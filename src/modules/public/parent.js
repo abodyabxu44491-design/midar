@@ -1,11 +1,8 @@
-// حساب ولي الأمر: دخول واحد ← كل الأبناء ← ملف أي ابن (بلا معرّف لكل ابن)
-//   /parent/register    إنشاء الحساب بنفسه: الاسم + البريد أو الجوال + كلمة المرور + معرّفات الأبناء
-//   /parent/login       الدخول بالبريد أو الجوال وكلمة المرور (الجلسة تبقى 30 يومًا وتتجدد مع الاستخدام)
-//   /parent/activate    استعادة كلمة المرور: البريد أو الجوال + معرّف أحد الأبناء
-//   /parent/me          لوحة الأسرة: الأبناء وحالة اليوم وآخر التنبيهات (باسم كل ابن)
-//   /parent/children/*  إضافة ابن بمعرّفه، أو طلب ربط برقمه
-//   /parent/push        تسجيل الجهاز للإشعار الفوري لكل الأبناء دفعة واحدة
-// ملفات الأبناء نفسها عبر نفس مسارات /student/* (بلا معرّف)، والخادم يتحقق من الارتباط مع كل طلب.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { AppError, handle, unauthorized, forbidden, badRequest } from "../../core/http/errors.js";
@@ -20,7 +17,6 @@ import { subscriptionSchema, savePush } from "../shared/notifications.routes.js"
 const r = Router({ mergeParams: true });
 const ACTOR = "ولي أمر";
 
-/** يشترط جلسة ولي أمر صالحة لهذه المدرسة */
 const asParent = (fn) => handle(async (req, res) => {
   res.json(await inSchool(req, ACTOR, async (q, tenant) => {
     const p = await parents.sessionParent(req, q, tenant.id);
@@ -82,7 +78,6 @@ r.post("/parent/password", asParent(async (q, p, tenant, req) => {
   return parents.changePassword(q, p, b);
 }));
 
-// إضافة ابن (key) أو عدة أبناء دفعة واحدة (keys)
 r.post("/parent/children/add", asParent(async (q, p, tenant, req) => {
   if (!Array.isArray(req.body?.keys)) return parents.addChildByKey(q, p, parse(parents.linkKeySchema, req.body));
   const o = await parents.addChildren(q, p, parse(parents.linkKeysSchema, req.body), { ip: req.ip });
@@ -94,14 +89,12 @@ r.post("/parent/children/request", asParent(async (q, p, tenant, req) => {
   return parents.requestChild(q, p, b);
 }));
 
-// صورة الابن (إن وُجدت) لبطاقته في لوحة الأسرة — للأبناء المرتبطين فقط
 r.post("/parent/photo", asParent(async (q, p, tenant, req) => {
   const { student_id } = parse(z.object({ student_id: t.id }), req.body);
   const s = await parents.linkedStudent(q, p.id, student_id);
   return { photo: s.photo ? `data:${s.photo_type};base64,${Buffer.from(s.photo).toString("base64")}` : null };
 }));
 
-// جهاز ولي الأمر يُسجَّل للإشعار الفوري لكل أبنائه النشطين دفعة واحدة
 r.post("/parent/push", asParent(async (q, p, tenant, req) => {
   const sub = parse(subscriptionSchema, req.body.subscription);
   if (!(await activeModules(q)).notifications) throw badRequest("الإشعارات الفورية غير مفعّلة في هذه المدرسة");

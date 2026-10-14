@@ -1,8 +1,8 @@
-// المساعد الذكي للإدارة: يجيب عن أسئلة المدير من بيانات مدرسته عبر أدوات قراءة فقط.
-// - كل أداة تعمل في معاملة قصيرة خاصة بالمدرسة (RLS)، فلا يُحجز اتصال قاعدة البيانات أثناء انتظار النموذج
-// - لا ترسل الأدوات أرقام الهواتف ولا مفاتيح الدخول ولا أي بيانات اعتماد
-// - المفتاح: مفتاح المدرسة الخاص إن أضافته (التكلفة عليها)، وإلا مفتاح المنصة من البيئة إن وُجد.
-//   مفتاح المدرسة يُحفظ مشفّرًا ولا يُعاد للواجهة ولا يُسجَّل؛ يُحفظ السؤال والجواب وعدد الرموز في ai_queries
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../../config/env.js";
 import { inTenant } from "../../core/db/pool.js";
@@ -12,14 +12,12 @@ import { logEvent } from "../../core/audit.js";
 import { z } from "../../core/http/validate.js";
 
 const MODEL = () => env.AI_MODEL || "claude-opus-5-5";
-const MAX_ROUNDS = 8;          // أقصى عدد جولات أدوات للسؤال الواحد
-const DAILY_LIMIT = { platform: 100, school: 500 };   // أسئلة المدرسة في اليوم حسب صاحب المفتاح
-const RESULT_CAP = 24000;      // حد حجم نتيجة الأداة (حرف)
+const MAX_ROUNDS = 8;
+const DAILY_LIMIT = { platform: 100, school: 500 };
+const RESULT_CAP = 24000;
 
 let testClient = null;
-/** للاختبارات: عميل بديل له beta.messages.create (و models.retrieve اختياريًا) */
 export const setAiClient = (c) => { testClient = c; };
-/** هل للمنصة مفتاح عام؟ */
 export const platformAiReady = () => Boolean(testClient || env.ANTHROPIC_API_KEY);
 
 const clients = new Map();
@@ -32,13 +30,11 @@ const clientFor = (apiKey) => {
   return clients.get(apiKey);
 };
 
-/* ---------- مفتاح المدرسة الخاص ---------- */
 const aad = (tid) => `ai-key:${tid}`;
 async function schoolKeyRow(req) {
   const [row] = await inTenant(req, (q) => q("SELECT key_sealed, key_hint, updated_at FROM school_ai WHERE tenant_id = app_tenant()"));
   return row || null;
 }
-/** حالة المساعد للمدرسة: جاهز؟ ومن صاحب المفتاح؟ (بلا المفتاح نفسه) */
 export async function aiStatus(req) {
   const row = await schoolKeyRow(req);
   const source = row ? "school" : platformAiReady() ? "platform" : null;
@@ -56,7 +52,6 @@ async function resolveKey(req) {
 }
 
 const KEY_RE = /^sk-ant-[A-Za-z0-9_-]{20,300}$/;
-/** حفظ مفتاح المدرسة بعد التحقق منه لدى Anthropic (طلب مجاني بلا رموز) */
 export async function setSchoolKey(req, rawKey) {
   const key = String(rawKey || "").trim();
   if (!KEY_RE.test(key)) throw badRequest("المفتاح غير صحيح الشكل، يبدأ بـ sk-ant-");
@@ -87,7 +82,6 @@ export async function deleteSchoolKey(req) {
   return aiStatus(req);
 }
 
-/* ---------- نص التعليمات (ثابت تمامًا ليُخزَّن مؤقتًا مع الأدوات) ---------- */
 const SYSTEM = `أنت «مساعد مدار»، مساعد تحليلي لمدير مدرسة على منصة مدار. تجيب بالعربية الفصحى المبسطة عن أسئلة المدير حول بيانات مدرسته.
 
 طريقة العمل:
@@ -103,7 +97,6 @@ const SYSTEM = `أنت «مساعد مدار»، مساعد تحليلي لمد�
 - عند ذكر طلاب يحتاجون متابعة اقترح إجراءً عمليًا واحدًا أو اثنين.
 - لا تذكر أسماء الأدوات ولا تفاصيل تقنية في الإجابة.`;
 
-/* ---------- الأدوات ---------- */
 const dateStr = { type: "string", description: "تاريخ بصيغة YYYY-MM-DD" };
 const TOOLS = [
   { name: "school_overview", description: "ملخص المدرسة الآن: أعداد الطلاب والمعلمين والفصول، الفصل الدراسي الحالي، حضور اليوم، إجمالي الرسوم والمحصّل والمتبقي.",
@@ -144,7 +137,6 @@ const like = (s) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 const n1 = (x) => (x == null ? null : Math.round(Number(x) * 10) / 10);
 const n2 = (x) => (x == null ? null : Math.round(Number(x) * 100) / 100);
 
-// بداية الفترة الافتراضية: بداية الفصل الدراسي الحالي، وإلا قبل 30 يومًا
 const termStart = `COALESCE((SELECT start_date FROM terms WHERE id = current_term()), CURRENT_DATE - 30)`;
 
 const RUN = {
@@ -302,7 +294,6 @@ async function runTool(req, call) {
   try {
     return await inTenant(req, (q) => RUN[call.name](q, input.data));
   } catch (e) {
-    // جداول الأقسام موجودة دائمًا؛ أي خطأ هنا يُعاد للنموذج دون تفاصيل داخلية
     console.error("ai tool failed", call.name, e.message);
     return { error: "تعذر جلب هذه البيانات الآن" };
   }
@@ -311,7 +302,6 @@ async function runTool(req, call) {
 const json = (v) => { const s = JSON.stringify(v); return s.length > RESULT_CAP ? `${s.slice(0, RESULT_CAP)}…(مقتطع)` : s; };
 const textOf = (content) => content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
 
-/** يجيب عن سؤال المدير. history: آخر أسئلة وأجوبة الجلسة كنصوص */
 export async function ask(req, { question, history = [] }) {
   const auth = await resolveKey(req);
   if (!auth) throw new AppError(503, "الأسئلة الحرة تحتاج مفتاح Anthropic خاصًا بالمدرسة، أضفه من إعدادات المساعد. التقارير الذكية تعمل مجانًا بدونه.", "ai_unavailable");
@@ -386,6 +376,5 @@ export async function ask(req, { question, history = [] }) {
 export const recentQuestions = (req) => inTenant(req, (q) => q(
   `SELECT id, question, answer, created_at FROM ai_queries WHERE user_id IS NOT DISTINCT FROM $1 ORDER BY id DESC LIMIT 20`, [req.user.id ?? null]));
 
-// للاختبارات
 export const _tools = { TOOLS, RUN, INPUTS };
 export const dataTools = RUN;

@@ -1,4 +1,8 @@
-// مراسلة المعلمين من جهة ولي الأمر (بمعرّف الطالب أو حساب ولي الأمر). كل طلب يتحقق من الطالب داخل مدرسته.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { handle, notFound } from "../../core/http/errors.js";
 import { limits } from "../../core/rate-limit.js";
@@ -9,7 +13,6 @@ import { teachersOfStudent, sendMessage, threadFor, openThread, teacherTeachesSt
 
 const r = Router({ mergeParams: true });
 
-// الطالب + التأكد أن القسم مفعّل في المدرسة
 async function student(req, q, tenant) {
   if (!(await activeModules(q)).chat) throw notFound("المراسلة غير متاحة في هذه المدرسة");
   return verifyStudent(req, tenant, q, req.body);

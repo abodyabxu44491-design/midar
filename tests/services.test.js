@@ -1,5 +1,8 @@
-// الخدمات: النقل (السعة، الصعود والنزول مع إشعار، الفوترة)، المكتبة (النسخ المتاحة، الحد، الإرجاع، التذكير)،
-// العهد والمخزون (الصرف والعهدة والإرجاع والجرد)، العيادة (الزيارة والإشعار والملف الصحي)، والعزل والإيقاف
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -56,7 +59,6 @@ test("المكتبة: النسخ المتاحة، حد الإعارة، الإر
   assert.ok((await profile(s1)).features.library[0].overdue);
   assert.equal((await A.admin.post(`${S}/library/loans/${l1.data.id}/return`, {})).status, 200);
   assert.equal((await A.admin.post(`${S}/library/loans/${l1.data.id}/return`, {})).status, 404);
-  // حد الإعارة (2 افتراضيًا)
   const b2 = await A.admin.post(`${S}/library/books`, { title: "كتاب آخر", copies: 5 });
   await A.admin.post(`${S}/library/loans`, { book_id: b2.data.id, student_id: s2.id });
   await A.admin.post(`${S}/library/loans`, { book_id: b2.data.id, student_id: s2.id });

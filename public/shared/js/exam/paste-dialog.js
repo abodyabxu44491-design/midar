@@ -1,5 +1,8 @@
-// نافذة «لصق أسئلة جاهزة»: نص ملصوق أو ملف Word ← معاينة فورية ← إضافة.
-// مشتركة بين مصمم الاختبار (إضافة لأقسام الورقة) وبنك الأسئلة (حفظ دفعة واحدة).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../dom.js";
 import { field, input, textarea, btn, notice, toast, dialog, empty } from "../ui.js";
 import { QTYPES, OPTION_LETTERS, fmtNum } from "./engine.js";
@@ -16,11 +19,6 @@ function answerText(q) {
   return q.answer ? `✓ ${q.answer}` : "";
 }
 
-/**
- * pasteDialog({ title, fields, addLabel, onAdd })
- *   fields: عناصر إضافية أسفل النص (مثل: إلى أي قسم، المادة والوحدة)
- *   onAdd(parsed): يعيد true لإغلاق النافذة (يمكن أن يكون async)
- */
 export function pasteDialog({ title = "لصق أسئلة جاهزة", fields = null, addLabel = "إضافة الأسئلة", onAdd }) {
   const ta = textarea({ rows: 14, dir: "auto", class: "xb-paste", placeholder: EXAMPLE });
   const marksIn = input({ type: "number", min: 0.25, step: 0.25, value: 1, style: "max-width:90px" });
@@ -53,7 +51,6 @@ export function pasteDialog({ title = "لصق أسئلة جاهزة", fields = n
   ta.addEventListener("input", () => { clearTimeout(ta._t); ta._t = setTimeout(paint, 250); });
   marksIn.addEventListener("input", paint);
 
-  // رفع ملف Word: يُقرأ في المتصفح ويوضع نصه في الخانة لمراجعته قبل الإضافة
   const fileIn = h("input", { type: "file", accept: ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,text/plain", class: "hidden" });
   fileIn.addEventListener("change", async () => {
     const f = fileIn.files[0];

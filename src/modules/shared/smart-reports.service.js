@@ -1,6 +1,8 @@
-// التقارير الذكية: إجابات فورية ومجانية بلا ذكاء اصطناعي.
-// تستخدم أدوات القراءة نفسها التي يستخدمها المساعد، وتصوغ النتيجة جملًا عربية وجداول ونصائح عملية.
-// لا تكلفة على المنصة ولا على المدرسة، وتعمل حتى بلا أي مفتاح.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { inTenant } from "../../core/db/pool.js";
 import { notFound } from "../../core/http/errors.js";
 import { z } from "../../core/http/validate.js";
@@ -12,8 +14,6 @@ const plural = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >=
 const days = (n) => plural(n, "يوم واحد", "يومان", "أيام", "يومًا");
 const table = (title, head, rows) => (rows.length ? { title, head, rows } : null);
 
-/* ---------- كتالوج التقارير ----------
-   params: ما تحتاجه (class: اختيار فصل، name: اسم طالب). module: القسم الذي يلزم تفعيله. */
 export const REPORTS = [
   { key: "overview", title: "ملخص المدرسة اليوم", hint: "الأعداد وحضور اليوم والرسوم", icon: "home" },
   { key: "attendance", title: "الحضور والغياب", hint: "النسبة لكل فصل وأكثر الطلاب غيابًا", icon: "check", params: ["class"], module: "attendance" },
@@ -141,7 +141,6 @@ const BUILD = {
   },
 };
 
-/** تشغيل تقرير: يعيد { key, title, lines, tables, tips, generated_at } */
 export async function runReport(req, key, params) {
   const def = REPORTS.find((r) => r.key === key);
   if (!def || (def.module && req.modules?.[def.module] === false)) throw notFound("التقرير غير موجود");
@@ -150,6 +149,5 @@ export async function runReport(req, key, params) {
   return { key, title: def.title, ...out, generated_at: new Date().toISOString() };
 }
 
-/** التقارير المتاحة حسب الأقسام المفعّلة */
 export const availableReports = (modules = {}) => REPORTS.filter((r) => !r.module || modules[r.module] !== false)
   .map(({ key, title, hint, icon, params = [] }) => ({ key, title, hint, icon, params }));

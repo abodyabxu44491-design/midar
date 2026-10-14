@@ -1,5 +1,8 @@
-// معالج «إعداد المدرسة الأكاديمي» — يحفظ في نفس الجداول والخدمات التي تديرها شاشات الإعدادات
-// (الهيكل الأكاديمي، السنة الدراسية، الإجازات، أيام الدراسة)، فلا يوجد نظام ثانٍ.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, badge, notice, toast } from "../../shared/js/ui.js";
@@ -10,13 +13,11 @@ import { logoPanel } from "./school-identity.js";
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 const TITLES = ["بيانات المدرسة", "المراحل", "أسماء الصفوف", "الشعب", "السنة الدراسية", "نظام الفصول", "أيام الدراسة", "الإجازات", "المواد", "المراجعة"];
 
-// المسودة تُحفظ في هذا المتصفح مع كل خطوة: تحديث الصفحة أو انقطاع الاتصال لا يضيّع ما أُدخل
 const draftKey = (me) => `midar:setup-draft:${me?.school?.id || "school"}`;
 const readDraft = (me) => { try { return JSON.parse(localStorage.getItem(draftKey(me)) || "null"); } catch { return null; } };
-const writeDraft = (me, v) => { try { localStorage.setItem(draftKey(me), JSON.stringify(v)); } catch { /* تخزين غير متاح: يعمل المعالج بدونه */ } };
-const clearDraft = (me) => { try { localStorage.removeItem(draftKey(me)); } catch { /* لا شيء */ } };
+const writeDraft = (me, v) => { try { localStorage.setItem(draftKey(me), JSON.stringify(v)); } catch { /* ignore */ } };
+const clearDraft = (me) => { try { localStorage.removeItem(draftKey(me)); } catch { /* ignore */ } };
 
-// إعدادات الدولة من الكتالوج: دولة المدرسة، أو اليمن إن لم تُحدَّد (السوق الأساسية)
 const presetOf = (c, name) => {
   const list = c.countries || [];
   const n = String(name || "").trim();
@@ -31,23 +32,21 @@ export default async function setup({ me } = {}) {
   const now = new Date();
   const y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
 
-  // كل ما يدخله المدير يبقى هنا حتى «إنهاء الإعداد»
   const st = {
     step: 1,
     stages: new Set(["primary"]),
-    gradeSet: presetOf(c, p.country).grade_set,   // تسمية الصفوف حسب الدولة (اليمن: الأول… التاسع)
+    gradeSet: presetOf(c, p.country).grade_set,
     sections: true, sectionCount: 2, naming: "arabic",
     year: { name: `${y0}–${y0 + 1}`, start: `${y0}-09-01`, end: `${y0 + 1}-06-30` },
     termMode: "2", termCustom: 4,
     days: new Set(presetOf(c, p.country).days),
     holidays: [],
     subjects: new Map(),
-    custom: {},          // أسماء معدَّلة يدويًا لكل مرحلة
-    customStages: [],    // مراحل خاصة بالمدرسة: [{ key, name, grades: [] }]
+    custom: {},
+    customStages: [],
     editNames: false,
-    reached: 1,          // أبعد خطوة وصلها المدير (للتنقل بالضغط على الخطوات)
+    reached: 1,
   };
-  // استكمال مسودة سابقة
   const saved = readDraft(me);
   let restored = false;
   if (saved?.v === 1) {
@@ -56,13 +55,11 @@ export default async function setup({ me } = {}) {
     restored = st.step > 1;
   }
   const persist = () => writeDraft(me, { v: 1, st: { ...st, stages: [...st.stages], days: [...st.days], subjects: [...st.subjects], editNames: false } });
-  // الشعار يُحفظ فور رفعه (نفس لوحة «هوية المدرسة» في الإعدادات)
   const logoWidget = logoPanel({ me, profile: p, onChange: (logo) => { if (me?.school) me.school.logo = logo; } });
   const f = {
     name: input({ value: p.name || "" }),
     school_type: select(c.school_types.map((x) => [x.key, x.name]), { value: p.school_type || "private" }),
     gender: select(c.genders.map((x) => [x.key, x.name]), { value: p.gender || "boys" }),
-    // الدولة تقترح تسمية الصفوف وأيام الدوام والمناسبات الوطنية، وتضبط في الخادم رمز واتساب والعملة
     country: countryField(c.countries, p.country, { onChange: (key) => {
       const pr = c.countries.find((x) => x.key === key);
       if (!pr) return;
@@ -75,8 +72,6 @@ export default async function setup({ me } = {}) {
   };
 
   const ORDER = ["kindergarten", "primary", "middle", "secondary"];
-  // مراحل الكتالوج المختارة بالترتيب، ثم المراحل المخصصة
-  // اسم المرحلة يتبع تسمية الصفوف (اليمن: الأساسي والثانوي)
   const stageLabel = (s) => c.grade_sets.find((g) => g.key === st.gradeSet)?.stage_names?.[s.key] || s.name;
   const orderedStages = () => [
     ...ORDER.map((k) => c.stages.find((s) => s.key === k)).filter((s) => s && st.stages.has(s.key)).map((s) => ({ ...s, name: stageLabel(s) })),
@@ -84,7 +79,6 @@ export default async function setup({ me } = {}) {
   ];
   const stageKeys = () => orderedStages().filter((s) => !s.custom).map((s) => s.key);
   const customOf = (key) => st.customStages.find((x) => x.key === key);
-  // أسماء صفوف مرحلة: المعدَّلة يدويًا إن وُجدت، وإلا من النمط المختار (والمخصصة من تعريفها)
   const gradesOf = (key) => st.custom[key] || customOf(key)?.grades || c.grade_sets.find((g) => g.key === st.gradeSet)?.names?.[key] || [];
   const allGrades = () => orderedStages().flatMap((s) => gradesOf(s.key));
   const termCount = () => (st.termMode === "custom" ? Number(st.termCustom) : Number(st.termMode));
@@ -94,7 +88,6 @@ export default async function setup({ me } = {}) {
     return names;
   };
 
-  // بطاقة اختيار كبيرة (مناسبة للمس)
   const pick = (type, name, checked, title, note, onChange) => {
     const el = input({ type, name, checked });
     el.addEventListener("change", () => onChange(el.checked));
@@ -112,7 +105,6 @@ export default async function setup({ me } = {}) {
     for (const s of sg) if (!st.subjects.has(s)) st.subjects.set(s, true);
   }
 
-  // معاينة كاملة: كل مرحلة وصفوفها بالترتيب، مع إمكانية تعديل أي اسم
   const gradesPreview = () => {
     const stages = orderedStages();
     const total = allGrades().length;
@@ -138,7 +130,6 @@ export default async function setup({ me } = {}) {
         Object.keys(st.custom).length ? btn("استعادة أسماء النمط", () => { st.custom = {}; st.editNames = false; draw(); }, "ghost") : null));
   };
 
-  // مرحلة غير موجودة في القائمة (تحفيظ، تمهيدي خاص، دبلوم…): اسمها وعدد صفوفها، والأسماء تُعدَّل في الخطوة التالية
   const customStagesBox = () => {
     const name = input({ placeholder: "مثال: مرحلة التحفيظ" });
     const count = input({ type: "number", min: 1, max: 20, value: 3, style: "max-width:110px" });
@@ -249,7 +240,6 @@ export default async function setup({ me } = {}) {
       const a = input({ type: "date", class: "ltr" }), b = input({ type: "date", class: "ltr" });
       const pr = c.countries.find((x) => x.key === f.country.key());
       const national = (pr?.holidays || []).map((x) => {
-        // تاريخ المناسبة داخل السنة الدراسية المختارة (أول سنة ميلادية تقع فيها)
         for (const y of [Number(st.year.start.slice(0, 4)), Number(st.year.start.slice(0, 4)) + 1]) {
           const d = `${y}-${String(x.month).padStart(2, "0")}-${String(x.day).padStart(2, "0")}`;
           if (d >= st.year.start && d <= st.year.end) return { name: x.name, kind: "official", start_date: d, end_date: d, affects_attendance: true, show_in_calendar: true };
@@ -330,7 +320,6 @@ export default async function setup({ me } = {}) {
       h("div", { class: "wiz-progress" },
         h("div", { class: "wiz-bar" }, h("i", { style: `width:${pct}%` })),
         h("small", {}, `الخطوة ${st.step} من ${TITLES.length} — ${TITLES[st.step - 1]}`),
-        // الخطوات السابقة قابلة للضغط: الرجوع لأي خطوة دون فقدان ما بعدها
         h("ol", { class: "setup-steps" }, TITLES.map((t, i) => {
           const n = i + 1;
           const can = n <= st.reached && n !== st.step;

@@ -1,4 +1,8 @@
-// الرئيسية للمعلم: ترحيب، حصص اليوم، وبطاقة لكل فصل فيها مواده واختصارات الحضور والطلاب.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { stats, panel, empty, notice, btn, sub } from "../../shared/js/ui.js";
@@ -6,13 +10,11 @@ import { stats, panel, empty, notice, btn, sub } from "../../shared/js/ui.js";
 export const myClasses = (me) => [...new Map(me.load.map((l) => [l.class_id, { id: l.class_id, name: l.class_name }])).values()];
 
 export default function home({ me, goTo }) {
-  // بطاقة الترحيب: صورة المعلم (يرفعها المدير من ملف المعلم) أو أول حرف من اسمه
   const initial = String(me.name || "؟").replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0);
   const classes = myClasses(me);
   const go = (key, params) => goTo?.(key, params);
   const dateLabel = new Date().toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long" });
 
-  // حصص اليوم: من الجدول إن كانت الميزة مفعّلة والاتصال متاح، ولا تعطل الصفحة إن فشلت
   const todayBox = h("div", { class: "today-list" }, sub("جارٍ تحميل حصص اليوم…"));
   if (me.modules?.timetable && navigator.onLine) {
     api("/api/teacher/timetable").then(({ today, holiday }) => mount(todayBox,

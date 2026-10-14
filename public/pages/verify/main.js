@@ -1,4 +1,8 @@
-// صفحة التحقق من الشهادة: يفتحها من يمسح رمز QR على الشهادة المطبوعة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { brandLogo, footer, notice } from "../shared/js/ui.js";

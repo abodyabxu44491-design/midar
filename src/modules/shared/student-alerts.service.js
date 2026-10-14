@@ -1,5 +1,8 @@
-// تنبيهات الطالب: ملاحظات من الإدارة أو معلميه (سلوك، حضور، مستوى دراسي، صحة، ثناء).
-// ما حُدد لولي الأمر يظهر في ملف الطالب، ويستطيع ولي الأمر تأكيد الاطلاع عليه.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { notFound, forbidden } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
@@ -23,7 +26,6 @@ export function list(q, studentId, { parentOnly = false, limit = 50 } = {}) {
       ORDER BY a.created_at DESC LIMIT $2`, [studentId, limit]);
 }
 
-/** أحدث التنبيهات في المدرسة (لمتابعة الإدارة) */
 export function recent(q, limit = 30) {
   return q(
     `SELECT ${COLS}, s.full_name AS student_name, c.name AS class_name
@@ -44,7 +46,6 @@ export async function create(q, studentId, b, { actor, teacherId = null }) {
   return row;
 }
 
-/** الحذف: الإدارة أي تنبيه، والمعلم ما كتبه هو فقط */
 export async function remove(q, id, { teacherId = null } = {}) {
   const [a] = await q("SELECT teacher_id FROM student_alerts WHERE id = $1", [id]);
   if (!a) throw notFound("التنبيه غير موجود");

@@ -1,4 +1,8 @@
-// قالب الشهادة للطباعة: صفحة A4 لكل شهادة، فيها الشعار والنتيجة والتوقيع ورمز QR للتحقق
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 import { docLogo } from "./ui.js";
 import { fmtDate } from "./format.js";

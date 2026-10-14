@@ -1,4 +1,8 @@
-// المعلم: حضوري وإجازاتي وحصص الانتظار، وتحضير الدروس، والتقويم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -66,7 +70,6 @@ export const teacherStaffRoutes = (r) => {
   r.use("/meetings", requireModule("meetings"), meetings);
 };
 
-// الاستبيانات للمعلم، ومواعيده مع أولياء الأمور
 export const surveys = Router();
 surveys.get("/", handle(async (req, res) => res.json(await inTenant(req, (q) => en.availableFor(q, { user_id: req.user.id })))));
 surveys.post("/:id", handle(async (req, res) => {

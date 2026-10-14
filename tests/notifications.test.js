@@ -1,4 +1,8 @@
-// مركز الإشعارات: صندوق الإشعارات، الإشعار الفوري، الرسائل النصية برصيد، وإيقاف القسم، والعزل بين المدارس
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -39,7 +43,6 @@ test("غياب جديد: يصل إشعار في صندوق ولي الأمر و�
   assert.equal(inbox.status, 200);
   assert.equal(inbox.data.unread, 1);
   assert.match(inbox.data.items[0].body, /مرض/);
-  // الحفظ مرة ثانية بنفس الحالة لا يرسل شيئًا
   pushes.length = 0;
   await mark();
   await new Promise((r) => setTimeout(r, 300));
@@ -69,7 +72,6 @@ test("الرسائل النصية: بلا رصيد لا تُرسل، والما�
   assert.equal(sms.balance, 0);
   assert.equal(sms.messages[0].status, "no_credit");
 
-  // المالك: المزوّد والرصيد. المفتاح السري لا يعود أبدًا في الردود
   assert.equal((await A.owner.put("/api/owner/sms/gateway", { enabled: true, provider_name: "مزوّد تجريبي", url: "https://sms.example.com/send",
     method: "POST", content_type: "json", body_template: "{\"to\":\"{to}\",\"text\":\"{message}\"}", headers: "{\"Authorization\":\"Bearer SECRET-123\"}" })).status, 200);
   const g = await A.owner.get("/api/owner/sms");
@@ -81,7 +83,6 @@ test("الرسائل النصية: بلا رصيد لا تُرسل، والما�
   assert.equal((await A.admin.post("/api/owner/sms/credits", { tenant_id: A.id, delta: 500, reason: "x" })).status, 401, "المدرسة لا تضيف لنفسها");
 
   smses.length = 0;
-  // غياب جديد في يوم آخر (نفس الغياب لنفس اليوم لا يتكرر: منع التكرار)
   assert.equal((await A.admin.post("/api/admin/attendance", { date: yesterday, entries: [{ student_id: s1.id, status: "present" }] })).status, 200);
   await A.admin.post("/api/admin/attendance", { date: yesterday, reason: "تصحيح", entries: [{ student_id: s1.id, status: "absent" }] });
   assert.ok(await waitFor(() => smses.length === 1), "أُرسلت رسالة");
@@ -89,7 +90,6 @@ test("الرسائل النصية: بلا رصيد لا تُرسل، والما�
   sms = (await A.admin.get("/api/admin/communication/sms")).data;
   assert.equal(sms.balance, 5 - smsSegments(smses[0].message));
 
-  // فشل المزوّد: الحالة «فشل» ويعود الرصيد
   smsFails = true;
   const before = sms.balance;
   const [, s2] = A.students;
@@ -100,7 +100,6 @@ test("الرسائل النصية: بلا رصيد لا تُرسل، والما�
   assert.equal(sms.balance, before, "الرصيد عاد");
   smsFails = false;
 
-  // إرسال يدوي: معاينة التكلفة ثم الإرسال، والرصيد غير الكافي يُرفض
   const dry = await A.admin.post("/api/admin/communication/sms/send", { target: "class", class_id: A.c1.id, message: "اجتماع أولياء الأمور غدًا", dry_run: true });
   assert.equal(dry.status, 200);
   assert.equal(dry.data.recipients, 3);
@@ -128,7 +127,6 @@ test("إشعارات المنسوبين وصناديقهم منفصلة، ولا
   assert.ok(await waitFor(() => pushes.some((p) => p.endpoint.endsWith("/admin1"))));
   assert.equal((await A.admin.get("/api/admin/notifications")).data.unread, 1);
   assert.equal((await A.teacher.get("/api/teacher/notifications")).data.unread, 0, "المعلم لا يرى إشعار المدير");
-  // معرّف طالب من مدرسة أ على مدرسة ب
   const [s1] = A.students;
   assert.equal((await client(srv.base).post(`/api/public/${B.id}/student/inbox`, A.parent(s1))).status, 401);
   const leak = await transaction({ tenantId: B.id }, (q) => q("SELECT count(*)::int AS n FROM notifications"));

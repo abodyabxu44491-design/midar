@@ -1,9 +1,9 @@
-// عامل الخدمة: يسرّع فتح مدار ويجعلها قابلة للتثبيت كتطبيق.
-// قاعدة صارمة: لا تُخزَّن أي بيانات طلاب أو استجابات من /api إطلاقًا (البيانات المحلية في IndexedDB بصلاحيات المستخدم).
-// صفحة التطبيق (HTML بلا بيانات) تُحفظ نسخة منها فقط لفتح التطبيق بدون اتصال.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// الإصدار يُكتب هنا تلقائيًا من الخادم مع كل نشر، فيتغير محتوى الملف ويكتشف المتصفح التحديث،
-// ثم يُحذف كاش الإصدار السابق كاملًا. لا حاجة لرفع أي رقم يدويًا.
 const VERSION = "__APP_VERSION__";
 const CACHE = `midar-${VERSION}`;
 const PREFIX = `/v/${VERSION}/`;
@@ -12,24 +12,19 @@ self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
-    // لا نحذف ملفات الإصدار السابق هنا: قد يحتاجها العمل بدون اتصال حتى تُحفظ صفحة الإصدار الجديد.
-    // الحذف يتم بعد أول تحميل ناجح لصفحة التطبيق بالإصدار الجديد (انظر cleanup)
     await self.clients.claim();
     for (const c of await self.clients.matchAll({ type: "window" })) c.postMessage({ type: "midar:version", version: VERSION });
   })());
 });
 
-// صفحة التطبيق بالإصدار الجديد محفوظة الآن: الإصدارات السابقة لم تعد لازمة
 async function cleanup() {
   const keys = await caches.keys();
   await Promise.all(keys.filter((k) => k.startsWith("midar-") && k !== CACHE).map((k) => caches.delete(k)));
 }
 
-// صفحات التطبيق التي تعمل بدون اتصال (قشرة التطبيق فقط، بلا بيانات): دخول المدرسة /<رمز>/idara
 const APP_PAGE = /^\/[a-z0-9][a-z0-9-]{1,29}\/idara\/?$/;
 const pageKey = (url) => `${url.origin}${url.pathname.replace(/\/$/, "")}`;
 
-// الصفحة تطلب حفظ نسختها (أول زيارة تحدث قبل أن يتحكم عامل الخدمة بالصفحة فلا يراها)
 self.addEventListener("message", (e) => {
   if (e.data?.type !== "midar:cache-page") return;
   const url = new URL(e.data.url, location.origin);
@@ -55,7 +50,6 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
-  // صفحة التطبيق: من الشبكة دائمًا (أحدث إصدار)، ونسخة محفوظة فقط عند انقطاع الاتصال
   if (req.mode === "navigate" && APP_PAGE.test(url.pathname)) {
     e.respondWith((async () => {
       try {
@@ -72,7 +66,6 @@ self.addEventListener("fetch", (e) => {
     })());
     return;
   }
-  // ملفات الإصدار الحالي: ثابتة لا تتغير أبدًا ← من الكاش مباشرة (فتح فوري بلا شبكة)
   if (url.pathname.startsWith(PREFIX)) {
     e.respondWith(caches.open(CACHE).then(async (c) => {
       const hit = await c.match(req);
@@ -83,7 +76,6 @@ self.addEventListener("fetch", (e) => {
     }));
     return;
   }
-  // الشعار والأيقونات: من الكاش مع تحديث في الخلفية
   if (url.pathname.startsWith("/brand/")) {
     e.respondWith(caches.open(CACHE).then(async (c) => {
       const hit = await c.match(req);
@@ -91,28 +83,22 @@ self.addEventListener("fetch", (e) => {
       return hit || fresh;
     }));
   }
-  // كل شيء آخر (الصفحات، /api، الإصدارات الأخرى) من الشبكة مباشرة
 });
 
-// ===================== الإشعارات الفورية =====================
-// الإشعار يصل حتى والتطبيق مغلق. نعرض العنوان والنص فقط (لا بيانات أخرى في الإشعار).
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { title: e.data?.text() || "مدار" }; }
   const urgent = d.priority === 1 || Boolean(d.urgent);
-  // الصوت والاهتزاز وظهوره على شاشة القفل تحددها إعدادات الجهاز (لا نتجاوز الصامت أو «عدم الإزعاج»)
   e.waitUntil(Promise.all([
     self.registration.showNotification(d.title || "مدار", {
       body: d.body || "", tag: d.tag || undefined, renotify: Boolean(d.tag), lang: "ar", dir: "rtl",
       icon: "/brand/icon-192.png", badge: "/brand/favicon-32.png", data: { url: d.url || "/", nid: d.nid || null },
       requireInteraction: urgent, vibrate: urgent ? [200, 100, 200, 100, 200] : [150], timestamp: Date.now(),
     }),
-    // رقم غير المقروء على أيقونة التطبيق (في الأجهزة التي تدعمه)
     d.badge > 0 && self.navigator.setAppBadge ? self.navigator.setAppBadge(d.badge).catch(() => {}) : null,
   ]));
 });
 
-// الضغط على الإشعار: يفتح الصفحة المعنية (أو يركّز نافذة مفتوحة منها)
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const target = new URL(e.notification.data?.url || "/", location.origin);

@@ -1,4 +1,8 @@
-// ملف الطالب الكامل — يُفتح بمعرّف الطالب فقط
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { handle } from "../../core/http/errors.js";
 import { limits } from "../../core/rate-limit.js";
@@ -23,7 +27,6 @@ r.post("/student", limits.studentKey, handle(async (req, res) => {
   }));
 }));
 
-// ولي الأمر يرسل عذرًا عن غياب أو تأخر، وتقبله الإدارة أو ترفضه من «الحضور ← الأعذار»
 r.post("/student/excuse", limits.studentKey, handle(async (req, res) => {
   const b = parse(parentExcuseSchema, req.body);
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
@@ -34,7 +37,6 @@ r.post("/student/excuse", limits.studentKey, handle(async (req, res) => {
   }));
 }));
 
-// تأكيد الاطلاع على تنبيه
 r.post("/student/alerts/ack", limits.studentKey, handle(async (req, res) => {
   const { alert_id } = parse(z.object({ alert_id: t.id }), req.body);
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
@@ -43,7 +45,6 @@ r.post("/student/alerts/ack", limits.studentKey, handle(async (req, res) => {
   }));
 }));
 
-// بطاقة الحضور: ولي الأمر يطبعها من ملف الطالب (نفس البطاقة التي تطبعها الإدارة)، إن كانت المدرسة تستخدم البوابة
 r.post("/student/attendance-card", limits.studentKey, handle(async (req, res) => {
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
     const s = await verifyStudent(req, tenant, q, req.body);

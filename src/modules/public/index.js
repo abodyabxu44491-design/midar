@@ -1,7 +1,8 @@
-// الواجهة العامة للطلاب وأولياء الأمور
-//  - directory: الفصول وأسماء الطلاب (برمز الصفحة)
-//  - profile:   ملف الطالب الكامل (بمعرّف الطالب)
-//  - payments:  الدفع من ملف الطالب
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import directory from "./directory.js";
 import site from "./site.js";
@@ -21,22 +22,21 @@ import chat from "./chat.js";
 import { publicDemoGuard } from "../shared/demo.service.js";
 
 const r = Router();
-r.use("/leads", leads);          // ليست تابعة لمدرسة معينة
-r.use("/demo", demo);            // الدخول للعرض التجريبي من الصفحة الرئيسية
-r.get("/push-key", (req, res) => res.set("Cache-Control", "no-cache").json({ key: pushPublicKey() }));   // المفتاح العام للإشعار الفوري
-r.use("/", verifyRouter);        // /verify/:code التحقق من الشهادات
-// مدرسة العرض التجريبي: للقراءة فقط (قبل كل مسارات المدرسة، ومنها طلب استعادة كلمة المرور)
+r.use("/leads", leads);
+r.use("/demo", demo);
+r.get("/push-key", (req, res) => res.set("Cache-Control", "no-cache").json({ key: pushPublicKey() }));
+r.use("/", verifyRouter);
 r.use("/:school", publicDemoGuard);
-r.use("/", password);            // قبل مسارات المدرسة حتى لا تُفهم كرمز مدرسة
-r.use("/:school", parent);         // حساب ولي الأمر الموحّد
+r.use("/", password);
+r.use("/:school", parent);
 r.use("/:school", directory);
-r.use("/:school", site);            // الموقع المصغّر: الرئيسية، المراحل والصفوف، الشعب، البحث بالمعرّف
+r.use("/:school", site);
 r.use("/:school", profile);
 r.use("/:school", payments);
 r.use("/:school", admissions);
 r.use("/:school", inbox);
 r.use("/:school", onlineExams);
 r.use("/:school", engagement);
-r.use("/:school", chat);            // مراسلة المعلمين
+r.use("/:school", chat);
 r.use("/:school", certificatesRouter);
 export default r;

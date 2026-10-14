@@ -1,4 +1,8 @@
-// بوابة المعلم — منفصلة تمامًا عن الإدارة. كل قسم في ملف.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { requireStaff, requireModule } from "../../core/auth/guards.js";
 import { logoutRouter, changePassword } from "../shared/staff-auth.js";
@@ -25,10 +29,10 @@ r.use("/attendance", requireModule("attendance"), attendance);
 r.use("/exams", requireModule("exams"), exams);
 r.use("/timetable", requireModule("timetable"), timetable);
 r.use("/homework", requireModule("homework"), homework);
-r.use("/chat", requireModule("chat"), chat);        // مراسلة أولياء الأمور
+r.use("/chat", requireModule("chat"), chat);
 r.use("/behavior", requireModule("behavior"), behaviorRouter("teacher"));
 r.use("/papers", requireModule("exam_papers"), papersRouter("teacher"));
 r.use("/online-exams", requireModule("online_exams"), onlineExamsRouter("teacher"));
 teacherStaffRoutes(r);
-r.use("/sync", teacherSyncRouter());      // العمل بدون إنترنت: الحضور والدرجات
+r.use("/sync", teacherSyncRouter());
 export default r;

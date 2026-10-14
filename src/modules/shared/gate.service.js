@@ -1,12 +1,9 @@
-// بوابة مِدار الذكية (المرحلة الأولى) — التصميم الكامل في docs/SMART_GATE.md
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-//   1) رمز الحضور: 128 بت عشوائي لكل طالب، مستقل عن معرّف ولي الأمر ورقم الطالب. يُحفظ في القاعدة كبصمة (للبحث)
-//      ونسخة مشفرة (لإعادة طباعة البطاقة فقط). يُلغى ويُعاد إصداره دون أن يتأثر دخول ولي الأمر.
-//   2) جهاز البوابة: الإدارة تنشئ رابطًا لمرة واحدة وترسله للحارس ← جواله يقترن به ← الإدارة توافق ← يأخذ سرًا خاصًا به.
-//      لا يستطيع أي مستخدم تحويل جواله إلى بوابة بنفسه، والإدارة توقف أي جهاز فورًا.
-//   3) كل مسح حدث مستقل بهوية من الجهاز (event_id): إعادة الإرسال لا تكرر الأثر، والمرفوض يُحفظ بسببه.
-//   4) سجل حضور واحد لكل طالب في اليوم. حاضر حتى وقت التأخر، متأخر بعده (بعدد الدقائق)، ولا تسجيل خارج النافذة.
-//   5) بعد الإغلاق: «لم يسجل حضور» قائمة محسوبة (لا غياب بعد) ← مراجعة واستثناءات ← اعتماد الغياب ← إشعار ولي الأمر.
 import crypto from "node:crypto";
 import net from "node:net";
 import { z, t } from "../../core/http/validate.js";
@@ -17,7 +14,6 @@ import { notify, getQuiet, adminUserIds } from "./notify.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 import { dayStatus, mark } from "./attendance.service.js";
 
-/* ======================= الوقت بتوقيت المدرسة ======================= */
 const hmFmt = new Map();
 function local(date, tz) {
   let f = hmFmt.get(tz);
@@ -31,8 +27,7 @@ const toMin = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 const time12 = (date, tz) => new Intl.DateTimeFormat("ar", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(date);
 export const schoolToday = async (q) => local(new Date(), (await getQuiet(q)).timezone);
 
-/* ======================= رموز الحضور ======================= */
-const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";          // Crockford Base32: بلا I وL وO وU
+const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const TOKEN_RE = /^A1[0-9A-HJKMNP-TV-Z]{26}$/;
 export function newAttendanceToken() {
   let n = BigInt(`0x${crypto.randomBytes(16).toString("hex")}`), s = "";
@@ -43,7 +38,6 @@ export const hashToken = (token) => crypto.createHash("sha256").update(token).di
 const tenantOf = async (q) => (await q("SELECT app_tenant() AS t"))[0].t;
 const aad = (tenant, studentId) => `att:${tenant}:${studentId}`;
 
-/** إصدار رمز جديد (يلغي النشط إن وُجد) */
 export async function issueToken(q, studentId, { actor, reason = null } = {}) {
   const [s] = await q("SELECT id FROM students WHERE id = $1 AND status = 'active' AND archived_at IS NULL", [studentId]);
   if (!s) throw notFound("الطالب غير موجود أو غير مقيد");
@@ -58,7 +52,6 @@ export async function issueToken(q, studentId, { actor, reason = null } = {}) {
   return { token, version: v + 1, replaced: Boolean(old) };
 }
 
-/** تعطيل بطاقة (مفقودة مثلًا) دون إصدار بديل */
 export async function disableToken(q, studentId, { actor, reason }) {
   const rows = await q(
     `UPDATE attendance_credentials SET status = 'revoked', revoked_by = $2, revoked_at = now(), revoke_reason = $3
@@ -67,10 +60,6 @@ export async function disableToken(q, studentId, { actor, reason }) {
   return { ok: true };
 }
 
-/**
- * كل طالب مقيد له رمز، ورموز غير المقيدين (منقول، منسحب، مؤرشف) تُلغى.
- * تُستدعى عند فتح البطاقات وفي المهمة الدورية، فالطالب الجديد يأخذ رمزه تلقائيًا.
- */
 export async function ensureTokens(q, { actor = "النظام", studentIds = null } = {}) {
   await q(`UPDATE attendance_credentials c SET status = 'revoked', revoked_by = $1, revoked_at = now(), revoke_reason = 'الطالب غير مقيد'
             FROM students s WHERE s.id = c.student_id AND c.status = 'active' AND (s.status <> 'active' OR s.archived_at IS NOT NULL)`, [actor]);
@@ -83,7 +72,6 @@ export async function ensureTokens(q, { actor = "النظام", studentIds = nul
   return missing.length;
 }
 
-/** نص رمز QR لبطاقة طالب (يُصدر رمزًا إن لم يوجد، ويعيد الإصدار إن تعذّر فك النسخة المحفوظة) */
 export async function cardTokens(q, studentIds, { actor = "النظام" } = {}) {
   await ensureTokens(q, { actor, studentIds });
   const tenant = await tenantOf(q);
@@ -100,10 +88,6 @@ export async function cardTokens(q, studentIds, { actor = "النظام" } = {})
 }
 export const cardUrl = (base, school, token) => `${base}/q/${school}/${token}`;
 
-/**
- * قراءة ما في رمز QR: بطاقة حضور (رابط …/q/<المدرسة>/<الرمز> أو الرمز نفسه)،
- * أو بطاقة ولي الأمر القديمة (…/<المدرسة>?k=المعرّف) إن سمحت المدرسة بها في الفترة الانتقالية.
- */
 export function parseCode(raw, school) {
   const code = String(raw || "").trim();
   if (/^https?:\/\//i.test(code)) {
@@ -130,11 +114,6 @@ function legacyKey(k) {
   return /^[A-Z2-9]{8}$/.test(key) ? { legacy: `${key.slice(0, 4)}-${key.slice(4)}` } : { error: "bad_format" };
 }
 
-/* ======================= الإعدادات ونافذة اليوم ======================= */
-/**
- * نافذة الحضور ليوم: اليوم الاستثنائي (أوقات خاصة) يتقدم على أوقات المرحلة، وأوقات المرحلة تتقدم على العامة.
- * stageId = null: نافذة المدرسة كلها (أبكر بداية وآخر إغلاق بين المراحل) — للمتابعة والإغلاق.
- */
 export async function windowFor(q, day, stageId = null) {
   const s = await featureSettings(q, "gate");
   const [d] = await q(
@@ -180,7 +159,6 @@ export async function clearStageHours(q, stageId) {
   await q("DELETE FROM attendance_stage_hours WHERE stage_id = $1", [stageId]);
   return { ok: true };
 }
-/** مرحلة اليوم الآن: قبل البداية، مفتوح، مغلق (بانتظار المراجعة)، معتمد */
 const phaseOf = (win, hm, isToday, isPast) => {
   if (win.state === "finalized") return "finalized";
   if (isPast || win.state === "closed") return "closed";
@@ -189,11 +167,9 @@ const phaseOf = (win, hm, isToday, isPast) => {
   return hm <= win.close_at ? "open" : "closed";
 };
 
-/* ======================= الأجهزة ======================= */
 const sha = (v) => crypto.createHash("sha256").update(String(v)).digest();
 const sameHash = (a, b) => Boolean(a && b && a.length === b.length && crypto.timingSafeEqual(a, b));
 export const PAIR_HOURS = 24;
-// بيانات الجهاز التعريفية (تظهر للإدارة لتعرف الجوال)
 const pairInfo = z.object({ ua: z.string().max(200).optional(), platform: z.string().max(60).optional(), screen: z.string().max(30).optional(),
   lang: z.string().max(20).optional() }).default({});
 
@@ -234,7 +210,6 @@ export async function deleteGate(q, id) {
   if (!rows.length) throw notFound("البوابة غير موجودة");
   return { ok: true };
 }
-/** أول بوابة تُنشأ تلقائيًا باسم «البوابة الرئيسية» */
 export async function defaultGate(q) {
   const [g] = await q("SELECT id FROM gates ORDER BY id LIMIT 1");
   if (g) return g.id;
@@ -263,7 +238,6 @@ export async function listDevices(q) {
   return rows;
 }
 
-/** جهاز جديد: يعيد رمز الاقتران مرة واحدة فقط (يُبنى منه رابط الحارس) */
 export async function createDevice(q, b, { actor }) {
   const [g] = await q("SELECT id FROM gates WHERE id = $1 AND is_active", [b.gate_id]);
   if (!g) throw notFound("البوابة غير موجودة أو موقوفة");
@@ -275,7 +249,6 @@ export async function createDevice(q, b, { actor }) {
     [publicId, b.gate_id, b.name, sha(code), PAIR_HOURS, actor]);
   return { id: d.id, public_id: publicId, code };
 }
-/** رابط جديد لجهاز (فقد الحارس جواله أو انتهت صلاحية الرابط): السر القديم يبطل فورًا */
 export async function rePair(q, id) {
   const code = crypto.randomBytes(15).toString("base64url");
   const [d] = await q(
@@ -285,9 +258,6 @@ export async function rePair(q, id) {
   if (!d) throw notFound("الجهاز غير موجود");
   return { id, public_id: d.public_id, code };
 }
-/* ---------- ربط أي جوال برمز قصير ---------- */
-// الإدارة تُظهر رمزًا من 6 أرقام (ورمز QR) صالحًا لمدة ولعدد جوالات تحددهما. الحارس يكتبه في صفحة البوابة.
-// الحماية: صلاحية قصيرة + عدد محدد + قفل بعد 10 محاولات خاطئة من الجهاز (و100 على المدرسة) خلال 30 دقيقة.
 export const joinCodeBody = z.object({
   gate_id: t.id.optional(),
   minutes: z.coerce.number().int().min(10).max(24 * 60).default(60),
@@ -300,7 +270,6 @@ export async function createJoinCode(q, b, { actor }) {
   const [g] = await q("SELECT id, name FROM gates WHERE id = $1 AND is_active", [b.gate_id]);
   if (!g) throw notFound("البوابة غير موجودة أو موقوفة");
   const tenant = await tenantId(q);
-  // رمز لا يتكرر مع رمز صالح آخر في نفس المدرسة
   for (let i = 0; i < 20; i++) {
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
     const [dup] = await q("SELECT 1 FROM gate_join_codes WHERE code_hash = $1 AND revoked_at IS NULL AND expires_at > now()", [sha(code)]);
@@ -313,7 +282,6 @@ export async function createJoinCode(q, b, { actor }) {
   }
   throw conflict("تعذر إنشاء رمز جديد الآن. حاول مرة أخرى.");
 }
-/** الرموز الصالحة الآن (مع الرمز نفسه لتعيد الإدارة عرضه) والجوالات التي انضمت بكل رمز */
 export async function listJoinCodes(q) {
   const tenant = await tenantId(q);
   const rows = await q(
@@ -342,10 +310,6 @@ export const joinBody = z.object({
   app_version: z.string().max(40).optional(),
 });
 const JOIN_FAILS_IP = 10, JOIN_FAILS_SCHOOL = 100, JOIN_LOCK_MIN = 30;
-/**
- * الحارس يكتب الرمز: يصير جواله جهاز بوابة ويأخذ سره مرة واحدة.
- * يعيد { error } (بدل رمي خطأ) عند الرمز الخاطئ حتى تُحفظ المحاولة في نفس المعاملة.
- */
 export async function joinWithCode(q, b, { ip }) {
   const tenant = await tenantId(q);
   const ipSubject = `${tenant}:${ip || "?"}`;
@@ -355,7 +319,6 @@ export async function joinWithCode(q, b, { ip }) {
   if (fails[0].ip >= JOIN_FAILS_IP || fails[0].school >= JOIN_FAILS_SCHOOL) {
     return { status: 429, error: `محاولات خاطئة كثيرة. انتظر ${JOIN_LOCK_MIN} دقيقة ثم أعد المحاولة، أو اطلب من الإدارة رابطًا مباشرًا.` };
   }
-  // القفل على الصف يمنع تجاوز العدد المسموح عند انضمام جوالين في نفس اللحظة
   const [c] = await q(
     `SELECT id, gate_id, max_devices, used_count, auto_approve, created_by FROM gate_join_codes
       WHERE code_hash = $1 AND revoked_at IS NULL AND expires_at > now() FOR UPDATE`, [sha(b.code)]);
@@ -408,13 +371,11 @@ export async function updateDevice(q, id, b) {
   return { ok: true };
 }
 
-/* ---------- من جهة الجهاز ---------- */
 export const pairBody = z.object({
   device: z.string().regex(/^[A-Za-z0-9_-]{16,40}$/), code: z.string().regex(/^[A-Za-z0-9_-]{16,60}$/),
   info: pairInfo,
   app_version: z.string().max(40).optional(),
 });
-/** الحارس يفتح الرابط: الجهاز يقترن (بانتظار موافقة الإدارة) ويأخذ سره مرة واحدة */
 export async function pair(q, b, { ip }) {
   const [d] = await q("SELECT id, status, pair_code_hash, pair_expires_at FROM gate_devices WHERE public_id = $1", [b.device]);
   if (!d || d.status !== "pairing" || !sameHash(d.pair_code_hash, sha(b.code))) throw unauthorized("رابط البوابة غير صالح أو استُخدم من قبل. اطلب رابطًا جديدًا من الإدارة.");
@@ -429,7 +390,6 @@ export async function pair(q, b, { ip }) {
   return { secret, status: "pending" };
 }
 
-/** مصادقة الجهاز من الترويسة: لا جلسة مستخدم، والمدرسة من الرابط فقط */
 export async function authDevice(q, publicId, secret) {
   if (!publicId || !secret) throw unauthorized("جهاز غير معروف");
   const [d] = await q(
@@ -446,7 +406,6 @@ export const heartbeatBody = z.object({
   pending: z.coerce.number().int().min(0).max(100000).optional(),
   geo: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracy: z.number().min(0).max(100000) }).optional(),
 });
-/** نبض الجهاز: الحالة، ووقت الخادم (لتصحيح ساعة الجهاز)، ونافذة اليوم، وعداد البوابة */
 export async function heartbeat(q, device, b, { ip }) {
   const now = new Date();
   const skew = b.client_ts ? now.getTime() - b.client_ts : null;
@@ -479,9 +438,6 @@ export async function heartbeat(q, device, b, { ip }) {
 const noSchool = (ds, win) => (win.mode === "no_attendance" ? (win.note || "لا يُسجل حضور اليوم")
   : ds.holiday ? `إجازة: ${ds.holiday.name}` : !ds.study_day ? "ليس يوم دراسة" : null);
 
-/* ======================= قائمة الجهاز (للعمل بلا اتصال) ======================= */
-// الجهاز يحفظ بصمات الرموز فقط (لا يمكن صنع بطاقة منها) مع الاسم والشعبة، فيعرف الطالب ويقرر وهو بلا اتصال.
-// لا جوالات ولا صور ولا بيانات أولياء أمور.
 export async function rosterVersion(q) {
   const [r] = await q(
     `SELECT md5(concat_ws('|', (SELECT max(id) FROM attendance_credentials), (SELECT count(*) FROM attendance_credentials WHERE status = 'active'),
@@ -499,14 +455,12 @@ export async function roster(q) {
   return { version: await rosterVersion(q), students: rows, stage_hours: stages };
 }
 
-/* ---------- الحماية من التسجيل خارج المدرسة: الشبكة والموقع ---------- */
 const distanceM = (a1, o1, a2, o2) => {
   const R = 6371000, rad = (x) => (Number(x) * Math.PI) / 180;
   const d = Math.sin(rad(a2 - a1) / 2) ** 2 + Math.cos(rad(a1)) * Math.cos(rad(a2)) * Math.sin(rad(o2 - o1) / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(d));
 };
 export const parseNetworks = (txt) => String(txt || "").split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
-/** قائمة شبكات المدرسة: عنوان مفرد أو نطاق (82.114.160.0/24). يرمي خطأ عند عنوان غير صالح */
 export function networkList(txt) {
   const list = new net.BlockList();
   for (const n of parseNetworks(txt)) {
@@ -526,7 +480,6 @@ const ipInside = (list, ip) => {
   const a = String(ip || "").replace(/^::ffff:/, "");
   return net.isIPv4(a) ? list.check(a, "ipv4") : net.isIPv6(a) ? list.check(a, "ipv6") : true;
 };
-/** يعيد سبب المخالفة أو null: خارج شبكة المدرسة (للمسح المباشر) أو بعيد عن موقع البوابة */
 async function placeCheck(q, device, s, { ip, offline }) {
   if (s.location_mode === "off") return null;
   const nets = parseNetworks(s.allowed_networks);
@@ -543,7 +496,6 @@ async function placeCheck(q, device, s, { ip, offline }) {
   return null;
 }
 
-/* ======================= معالجة المسح ======================= */
 export const REASONS = {
   bad_format: "هذا الرمز ليس بطاقة حضور",
   other_school: "هذه البطاقة لمدرسة أخرى",
@@ -589,17 +541,12 @@ async function eventResult(q, ev, tz) {
   };
 }
 
-/**
- * مسح بطاقة من جهاز بوابة. يتحقق في الخادم من كل شيء (لا يعتمد على قرار الجهاز)،
- * ويحفظ الحدث دائمًا (حتى المرفوض)، ويكتب سجل الحضور مرة واحدة فقط في اليوم.
- */
 export async function processScan(q, device, ev, { school, actor, ip = null }) {
   const { timezone } = await getQuiet(q);
   const [done] = await q("SELECT * FROM attendance_events WHERE event_id = $1", [ev.event_id]);
   if (done) return { ...(await eventResult(q, done, timezone)), replay: true };
 
   const now = new Date();
-  // الوقت المعتمد: وقت الخادم عند الاتصال، ووقت الجهاز مصححًا بفرق ساعته عند المزامنة بعد انقطاع
   let effective = now, reason = null, suspicious = null;
   if (ev.offline && ev.client_ts) {
     effective = new Date(ev.client_ts + (ev.skew_ms ?? 0));
@@ -610,7 +557,6 @@ export async function processScan(q, device, ev, { school, actor, ip = null }) {
   const { day, hm } = local(effective, timezone);
   const settings = await featureSettings(q, "gate");
   let student = null, credentialId = null, kind = ev.source === "nfc" ? "nfc" : "qr";
-  // الاتجاه حسب البوابة: بوابة دخول فقط أو انصراف فقط تفرض اتجاهها، و«الاثنين» تأخذ اختيار الحارس
   const direction = device.direction === "out" ? "out" : device.direction === "both" ? (ev.direction || "in") : "in";
 
   if (!reason && device.status !== "active") reason = "device_inactive";
@@ -656,12 +602,10 @@ export async function processScan(q, device, ev, { school, actor, ip = null }) {
     win = await windowFor(q, day, st?.stage_id ?? null);
     if (win.mode === "no_attendance" || ds.holiday || !ds.study_day) reason = "no_school_day";
     else if (direction === "out") {
-      // الانصراف: بعد بداية الدوام في نفس اليوم فقط (لا يرتبط بنافذة تسجيل الحضور)
       if (hm < win.open_at) reason = "before_window";
     } else {
       const today = local(now, timezone).day;
       const phase = phaseOf(win, hm, day === today, day < today);
-      // حدث وصل بعد انقطاع: يُقبل إن كان وقته داخل النافذة ولم يُعتمد اليوم بعد
       const inWindow = hm >= win.open_at && hm <= win.close_at;
       if (hm < win.open_at) reason = "before_window";
       else if (!inWindow || phase === "finalized" || (!ev.offline && phase !== "open")) reason = "outside_window";
@@ -685,7 +629,6 @@ export async function processScan(q, device, ev, { school, actor, ip = null }) {
     minutesLate = late ? toMin(hm) - toMin(win.late_after) : null;
     newStatus = late ? "late" : "present";
     const [prev] = await q("SELECT id, status, source, first_in_at FROM attendance WHERE student_id = $1 AND day = $2 FOR UPDATE", [student, day]);
-    // نفس البطاقة من بوابة أخرى خلال ثوانٍ: مشبوه (صورة بطاقة مثلًا)
     const [near] = await q(
       `SELECT gate_id FROM attendance_events WHERE student_id = $1 AND day = $2 AND result <> 'rejected' AND gate_id IS DISTINCT FROM $3
           AND abs(extract(epoch FROM (effective_ts - $4::timestamptz))) <= $5 LIMIT 1`,
@@ -698,7 +641,6 @@ export async function processScan(q, device, ev, { school, actor, ip = null }) {
         [student, day, newStatus, `بوابة: ${device.gate_name}`, actor, device.gate_id, device.id, effective, minutesLate, Boolean(ev.offline)]);
       attendanceId = a.id; result = newStatus; notifyKind = newStatus;
     } else if (prev.status === "absent") {
-      // سُجّل غائبًا (من المعلم مثلًا) ثم وصل: يتحول لحاضر/متأخر، ويُحفظ التغيير في سجل التعديلات
       await q(`UPDATE attendance SET status = $2, source = 'gate', gate_id = $3, device_id = $4, first_in_at = $5, minutes_late = $6, offline = $7,
                       excuse = NULL, recorded_by = $8, note = $9 WHERE id = $1`,
       [prev.id, newStatus, device.gate_id, device.id, effective, minutesLate, Boolean(ev.offline), actor, `وصل عند ${device.gate_name} بعد تسجيله غائبًا`]);
@@ -708,13 +650,11 @@ export async function processScan(q, device, ev, { school, actor, ip = null }) {
       attendanceId = prev.id; result = newStatus; notifyKind = newStatus;
     } else if (["present", "late"].includes(prev.status)) {
       attendanceId = prev.id; result = "duplicate";
-      // حدث أبكر وصل متأخرًا (جهاز كان بلا اتصال): يُعتمد الوقت الأبكر لسجلات البوابة، دون إشعار ثانٍ
       if (prev.source === "gate" && prev.first_in_at && effective < new Date(prev.first_in_at)) {
         await q("UPDATE attendance SET first_in_at = $2, status = $3, minutes_late = $4, gate_id = $5, device_id = $6 WHERE id = $1",
           [prev.id, effective, newStatus, minutesLate, device.gate_id, device.id]);
       }
     } else {
-      // مستأذن / بعذر / رحلة / نشاط: تبقى الحالة ويُحفظ وقت الدخول للمعلومية
       attendanceId = prev.id; result = "kept";
       if (!prev.first_in_at) await q("UPDATE attendance SET first_in_at = $2, gate_id = $3, device_id = $4 WHERE id = $1", [prev.id, effective, device.gate_id, device.id]);
     }
@@ -748,7 +688,6 @@ export async function processScan(q, device, ev, { school, actor, ip = null }) {
   return eventResult(q, row, timezone);
 }
 
-/* ======================= اليوم: المتابعة والمراجعة والاعتماد ======================= */
 export async function daySummary(q, day) {
   const { timezone } = await getQuiet(q);
   const now = local(new Date(), timezone);
@@ -785,7 +724,6 @@ export async function daySummary(q, day) {
 }
 
 export const feedQuery = z.object({ date: t.date, after: z.coerce.number().int().min(0).default(0), gate_id: t.id.optional() });
-/** آخر المسحات (مباشر): الطالب، الشعبة، الوقت، النتيجة، البوابة */
 export async function feed(q, { date, after, gate_id }) {
   const { timezone } = await getQuiet(q);
   const rows = await q(
@@ -800,7 +738,6 @@ export async function feed(q, { date, after, gate_id }) {
   return rows;
 }
 
-/** «لم يسجل حضور»: الطلاب المقيدون بلا سجل في هذا اليوم (محسوبة — لا تُكتب غيابًا قبل الاعتماد) */
 export async function unrecorded(q, day) {
   return q(
     `SELECT s.id, s.full_name AS name, s.class_id, c.name AS class_name, gr.name AS grade_name, st.name AS stage_name,
@@ -819,7 +756,6 @@ export const exceptionsBody = z.object({
   excuse: t.optText(200),
   student_ids: z.array(t.id).min(1).max(1000),
 });
-/** استثناءات المراجعة (جماعية): رحلة، نشاط، بعذر، مستأذن، أو حاضر يدويًا — بسبب إلزامي، وتُدقَّق */
 export async function setExceptions(q, b, { actor, ip, device }) {
   const win = await windowFor(q, b.date);
   if (win.state === "finalized") throw conflict("اعتُمد غياب هذا اليوم. عدّل الطالب من شاشة الحضور بسبب.");
@@ -828,7 +764,6 @@ export async function setExceptions(q, b, { actor, ip, device }) {
 }
 
 export const finalizeBody = z.object({ date: t.date });
-/** اعتماد الغياب: المتبقون في «لم يسجل حضور» يُكتبون غائبين، ثم يُبلَّغ أولياء أمورهم في وقت الإشعار المضبوط */
 export async function finalizeDay(q, day, { actor }) {
   const sum = await daySummary(q, day);
   if (sum.phase === "no_school") throw badRequest(sum.no_school_reason);
@@ -851,7 +786,6 @@ export async function finalizeDay(q, day, { actor }) {
   return { absent: rows.length, notified, notify_at: notified ? null : sum.absence_notify_at };
 }
 
-/** إشعار الغياب المعتمد (مرة واحدة لليوم) */
 export async function notifyAbsences(q, day) {
   const [d] = await q("SELECT state, absence_notified_at FROM attendance_days WHERE day = $1 FOR UPDATE", [day]);
   if (!d || d.state !== "finalized" || d.absence_notified_at) return 0;
@@ -872,7 +806,6 @@ export const dayModeBody = z.object({
   date: t.date, mode: z.enum(["normal", "custom_hours", "no_attendance"]), note: t.optText(200),
   open_at: z.string().regex(/^\d\d:\d\d$/).optional(), late_after: z.string().regex(/^\d\d:\d\d$/).optional(), close_at: z.string().regex(/^\d\d:\d\d$/).optional(),
 });
-/** يوم استثنائي: أوقات خاصة (اختبارات) أو بلا حضور (رحلة عامة، فعالية) */
 export async function setDayMode(q, b) {
   const custom = b.mode === "custom_hours";
   if (custom && !(b.open_at && b.late_after && b.close_at && b.open_at <= b.late_after && b.late_after < b.close_at)) {
@@ -904,8 +837,6 @@ export async function reviewSuspicious(q, id, state, { actor }) {
   return { ok: true };
 }
 
-/* ======================= المهمة الدورية (كل 5 دقائق) ======================= */
-/** لكل مدرسة فيها بوابة: إغلاق النافذة وتنبيه الإدارة بالمراجعة، والاعتماد التلقائي إن فُعّل، وإرسال إشعارات الغياب في وقتها */
 export async function gateTickTenant(q) {
   const [{ n }] = await q("SELECT count(*)::int AS n FROM gates");
   if (!n) return null;
@@ -922,7 +853,6 @@ export async function gateTickTenant(q) {
     out.closed = true;
   }
   const s = await featureSettings(q, "gate");
-  // جهاز بوابة مفعّل انقطع أثناء نافذة الحضور: تنبيه الإدارة مرة واحدة لليوم لكل جهاز
   if (sum.phase === "open") {
     const lost = await q(
       `UPDATE gate_devices SET offline_alerted_on = $1
@@ -940,7 +870,6 @@ export async function gateTickTenant(q) {
     out.finalized = await finalizeDay(q, day, { actor: "النظام" });
   }
   if (sum.state === "finalized" && !sum.absence_notified_at && hm >= sum.absence_notify_at) out.notified = await notifyAbsences(q, day);
-  // طالب جديد يأخذ رمز حضوره تلقائيًا
   out.tokens = await ensureTokens(q);
   return out;
 }
@@ -952,7 +881,6 @@ export async function runGateTick() {
   }
 }
 
-/* ======================= السجلات (تصفية) ======================= */
 export const recordsQuery = z.object({
   date: t.date, stage_id: t.id.optional(), grade_id: t.id.optional(), class_id: t.id.optional(), gate_id: t.id.optional(),
   status: z.enum(["present", "late", "absent", "excused", "permitted", "trip", "activity", "unrecorded"]).optional(),
@@ -960,7 +888,6 @@ export const recordsQuery = z.object({
   from: z.string().regex(/^\d\d:\d\d$/).optional(), to: z.string().regex(/^\d\d:\d\d$/).optional(),
   q: z.string().trim().max(60).optional(), offline: z.enum(["1"]).optional(),
 });
-/** سجلات يوم بكل التصفيات: المرحلة، الصف، الشعبة، البوابة، الحالة، المصدر، وقت الوصول، اسم الطالب */
 export async function records(q, f) {
   const { timezone } = await getQuiet(q);
   const rows = await q(

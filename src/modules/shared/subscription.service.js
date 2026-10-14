@@ -1,7 +1,9 @@
-// الاشتراكات: حالة الوصول، والمميزات المستحقة، وكل عمليات المالك (تجربة، تفعيل، تجديد، ترقية، إضافات…)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 //
-// قاعدة ثابتة: الاشتراك يحدد «الوصول» فقط. انتهاؤه لا يحذف شيئًا من بيانات المدرسة،
-// وتفعيل اشتراك جديد يعيد المدرسة للعمل ببياناتها نفسها.
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { MODULES, KEYS } from "./modules.service.js";
@@ -18,9 +20,6 @@ const addMonths = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCMont
 const daysBetween = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000);
 const iso = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d ? String(d).slice(0, 10) : null);
 
-/* ======================= كتالوج المميزات ======================= */
-// كل قسم برمجي جديد يُعرَّف مرة واحدة في MODULES (modules.service.js) فيظهر هنا تلقائيًا،
-// ثم يحدد المالك الباقات التي تحتويه من لوحته.
 export async function syncCatalog(q) {
   for (const [i, m] of MODULES.entries()) {
     await q(`INSERT INTO features (key, name, description, category, kind, sort)
@@ -28,12 +27,6 @@ export async function syncCatalog(q) {
   }
 }
 
-/* ======================= حالة الوصول ======================= */
-/**
- * sub: صف الاشتراك الحالي، trialGrace: أيام السماح بعد التجربة
- * يعيد: { state, locked, days_left, ends_on, message }
- *   state: trial | trial_grace | active | grace | locked
- */
 export function accessOf(sub, trialGrace = 0, now = today()) {
   if (!sub) return { state: "active", locked: false, status: "active", kind: "paid" };
   const ends = iso(sub.ends_on);
@@ -61,18 +54,14 @@ export const LOCK_MESSAGE = {
   ended: "لا يوجد اشتراك فعّال لمدرستك. تواصل مع إدارة المنصة.",
 };
 
-// كل المميزات مشمولة لكل المدارس (لا توجد مميزات مدفوعة منفصلة): الباقات تختلف بالسعر والمدة وحدود الطلاب والمعلمين فقط.
-// المدرسة تشغّل وتوقف ما تريد من «الإعدادات ← أقسام المنصة». الخدمات (الدعم والتدريب) تبقى حسب الباقة.
 export function entitlements(sub, now = today()) {
   const set = new Set(KEYS);
   for (const k of sub?.snapshot?.features || []) set.add(k);
   for (const a of sub?.addons || []) if (!a.until || a.until >= now) set.add(a.key);
   return set;
 }
-// مفاتيح كل المميزات الأساسية والأقسام (تدخل في كل باقة تلقائيًا)
 export const allFeatureKeys = async (q) => (await q("SELECT key FROM features WHERE kind IN ('core', 'module') AND is_active ORDER BY sort, key")).map((r) => r.key);
 
-// الاشتراك الحالي للمدرسة (داخل سياق المدرسة)
 export async function currentSub(q) {
   const [row] = await q(
     `SELECT s.*, (SELECT trial_grace_days FROM platform_settings WHERE id) AS trial_grace
@@ -80,13 +69,11 @@ export async function currentSub(q) {
   return row || null;
 }
 
-// كل ما يحتاجه الحارس في طلب واحد: حالة الوصول والمميزات المستحقة
 export async function accessContext(q) {
   const sub = await currentSub(q);
   return { sub, access: accessOf(sub, sub?.trial_grace || 0), entitled: entitlements(sub) };
 }
 
-/* ======================= اللقطة ======================= */
 export async function planSnapshot(q, planId) {
   const [p] = await q("SELECT * FROM plans WHERE id = $1", [planId]);
   if (!p) throw notFound("الباقة غير موجودة");
@@ -102,7 +89,6 @@ export async function planSnapshot(q, planId) {
   };
 }
 
-// السعر الفعلي لمدرسة: سعرها الخاص إن وُجد، وإلا سعر الباقة بعد الخصم الساري (نفس دالة الصفحة العامة)
 export async function priceFor(q, tenantId, plan, cycle) {
   if (!["monthly", "yearly"].includes(cycle)) return 0;
   const [custom] = tenantId ? await q("SELECT * FROM tenant_prices WHERE tenant_id = $1 AND plan_id = $2", [tenantId, plan.id]) : [];
@@ -110,20 +96,18 @@ export async function priceFor(q, tenantId, plan, cycle) {
   return displayPrice(plan, cycle)?.final ?? 0;
 }
 
-/* ======================= السجل ======================= */
 export const logEvent = (q, tenantId, subId, event, details, actor) => q(
   "INSERT INTO subscription_events (tenant_id, subscription_id, event, details, actor) VALUES ($1, $2, $3, $4, $5)",
   [tenantId, subId, event, details || {}, actor]);
 
-/* ======================= عمليات المالك (سياق المنصة) ======================= */
 export const activateSchema = z.object({
   kind: z.enum(["trial", "paid", "free"]),
   plan_id: t.optId,
-  features: z.array(z.string().max(40)).max(100).optional(),     // لباقة مخصصة بلا plan_id
+  features: z.array(z.string().max(40)).max(100).optional(),
   plan_name: z.string().trim().min(2).max(60).optional(),
   billing_cycle: z.enum(["monthly", "yearly", "custom", "none"]).default("yearly"),
   starts_on: t.optDate,
-  ends_on: t.optDate,                     // يُتجاهل في التجربة (يُحسب تلقائيًا)
+  ends_on: t.optDate,
   months: z.coerce.number().int().min(1).max(60).optional(),
   price: z.union([z.coerce.number().min(0).max(10_000_000), z.literal(""), z.null()]).optional(),
   discount: z.coerce.number().min(0).max(10_000_000).default(0),
@@ -132,7 +116,7 @@ export const activateSchema = z.object({
   max_teachers: z.union([z.coerce.number().int().min(1).max(10000), z.literal(""), z.null()]).optional(),
   status: z.enum(["active", "pending_payment"]).default("active"),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
-  force_trial: z.boolean().default(false),          // منح تجربة جديدة رغم استنفاد التجارب
+  force_trial: z.boolean().default(false),
   note: z.string().trim().max(500).optional(),
   lead_id: t.optId,
 });
@@ -144,10 +128,6 @@ export async function trialHistory(q, tenantId) {
              WHERE tenant_id = $1 AND kind = 'trial' ORDER BY id`, [tenantId]);
 }
 
-/**
- * إنشاء اشتراك جديد وجعله الحالي. الاشتراك السابق يُغلق (ended) ويبقى في السجل.
- * التجربة: تاريخ النهاية يُحسب تلقائيًا من مدة التجربة في الإعدادات.
- */
 export async function activate(q, tenantId, b, actor, opts = {}) {
   const s = await settings(q);
   const [tenant] = await q("SELECT * FROM tenants WHERE id = $1 FOR UPDATE", [tenantId]);
@@ -172,7 +152,7 @@ export async function activate(q, tenantId, b, actor, opts = {}) {
     if (used >= s.trials_per_school && !b.force_trial) {
       throw conflict(`استُخدمت التجربة المجانية لهذه المدرسة (${used} من ${s.trials_per_school}). يمكنك منح تجربة جديدة يدويًا.`);
     }
-    end = addDays(start, s.trial_days);           // لا إدخال يدوي لتاريخ نهاية التجربة
+    end = addDays(start, s.trial_days);
     status = "trial";
   } else {
     end = b.ends_on || (b.months ? addMonths(start, b.months)
@@ -204,7 +184,6 @@ export async function activate(q, tenantId, b, actor, opts = {}) {
   }
   await syncTenant(q, tenantId, sub);
 
-  // نوع الحدث للسجل: بداية تجربة، تفعيل، تجديد، ترقية، تخفيض، إعادة تفعيل
   let event = b.kind === "trial" ? "trial_started" : "activated";
   if (b.kind !== "trial" && prev) {
     const prevPrice = Number(prev.snapshot?.prices?.yearly ?? prev.price ?? 0);
@@ -222,7 +201,6 @@ export async function activate(q, tenantId, b, actor, opts = {}) {
   return sub;
 }
 
-// حقول المدرسة القديمة (يعتمد عليها حد الطلاب وقوائم الفوترة) تبقى متزامنة مع الاشتراك الحالي
 export async function syncTenant(q, tenantId, sub) {
   await q(
     `UPDATE tenants SET subscription_id = $2, plan = $3, max_students = COALESCE($4, 100000), subscription_end = $5,
@@ -248,7 +226,6 @@ export const actionSchema = z.object({
   note: z.string().trim().max(300).optional(),
 });
 
-/** عمليات على الاشتراك الحالي: تمديد، إنهاء تجربة، إيقاف، استئناف، إلغاء، إضافات، تجديد، تأكيد دفع */
 export async function act(q, tenantId, b, actor) {
   const s = await current(q, tenantId);
   const set = await settings(q);
@@ -301,7 +278,6 @@ export async function act(q, tenantId, b, actor) {
       break;
     }
     case "renew": {
-      // تجديد بنفس الباقة واللقطة: فترة جديدة تبدأ بعد نهاية الحالية (أو من اليوم إن انتهت)
       const start = s.ends_on && iso(s.ends_on) >= today() ? addDays(iso(s.ends_on), 1) : today();
       const months = b.months || (s.billing_cycle === "monthly" ? 1 : 12);
       return activate(q, tenantId, {
@@ -318,8 +294,6 @@ export async function act(q, tenantId, b, actor) {
   return fresh;
 }
 
-/* ======================= تطبيق تعديل الباقة ======================= */
-// الافتراضي: الاشتراكات الجديدة فقط. «الحالية» تحدّث لقطة كل اشتراك فعّال على هذه الباقة.
 export async function applyPlanChange(q, planId, scope, tenantId, actor) {
   if (scope === "new") return 0;
   const { snapshot } = await planSnapshot(q, planId);
@@ -339,16 +313,13 @@ export async function applyPlanChange(q, planId, scope, tenantId, actor) {
 
 export { today, addDays, addMonths, iso };
 
-// ملخص حالة الاشتراك لواجهات المدرسة (بدون أسعار أو ملاحظات المالك)
 export function accessSummary(req) {
   const a = req.access || {};
   return { state: a.state, locked: Boolean(a.locked), status: a.status, kind: a.kind, plan_name: a.plan_name,
     ends_on: a.ends_on, days_left: a.days_left, grace_left: a.grace_left ?? null, message: a.locked ? (LOCK_MESSAGE[a.status] || LOCK_MESSAGE.ended) : null };
 }
 
-// فحص الانتهاء: التجارب والاشتراكات المنتهية تتحول حالتها فقط (بلا حذف)، وتُسجَّل تنبيهات قرب الانتهاء
 export const runExpiry = (q) => q("SELECT * FROM expire_subscriptions()");
 
-// أسماء حالات وأنواع طلبات التجديد في النسخة السابقة (للتوافق مع الواجهات القديمة)
 export const toOld = (s) => ({ reviewing: "contacted", active: "done", approved: "contacted", awaiting_payment: "contacted" }[s] || s);
 export const kindOld = (k) => ({ renewal: "renew", upgrade: "upgrade" }[k] || "support");

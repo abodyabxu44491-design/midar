@@ -1,9 +1,12 @@
-// بطاقة ولي الأمر: تصميم واحد للطباعة والشاشة، مع إرسال كل بطاقة وحدها (واتساب، صورة، طباعة)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 import { btn, toast, docLogo } from "./ui.js";
 import { waLink } from "./whatsapp.js";
 
-/** البطاقة نفسها (تُطبع كما تظهر) */
 export function parentCard(d, s) {
   return h("article", { class: "pc", "data-id": s.id },
     h("header", { class: "pc-head" },
@@ -33,7 +36,6 @@ const message = (d, s) => [
   "من الملف تتابعون الحضور والدرجات والواجبات والرسوم والإشعارات. يُرجى عدم مشاركة المعرّف.",
 ].join("\n");
 
-/** أزرار البطاقة الواحدة (لا تظهر في الطباعة) */
 export function cardActions(d, s, cardEl) {
   const wa = waLink(s.guardian_phone || "", message(d, s), d.country_code || "967");
   return h("div", { class: "pc-actions no-print" },
@@ -44,7 +46,6 @@ export function cardActions(d, s, cardEl) {
     btn("طباعة هذه البطاقة", () => printOne(cardEl), "ghost sm"));
 }
 
-/** البطاقة مع أزرارها */
 export const cardWithActions = (d, s) => {
   const el = parentCard(d, s);
   return h("div", { class: "pc-wrap" }, el, cardActions(d, s, el));
@@ -59,7 +60,6 @@ function printOne(el) {
   setTimeout(done, 1500);
 }
 
-// صورة البطاقة (PNG) مرسومة على لوحة، تُشارك من الجوال مباشرة أو تُنزَّل
 const loadImg = (src) => new Promise((ok) => { if (!src) return ok(null); const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 async function cardPng(d, s) {
   await document.fonts?.ready;

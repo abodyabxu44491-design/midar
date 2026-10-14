@@ -1,4 +1,8 @@
-// إعدادات الأقسام الجديدة: كل قسم له إعدادات قليلة بقيم افتراضية مناسبة، تعدّلها المدرسة من «الإعدادات»
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, parse } from "../../core/http/validate.js";
 import { badRequest } from "../../core/http/errors.js";
 
@@ -38,7 +42,6 @@ export const SECTIONS = {
     defaults: { notify_parent: true, show_parent_profile: true },
     schema: z.object({ notify_parent: z.boolean(), show_parent_profile: z.boolean() }),
   },
-  // بوابة الحضور الذكية (docs/SMART_GATE.md): نافذة الحضور، ووقت إشعار الغياب بعد اعتماده، والإشعارات
   gate: {
     defaults: { open_at: "06:30", late_after: "07:15", close_at: "08:00", absence_notify_at: "09:00", auto_finalize: false,
       notify_present: true, notify_late: true, notify_absent: true, notify_departure: false, legacy_cards: false, suspicious_seconds: 120,
@@ -46,14 +49,12 @@ export const SECTIONS = {
     schema: z.object({ open_at: time, late_after: time, close_at: time, absence_notify_at: time, auto_finalize: z.boolean(),
       notify_present: z.boolean(), notify_late: z.boolean(), notify_absent: z.boolean(), notify_departure: z.boolean(), legacy_cards: z.boolean(),
       suspicious_seconds: z.coerce.number().int().min(10).max(3600),
-      // حماية من التسجيل خارج المدرسة: off بلا قيد، flag يُعلّم المسح مشبوهًا، block يرفضه
       location_mode: z.enum(["off", "flag", "block"]),
       allowed_networks: z.string().trim().max(500).regex(/^[0-9a-fA-F.:/,\s]*$/, "اكتب عناوين الشبكة مفصولة بفاصلة، مثل 82.114.160.0/24"),
       device_offline_alert_min: z.coerce.number().int().min(3).max(120),
       teacher_can_edit: z.boolean(), teacher_can_excuse: z.boolean() }),
     check: (v) => (v.open_at <= v.late_after && v.late_after < v.close_at ? null : "الأوقات: بداية الحضور ≤ وقت التأخر < الإغلاق"),
   },
-  // حساب ولي الأمر الموحّد: التفعيل الذاتي (جوال المدرسة + معرّف ابن)، وطريقة ربط ابن جديد
   parents: {
     defaults: { self_activation: true, link_by_key: true, auto_link_siblings: true, allow_requests: true, show_inactive: true },
     schema: z.object({ self_activation: z.boolean(), link_by_key: z.boolean(), auto_link_siblings: z.boolean(),

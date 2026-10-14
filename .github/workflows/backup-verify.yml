@@ -1,12 +1,10 @@
-# اختبار الاسترجاع الأسبوعي: النسخة الاحتياطية لا قيمة لها إن لم تُسترجع فعلًا.
-# يأخذ آخر نسخة ناجحة من «نسخة احتياطية»، يفك تشفيرها، يسترجعها في قاعدة بيانات مؤقتة فارغة،
-# ثم يتحقق أن الجداول والبيانات موجودة. إن فشل أي شيء يفشل الفحص ويصلك بريد من GitHub.
-# لا يلمس قاعدة بيانات الإنتاج أبدًا، والقاعدة المؤقتة تُحذف مع انتهاء التشغيل.
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 name: اختبار استرجاع النسخة
 
 on:
   schedule:
-    - cron: "40 1 * * 5"   # كل جمعة 4:40 فجرًا بتوقيت السعودية واليمن (بعد النسخ اليومي)
+    - cron: "40 1 * * 5"
   workflow_dispatch:
 
 permissions:
@@ -60,7 +58,6 @@ jobs:
           FILE=$(find backup -name '*.dump.gpg' | head -1)
           echo "النسخة: $FILE"
           printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --decrypt --output restore.dump "$FILE"
-          # الصلاحيات والأدوار خاصة بالإنتاج، فلا نسترجعها؛ المهم الجداول والبيانات
           $BIN/pg_restore --no-owner --no-privileges --exit-on-error --dbname "$TARGET" restore.dump
           q() { $BIN/psql "$TARGET" -Atqc "$1"; }
           TABLES=$(q "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")

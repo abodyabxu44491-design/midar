@@ -1,10 +1,8 @@
-// واجهة أجهزة البوابة: /api/gate/<المدرسة>/...
-// لا جلسة مستخدم: الجهاز يُعرَّف بمعرّفه وسره (من الترويسة)، والمدرسة من الرابط فقط، وكل شيء داخل عزل المدرسة (RLS).
-//   POST /pair     فتح رابط الإدارة لأول مرة ← الجهاز بانتظار الموافقة ويأخذ سره
-//   POST /join     ربط أي جوال برمز الربط (6 أرقام) الذي تُظهره الإدارة ← مفعّل فورًا أو بانتظار الموافقة
-//   POST /status   نبض: الحالة، ووقت الخادم، ونافذة اليوم، والعداد
-//   POST /scan     مسح بطاقة (مباشر)
-//   POST /events   دفعة مسحات حُفظت على الجهاز أثناء انقطاع الاتصال
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { AppError, handle, forbidden } from "../../core/http/errors.js";
 import { parse } from "../../core/http/validate.js";
@@ -43,7 +41,6 @@ r.post("/:school/scan", handle(async (req, res) => {
   }));
 }));
 
-// قائمة الجهاز: بصمات الرموز والاسم والشعبة فقط (ليعرف الطالب ويقرر وهو بلا اتصال)
 r.post("/:school/roster", handle(async (req, res) => {
   res.json(await inSchool(req, ACTOR, async (q) => {
     const d = await gate.authDevice(q, ...creds(req));
@@ -52,7 +49,6 @@ r.post("/:school/roster", handle(async (req, res) => {
   }));
 }));
 
-// كل حدث في معاملة مستقلة: فشل حدث لا يُسقط الدفعة، وهوية الحدث تمنع تكراره عند إعادة الإرسال
 r.post("/:school/events", handle(async (req, res) => {
   const { events } = parse(gate.batchBody, req.body);
   const results = [];

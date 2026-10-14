@@ -1,4 +1,8 @@
-// الحقول المخصصة: تعريفها وقيمها لكل طالب أو معلم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 
@@ -19,7 +23,6 @@ export const valuesSchema = z.object({
   values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
 });
 
-// مفتاح إنجليزي مستقر يُشتق من الاسم، فلا يطلبه المستخدم
 const keyFrom = (label, taken) => {
   let base = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   if (!/^[a-z]/.test(base)) base = `f_${base}`;
@@ -63,8 +66,6 @@ export async function removeField(q, id) {
   if (!rows.length) throw notFound("الحقل غير موجود");
 }
 
-/** قيم كيان واحد: { key: value } */
-// صاحب القيم يجب أن يكون موجودًا في هذه المدرسة (لا قيم معلّقة بمعرّف غير موجود)
 const ENTITY_TABLE = { student: "students", teacher: "teachers", staff: "staff" };
 async function assertEntity(q, entity, entityId) {
   const table = ENTITY_TABLE[entity];
@@ -81,7 +82,6 @@ export async function valuesOf(q, entity, entityId) {
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
-/** قيم عدة كيانات دفعة واحدة (بدون استعلام لكل طالب) */
 export async function valuesFor(q, entity, ids) {
   if (!ids.length) return new Map();
   const rows = await q(
@@ -95,7 +95,6 @@ export async function valuesFor(q, entity, ids) {
   return out;
 }
 
-/** حفظ القيم مع التحقق من النوع والإلزامية */
 export async function saveValues(q, entity, entityId, values) {
   await assertEntity(q, entity, entityId);
   const fields = await q("SELECT id, key, label, type, options, required FROM custom_fields WHERE entity = $1 AND is_active", [entity]);

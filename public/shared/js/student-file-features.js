@@ -1,5 +1,8 @@
-// أقسام ملف الطالب للأقسام الجديدة: كل قسم يظهر فقط إذا أرسل الخادم بياناته (القسم مفعّل ومسموح لولي الأمر)
-// كل عنصر: { key, name, note, view() }
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h } from "./dom.js";
 import { empty, sub, btn, line, toast, badge } from "./ui.js";
 import { mount } from "./dom.js";
@@ -142,9 +145,6 @@ export function featureSections(d, actions = {}) {
   return out;
 }
 
-
-
-// مراجعة الطالب لإجاباته بعد إغلاق الاختبار (إن سمحت المدرسة)
 function reviewView(r) {
   return section(`مراجعة: ${r.title}`,
     r.score !== null ? sub(`درجتك ${r.score} من ${r.max_score}`) : sub("بانتظار التصحيح"),

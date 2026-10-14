@@ -1,14 +1,14 @@
-// واجهة المحادثة المشتركة (ولي الأمر والمعلم): فقاعات الرسائل وخانة الكتابة، وتحديث تلقائي كل 15 ثانية أثناء فتحها
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { icons } from "./icons.js";
 import { toast } from "./ui.js";
 
 const time = (v) => new Date(v).toLocaleString("ar", { weekday: "short", hour: "numeric", minute: "2-digit" });
 
-/**
- * me: "parent" أو "teacher" (رسائلي على جهة، ورسائل الطرف الآخر على الأخرى)
- * load(before) ← { messages, more } ، send(text) ← { message }
- */
 export function chatThread({ me, title, subtitle, load, send, onBack, placeholder = "اكتب رسالتك…" }) {
   const list = h("div", { class: "chat-list", role: "log", "aria-live": "polite" });
   const more = h("button", { type: "button", class: "btn ghost sm chat-more", hidden: true }, "رسائل أقدم");
@@ -47,7 +47,6 @@ export function chatThread({ me, title, subtitle, load, send, onBack, placeholde
     busy = false; go.disabled = false; box.focus();
   };
   go.addEventListener("click", submit);
-  // Enter يرسل على الكمبيوتر، وعلى الجوال سطر جديد (زر الإرسال واضح)
   box.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && matchMedia("(pointer: fine)").matches) { e.preventDefault(); submit(); } });
   box.addEventListener("input", () => { box.style.height = ""; box.style.height = `${Math.min(box.scrollHeight, 140)}px`; });
 
@@ -62,7 +61,6 @@ export function chatThread({ me, title, subtitle, load, send, onBack, placeholde
   return el;
 }
 
-// صف في قائمة المحادثات
 export function chatRow({ title, subtitle, preview, unread, when, onClick }) {
   return h("button", { type: "button", class: `chat-row${unread ? " unread" : ""}`, onclick: onClick },
     h("span", { class: "chat-avatar", "aria-hidden": "true" }, String(title || "؟").replace(/^(أ\.|د\.)\s*/, "").trim().charAt(0)),

@@ -1,4 +1,8 @@
-// ملف المعلم: حالة حساب الدخول، سجل النشاط، تغيير اسم المستخدم، وعدم تسريب أي سر. بلا قاعدة بيانات.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { accountStatus, describeAudit, changeUsername, account, fullProfile, ensureUniqueEmployeeNo } from "../src/modules/shared/teacher-file.service.js";

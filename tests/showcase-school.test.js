@@ -1,5 +1,8 @@
-// مدرسة العرض الكاملة: تُنشأ من لوحة المالك وتعمل كمدرسة حقيقية للمدير والمعلم وولي الأمر،
-// بجدول كامل بلا تعارض، وحضور ودرجات منشورة وفواتير متوازنة مع القيود، ولا تُنشأ مرتين بنفس الرمز.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";

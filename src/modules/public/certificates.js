@@ -1,4 +1,8 @@
-// الشهادات للعموم: التحقق برمز QR (بلا دخول)، وطباعة ولي الأمر لشهادات ابنه (بمعرّف الطالب)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, badRequest } from "../../core/http/errors.js";

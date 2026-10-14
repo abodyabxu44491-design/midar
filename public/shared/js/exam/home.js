@@ -1,5 +1,8 @@
-// صفحة «الاختبارات والامتحانات»: القائمة والإحصاءات وطرق الإنشاء، وبنك الأسئلة، والقوالب.
-// تُستخدم في بوابة المعلم وفي لوحة الإدارة (base يحدد الواجهة البرمجية، والصلاحيات من الخادم).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../dom.js";
 import { api } from "../api.js";
 import { panel, field, input, textarea, select, btn, badge, notice, toast, confirmAction, dialog, empty, sub, stats } from "../ui.js";
@@ -12,7 +15,6 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export async function examSection({ base, me, admin = false }) {
   const root = h("div");
-  // الطلبات الثلاثة مستقلة: تبدأ معًا بدل انتظار السياق ثم طلب القائمة
   let prefetched = Promise.all([api(`${base}?status=all`), api(`${base}/stats`)]);
   prefetched.catch(() => {});
   const ctx = await api(`${base}/context`);
@@ -24,7 +26,7 @@ export async function examSection({ base, me, admin = false }) {
     list: () => drawList(),
     open: async (id, step = "info", autoPrint = false) => {
       mount(root, empty("جارٍ فتح الاختبار…"));
-      preloadModule(new URL("./builder.js", import.meta.url).pathname);   // المصمم يُحمّل عند فتح اختبار فقط
+      preloadModule(new URL("./builder.js", import.meta.url).pathname);
       const { builder } = await import("./builder.js");
       mount(root, await builder({ base, id, ctx, me, step, autoPrint,
         onExit: (o) => (o?.open ? nav.open(o.open) : nav.list()) }));
@@ -33,7 +35,6 @@ export async function examSection({ base, me, admin = false }) {
     templates: () => drawTemplates(),
   };
 
-  /* ---------- اختيار الصف والمادة (مشترك بين نوافذ الإنشاء) ---------- */
   const pairSelect = () => select(ctx.load.map((l) => [`${l.class_id}:${l.subject_id}`, `${l.class_name} — ${l.subject_name}`]));
   const pairOf = (el) => { const [c, s] = el.value.split(":").map(Number); return { class_id: c, subject_id: s }; };
   const typeSelect = () => select([...ctx.types.defaults, ...ctx.types.custom.filter((t) => t.is_active).map((t) => t.name)].map((t) => [t, t]));
@@ -134,7 +135,6 @@ export async function examSection({ base, me, admin = false }) {
     })]);
   }
 
-  /* ---------- القائمة ---------- */
   async function drawList() {
     mount(root, empty("جارٍ التحميل…"));
     const [all, st] = prefetched ? await prefetched : await Promise.all([api(`${base}?status=all`), api(`${base}/stats`)]);
@@ -206,7 +206,6 @@ export async function examSection({ base, me, admin = false }) {
     drawChips(); drawRows();
   }
 
-  /* ---------- القوالب ---------- */
   async function drawTemplates() {
     const list = await api(`${base}?templates=1&status=all`);
     mount(root, h("div", { class: "section-head" }, btn("رجوع", nav.list, "ghost sm"), h("h2", {}, "قوالب الاختبارات")),
@@ -223,7 +222,6 @@ export async function examSection({ base, me, admin = false }) {
         : empty("لا توجد قوالب بعد.")));
   }
 
-  /* ---------- بنك الأسئلة ---------- */
   async function drawBank() {
     const st = (await api(`${base}/stats`)).bank;
     const subjects = [...new Map(ctx.load.map((l) => [l.subject_id, l.subject_name])).entries()];
@@ -252,9 +250,8 @@ export async function examSection({ base, me, admin = false }) {
     for (const el of [fSubject, fType, fDiff, mine]) el.addEventListener("change", load);
     for (const el of [fUnit, fq]) el.addEventListener("input", () => { clearTimeout(el._t); el._t = setTimeout(load, 300); });
 
-    // تعديل أو إضافة سؤال في البنك بنفس محرر الأسئلة
     async function editBankQuestion(row) {
-      const { questionEditor } = await import("./editor.js");   // المحرر يُحمّل عند فتحه فقط
+      const { questionEditor } = await import("./editor.js");
       const isNew = !row;
       const q = row ? structuredClone({ ...row, id: undefined }) : newQuestion("mcq");
       if (!q.id) q.id = "q_bank";
@@ -277,7 +274,6 @@ export async function examSection({ base, me, admin = false }) {
       d.classList.add("xb-wide");
     }
 
-    // لصق أسئلة أو ملف Word إلى البنك دفعة واحدة
     async function pasteToBank() {
       const { pasteDialog } = await import("./paste-dialog.js");
       const subj = select(subjects, { value: fSubject.value || subjects[0]?.[0] });
@@ -327,7 +323,6 @@ export async function examSection({ base, me, admin = false }) {
   return root;
 }
 
-/* ---------- إعدادات الإدارة ---------- */
 export async function examSettingsPanel() {
   const s = await api("/api/admin/papers-settings");
   const types = await api("/api/admin/papers/context").then((c) => c.types);

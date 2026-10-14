@@ -1,5 +1,8 @@
-// إعدادات تطبيق الويب في Firebase (مشروع midar-714c1)
-// هذه القيم عامة بطبيعتها وليست أسرارًا. قيّد المفتاح من Google Cloud Console على نطاقات موقعك فقط.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 export const firebaseConfig = {
   apiKey: "AIzaSyDDGjnu_FGFcihljtshYXGZFmqttRk2eh4",
   authDomain: "midar-714c1.firebaseapp.com",

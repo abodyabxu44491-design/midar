@@ -1,7 +1,8 @@
-// تثبيت مدار كتطبيق حسب صاحبه: كل دور يثبّت تطبيقًا مستقلًا يفتح مباشرة على لوحته.
-//   المالك ← لوحة المالك، المدير ← الإدارة، المعلم ← بوابة المعلم، المحاسب ← المحاسب،
-//   ولي الأمر والزائر ← صفحة المدرسة العامة.
-// لكل تطبيق معرّف (id) مختلف، فيمكن تثبيت أكثر من تطبيق على الجهاز نفسه (مثلًا معلم هو ولي أمر أيضًا).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { PUBLIC_DIR } from "./version.js";
@@ -15,7 +16,6 @@ const COMMON = {
 };
 
 export const STAFF_ROLES = { admin: "الإدارة", teacher: "المعلم", accountant: "المحاسب" };
-// نوع التطبيق من الطلب: as=admin|teacher|accountant|staff|parent
 export const appKind = (v) => (v in STAFF_ROLES || v === "staff" || v === "parent" || v === "gate" ? v : "parent");
 
 async function schoolName(id) {
@@ -58,7 +58,6 @@ export const schoolManifest = () => async (req, res) => {
   send(res, manifestFor(appKind(String(req.query.as || "")), { school, name: await schoolName(school) }));
 };
 
-// صفحة HTML تشير لملف التطبيق المناسب لها (بدل ملف المنصة العام)
 export const withManifest = (html, href) => html
   .replace('href="/brand/site.webmanifest"', `href="${href}"`)
   .replace(/\s*<meta name="apple-mobile-web-app-title" content="[^"]*">/, "");

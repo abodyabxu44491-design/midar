@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+# Proprietary and confidential. Unauthorized copying or distribution is prohibited.
 import sys; sys.path.insert(0,'.')
 from glyph import shape
 from fontTools.pens.boundsPen import BoundsPen
@@ -35,7 +37,6 @@ def mark_inner(planet, orbit, back_orbit, cut, sat=AMBER, simple=False):
     back = f'<path d="M {CX-RX} {CY} A {RX} {RY} 0 0 1 {CX+RX} {CY}" fill="none" stroke="{back_orbit}" stroke-width="{sw}" stroke-linecap="round" {g} mask="url(#{mid})"/>'
     front_cut = f'<path d="M {CX+RX} {CY} A {RX} {RY} 0 0 1 {CX-RX} {CY}" fill="none" stroke="{cut}" stroke-width="{sw+22}" {g}/>'
     front = f'<path d="M {CX+RX} {CY} A {RX} {RY} 0 0 1 {CX-RX} {CY}" fill="none" stroke="{orbit}" stroke-width="{sw}" stroke-linecap="round" {g}/>'
-    # القمر على الجهة اليمنى العليا من المدار
     import math
     t=math.radians(-28); x=CX+RX*math.cos(t); y=CY+RY*math.sin(t)
     r=math.radians(ROT); sx=CX+(x-CX)*math.cos(r)-(y-CY)*math.sin(r); sy=CY+(x-CX)*math.sin(r)+(y-CY)*math.cos(r)
@@ -57,7 +58,6 @@ def mark_on_dark():
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="24 96 464 330"><title>مدار</title>{mark_inner(WHITE, "#5FD3CB", "#3F7F92", NAVY)}</svg>'''
 
 def lockup(dark=False):
-    # الشعار الكامل: الأيقونة يمين + كلمة مدار + MIDAR
     fg = WHITE if dark else NAVY
     sub = "#AFC0D6" if dark else "#5F6B7A"
     inner = mark_inner(WHITE, "#5FD3CB", "#3F7F92", NAVY) if dark else mark_inner(NAVY, TEAL_D, "#9FCFCB", "#FFFFFF")

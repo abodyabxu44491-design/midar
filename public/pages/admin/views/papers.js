@@ -1,4 +1,8 @@
-// الاختبارات الورقية في لوحة الإدارة: مراجعة واعتماد اختبارات المعلمين، وسياسة المدرسة وشعارها
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { examSection, examSettingsPanel } from "../../shared/js/exam/home.js";
 

@@ -1,4 +1,8 @@
-// اختبارات مصمم الاختبارات الورقية: الصلاحيات، العزل، القفل بعد الاعتماد، بنك الأسئلة، النماذج، ونموذج الإجابة
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
@@ -27,7 +31,6 @@ async function teacher(school, username, load) {
   return c;
 }
 
-// سؤال اختيار من متعدد مكتمل
 const mcq = (text, marks = 1, correctIndex = 0) => {
   const q = newQuestion("mcq", marks);
   q.text = text;
@@ -65,14 +68,12 @@ test("المحرك: المجموع، النماذج الثابتة بالبذر�
   const b1 = buildVersion(paper, 1), b2 = buildVersion(paper, 1);
   assert.deepEqual(b1.sections[0].questions.map((q) => q.id), b2.sections[0].questions.map((q) => q.id), "النموذج B ثابت في كل طباعة");
   assert.notDeepEqual(b1.sections[0].questions.map((q) => q.id), qs.map((q) => q.id), "النموذج B مختلف الترتيب");
-  // الإجابة الصحيحة في B تشير لنفس نص الخيار الصحيح رغم خلط الخيارات
   const keyB = answerKey(paper, 1);
   for (const [i, q] of b1.sections[0].questions.entries()) {
     const orig = qs.find((x) => x.id === q.id);
     const rightText = orig.options.find((o) => o.id === orig.correct[0]).text;
     assert.ok(keyB.sections[0].rows[i].answer.endsWith(rightText), `السؤال ${i + 1} في النموذج B`);
   }
-  // التوصيل: العمود الثاني لا يُطبع بترتيب الحل
   const m = newQuestion("match"); m.pairs.forEach((p, i) => { p.left = `ل${i}`; p.right = `ر${i}`; });
   const v = buildVersion({ seed: 9, content: { sections: [section("s_m", "", [m])] } }, 0);
   assert.notDeepEqual(v.sections[0].questions[0].rightOrder, m.pairs.map((p) => p.id));
@@ -120,7 +121,6 @@ test("العزل: معلم آخر ومدرسة أخرى لا يصلان للاخ
   assert.equal((await B.admin.get(`${AP}/${s.paper}/answer-key`)).status, 404);
   const list = await s.t2.get(P);
   assert.ok(!list.data.some((p) => p.id === s.paper), "لا يظهر في قائمة معلم آخر");
-  // لا يوجد أي مسار عام لأوراق الاختبارات
   assert.equal((await fetch(`${srv.base}/api/public/${A.id}/papers/${s.paper}`)).status, 404);
 });
 
@@ -134,7 +134,6 @@ test("الاعتماد يقفل الاختبار (في الخادم وفي قا�
   assert.equal(cur.data.perms.print, true);
   const edit = await s.t1.put(`${P}/${s.paper}`, { version: cur.data.version, meta: { title: "تعديل بعد الاعتماد" } });
   assert.equal(edit.status, 403);
-  // حتى لو تجاوز أحد الكود: القاعدة ترفض تغيير محتوى اختبار معتمد
   await assert.rejects(transaction({ tenantId: A.id }, (q) => q("UPDATE exam_papers SET title = 'x' WHERE id = $1", [s.paper])), /مقفل/);
   assert.equal((await s.t1.del(`${P}/${s.paper}`)).status, 403, "المعتمد لا يُحذف");
 
@@ -211,7 +210,6 @@ test("بنك الأسئلة: الملكية، المشاركة، السحب حس
   assert.equal(qp.data.question_count, 10);
   assert.equal(qp.data.computed_marks, 20);
 
-  // مسار الإدارة: ترى كل أسئلة المدرسة وإحصاءاتها وتسحب منها
   const ab = await A.admin.get(`${AP}/bank`);
   assert.equal(ab.status, 200, JSON.stringify(ab.data));
   assert.equal(ab.data.length, 5);

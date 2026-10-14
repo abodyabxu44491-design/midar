@@ -1,4 +1,8 @@
-// التحليلات: أرقام وأداء ومؤشرات تُحسب آليًا
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, empty, line, sub, stats, badge } from "../../shared/js/ui.js";
@@ -9,7 +13,6 @@ import { A } from "./common.js";
 const monthName = (ym) => new Date(`${ym}-15`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "short", year: "2-digit" });
 
 export default async function analytics() {
-  // بيانات السنة والتحليلات تُطلب معًا (الفصل الحالي يحدده الخادم)
   const firstData = api(`${A}/analytics?months=6&term_id=current`);
   const academic = await api(`${A}/academic`);
   let first = true;

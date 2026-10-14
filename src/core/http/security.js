@@ -1,10 +1,13 @@
-// طبقات الحماية العامة لكل الطلبات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import helmet from "helmet";
 import { env } from "../../config/env.js";
 import { forbidden } from "./errors.js";
 import { SEO_SLUGS } from "../seo-pages.js";
 
-// نطاقات Google المطلوبة لتحليلات Firebase (تُضاف فقط إذا فُعّلت)
 const GA = env.FIREBASE_ANALYTICS ? {
   script: ["https://www.gstatic.com", "https://www.googletagmanager.com"],
   connect: ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com",
@@ -32,15 +35,12 @@ export const securityHeaders = helmet({
   referrerPolicy: { policy: "same-origin" },
 });
 
-// كل المنصة مخفية عن محركات البحث (صفحات المدارس فيها أسماء طلاب)، عدا الصفحات التسويقية العامة
 export const INDEXABLE = new Set(["/", "/privacy", "/terms", "/robots.txt", "/sitemap.xml", ...SEO_SLUGS.map((s) => `/${s}`)]);
 export function noIndex(req, res, next) {
   if (!((req.method === "GET" || req.method === "HEAD") && INDEXABLE.has(req.path))) res.setHeader("X-Robots-Tag", "noindex, nofollow");
   next();
 }
 
-// النطاقات المسموحة: النطاق الذي وصل إليه الطلب فعلًا (req.hostname يقرأ X-Forwarded-Host خلف وكيل موثوق)،
-// ورابط المنصة، والنطاقات الإضافية في ALLOWED_ORIGINS.
 const extraOrigins = [env.PUBLIC_URL, ...String(process.env.ALLOWED_ORIGINS || "").split(",")]
   .map((o) => o && o.trim().replace(/\/$/, "")).filter(Boolean);
 export function allowedOrigins(req) {
@@ -48,7 +48,6 @@ export function allowedOrigins(req) {
   return new Set([...hosts.flatMap((h) => [`https://${h}`, `http://${h}`]), ...extraOrigins]);
 }
 
-// حماية من الطلبات المزورة (CSRF): أي طلب يغير بيانات يجب أن يأتي من نفس الموقع
 export function sameOrigin(req, res, next) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
   const origin = req.get("origin");
@@ -59,7 +58,6 @@ export function sameOrigin(req, res, next) {
   next();
 }
 
-// منع التخزين المؤقت لأي بيانات خاصة
 export function noStore(req, res, next) {
   res.setHeader("Cache-Control", "no-store");
   next();

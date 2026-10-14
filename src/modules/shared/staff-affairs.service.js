@@ -1,4 +1,8 @@
-// شؤون الموظفين: حضور يومي، وتسجيل المعلم حضوره بنفسه، وطلبات الإجازة، وخصم الغياب من الراتب، وحصص الانتظار
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { featureSettings } from "./feature-settings.service.js";
@@ -7,14 +11,12 @@ import { notify, adminUserIds } from "./notify.service.js";
 export const STATUSES = { present: "حاضر", late: "متأخر", absent: "غائب", leave: "إجازة", excused: "بعذر" };
 export const LEAVE_KINDS = { sick: "مرضية", annual: "سنوية", emergency: "اضطرارية", unpaid: "بدون راتب", official: "مهمة رسمية", other: "أخرى" };
 
-// الوقت المحلي للمدرسة (اليمن والسعودية +3)
 const ZONE = "Asia/Aden";
 export const localDay = (d = new Date()) => d.toLocaleDateString("en-CA", { timeZone: ZONE });
 const localTime = (d = new Date()) => d.toLocaleTimeString("en-GB", { timeZone: ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
 const minutes = (hhmm) => { const [h, m] = String(hhmm).split(":").map(Number); return h * 60 + m; };
 const addDays = (day, n) => { const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
-/** أيام الدراسة بين تاريخين (بلا عطل الأسبوع ولا الإجازات الرسمية) */
 export async function schoolDays(q, from, to) {
   const [cfg] = await q("SELECT days FROM timetable_settings WHERE tenant_id = app_tenant()");
   const week = cfg ? cfg.days.map(Number) : [0, 1, 2, 3, 4];
@@ -27,7 +29,6 @@ export async function schoolDays(q, from, to) {
   return out;
 }
 
-/* ---------- الحضور ---------- */
 export const markSchema = z.object({
   day: t.date,
   entries: z.array(z.object({
@@ -69,7 +70,6 @@ async function staffOfTeacher(q, teacherId) {
   return s;
 }
 
-/** المعلم يسجل حضوره وانصرافه من بوابته (إن سمحت المدرسة) */
 export async function selfCheck(q, teacherId, kind, actor) {
   const s = await featureSettings(q, "staff");
   if (!s.self_checkin) throw forbidden("تسجيل الحضور الذاتي غير مفعّل في المدرسة");
@@ -109,7 +109,6 @@ export async function myStatus(q, teacherId) {
   return { day, today: today || null, month: sum, leaves, self_checkin: s.self_checkin, work_start: s.work_start, work_end: s.work_end };
 }
 
-/** تقرير فترة لكل موظف */
 export async function report(q, from, to) {
   return q(
     `SELECT s.id AS staff_id, s.full_name, s.category,
@@ -123,7 +122,6 @@ export async function report(q, from, to) {
       WHERE s.is_active GROUP BY s.id ORDER BY s.category, s.full_name`, [from, to]);
 }
 
-/* ---------- الإجازات ---------- */
 export const leaveSchema = z.object({
   staff_id: t.optId,
   kind: z.enum(Object.keys(LEAVE_KINDS)),
@@ -180,7 +178,6 @@ export const leaves = (q, { status = null } = {}) => q(
      FROM leave_requests l JOIN staff s ON s.id = l.staff_id
     WHERE ($1::text IS NULL OR l.status = $1) ORDER BY (l.status = 'pending') DESC, l.from_day DESC LIMIT 300`, [status]);
 
-/** خصم الغياب للمسير: أيام الغياب بلا إجازة + أيام الإجازة بدون راتب، بسعر اليوم = (الأساسي + البدل) ÷ أيام العمل */
 export async function absenceDeductions(q, period) {
   const s = await featureSettings(q, "staff");
   if (!s.deduct_absence) return { map: new Map(), working_days: s.working_days };
@@ -198,7 +195,6 @@ export async function absenceDeductions(q, period) {
   return { map: out, working_days: s.working_days };
 }
 
-/* ---------- حصص الانتظار ---------- */
 export async function absentTeachers(q, day) {
   return q(
     `SELECT DISTINCT t.id AS teacher_id, t.full_name, COALESCE(a.status, 'leave') AS status
@@ -208,7 +204,6 @@ export async function absentTeachers(q, day) {
       ORDER BY t.full_name`, [day]);
 }
 
-/** حصص المعلمين الغائبين في اليوم، مع البديل المختار والمقترحين (الفارغون في الحصة نفسها، الأقل انتظارًا هذا الأسبوع أولًا) */
 export async function substitutionNeeds(q, day) {
   const dow = new Date(`${day}T00:00:00Z`).getUTCDay();
   const absent = await absentTeachers(q, day);

@@ -1,4 +1,8 @@
-// السلوك والانضباط: البنود، والتسجيل الجماعي، والدرجة، وصلاحيات المعلم، وما يراه ولي الأمر، والإيقاف، والعزل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -12,7 +16,6 @@ before(async () => {
   setTransport({ push: async () => {}, sms: async () => {} });
   A = await readySchool(srv.base, { prefix: "bh", students: 3 });
   B = await readySchool(srv.base, { prefix: "bb", students: 1 });
-  // طالب في شعبة لا يدرّسها المعلم
   const classes = (await A.admin.get("/api/admin/structure/classes")).data;
   const c3 = classes.find((c) => c.name === "الثاني - أ");
   other = (await A.admin.post("/api/admin/students", { name: "طالب من الثاني", class_id: c3.id })).data;
@@ -44,13 +47,10 @@ test("المعلم: يسجّل لطلاب فصوله فقط، ويحذف ما س
   assert.equal(ok.status, 201);
   assert.equal((await A.teacher.post("/api/teacher/behavior", { student_ids: [other.id], category_id: minus.id })).status, 403);
   assert.equal((await A.teacher.get(`/api/teacher/behavior/student/${other.id}`)).status, 403);
-  // سجل الإدارة لا يحذفه المعلم
   const adminRec = (await A.admin.get("/api/admin/behavior")).data.find((x) => x.recorded_by.includes("إدارة"));
   assert.equal((await A.teacher.del(`/api/teacher/behavior/${adminRec.id}`)).status, 403);
   assert.equal((await A.teacher.del(`/api/teacher/behavior/${ok.data.ids[0]}`)).status, 200);
-  // المعلم لا يعدّل البنود
   assert.equal((await A.teacher.post("/api/teacher/behavior/categories", { name: "بند", kind: "positive", points: 2 })).status, 404);
-  // الإدارة توقف تسجيل المعلم
   await A.admin.put("/api/admin/communication/features/behavior", { teacher_can_record: false });
   assert.equal((await A.teacher.post("/api/teacher/behavior", { student_ids: [s3.id], category_id: minus.id })).status, 403);
   await A.admin.put("/api/admin/communication/features/behavior", { teacher_can_record: true });
@@ -65,7 +65,6 @@ test("بند مستخدم لا يُحذف بل يُوقف، وبند جديد ب
   assert.equal((await A.admin.post("/api/admin/behavior/categories", { name: "قيادة الطابور الصباحي", kind: "positive", points: 7 })).status, 409);
   const future = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
   assert.equal((await A.admin.post("/api/admin/behavior", { student_ids: [A.students[0].id], category_id: add.data.id, day: future })).status, 400);
-  // بند غير مسجل بكتابة يدوية
   const manual = await A.admin.post("/api/admin/behavior", { student_ids: [A.students[0].id], kind: "negative", points: 4, title: "تأخر عن الحصة" });
   assert.equal(manual.status, 201);
 });

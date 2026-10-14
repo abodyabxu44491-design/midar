@@ -1,4 +1,8 @@
-// الصفحة الرئيسية: فاضية (الشعار فقط) أو تسويقية، حسب إعداد لوحة المالك.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, installButton, showInstallBar, toast } from "../shared/js/ui.js";
@@ -13,9 +17,8 @@ const fmt = (n) => Number(n).toLocaleString("ar", { maximumFractionDigits: 2 });
 
 async function start() {
   let site = { landing_mode: "blank" };
-  // فتح التطبيق المثبّت (أو تطبيق Google Play): شاشة البداية بمدارس هذا الجهاز بدل الصفحة التسويقية
   if (new URLSearchParams(location.search).has("app")) return launcher();
-  try { site = await api("/api/site"); } catch { /* الوضع الافتراضي */ }
+  try { site = await api("/api/site"); } catch { /* ignore */ }
   if (site.landing_mode === "marketing") {
     marketing(site);
     const want = new URLSearchParams(location.search).get("trial");
@@ -26,9 +29,6 @@ async function start() {
   startAnalytics(site.landing_mode === "marketing" ? "landing" : "home");
 }
 
-/* ======================= الصفحة الرسمية ======================= */
-// كل ما في الصفحة يأتي من لوحة المالك: العناوين، المميزات، الباقات، الأسعار، العروض، والتجربة المجانية.
-// الترتيب: رأس → واجهة → المميزات (بطاقة لكل فئة) → جرّب الآن → الباقات (كل باقة تعرض ما تضيفه فقط) → ابدأ وتواصل
 const CAT_ICONS = { "الأساس": "building", "أكاديمي": "book", "التواصل": "message", "المالية": "wallet", "الموظفون": "users", "الخدمات": "bus", "التشغيل": "sparkle", "وأيضًا": "plus" };
 
 function marketing(site) {
@@ -48,7 +48,6 @@ function marketing(site) {
       plans.length ? link("plans", "الباقات") : null, link("contact", "تواصل معنا")),
     installButton()));
 
-  // الواجهة: عنوان ووصف وزران فقط، في الوسط
   const hero = h("section", { class: "st-hero" }, h("div", { class: "in" },
     h("div", { class: "txt" },
       h("h1", {}, site.site_headline || "إدارة مدرستك كاملة في مكان واحد"),
@@ -59,7 +58,6 @@ function marketing(site) {
           : plans.length ? h("button", { class: "st-btn ghost", onclick: () => go("plans") }, "الباقات والأسعار") : null),
       trialOn ? h("p", { class: "note" }, `${days} يومًا مجانًا، بدون رسوم خلال التجربة`) : null)));
 
-  // المميزات مجمّعة حسب الفئة: عنوان الفئة ثم بطاقة لكل ميزة باسمها ووصفها
   const core = (site.features || []).filter((f) => f.kind !== "service");
   const cats = [...new Set(core.map((f) => f.category))];
   const features = h("section", { class: "st-sec", id: "features" }, h("div", { class: "in" },
@@ -69,7 +67,6 @@ function marketing(site) {
       h("div", { class: "st-feats" }, core.filter((f) => f.category === c).map((f) =>
         h("div", { class: "st-feat" }, h("b", {}, f.name), f.description ? h("p", {}, f.description) : null)))))));
 
-  // العرض التجريبي: يدخل الزائر مدرسة كاملة البيانات بضغطة، للتصفح فقط
   const demoSec = site.demo ? h("section", { class: "st-sec soft", id: "demo" }, h("div", { class: "in" },
     h("h2", {}, "شاهد مدار من الداخل"),
     h("p", { class: "sub-h" }, "مدرسة تجريبية فيها بيانات سنة كاملة. اختر الدور وتصفّح بدون تسجيل."),
@@ -77,7 +74,6 @@ function marketing(site) {
       h("button", { type: "button", class: "st-demo-card", onclick: (e) => startDemo(role, e.currentTarget) },
         h("span", { class: "ic" }, icons[icon]({ size: 22 })), h("b", {}, title), h("small", {}, text)))))) : null;
 
-  // الباقات
   const grid = h("div", { class: "st-plans" });
   const toggle = h("div", { class: "st-toggle" });
   const saving = (() => {
@@ -94,7 +90,6 @@ function marketing(site) {
     h("h2", {}, "الباقات"), h("p", { class: "sub-h" }, "رقِّ باقتك في أي وقت بدون فقدان أي بيانات."),
     toggle, grid)) : null;
 
-  // الخاتمة: التجربة والتواصل في قسم واحد، والنماذج تفتح في نافذة
   const ways = [
     wa ? h("a", { class: "way", href: wa, target: "_blank", rel: "noopener" }, icons.message({ size: 20 }), h("span", {}, h("b", {}, "واتساب"), h("small", {}, "محادثة مباشرة"))) : null,
     site.brand_phone ? h("a", { class: "way", href: `tel:${site.brand_phone}` }, icons.phone({ size: 20 }), h("span", {}, h("b", {}, "اتصال"), h("small", { class: "ltr" }, site.brand_phone))) : null,
@@ -108,7 +103,6 @@ function marketing(site) {
       trialOn ? h("button", { class: "st-btn gold", onclick: () => trialDialog(site) }, "اطلب التجربة المجانية") : null),
     h("div", { class: "ways" }, ways)));
 
-  // الأسئلة الشائعة وروابط الصفحات التعريفية: من البيانات التي يضمّنها الخادم في الصفحة (نفس ما يقرؤه جوجل)
   const faq = readJson("faq-ld")?.mainEntity?.map((q) => [q.name, q.acceptedAnswer?.text]) || [];
   const guides = readJson("seo-links") || [];
   const faqSec = faq.length ? h("section", { class: "st-sec soft", id: "faq" }, h("div", { class: "in narrow" },
@@ -128,8 +122,6 @@ function readJson(id) {
   try { return JSON.parse(document.getElementById(id)?.textContent || "null"); } catch { return null; }
 }
 
-/* ======================= شاشة بداية التطبيق ======================= */
-// مدارس هذا الجهاز (آخر ما فُتح أولًا)، وخانة لرمز المدرسة أو رابطها، ورابط للتعرف على مدار
 function launcher() {
   document.title = "مدار";
   const box = h("div", { class: "ln-list" });
@@ -165,7 +157,6 @@ function launcher() {
       h("a", { href: "/privacy" }, "الخصوصية"))));
 }
 
-// أدوار العرض التجريبي
 const DEMO_ROLES = [
   ["admin", "building", "مدير المدرسة", "لوحة المدرسة كاملة: الطلاب والحضور والدرجات والمالية والتقارير"],
   ["teacher", "clipboard", "المعلم", "تطبيق المعلم: فصوله وحصصه، الحضور، رصد الدرجات والواجبات"],
@@ -195,7 +186,6 @@ function priceBlock(p, cycle) {
     pr.promo ? [h("del", {}, fmt(pr.base)), h("span", { class: "off" }, `وفر الآن ${fmt(pr.percent)}%`)] : null);
 }
 
-// قائمة تُطوى بعد 6 مميزات مع زر لعرض الكل
 function featureList(list) {
   const ul = h("ul");
   const draw = (all) => mount(ul, (all ? list : list.slice(0, 6)).map((f) => h("li", {}, icons.check({ size: 16 }), f.name)),
@@ -204,7 +194,6 @@ function featureList(list) {
   return ul;
 }
 
-// كل باقة تعرض ما تضيفه على الباقة التي قبلها فقط، فلا تتكرر نفس القائمة في كل بطاقة
 function planCard(p, cycle, site, prev) {
   const had = new Set(prev?.features.map((f) => f.key) || []);
   const extra = prev ? p.features.filter((f) => !had.has(f.key)) : p.features;
@@ -224,7 +213,6 @@ function planCard(p, cycle, site, prev) {
       p.trial ? h("button", { class: "try", onclick: () => trialDialog(site, p) }, `أو جرّبها مجانًا ${p.trial_days} يومًا`) : null));
 }
 
-/* ======================= النماذج ======================= */
 function leadForm(site, { kind, plan = null, cycle = "yearly", onDone }) {
   const plans = site.plans || [];
   const trialPlans = plans.filter((p) => p.trial);
@@ -285,7 +273,6 @@ function leadForm(site, { kind, plan = null, cycle = "yearly", onDone }) {
     msg, send);
 }
 
-// زر الإرسال في شريط أزرار النافذة الثابت (بجانب «إغلاق»): ظاهر دائمًا ولا يغطيه شيء
 function formDialog(title, top, form) {
   const box = h("div", { class: "st-form", style: "padding:0" }, top, form);
   const send = form.querySelector(":scope > .st-btn.wide:last-child");
@@ -314,5 +301,4 @@ function subscribeDialog(site, plan, cycle) {
 }
 
 start();
-// الصفحة بلا رأس (وضع «الشعار فقط»): أيقونة تثبيت صغيرة في الزاوية، وتختفي متى ظهر رأس فيه أيقونته
 showInstallBar();

@@ -1,4 +1,8 @@
-// شؤون الموظفين (الإدارة): الحضور، الإجازات، حصص الانتظار، تحضير الدروس، التقويم
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";

@@ -1,9 +1,11 @@
-// ملف المعلم: مصدر واحد للبيانات المجمّعة (إسناد، جدول، اختبارات، واجبات، حساب، سجل نشاط).
-// المعلم كيان مركزي: كل الربط بـ teacher_id، والأسماء تُقرأ من جداولها المركزية عند كل عرض.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { notFound, badRequest, conflict } from "../../core/http/errors.js";
 import { openCredential, credentialsEnabled } from "../../core/auth/secret-box.js";
 
-/* ---------- حالة حساب الدخول ---------- */
 export const ACCOUNT_STATES = {
   inactive: "الحساب غير فعال",
   locked: "الحساب مقفل مؤقتًا",
@@ -14,11 +16,6 @@ export const ACCOUNT_STATES = {
   credentials_changed: "تم تغيير بيانات الدخول",
 };
 
-/**
- * تُحسب الحالة من أعمدة الحساب فقط، ولا حاجة لمعرفة كلمة المرور نفسها (مخزّنة مُجزّأة).
- * @param {{is_active:boolean, locked:boolean, must_change_password:boolean, last_login_at:any,
- *          password_changed_at:any, created_at:any, username_changed_at:any}} u
- */
 export function accountStatus(u) {
   if (!u.is_active) return "inactive";
   if (u.locked) return "locked";
@@ -28,21 +25,18 @@ export function accountStatus(u) {
   if (pwChanged && nameChanged) return "credentials_changed";
   if (nameChanged) return "username_changed";
   if (pwChanged) return "password_changed";
-  // ما زالت كلمة المرور المؤقتة (الأولية أو من إعادة التعيين) هي المستخدمة
   const neverUsed = !u.last_login_at || (u.password_changed_at && new Date(u.last_login_at) < new Date(u.password_changed_at));
   return neverUsed ? "not_activated" : "initial";
 }
 
-/* ---------- سجل النشاط من audit_log ---------- */
 const FIELD_LABEL = {
   full_name: "الاسم", phone: "الجوال", employee_no: "الرقم الوظيفي", national_id: "رقم الهوية", email: "البريد",
   specialty: "التخصص", department: "القسم", short_name: "الاسم المختصر", gender: "الجنس", birth_date: "تاريخ الميلاد",
   job_title: "المسمى الوظيفي", qualification: "المؤهل", hire_date: "تاريخ التعيين", employment_type: "نوع التوظيف",
   address: "العنوان", emergency_name: "اسم جهة الطوارئ", emergency_phone: "جوال الطوارئ",
 };
-const SENSITIVE = new Set(["national_id"]);   // يُذكر أنه تغيّر دون عرض القيم
+const SENSITIVE = new Set(["national_id"]);
 
-/** يحوّل صف audit_log إلى سطر مقروء (أو null إن لم يكن تغييرًا ذا معنى) */
 export function describeAudit(a, names = { class: () => "", subject: () => "" }) {
   const o = a.old_data || {}, n = a.new_data || {};
   const T = a.table_name;
@@ -72,7 +66,6 @@ export function describeAudit(a, names = { class: () => "", subject: () => "" })
   return null;
 }
 
-/* ---------- الملف الكامل ---------- */
 export async function get(q, id) {
   const [t] = await q(
     `SELECT t.id, t.full_name AS name, t.short_name, t.phone, t.employee_no, t.national_id, t.email, t.specialty, t.department,
@@ -92,12 +85,10 @@ export async function account(q, teacherId) {
        FROM users WHERE teacher_id = $1`, [teacherId]);
   if (!u) return null;
   const state = accountStatus(u);
-  // لا يُعاد أي سر: لا كلمة مرور ولا hash ولا معرّف جلسة
   return { user_id: u.id, username: u.username, is_active: u.is_active, last_login_at: u.last_login_at, created_at: u.created_at,
     password_changed_at: u.password_changed_at, username_changed_at: u.username_changed_at, locked_until: u.locked ? u.locked_until : null,
     failed_logins: u.failed_logins, state, state_label: ACCOUNT_STATES[state],
     initial_password_active: state === "not_activated" || state === "initial",
-    // متاحة للعرض فقط ما دامت النسخة المشفّرة موجودة (تُمسح من القاعدة فور تغيير كلمة المرور)، ولا تُرسل هنا أبدًا
     initial_password_available: Boolean(u.has_initial) && (state === "not_activated" || state === "initial"),
     initial_password_supported: credentialsEnabled() };
 }
@@ -116,7 +107,6 @@ export async function timetable(q, teacherId) {
       WHERE ts.teacher_id = $1 ORDER BY ts.day, ts.period`, [teacherId]);
 }
 
-// اختبارات فصوله ومواده المسندة (الاختبار مرتبط بالصف والمادة لا بالمعلم مباشرة)
 export async function exams(q, teacherId) {
   return q(
     `SELECT e.id, e.title, e.exam_date, e.max_score, e.status, c.name AS class_name, s.name AS subject_name,
@@ -157,7 +147,6 @@ export async function fullProfile(q, id) {
     summary: { subjects: subjects.size, classes: classes.size, periods_per_week: slots.length, exams: examList.length, homework: hw.length } };
 }
 
-/* ---------- الصورة ---------- */
 const MAGIC = [
   ["image/jpeg", (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff],
   ["image/png", (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))],
@@ -181,14 +170,12 @@ export async function getPhoto(q, id) {
   return r;
 }
 
-/* ---------- قواعد التكرار ---------- */
 export async function ensureUniqueEmployeeNo(q, employeeNo, exceptId = null) {
   if (!employeeNo) return;
   const [d] = await q("SELECT full_name FROM teachers WHERE employee_no = $1 AND ($2::bigint IS NULL OR id <> $2) LIMIT 1", [employeeNo, exceptId]);
   if (d) throw conflict(`الرقم الوظيفي «${employeeNo}» مستخدم للمعلم ${d.full_name}`);
 }
 
-/** تغيير اسم المستخدم من الإدارة: يمنع التكرار داخل المدرسة، ويسجل وقت التغيير، ويُنهي جلسات المعلم */
 export async function changeUsername(q, teacherId, username) {
   const [u] = await q("SELECT id, username FROM users WHERE teacher_id = $1", [teacherId]);
   if (!u) throw notFound("المعلم غير موجود");
@@ -200,10 +187,6 @@ export async function changeUsername(q, teacherId, username) {
   return { changed: true, from: u.username };
 }
 
-/**
- * بيانات الدخول الأولية للمعلم (للإدارة، بطلب صريح ويُسجَّل في سجل النشاط).
- * تعمل فقط ما دامت كلمة المرور لم تتغير: تغييرها يمسح النسخة المشفّرة تلقائيًا في القاعدة (trigger).
- */
 export async function revealInitialCredentials(q, teacherId, tenantId) {
   const [u] = await q("SELECT id, username, initial_password_enc, must_change_password FROM users WHERE teacher_id = $1", [teacherId]);
   if (!u) throw notFound("المعلم غير موجود");

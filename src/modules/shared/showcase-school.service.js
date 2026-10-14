@@ -1,10 +1,8 @@
-// مدرسة عرض كاملة: مدارس بنين أهلية في عدن (الأساسي والثانوي) أنهت عامًا دراسيًا كاملًا بفصليه.
-// كل أقسام المنصة فيها بيانات حقيقية الشكل: الهيكل والجدول، الحضور لكل يوم دراسي مع الأعذار، اختبارات الفصلين ونتائج السنة،
-// الواجبات، الرسوم والسداد بتواريخها وإشعارات التحويل، المالية (مصروفات شهرية وإيداعات وتبرعات)، الموظفون ورواتب عشرة أشهر،
-// التعاميم والتنبيهات، طلبات التسجيل للعام الجديد، وبنك أسئلة وورقة اختبار، والسلوك ودوام الموظفين والتقويم وخطط الدروس
-// والنقل والمكتبة والمخزون والعيادة والاستبيانات ومواعيد أولياء الأمور. السنة منتهية فيقدر المدير يجرب «بدء سنة جديدة» والترفيع.
-// يُبنى بخدمات المنصة نفسها حتى تطابق المدرسة ما ينتج عن الاستخدام الفعلي، مع إدخال مجمّع للبيانات الكثيرة.
-// البيانات ثابتة بالبذرة: نفس المدخلات تعطي نفس المدرسة. بلا مناسبات سياسية (الأعياد الدينية فقط).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { transaction } from "../../core/db/pool.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword, newStudentKey } from "../../core/auth/codes.js";
@@ -22,24 +20,19 @@ import * as bank from "./question-bank.service.js";
 import * as papers from "./exam-papers.service.js";
 import * as behavior from "./behavior.service.js";
 
-/* ---------- أسماء واقعية (بنين) ---------- */
 const FIRST = ["محمد", "أحمد", "علي", "عبدالله", "عبدالرحمن", "صالح", "حسين", "ياسر", "أيمن", "وضاح", "أكرم", "هيثم", "عمار", "نبيل",
   "فؤاد", "جمال", "مراد", "شهاب", "بسام", "رشاد", "عادل", "سامي", "ماجد", "مجاهد", "زكريا", "إبراهيم", "يوسف", "خالد", "أسامة", "عمرو",
   "طارق", "عصام", "أنور", "معاذ", "براء", "أنس", "ريان", "عبدالملك", "عبدالسلام", "عبدالكريم", "صقر", "منير", "نشوان", "أوس",
   "حمزة", "عبدالرحيم", "مصطفى", "يحيى", "فارس", "بلال", "عبدالعزيز", "محمود", "سليم", "قيس", "مهيب", "وسيم", "رامي", "ضياء", "هاشم", "أمجد"];
 const FATHER = ["محمد", "أحمد", "علي", "عبدالله", "صالح", "حسن", "حسين", "عبده", "قاسم", "ناجي", "سعيد", "عبدالرحمن", "يحيى", "عبدالوهاب",
   "فضل", "ناصر", "مقبل", "سيف", "عبدالكريم", "عبدالجليل", "منصور", "عبدالقادر", "إسماعيل", "عبدالرزاق", "فيصل", "أمين", "شرف", "هادي", "عوض", "سالم"];
-// عائلات منتشرة في عدن والجنوب وتعز
 const FAMILY = ["باوزير", "العمودي", "بن بريك", "باعباد", "الحضرمي", "اليافعي", "العولقي", "الكثيري", "باشراحيل", "بافضل", "بامطرف",
   "الشعيبي", "الردفاني", "الضالعي", "الحالمي", "الصبيحي", "العدني", "الجعدي", "السقاف", "العطاس", "باسليم", "الحداد", "العريقي",
   "المخلافي", "الشرجبي", "الأغبري", "الحكيمي", "القدسي", "الصبري", "العبسي", "الذبحاني", "المقطري", "الشميري", "البيحاني", "الهاشمي",
   "بازرعة", "باحميش", "لقمان", "الجفري", "النقيب"];
-// جوال يمني: 9 أرقام تبدأ بـ 77 أو 73 أو 71 أو 70 أو 78. بعض أولياء الأمور مغتربون في السعودية (05…)
 const PREFIX = ["77", "77", "73", "71", "70", "78"];
-// الأعياد (تقريبية بالتقويم الميلادي) للسنة الدراسية حسب سنة نهايتها
 const EIDS = { 2026: { fitr: "2026-03-20", adha: "2026-05-27" }, 2027: { fitr: "2027-03-10", adha: "2027-05-16" }, 2028: { fitr: "2028-02-27", adha: "2028-05-05" } };
 
-// مولّد أرقام ثابت بالبذرة (mulberry32)
 function rng(seed) {
   let a = seed >>> 0;
   return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -49,10 +42,6 @@ const D = (s) => new Date(`${s}T00:00:00Z`);
 const addDays = (d, n) => { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; };
 const monthEnd = (y, m) => iso(new Date(Date.UTC(y, m + 1, 0)));   // m: 0..11
 
-/**
- * يبني المدرسة كاملة داخل مدرسة موجودة فارغة (أنشأها createTenant للتو).
- * @returns ملخص الأرقام وحسابات عيّنة للدخول
- */
 export async function buildShowcase(tid, { actor = "إعداد مدرسة العرض", ip = null, perSection = 24, seed = 2026, progress = () => {} } = {}) {
   const R = rng(seed);
   const pick = (arr) => arr[Math.floor(R() * arr.length)];
@@ -61,7 +50,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
   const phone = () => `${pick(PREFIX)}${String(Math.floor(R() * 1e7)).padStart(7, "0")}`;
   const saudiPhone = () => `05${String(Math.floor(R() * 1e8)).padStart(8, "0")}`;
   const today = new Date(`${iso(new Date())}T00:00:00Z`);
-  // آخر سنة دراسية مكتملة: تبدأ في سبتمبر وتنتهي في يونيو
   const y0 = today.getUTCMonth() >= 6 ? today.getUTCFullYear() - 1 : today.getUTCFullYear() - 2;
   const yearStart = `${y0}-09-06`, yearEnd = `${y0 + 1}-06-11`;
   const T1 = { start: `${y0}-09-06`, end: `${y0 + 1}-01-15` }, T2 = { start: `${y0 + 1}-02-01`, end: `${y0 + 1}-06-11` };
@@ -72,19 +60,16 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     const out = {};
 
     progress(3, 100, "الهيكل والسنة الدراسية");
-    /* 1) ملف المدرسة والهيكل (اليمن: الأول… التاسع ثم أول ثانوي، شعبتان لكل صف) */
     await q(`INSERT INTO school_profile (tenant_id, school_type, gender, country, city, address, email, phone, template)
              VALUES (app_tenant(), 'private', 'boys', 'اليمن', 'عدن', 'خور مكسر، شارع الجامعة', 'info@alrowad-aden.edu.ye', '02234567', 'full')
              ON CONFLICT (tenant_id) DO UPDATE SET school_type = 'private', gender = 'boys', country = EXCLUDED.country, city = EXCLUDED.city,
                address = EXCLUDED.address, email = EXCLUDED.email, phone = EXCLUDED.phone, template = 'full'`);
-    await S.applyCountry(q, "YE");   // رمز واتساب 967 والريال اليمني
+    await S.applyCountry(q, "YE");
     await S.setSectionsMode(q, true);
     out.structure = await S.applyTemplate(q, { template: "full", sections_per_grade: 2, naming: "arabic", grade_set: "yemen" });
-    // كل الأقسام مفعّلة للعرض (التبرعات موقوفة افتراضيًا في المدارس الجديدة)
     await q("INSERT INTO school_modules (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
     await q("UPDATE school_modules SET donations = true, payroll = true, finance = true, transfers = true WHERE tenant_id = app_tenant()");
 
-    // السنة: فصلان بينهما إجازة منتصف العام، والسنة منتهية (يجرّب المدير «بدء سنة جديدة» والترفيع)
     await academic.configureYear(q, { name: `${y0}/${y0 + 1}`, start_date: yearStart, end_date: yearEnd, terms: 2 });
     const [year] = await q("SELECT id FROM academic_years WHERE is_current");
     const terms = await q("SELECT id, ordinal FROM terms WHERE year_id = $1 ORDER BY ordinal", [year.id]);
@@ -111,7 +96,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
                                 FROM subjects s JOIN subject_grades sg ON sg.subject_id = s.id WHERE s.is_active GROUP BY s.id ORDER BY s.sort_order, s.id`);
 
     progress(8, 100, "المعلمون والموظفون");
-    /* 2) المعلمون: لكل مادة ومرحلة معلمون متخصصون بنصاب لا يتجاوز 20 حصة أسبوعيًا */
     const pairs = [];
     for (const c of classes) for (const s of subjects) if (s.grades.map(Number).includes(Number(c.grade_id))) pairs.push({ c, s });
     const usedNames = new Set();
@@ -161,13 +145,11 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       [assignments.map((a) => a.t.id), assignments.map((a) => a.class_id), assignments.map((a) => a.subject_id)]);
     out.teachers = teachers.length;
 
-    // المعلمون صاروا موظفين تلقائيًا (مشغّل القاعدة): رواتبهم حسب المرحلة والخبرة، والدوام الجزئي أقل
     const tsal = teachers.map((t) => ({ id: t.id, base: (t.stage === "secondary" ? 190000 : t.stage === "middle" ? 175000 : 160000) + between(0, 6) * 5000 }));
     await q(`UPDATE staff s SET base_salary = x.b * CASE WHEN t.employment_type = 'part_time' THEN 0.6 ELSE 1 END, allowance = 20000,
                pay_method = 'transfer', account_number = lpad((3000000000 + s.id * 7919)::text, 10, '0')
                FROM unnest($1::bigint[], $2::numeric[]) AS x(tid, b) JOIN teachers t ON t.id = x.tid WHERE s.teacher_id = x.tid`,
       [tsal.map((x) => x.id), tsal.map((x) => x.base)]);
-    // بقية الموظفين بأنواعهم
     const STAFF = [
       ["admin", "وكيل المدرسة", 260000, 40000], ["admin", "سكرتير المدرسة", 140000, 15000], ["admin", "أمين المكتبة", 120000, 10000],
       ["accountant", "المحاسب", 200000, 20000], ["supervisor", "المشرف الاجتماعي", 150000, 15000], ["supervisor", "مشرف الأنشطة", 140000, 15000],
@@ -184,7 +166,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
     out.staff = teachers.length + STAFF.length;
 
-    // حساب المحاسب (بوابة المحاسب) بصلاحيات كاملة
     const accPassword = newTempPassword();
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, initial_password_enc,
                can_approve_finance, can_manage_payroll, can_manage_accounts)
@@ -192,7 +173,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       [await hashPassword(accPassword), sealCredential(accPassword, tid)]);
 
     progress(12, 100, "الجدول الدراسي");
-    /* 3) الجدول الدراسي: مولّد المنصة نفسه، ثم إكمال ما عجز عنه، ثم حفظ مجمّع */
     const draft = await gen.generate(q, { replace: true });
     fillGaps(draft.slots, pairs, assignments, draft.settings);
     const rooms = new Map(classes.map((c, i) => [Number(c.id), `قاعة ${101 + i}`]));
@@ -203,7 +183,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     out.periods = draft.slots.length;
 
     progress(15, 100, "الطلاب وأولياء الأمور");
-    /* 4) الطلاب: أعمار مناسبة، إخوة بجوال ولي أمر واحد، وبعض أولياء الأمور مغتربون بجوال سعودي */
     const students = [];
     const keys = new Set();
     let no = 1;
@@ -239,7 +218,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     const byClass = new Map();
     for (const s of students) { if (!byClass.has(Number(s.class_id))) byClass.set(Number(s.class_id), []); byClass.get(Number(s.class_id)).push(s); }
 
-    /* 5) الحضور لكل يوم دراسي في الفصلين (بلا الإجازات)، مع أسباب الغياب وأعذار أولياء الأمور */
     const REASONS = ["مراجعة طبية", "ظرف عائلي", "مرض", "سفر مع الأسرة", "موعد في المستشفى"];
     const PARENT = ["كان مريضًا ومعه تقرير طبي", "سافرنا لظرف عائلي طارئ", "موعد عند الطبيب", "حمّى منذ الأمس"];
     const off = new Set();
@@ -250,7 +228,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     let attRows = 0;
     for (const [di, day] of studyDays.entries()) {
       const rows = { id: [], st: [], ex: [], by: [], pe: [], ps: [] };
-      const lateInYear = di > studyDays.length - 8;   // آخر أيام السنة: أعذار ما زالت بانتظار المراجعة
+      const lateInYear = di > studyDays.length - 8;
       for (const s of students) {
         const r = R();
         const pa = s.absentProne ? 0.13 : 0.03;
@@ -274,7 +252,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     out.school_days = studyDays.length; out.attendance = attRows;
 
     progress(40, 100, "الاختبارات والدرجات");
-    /* 6) الاختبارات: شهريان ونهائي لكل مادة في كل شعبة وفي كل فصل (20 + 20 + 60 = 100)، منشورة بدرجاتها */
     const PLAN = [
       [term1, "اختبار الشهر الأول", 20, `${y0}-10-20`], [term1, "اختبار الشهر الثاني", 20, `${y0}-11-24`], [term1, "الاختبار النهائي — الفصل الأول", 60, `${y0 + 1}-01-08`],
       [term2, "اختبار الشهر الأول", 20, `${y0 + 1}-03-02`], [term2, "اختبار الشهر الثاني", 20, `${y0 + 1}-04-20`], [term2, "الاختبار النهائي — الفصل الثاني", 60, `${y0 + 1}-06-02`],
@@ -289,7 +266,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       const tName = new Map(assignments.map((a) => [`${a.class_id}:${a.subject_id}`, a.t.name]));
       for (const e of made) {
         for (const k of byClass.get(Number(e.class_id)) || []) {
-          // الفصل الثاني أفضل قليلًا لمعظم الطلاب (تحسّن عبر السنة)
           const lvl = Math.min(0.99, k.ability + (term === term2 ? 0.03 : 0) + (R() - 0.5) * 0.22);
           sc.e.push(e.id); sc.s.push(k.id); sc.v.push(Math.max(0, Math.min(max, Math.round(lvl * max * 2) / 2)));
           sc.by.push(tName.get(`${e.class_id}:${e.subject_id}`) || "المعلم");
@@ -306,7 +282,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     out.exams = exams; out.scores = scoreRows;
 
     progress(56, 100, "الواجبات");
-    /* 7) الواجبات: 4 في كل فصل لمادتين في كل شعبة، مع التسليم */
     let hw = 0;
     const HW = ["حل تمارين الدرس", "مراجعة الوحدة", "بحث قصير", "ورقة عمل", "تلخيص الدرس", "حل أسئلة الكتاب", "مشروع صغير"];
     for (const c of classes) {
@@ -327,7 +302,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     out.homework = hw;
 
     progress(60, 100, "الرسوم والسداد");
-    /* 8) الرسوم: فاتورة لكل فصل دراسي، وسداد بتاريخه (نقدًا أو تحويلًا أو محفظة)، وبقايا غير مسددة في الفصل الثاني */
     await ledger.ensureDefaults(q);
     await q("UPDATE finance_accounts SET name = 'الصندوق النقدي', low_balance = 500000 WHERE kind = 'cash'");
     await q("UPDATE finance_accounts SET name = 'بنك الكريمي — حساب المدرسة' WHERE kind = 'bank'");
@@ -358,7 +332,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         const key = `showcase-${tid}-${ti}-${i}`;
         if (full) {
           paid++;
-          if (chance(0.3)) {   // على دفعتين
+          if (chance(0.3)) {
             await finance.recordPayment(q, { invoiceId: inv.id, amount: Math.round(inv.amount / 2), method: method(), note: "الدفعة الأولى", idempotencyKey: `${key}-a`, actor: "المحاسب", paidOn: payDay(term, false) });
             await finance.recordPayment(q, { invoiceId: inv.id, amount: inv.amount - Math.round(inv.amount / 2), method: method(), note: "الدفعة الثانية", idempotencyKey: `${key}-b`, actor: "المحاسب", paidOn: payDay(term, true) });
           } else {
@@ -374,7 +348,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
     out.invoices = inv1.length + inv2.length; out.paid = paid; out.partial = partial;
 
-    // إشعارات تحويل من أولياء الأمور: 4 بانتظار مراجعة المحاسب، وواحد مرفوض
     const byId = new Map(students.map((s) => [Number(s.id), s]));
     const [payAcc] = await q("SELECT id FROM payment_accounts ORDER BY id LIMIT 1");
     let claims = 0;
@@ -392,9 +365,8 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     out.claims = claims;
 
     progress(72, 100, "المالية والمصروفات");
-    /* 9) المالية: مصروفات تشغيل شهرية، وإيداع النقد في البنك، وتبرعات، وسحبات بانتظار الاعتماد */
     const months = [];
-    for (let m = 8; m <= 17; m++) months.push({ y: y0 + Math.floor(m / 12), m: m % 12 });   // سبتمبر ← يونيو
+    for (let m = 8; m <= 17; m++) months.push({ y: y0 + Math.floor(m / 12), m: m % 12 });
     const EXP = [
       ["rent", "إيجار مبنى المدرسة", 1800000, "transfer", "مالك المبنى"],
       ["utilities", "فاتورة الكهرباء والمياه", 700000, "cash", "مؤسسة الكهرباء"],
@@ -411,7 +383,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
           categoryCode: code, sourceType: "expense", actor: "المحاسب" });
         expenses++;
       }
-      if ([8, 1].includes(m)) {   // بداية كل فصل: قرطاسية وكتب
+      if ([8, 1].includes(m)) {
         await ledger.addSystemEntry(q, { direction: "expense", amount: 2600000, method: "cash", occurredOn: `${y}-${String(m + 1).padStart(2, "0")}-02`,
           reason: "قرطاسية ومستلزمات بداية الفصل", beneficiary: "مكتبة عدن", categoryCode: "supplies", sourceType: "expense", actor: "المحاسب" });
         expenses++;
@@ -421,8 +393,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
           reason: pick(["صيانة المكيفات", "صيانة دورات المياه", "إصلاح نوافذ الفصول", "صيانة الباص"]), beneficiary: "ورشة الصيانة", categoryCode: "maintenance", sourceType: "expense", actor: "المحاسب" });
         expenses++;
       }
-      // إيداع النقد الزائد في البنك نهاية كل شهر، ويبقى في الصندوق احتياطي لمصروفات الأشهر القادمة
-      // الرصيد حتى نهاية الشهر (الدفعات مسجلة بتواريخها لكل السنة، فالرصيد الكلي لا يصلح هنا)
       const [{ b }] = await q(
         `SELECT a.opening_balance + COALESCE(SUM(CASE WHEN e.direction = 'income' THEN e.amount ELSE -e.amount END), 0) AS b
            FROM finance_accounts a LEFT JOIN finance_entries e ON e.account_id = a.id AND e.status = 'approved' AND e.occurred_on <= $2
@@ -433,7 +403,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
     await ledger.addSystemEntry(q, { direction: "expense", amount: 950000, method: "cash", occurredOn: `${y0 + 1}-04-15`, reason: "الرحلة المدرسية والحفل الختامي",
       beneficiary: "لجنة الأنشطة", categoryCode: "activities_expense", sourceType: "expense", actor: "المحاسب" });
-    // مصروفان بانتظار اعتماد المدير (مثال على دورة الاعتماد)
     const cats = Object.fromEntries((await q("SELECT code, id FROM finance_categories WHERE code IS NOT NULL")).map((c) => [c.code, c.id]));
     for (const [reason, amount] of [["شراء جهاز عرض للمختبر", 420000], ["سلفة لشراء أدوات رياضية", 160000]]) {
       await ledger.addEntry(q, { direction: "expense", amount, account_id: cashAcc.id, category_id: cats.other_expense, occurred_on: `${y0 + 1}-06-09`,
@@ -448,10 +417,9 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     out.expenses = expenses; out.donations = DON.length;
 
     progress(80, 100, "رواتب عشرة أشهر");
-    /* 10) الرواتب: مسير لكل شهر من سبتمبر إلى يونيو، معتمد ومصروف نهاية الشهر */
     for (const [i, { y, m }] of months.entries()) {
       const run = await payroll.createRun(q, { period: `${y}-${String(m + 1).padStart(2, "0")}-01` }, "المحاسب");
-      if (i % 3 === 1) {   // مكافآت وخصومات في بعض الأشهر
+      if (i % 3 === 1) {
         const items = await payroll.runItems(q, run.id);
         for (const it of items.filter(() => chance(0.08))) {
           await payroll.updateItem(q, run.id, it.id, { allowances: Number(it.allowances), bonus: chance(0.6) ? 20000 : 0, deductions: chance(0.4) ? 10000 : 0, advances: 0, note: null });
@@ -464,7 +432,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     out.payroll_months = months.length;
 
     progress(91, 100, "التعاميم والتنبيهات والتسجيل");
-    /* 11) التعاميم والتنبيهات */
     const ANN = [
       [`${y0}-09-04`, "بداية العام الدراسي", "نرحب بأبنائنا الطلاب في العام الدراسي الجديد، ونتمنى لهم عامًا حافلًا بالتميز."],
       [`${y0}-09-20`, "الزي المدرسي", "نذكّر بالالتزام بالزي المدرسي الرسمي والحضور قبل الساعة 7:30 صباحًا."],
@@ -488,7 +455,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       VALUES (app_tenant(), $1, 'attendance', 'warning', 'تكرار الغياب', 'نأمل متابعة انتظام الطالب في الحضور والتواصل مع المشرف الاجتماعي.', true, 'المشرف الاجتماعي', $2::date, CASE WHEN $3 THEN $2::date + 2 ELSE NULL END)`,
       [s.id, iso(addDays(D(T2.start), 20 + i * 5)), i % 2 === 0]);
 
-    // طلبات التسجيل للعام القادم (من صفحة المدرسة)
     const ADM = [["الأول", 6], ["الأول", 6], ["الأول", 6], ["الرابع", 9], ["السابع", 12], ["أول ثانوي", 15], ["الأول", 6], ["الخامس", 10]];
     for (const [i, [grade, age]] of ADM.entries()) {
       const fam = `${pick(FATHER)} ${pick(FATHER)} ${pick(FAMILY)}`;
@@ -498,12 +464,10 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
          i === 3 ? "منتقل من مدرسة حكومية" : null, i < 5 ? "new" : "contacted", `${y0 + 1}-06-${String(12 + i).padStart(2, "0")}`]);
     }
 
-    // الطلاب المنتقلون خلال السنة (تبقى سجلاتهم)
     for (const s of students.filter(() => chance(0.01)).slice(0, 5)) {
       await q("UPDATE students SET status = 'transferred', status_note = 'انتقل مع أسرته إلى مدينة أخرى' WHERE id = $1", [s.id]);
     }
 
-    /* 12) بنك الأسئلة وورقة اختبار (رياضيات السابع) */
     const math = subjects.find((x) => x.name === "الرياضيات");
     const seventh = classes.find((c) => c.grade_name === "السابع");
     const mathT = math && seventh && assignments.find((a) => Number(a.class_id) === Number(seventh.id) && Number(a.subject_id) === Number(math.id))?.t;
@@ -535,12 +499,10 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
 
     progress(94, 100, "الميزات: السلوك والخدمات والاستبيانات");
-    /* 14) الميزات الإضافية: السلوك، الموظفون والإجازات، التقويم، خطط الدروس، النقل، المكتبة، المخزون، العيادة، الاستبيانات، المواعيد */
     const staffRows = await q("SELECT id, full_name, category FROM staff ORDER BY id");
     const sample = (arr, n) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); };
     const term2Days = studyDays.filter((d) => d >= T2.start);
 
-    // السلوك: تصنيفات المنصة الافتراضية ثم سجلات على مدى الفصل الثاني (المتميزون أكثر نقاطًا إيجابية)
     const bcats = await behavior.categories(q);
     const pos = bcats.filter((c) => c.kind === "positive"), neg = bcats.filter((c) => c.kind === "negative");
     const tOf = new Map(assignments.map((a) => [Number(a.class_id), a.t]));
@@ -562,7 +524,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       [bh.st, bh.cat, bh.kind, bh.pts, bh.title, bh.day, bh.tch, bh.by, term2.id]);
     out.behavior_records = bh.st.length;
 
-    // دوام الموظفين في آخر شهر من السنة + طلبات إجازة (معتمدة ومرفوضة)
     const lastMonth = studyDays.filter((d) => d >= `${y0 + 1}-05-01`);
     const sa = { st: [], day: [], status: [], late: [], cin: [] };
     for (const m of staffRows) for (const d of lastMonth) {
@@ -586,7 +547,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         [m.id, kind, from, i % 2, reason, status, m.full_name, status === "rejected" ? "فترة اختبارات، يمكن تأجيلها للإجازة" : null]);
     }
 
-    // التقويم المدرسي
     const EV = [[`${y0}-10-15`, `${y0}-10-15`, "يوم المعلم", "activity", "all", "تكريم المعلمين في الطابور الصباحي"],
       [`${y0}-11-06`, `${y0}-11-06`, "اجتماع أولياء الأمور", "meeting", "parents", "قاعة المدرسة الساعة 4 عصرًا"],
       [`${y0}-12-10`, `${y0}-12-11`, "المعرض العلمي", "activity", "all", "مشاريع طلاب المرحلة الثانوية"],
@@ -600,7 +560,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         [title, kind, a, b, aud, desc]);
     }
 
-    // خطط الدروس: أسبوعان لعدد من المعلمين (معتمدة ومقدمة)
     for (const [i, a] of sample(assignments, 12).entries()) {
       const wk = iso(addDays(D(T2.start), 7 * (i % 4)));
       await q(`INSERT INTO lesson_plans (tenant_id, teacher_id, class_id, subject_id, week_start, topic, objectives, activities, assessment, homework, status, reviewed_by, reviewed_at)
@@ -609,7 +568,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
          "عصف ذهني، عمل في مجموعات، حل تمارين الكتاب", "أسئلة شفهية وورقة عمل قصيرة", "تمارين صفحة 54", i % 3 ? "approved" : "submitted"]);
     }
 
-    // النقل: ثلاث حافلات بسائقيها وركابها
     const drivers = staffRows.filter((m) => m.category === "driver");
     const ROUTES = [["خط المنصورة", "المنصورة — الشيخ عثمان — خور مكسر", ["جولة كالتكس", "سوق المنصورة", "الشيخ عثمان"]],
       ["خط كريتر", "كريتر — المعلا — خور مكسر", ["ساحة العروض", "المعلا الرئيسي", "حافون"]],
@@ -629,7 +587,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
     out.transport = { buses: ROUTES.length, riders };
 
-    // المكتبة: كتب وإعارات (أغلبها مُرجعة)
     const BOOKS = [["قصص الأنبياء", "ابن كثير", "دينية"], ["رياض الصالحين", "النووي", "دينية"], ["كليلة ودمنة", "ابن المقفع", "أدب"],
       ["الأيام", "طه حسين", "أدب"], ["مختارات من الشعر العربي", null, "أدب"], ["موسوعة العلوم المصورة", null, "علوم"],
       ["أطلس العالم", null, "جغرافيا"], ["تاريخ اليمن", null, "تاريخ"], ["المعجم الوسيط", "مجمع اللغة العربية", "مراجع"],
@@ -651,7 +608,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
     out.library = { books: BOOKS.length, loans };
 
-    // المخزون والعهد
     const ITEMS = [["أقلام سبورة", "قرطاسية", "علبة", 40, 10], ["ورق تصوير A4", "قرطاسية", "كرتون", 25, 5], ["طباشير ملون", "قرطاسية", "علبة", 30, 8],
       ["جهاز عرض (بروجكتر)", "أجهزة", "جهاز", 6, 1], ["حاسوب محمول", "أجهزة", "جهاز", 10, 2], ["كرات قدم", "رياضة", "قطعة", 12, 4],
       ["منظفات", "نظافة", "لتر", 60, 20], ["كراسي طلاب", "أثاث", "قطعة", 40, 10], ["حقيبة إسعافات أولية", "العيادة", "حقيبة", 8, 2]];
@@ -670,7 +626,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
       await q("UPDATE inventory_items SET quantity = $2 WHERE id = $1", [it.id, bal]);
     }
 
-    // العيادة: ملفات صحية لبعض الطلاب وزيارات
     const BLOOD = ["A+", "O+", "B+", "O-", "AB+", "A-"];
     for (const st of sample(students, 40)) {
       await q(`INSERT INTO health_profiles (tenant_id, student_id, blood_type, allergies, chronic, emergency_phone, updated_by) VALUES (app_tenant(), $1, $2, $3, $4, $5, 'ممرض المدرسة')`,
@@ -687,7 +642,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         [st.id, pick(term2Days), complaint, action, hot ? 38 + between(0, 9) / 10 : 36.8, hot && chance(0.7)]);
     }
 
-    // استبيان رضا أولياء الأمور (مغلق بنتائجه) واستبيان المنسوبين
     const SQ = [{ id: "q_rate01", type: "rating", text: "ما تقييمك العام للمدرسة؟", required: true },
       { id: "q_comm01", type: "choice", text: "أفضل وسيلة للتواصل معكم؟", required: true, options: ["إشعارات التطبيق", "واتساب", "رسالة نصية", "اتصال"] },
       { id: "q_bus001", type: "yesno", text: "هل أنتم راضون عن خدمة النقل؟", required: false },
@@ -710,7 +664,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
         { id: "q_need01", type: "text", text: "ما الذي تحتاجه لتطوير أدائك؟", required: false }])]);
     out.survey_responses = respondents.length;
 
-    // مواعيد أولياء الأمور: فترات لمعلمين في أسبوع اجتماع نهاية العام، بعضها محجوز
     let booked = 0;
     for (const t of sample(teachers, 4)) {
       for (let k = 0; k < 4; k++) {
@@ -726,7 +679,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     }
     out.meetings_booked = booked;
 
-    /* 13) صفحة المدرسة العامة وقوالب الرسائل */
     await q(`UPDATE school_public_settings SET show_classes = true, show_teachers = true, show_announcements = true, show_timetable = true,
                show_contact = true, show_admissions = true,
                about = 'مدارس أهلية للبنين في عدن تضم المرحلتين الأساسية والثانوية، بكادر تعليمي متخصص وبيئة تعليمية محفزة، ونقل مدرسي لأحياء المدينة.'
@@ -744,10 +696,6 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
   });
 }
 
-/**
- * إكمال ما عجز عنه المولّد: كل حصة ناقصة توضع في وقت فراغ الشعبة والمعلم،
- * وإلا تُبادل مع حصة أخرى في الشعبة يمكن نقلها لوقت فارغ (تبديل واحد يكفي عادة).
- */
 function fillGaps(slots, pairs, assignments, settings) {
   const teacherOf = new Map(assignments.map((a) => [`${a.class_id}:${a.subject_id}`, Number(a.t.id)]));
   const cell = new Map(slots.map((s) => [`${s.class_id}:${s.day}:${s.period}`, s]));

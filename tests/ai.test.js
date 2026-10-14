@@ -1,4 +1,8 @@
-// المساعد الذكي: حلقة الأدوات بعميل بديل (بدون شبكة)، عزل المدارس، أخطاء المدخلات، السجل، والإيقاف وعدم الجاهزية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, readySchool, endPool } from "./helpers.js";
@@ -7,7 +11,6 @@ import { setAiClient, _tools } from "../src/modules/shared/ai.service.js";
 
 let srv, A, B, requests;
 
-// عميل بديل: الجولة الأولى يطلب أدوات، والثانية يجيب بنص يتضمن ما رجع من الأدوات
 function fakeClient(plan) {
   requests = [];
   return { beta: { messages: { create: async (body) => {
@@ -52,14 +55,12 @@ test("حلقة الأدوات: ينفذ الأدوات داخل المدرسة �
   assert.equal(r.data.answer, "في المدرسة 3 طلاب.");
   assert.deepEqual(r.data.tools.sort(), ["attendance_report", "drop_tables", "school_overview", "student_lookup"]);
 
-  // شكل الطلب: النموذج، التخزين المؤقت، التفكير، الأدوات، والسياق
   const first = requests[0];
   assert.equal(first.model, "claude-opus-5-5");
   assert.deepEqual(first.cache_control, { type: "ephemeral" });
   assert.deepEqual(first.thinking, { type: "adaptive" });
   assert.equal(first.tools.length, _tools.TOOLS.length);
   assert.match(first.messages[0].content[0].text, /تاريخ اليوم/);
-  // الجولة الثانية تعيد محتوى المساعد كما هو (بما فيه كتلة التفكير) ثم كل النتائج في رسالة واحدة
   assert.equal(requests[1].messages[1].content[0].type, "thinking");
   assert.equal(seen.length, 4);
   const byId = Object.fromEntries(seen.map((x) => [x.tool_use_id, x]));
@@ -72,7 +73,6 @@ test("حلقة الأدوات: ينفذ الأدوات داخل المدرسة �
   assert.equal(byId.t3.is_error, true);
   assert.equal(byId.t4.is_error, true);
 
-  // السجل
   const log = (await A.admin.get("/api/admin/ai")).data;
   assert.equal(log.ready, true);
   assert.equal(log.recent[0].question, "كم عدد الطلاب؟");

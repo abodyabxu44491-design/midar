@@ -1,4 +1,8 @@
-// طلب تجربة المنصة من الصفحة التسويقية (يصل إلى لوحة المالك)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
@@ -16,17 +20,12 @@ const leadSchema = z.object({
   note: t.optText(1000),
   kind: z.enum(["trial", "subscription", "contact"]).default("trial"),
   plan_id: z.union([z.coerce.number().int().positive(), z.literal(""), z.null()]).optional().transform((v) => v || null),
-  // مدة الاشتراك: تقبل غيابها أو قيمة فارغة أو null (التجربة والتواصل ليس فيهما مدة)،
-  // وتُحسم بعد التحقق حسب نوع الطلب (انظر normalize أدناه) — لا تُرفض ولا تُخمَّن
   billing_cycle: z.union([z.enum(["monthly", "yearly"]), z.literal(""), z.null()]).optional(),
   months: z.union([z.coerce.number().int().min(1).max(36), z.literal(""), z.null()]).optional().transform((v) => v || null),
   try_plan: z.boolean().nullable().optional().transform((v) => v ?? true),
   addon_keys: z.array(z.string().max(40)).max(30).nullable().optional().transform((v) => v ?? []),
 });
 
-// توحيد القيم حسب نوع الطلب (نفس القيم المسموحة في قاعدة البيانات):
-//   اشتراك: المدة شهري أو سنوي، والافتراضي سنوي إن لم يُختر شيء
-//   تجربة/تواصل: لا مدة ولا عدد أشهر ولا إضافات (مجانية أو استفسار)
 function normalize(b) {
   if (b.kind === "subscription") return { ...b, billing_cycle: b.billing_cycle || "yearly" };
   return { ...b, billing_cycle: null, months: null, addon_keys: b.kind === "contact" ? [] : b.addon_keys,

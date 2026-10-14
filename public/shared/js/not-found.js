@@ -1,3 +1,8 @@
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, $, mount } from "./dom.js";
 import { brandLogo, footer } from "./ui.js";
 mount($("#app"),

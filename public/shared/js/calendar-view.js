@@ -1,4 +1,8 @@
-// التقويم المدرسي: شبكة شهر على الشاشات الكبيرة، وقائمة مرتبة دائمًا (وهي وحدها على الجوال)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "./dom.js";
 import { btn, empty, sub, notice } from "./ui.js";
 
@@ -8,7 +12,6 @@ const iso = (d) => d.toISOString().slice(0, 10);
 const KIND_LABEL = { holiday: "إجازة", exam: "اختبار", term: "الفصل الدراسي", event: "فعالية", meeting: "اجتماع", activity: "نشاط", trip: "رحلة", deadline: "موعد نهائي", other: "أخرى" };
 export const kindLabel = (k) => KIND_LABEL[k] || "";
 
-/** قائمة عناصر (تُستخدم أيضًا في ملف الطالب) */
 export function eventList(items, { onOpen } = {}) {
   if (!items.length) return empty("لا توجد مناسبات في هذه الفترة.");
   return h("div", { class: "cal-list" }, items.map((e) => {

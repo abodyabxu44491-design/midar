@@ -1,6 +1,8 @@
-// رقم إصدار المنصة: رقم الإصدار في package.json + بصمة كل ملفات الواجهة.
-// أي تغيير في أي ملف (JS أو CSS أو صورة) ينتج بصمة جديدة تلقائيًا، فلا يحتاج أحد لرفع رقم يدويًا.
-// الخادم وسكربت بناء Firebase يحسبانها بالخوارزمية نفسها من الملفات نفسها، فتتطابق دائمًا.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -30,7 +32,7 @@ export function computeBuildHash(dir = PUBLIC_DIR) {
 }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-export const APP_RELEASE = pkg.version;              // الإصدار المعلن (مثل 2.1.0)
-export const BUILD_HASH = computeBuildHash();        // بصمة الملفات (تتغير مع أي تعديل)
+export const APP_RELEASE = pkg.version;
+export const BUILD_HASH = computeBuildHash();
 export const APP_VERSION = `${APP_RELEASE}-${BUILD_HASH}`;
 export const STARTED_AT = new Date().toISOString();

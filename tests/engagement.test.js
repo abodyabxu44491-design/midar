@@ -1,4 +1,8 @@
-// الاستبيانات ومواعيد أولياء الأمور: الإنشاء والإجابة مرة واحدة والتحقق والنتائج، والحجز ومنع التضارب والإلغاء، والعزل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startServer, client, readySchool, endPool } from "./helpers.js";
@@ -37,10 +41,8 @@ test("استبيان لأولياء الأمور: إشعار، إجابة واح
   assert.equal(res.questions[0].average, 4.5);
   assert.equal(res.questions[1].options[2].count, 2);
   assert.equal(res.questions[2].texts[0].who, `ولي أمر ${s1.name}`);
-  // المعلم لا يرى استبيان أولياء الأمور، ولا يجيب عنه
   assert.equal((await A.teacher.get("/api/teacher/surveys")).data.length, 0);
   assert.equal((await A.teacher.post(`/api/teacher/surveys/${survey}`, { answers: {} })).status, 404);
-  // الإغلاق
   await A.admin.post(`/api/admin/engagement/surveys/${survey}/status`, { status: "closed" });
   assert.equal((await pub(A, `/student/surveys/${survey}`, A.students[2], { answers: { [qs[0].id]: 3, [qs[1].id]: 0 } })).status, 400);
 });
@@ -73,7 +75,6 @@ test("المواعيد: المعلم ينشئ فترات، ولي الأمر ي�
   assert.equal((await A.teacher.del(`/api/teacher/meetings/${mine.id}`)).status, 409, "محجوز");
   assert.equal((await pub(A, `/student/meetings/${slots[0].id}/cancel`, s1)).status, 200);
   assert.equal((await A.teacher.del(`/api/teacher/meetings/${mine.id}`)).status, 200);
-  // الإدارة: مواعيد لمعلم محدد ومواعيدها الخاصة
   assert.equal((await A.admin.post("/api/admin/engagement/meetings", { day: day(3), from: "10:00", to: "10:30", minutes: 30 })).data.created, 1);
   assert.ok((await A.admin.get("/api/admin/engagement/meetings")).data.some((x) => x.host_name === "إدارة المدرسة"));
 });

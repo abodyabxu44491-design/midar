@@ -1,18 +1,16 @@
-// معالج استيراد موحّد يُفتح كنافذة من داخل أي قسم (الطلاب، المعلمون...) بدل الإعدادات
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, notice, badge, dialog, toast, keyText, line } from "../../shared/js/ui.js";
 import { parseCsv } from "../../shared/js/format.js";
 import { A } from "./common.js";
 
-/** رابط تنزيل نموذج الاستيراد الجاهز لنوع بيانات معيّن (يُستخدم مباشرة في href) */
 export const importTemplateUrl = (kind) => `${A}/import/template/${kind}`;
 
-/**
- * يفتح نافذة استيراد لنوع بيانات ثابت (kind)، بدون قائمة اختيار الأنواع —
- * القسم اللي فتحها هو اللي يحدد النوع (استيراد الطلاب من صفحة الطلاب مثلًا).
- * الخطوات: تحميل ملف → فحص ومعاينة → استيراد → نتيجة.
- */
 export async function openImportWizard(kind, { onDone } = {}) {
   const kinds = await api(`${A}/import/kinds`);
   const info = kinds.find((k) => k.key === kind);
@@ -70,13 +68,11 @@ export async function openImportWizard(kind, { onDone } = {}) {
     })]);
 }
 
-/** نتيجة الاستيراد: عدد الناجح، وبيانات دخول للمعلمين إن وُجدت */
 function showResult(kind, r) {
   if (kind === "teachers" && r.rows?.length) return showCredentialsList(r.rows);
   toast(`تم استيراد ${r.created} سطرًا بنجاح`);
 }
 
-// بيانات دخول المعلمين المستوردين: تُعرض مرة واحدة وتُنسخ أو تُطبع
 function showCredentialsList(rows) {
   const text = rows.map((r) => `${r.name} — المستخدم: ${r.username} — كلمة المرور: ${r.password}`).join("\n");
   dialog(`بيانات دخول ${rows.length} معلمًا`, h("div", {},
@@ -87,7 +83,6 @@ function showCredentialsList(rows) {
    btn("طباعة", () => window.print(), "ghost")]);
 }
 
-/** زرين جاهزين لأعلى صفحة أي قسم: [الحصول على ملف الاستيراد] [استيراد ...] */
 export function importButtons(kind, label, { onDone } = {}) {
   return h("div", { class: "row", style: "flex:none" },
     h("a", { class: "btn soft", href: importTemplateUrl(kind) }, "الحصول على ملف الاستيراد"),

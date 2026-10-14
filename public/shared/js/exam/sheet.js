@@ -1,11 +1,8 @@
-// الكتابة على الورقة: صفحة الاختبار نفسها أمامك (الترويسة وخط الورقة وترقيمها)، وتكتب الأسئلة عليها مباشرة.
-//   * «أضف سؤالًا» ← تختار النوع ← يظهر السؤال في مكانه في الورقة والمؤشر في نصه.
-//     النوع يحدد القسم تلقائيًا: يُضاف لآخر قسم من نوعه، أو يُنشأ قسم جديد بعنوانه («السؤال الثاني: أكمل الفراغات»).
-//   * كل شيء يُكتب في مكانه: نص السؤال، الخيارات، العمودان في التوصيل، العناصر في الترتيب، عنوان القسم.
-//   * الإجابة الصحيحة بضغطة: الحرف في الاختيار، القوس في صح/خطأ (تظهر للمعلم فقط وليست في ورقة الطالب).
-//   * شريط أدوات للسؤال المحدد: النوع، الصورة، مساحة الإجابة، تحريك، تكرار، إعدادات متقدمة، حذف.
-//   * فواصل «بداية الصفحة 2…» تُحسب من محرك الطباعة نفسه، فترى أين تنتهي كل ورقة وأنت تكتب.
-// البيانات نفسها التي يستخدمها محرر القائمة والمعاينة (paper.content)، والحفظ تلقائي.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../dom.js";
 import { btn, select, toast, confirmAction, dialog } from "../ui.js";
 import { icons } from "../icons.js";
@@ -19,7 +16,6 @@ import { paginate } from "./paginate.js";
 import { questionEditor, uploadImage } from "./editor.js";
 import { sectionTitleFor } from "./parse.js";
 
-// الأنواع في شريط الإضافة بالترتيب الأكثر استخدامًا
 const ADD_TYPES = ["mcq", "truefalse", "fill", "short", "essay", "match", "order", "multi", "math", "image", "table"];
 const PH = {
   mcq: "اكتب السؤال هنا… (مثال: عاصمة المملكة العربية السعودية هي:)", multi: "اكتب السؤال… (اختر كل الإجابات الصحيحة)",
@@ -28,7 +24,6 @@ const PH = {
   math: "اكتب المسألة (المعادلات بين $ $)", image: "تأمل الشكل ثم أجب:", table: "أجب مستعينًا بالجدول:", custom: "اكتب السؤال هنا…",
 };
 
-// contenteditable نصي (بلا تنسيق)، مع احتياط للمتصفحات التي لا تدعم plaintext-only
 const PLAIN = (() => { const d = document.createElement("div"); d.setAttribute("contenteditable", "plaintext-only"); return d.contentEditable === "plaintext-only"; })();
 const textOf = (el) => el.innerText.replace(/ /g, " ").replace(/\n+$/, "");
 function caretEnd(el) {
@@ -43,14 +38,13 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
   const root = h("div", { class: "xs" });
   const sheet = h("div");
   const breaksInfo = h("span", { class: "xs-pages" });
-  let active = null;          // السؤال المحدد (يظهر شريط أدواته)
-  let focusKey = null;        // الحقل الذي يعود له المؤشر بعد إعادة الرسم
-  let lastSection = null;     // آخر قسم كُتب فيه (لإضافة الأسئلة بجانبه)
+  let active = null;
+  let focusKey = null;
+  let lastSection = null;
 
   const changed = () => { queue("content"); onChange?.(); scheduleBreaks(); };
   const touch = (s) => { lastSection = s; };
 
-  /* ---------- حقل قابل للكتابة ---------- */
   function editable(value, onInput, { ph = "", cls = "", key, tag = "span", onEnter, onBackspaceEmpty, onBlur, multiline = false } = {}) {
     const el = h(tag, { class: `xs-ed ${cls}`, "data-ph": ph, "data-key": key, dir: "auto", spellcheck: "true" });
     el.textContent = value || "";
@@ -66,7 +60,7 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     });
     el.addEventListener("keydown", (e) => {
       if (e.isComposing) return;
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) return;       // للاختصار العام
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) return;
       if (e.key === "Enter" && !(multiline && e.shiftKey)) {
         if (onEnter) { e.preventDefault(); onEnter(); } else if (!multiline) e.preventDefault();
       }
@@ -74,14 +68,12 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     });
     return el;
   }
-  // نقل المؤشر فورًا (الرسم متزامن) حتى لا تذهب الحروف المكتوبة بسرعة للحقل السابق
   const focusField = (key) => {
     focusKey = key;
     const el = sheet.querySelector(`[data-key="${CSS.escape(key)}"]`);
     if (el) { caretEnd(el); el.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
   };
 
-  // عند مغادرة السؤال: حذف الخيارات والصفوف والعناصر الفارغة الزائدة (يبقى اثنان على الأقل)
   function prune(qid) {
     const q = S().flatMap((x) => x.questions).find((x) => x.id === qid);
     if (!q) return false;
@@ -95,8 +87,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     return n > 0;
   }
 
-  /* ---------- الإضافة ---------- */
-  // النوع يحدد المكان: القسم الحالي إن كان من النوع نفسه أو فارغًا، وإلا قسم جديد بعنوانه
   function placeFor(type) {
     const secs = S();
     const typeOf = (s) => s.questions[s.questions.length - 1]?.type;
@@ -110,7 +100,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
   }
   function addQuestion(type, section = null, after = null) {
     const s = section || placeFor(type);
-    // قسم عنوانه عام («السؤال الأول») يأخذ عنوان نوع أول سؤال فيه
     if (!s.questions.length && /^السؤال \S+( \S+)?$/.test((s.title || "").trim()) && SECTION_TITLES[type]) s.title = `${s.title.trim()}: ${SECTION_TITLES[type]}`;
     const prev = after || s.questions[s.questions.length - 1];
     const q = newQuestion(type, prev?.type === type ? prev.marks : type === "essay" ? 3 : type === "match" || type === "order" ? 2 : 1);
@@ -129,7 +118,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     focusField(`${s.id}:title`);
   }
 
-  /* ---------- أدوات السؤال ---------- */
   const tool = (icon, label, fn, cls = "") => h("button", { type: "button", class: `xs-tool ${cls}`, title: label, "aria-label": label,
     onmousedown: (e) => e.preventDefault(), onclick: (e) => { e.stopPropagation(); fn(); } }, icon);
   function convert(q, type) {
@@ -153,7 +141,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     const secs = S(); let i = s.questions.indexOf(q); const j = i + d;
     if (j >= 0 && j < s.questions.length) { [s.questions[i], s.questions[j]] = [s.questions[j], s.questions[i]]; }
     else {
-      // من طرف القسم إلى القسم المجاور
       const si = secs.indexOf(s) + d; if (si < 0 || si >= secs.length) return;
       s.questions.splice(i, 1); i = d < 0 ? secs[si].questions.length : 0; secs[si].questions.splice(i, 0, q);
     }
@@ -172,7 +159,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     try {
       toast("جارٍ رفع الصورة…");
       const r = await uploadImage(base, f);
-      // الافتراضي صغير وبجانب السؤال حتى لا يأخذ مساحة كبيرة
       q.image = { id: r.id, width: q.image?.width || 30, align: "center", position: q.image?.position || "side" };
       changed(); draw();
     } catch (e) { toast(e.message, true); }
@@ -205,7 +191,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
       }, "danger"));
   }
 
-  /* ---------- رسم سؤال ---------- */
   function questionEl(q, s, no, L) {
     const def = QTYPES[q.type];
     const el = h("div", { class: `xs-q xp-q t-${q.type}${active === q.id ? " active" : ""}`, "data-qid": q.id,
@@ -224,7 +209,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
       onBlur: q.type === "fill" ? () => { if (countBlanks(q.text) !== blanks0) setTimeout(() => { const k = focusKey; draw(); if (k && k !== `${q.id}:text`) focusField(k); }, 0); } : null,
       onEnter: firstBody ? next(firstBody) : () => addQuestion(q.type, s, q),
     });
-    // الدرجة: تضغط عليها وتكتب الرقم
     const marks = h("span", { class: "xp-marks xs-marks", title: "الدرجة — اضغط للتعديل" }, `(${fmtNum(q.marks)} ${marksWord(q.marks)})`);
     if (!ro) marks.addEventListener("click", () => {
       const inp = h("input", { type: "number", min: 0.25, step: 0.25, value: q.marks, class: "xs-marks-in", "aria-label": "الدرجة" });
@@ -233,7 +217,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
       inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } });
       marks.replaceWith(inp); inp.select();
     });
-    // صح/خطأ: القوس نفسه يحدد الإجابة (✓ ثم ✗ ثم فارغ)
     const tf = q.type === "truefalse" ? h("button", { type: "button", class: `xp-tf xs-tf${typeof q.correct === "boolean" ? " filled" : ""}`, title: "الإجابة الصحيحة (للمعلم) — اضغط للتغيير", disabled: ro,
       onclick: () => { q.correct = q.correct === true ? false : q.correct === false ? null : true; changed(); draw(); } },
     h("span", {}, "("), h("span", { class: "xp-tf-in" }, q.correct === true ? "✓" : q.correct === false ? "✗" : ""), h("span", {}, ")")) : null;
@@ -331,7 +314,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     return out;
   }
 
-  // مساحة الإجابة: أسطر بعدد ما سيُطبع (حتى 6 تظهر هنا)، والإجابة النموذجية للمعلم تحتها
   function answerSpace(q) {
     const n = spaceLines(q);
     const shown = Math.min(n, 6);
@@ -342,7 +324,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
         editable(q.answer || "", (v) => { q.answer = v; changed(); }, { ph: "اختياري — تظهر في نموذج الإجابة فقط", cls: "xs-key-f wide", key: `${q.id}:answer`, multiline: true })));
   }
 
-  /* ---------- رسم الورقة ---------- */
   function sectionEl(s, si, nextNo, L) {
     const t = s.questions.reduce((a, q) => a + Number(q.marks || 0), 0);
     const lastType = s.questions[s.questions.length - 1]?.type;
@@ -386,7 +367,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
       S().map((s, si) => { if (L.numbering === "per_section") n = 0; return sectionEl(s, si, () => ++n, L); }),
       S().some((s) => s.questions.length) ? null : h("div", { class: "xs-empty" }, h("b", {}, "الورقة فارغة"), "اختر نوع السؤال من الأسفل ويظهر هنا في الورقة، واكتب عليه مباشرة."),
       h("div", { class: "xp-end" }, h("div", { class: "xp-end-line" }, "انتهت الأسئلة")));
-    // على الجوال: زر واحد يفتح قائمة الأنواع (لا يغطي الورقة)، وعلى الشاشات الكبيرة الأنواع ظاهرة
     const addBar = ro ? null : h("div", { class: "xs-addbar" },
       h("div", { class: "xs-add-mobile" }, typeMenu((k) => addQuestion(k), "+ أضف سؤالًا")),
       h("b", { class: "xs-add-label" }, "أضف سؤالًا:"),
@@ -402,7 +382,6 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     scheduleBreaks();
   }
 
-  /* ---------- حدود الصفحات من محرك الطباعة ---------- */
   let bt = null, bRun = 0;
   function scheduleBreaks() { clearTimeout(bt); bt = setTimeout(computeBreaks, 900); }
   async function computeBreaks() {
@@ -421,10 +400,9 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
         el?.before(h("div", { class: "xs-break" }, h("span", {}, `نهاية الصفحة ${i + 1} — بداية الصفحة ${i + 2}`)));
       });
       breaksInfo.textContent = `الورقة الآن: ${pages.length} ${pages.length === 1 ? "صفحة" : pages.length === 2 ? "صفحتان" : pages.length <= 10 ? "صفحات" : "صفحة"}`;
-    } catch { /* القياس اختياري */ } finally { host.remove(); }
+    } catch { /* ignore */ } finally { host.remove(); }
   }
 
-  // الضغط خارج الأسئلة يُخفي شريط الأدوات
   root.addEventListener("focusout", () => setTimeout(() => {
     if (!root.contains(document.activeElement) && !document.querySelector("dialog[open]")) {
       const prev = active; active = null;

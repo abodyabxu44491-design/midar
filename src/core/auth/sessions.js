@@ -1,13 +1,14 @@
-// الجلسات: رمز عشوائي في كوكي محمي، ونخزن بصمته فقط في قاعدة البيانات.
-// كل دور له كوكي مختلف ومسار مختلف، فجلسة أحدهم لا تُرسل أصلًا لواجهة الآخر.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { env } from "../../config/env.js";
 import { transaction } from "../db/pool.js";
 import { newToken, sha256 } from "./codes.js";
 
 const prefix = () => (env.COOKIE_SECURE ? "__Secure-" : "");
 
-// "تذكرني على هذا الجهاز": جلسة تدوم 30 يومًا بلا حاجة لإعادة إدخال اسم المستخدم وكلمة المرور،
-// بدل المدة القصيرة الافتراضية لكل دور.
 const REMEMBER_DAYS = 30;
 const REMEMBER_HOURS = REMEMBER_DAYS * 24;
 const REMEMBER_IDLE_MIN = REMEMBER_DAYS * 24 * 60;
@@ -17,13 +18,9 @@ export const SESSION = {
   admin:      { cookie: "midar_a", path: "/api/admin",      idleMin: 120, maxHours: 12 },
   teacher:    { cookie: "midar_t", path: "/api/teacher",    idleMin: 180, maxHours: 12 },
   accountant: { cookie: "midar_f", path: "/api/accountant", idleMin: 120, maxHours: 12 },
-  // ولي الأمر: على جواله غالبًا، فيبقى مسجلًا 30 يومًا من آخر استخدام. مساره الواجهة العامة للمدرسة
   parent:     { cookie: "midar_p", path: "/api/public",     idleMin: 30 * 24 * 60, maxHours: 30 * 24 },
 };
 
-// Firebase Hosting لا يمرر إلا كوكي واحد اسمه __session، فنخزن فيه رموز الأدوار مفصولة:
-//   o.<رمز>|a.<رمز>|t.<رمز>
-// الفصل بين الأدوار يبقى مضمونًا لأن كل رمز مربوط بنوعه في قاعدة البيانات.
 const SINGLE = "__session";
 const TAG = { owner: "o", admin: "a", teacher: "t", accountant: "f", parent: "p" };
 const single = () => env.SESSION_COOKIE_MODE === "single";
@@ -51,7 +48,7 @@ export async function createSession(res, kind, { userId = null, parentId = null,
   const cfg = SESSION[kind];
   const token = newToken();
   const maxHours = remember ? REMEMBER_HOURS : cfg.maxHours;
-  const idleMinutes = remember ? REMEMBER_IDLE_MIN : null; // null = مهلة الخمول الافتراضية لهذا الدور
+  const idleMinutes = remember ? REMEMBER_IDLE_MIN : null;
   await q(
     `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at, idle_minutes, parent_id)
      VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7), $8, $9)`,
@@ -63,12 +60,11 @@ export async function createSession(res, kind, { userId = null, parentId = null,
   } else {
     res.cookie(prefix() + cfg.cookie, token, {
       httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: cfg.path,
-      ...(remember || kind === "owner" ? { maxAge: maxHours * 3600_000 } : {}),   // بدون تذكر: ينتهي بإغلاق المتصفح
+      ...(remember || kind === "owner" ? { maxAge: maxHours * 3600_000 } : {}),
     });
   }
 }
 
-// بصمة جلسة الطلب الحالي (لاستثنائها عند إنهاء بقية الجلسات)
 export function currentSessionHash(req, kind) {
   const token = tokenOf(req, kind);
   return token && token.length <= 100 ? sha256(token) : null;
@@ -79,11 +75,9 @@ export async function readSession(req, kind) {
   const token = tokenOf(req, kind);
   if (!token || token.length > 100) return null;
   const hash = sha256(token);
-  // الجلسة تُقرأ برمز بصمتها فقط (app.session_hash)؛ سياسة RLS على الجدول لا تسمح بغير ذلك
   return transaction({ sessionHash: hash }, (q) => sessionRow(q, hash, kind));
 }
 
-// قراءة الجلسة وتحديث «آخر نشاط» مرة في الدقيقة كحد أقصى (بدل كتابة على القرص مع كل طلب)
 export async function sessionRow(q, hash, kind) {
   const [s] = await q(
     `WITH s AS (
@@ -117,9 +111,7 @@ export async function destroySession(req, res, kind) {
 }
 
 export async function purgeExpiredSessions() {
-  // تنظيف شامل عبر كل المدارس: يحتاج سياق المنصة (RLS)
   await transaction({ platform: true, actor: "النظام" }, async (q) => {
-    // سجل تغييرات المزامنة: 30 يومًا (جهاز غاب أطول يعيد اللقطة تلقائيًا)، والعمليات المطبّقة: 90 يومًا
     await q("DELETE FROM sync_changes WHERE changed_at < now() - interval '30 days'");
     await q("DELETE FROM sync_operations WHERE status IN ('applied', 'rejected', 'resolved') AND received_at < now() - interval '90 days'");
     await q(`DELETE FROM sessions WHERE expires_at < now()
@@ -129,7 +121,6 @@ export async function purgeExpiredSessions() {
   });
 }
 
-// إيقاف المدارس التي انتهى اشتراكها ومدة سماحها (يعمل مع مهمة الصيانة الدورية)
 export async function runMaintenance() {
   await purgeExpiredSessions();
   const suspended = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT * FROM suspend_expired_tenants()"));

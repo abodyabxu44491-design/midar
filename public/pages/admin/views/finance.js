@@ -1,4 +1,8 @@
-// تبويب الرسوم: الفواتير، الدفعات، الاسترداد، الإلغاء
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api, idempotencyKey } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, stats, notice, confirmAction, skeleton, switchBtn } from "../../shared/js/ui.js";
@@ -8,14 +12,12 @@ import { receiptDialog, statementDialog } from "../../shared/js/receipt.js";
 import { A, loadClasses, optional } from "./common.js";
 
 export default async function finance({ refresh }) {
-  // الفواتير 50 في كل مرة (بحث وتصفية في الخادم)، ولا تنزيل لقائمة كل الطلاب
   const PAGE = 50;
   const [first, classes, claims, templates, me2] = await Promise.all([
     api(`${A}/finance/invoices?limit=${PAGE}`), loadClasses(), optional(api(`${A}/finance/claims`), []),
     optional(api(`${A}/messaging/templates`), null), api(`${A}/me`)]);
   const { totals } = first;
   const pending = claims.filter((c) => c.status === "pending");
-  // لمن الفاتورة: فصل كامل، أو طالب يُختار من فصله
   const targetClass = select([["", "اختر الفصل"], ...classes.map((c) => [c.id, c.name])]);
   const targetStudent = select([["", "كل طلاب الفصل"]]);
   targetClass.addEventListener("change", async () => {
@@ -108,7 +110,7 @@ function payDialog(i, rem, refresh) {
   const amount = input({ type: "number", min: 0.01, max: rem, step: "0.01", value: rem });
   const method = select(Object.entries(METHODS).filter(([k]) => k !== "online"));
   const note = input({ placeholder: "اختياري" });
-  const key = idempotencyKey(); // ثابت لهذه النافذة: الضغط المزدوج لا يكرر الدفعة
+  const key = idempotencyKey();
   const d = dialog(`دفعة — ${i.student_name}`, h("div", {},
     sub(`${i.title} — المتبقي ${money(rem)}`), field("المبلغ", amount), field("طريقة الدفع", method), field("ملاحظة", note)),
   [btn("تسجيل", async () => {
@@ -153,11 +155,10 @@ async function history(i, ctx = {}) {
     : empty("لا توجد دفعات.")));
 }
 
-// كشف حساب الطالب: كل فواتيره ودفعاته
 async function statement(studentId, ctx = {}) {
   const [{ invoices }, payments] = await Promise.all([
     api(`${A}/finance/invoices?student_id=${studentId}&totals=0`), api(`${A}/finance/students/${studentId}/payments`)]);
-  const mine = invoices;   // فواتير هذا الطالب فقط (من الخادم، بلا حد 1000)
+  const mine = invoices;
   statementDialog({
     school: ctx.me?.school?.name || "",
     student: mine[0]?.student_name || "", class_name: mine[0]?.class_name,
@@ -165,8 +166,6 @@ async function statement(studentId, ctx = {}) {
   });
 }
 
-
-/* ---------------- قوالب الرسوم والتقسيط ---------------- */
 async function feePlansPanel(refresh, me) {
   const [plans, setup] = await Promise.all([api(`${A}/finance/plans`), api(`${A}/setup`)]);
   const grades = setup.structure.stages.flatMap((st) => st.grades.map((g) => ({ ...g, stage: st.name })));
@@ -259,8 +258,6 @@ function applyDialog(plan, grades, refresh) {
   preview();
 }
 
-
-// الأقساط وخصم الإخوة: الخصم يُحتسب تلقائيًا عند تطبيق القوالب، والتذكير يصل لولي الأمر قبل الاستحقاق وبعد فواته
 async function installmentsPanel() {
   const s = (await api(`${A}/communication/features`)).fees;
   const save = async (patch) => { Object.assign(s, await api(`${A}/communication/features/fees`, patch, "PUT")); toast("تم الحفظ"); return true; };
@@ -273,7 +270,6 @@ async function installmentsPanel() {
     sub("القسط الذي يفوت موعده دون سداد يصل عنه تذكير لولي الأمر في اليوم التالي."));
 }
 
-// قائمة الفواتير: بحث وتصفية في الخادم، و«عرض المزيد» بدل عرض آلاف الصفوف مرة واحدة
 function invoicesPanel(first, { classes, templates, me, refresh, PAGE }) {
   const q = input({ type: "search", placeholder: "بحث باسم الطالب أو البند أو رقم الفاتورة" });
   const cls = select([["", "كل الفصول"], ...classes.map((c) => [c.id, c.name])]);
@@ -299,7 +295,7 @@ function invoicesPanel(first, { classes, templates, me, refresh, PAGE }) {
     const my = ++seq;
     mount(list, skeleton(4));
     const r = await api(qs(0));
-    if (my !== seq) return;   // نتيجة بحث أقدم وصلت متأخرة
+    if (my !== seq) return;
     items = r.invoices; total = r.total;
     count.textContent = `${items.length} من ${total}`;
     mount(list, items.length ? items.map(rowOf) : empty("لا توجد فواتير مطابقة."));

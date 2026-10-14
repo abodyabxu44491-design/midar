@@ -1,10 +1,8 @@
-// تطبيق الحارس عند البوابة: يمسح بطاقات الطلاب بكاميرا أي جوال.
-//   1) الربط بإحدى طريقتين:
-//      - رمز الربط (6 أرقام) تُظهره الإدارة على شاشتها: يُكتب هنا، أو يُمسح QR فيفتح …/gate#j=<الرمز> وهو مكتوب.
-//      - رابط خاص بجهاز واحد (…/<المدرسة>/gate#p=<الجهاز>.<الرمز>) يُستخدم مرة واحدة.
-//      في الحالتين يأخذ الجهاز سره ويُمسح الرمز من الرابط.
-//   2) بانتظار موافقة الإدارة ← بعد الموافقة تظهر شاشة المسح.
-//   3) كل مسح له هوية فريدة. إن انقطع الاتصال يُحفظ على الجهاز ويُرسل تلقائيًا عند عودته (بلا تكرار).
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../shared/js/dom.js";
 import { btn } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
@@ -16,22 +14,21 @@ const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLower
 const CRED = `midar-gate:${school}`, QUEUE = `midar-gate-q:${school}`, LOG = `midar-gate-log:${school}`, ROSTER = `midar-gate-roster:${school}`;
 const store = {
   get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
-  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ممتلئ */ } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } },
   del: (k) => { try { localStorage.removeItem(k); } catch { /* */ } },
 };
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID()
   : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
 
 let cred = store.get(CRED, null);
-let skew = null;            // فرق ساعة الجهاز عن الخادم (من آخر نبض ناجح)
-let info = null;            // آخر نبض: المدرسة، البوابة، النافذة، العداد
+let skew = null;
+let info = null;
 let online = navigator.onLine;
-let ui = null;              // عناصر شاشة المسح (تُبنى مرة واحدة)
-let direction = "in";       // بوابة دخول وانصراف: اختيار الحارس
-let roster = store.get(ROSTER, null);   // بصمات الرموز + الاسم والشعبة (للعمل بلا اتصال)
-let geo = null;             // آخر موقع للجهاز (إن طلبت المدرسة التحقق من الموقع)
+let ui = null;
+let direction = "in";
+let roster = store.get(ROSTER, null);
+let geo = null;
 
-/* ---------- الاتصال بالخادم ---------- */
 async function call(path, body, timeout = 6000) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeout);
@@ -47,7 +44,6 @@ async function call(path, body, timeout = 6000) {
   } finally { clearTimeout(timer); }
 }
 
-/* ---------- شاشات بسيطة ---------- */
 const brand = () => h("img", { class: "gt-logo", src: "/brand/logo.svg", alt: "مدار" });
 function screen(icon, title, text, ...extra) {
   ui = null;
@@ -59,7 +55,6 @@ const deviceInfo = () => ({ ua: navigator.userAgent.slice(0, 200), platform: (na
   screen: `${window.screen.width}x${window.screen.height}`, lang: navigator.language });
 const toDigits = (v) => v.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0)).replace(/\D/g, "");
 
-/* ---------- ربط الجوال برمز الإدارة ---------- */
 const NAME = `midar-gate-name:${school}`;
 function joinScreen(note = null, prefill = "") {
   ui = null;
@@ -101,7 +96,6 @@ function joinScreen(note = null, prefill = "") {
   (prefill ? name : code).focus();
 }
 
-/* ---------- الاقتران من الرابط ---------- */
 async function pairFromHash() {
   const j = location.hash.match(/#j=(\d{6})/);
   if (j) {
@@ -111,7 +105,7 @@ async function pairFromHash() {
   }
   const m = location.hash.match(/#p=([A-Za-z0-9_-]{16,40})\.([A-Za-z0-9_-]{16,60})/);
   if (!m) return;
-  history.replaceState(null, "", location.pathname);          // الرمز لا يبقى في الرابط ولا في السجل
+  history.replaceState(null, "", location.pathname);
   screen(icons.refresh, "جارٍ تجهيز الجهاز…", null);
   const prev = cred;
   cred = null;
@@ -127,7 +121,6 @@ async function pairFromHash() {
   }
 }
 
-/* ---------- النبض ---------- */
 let pollTimer = null;
 async function heartbeat() {
   clearTimeout(pollTimer);
@@ -169,12 +162,11 @@ async function heartbeat() {
   pollTimer = setTimeout(heartbeat, 30_000);
 }
 
-/* ---------- قائمة الجهاز والموقع ---------- */
 async function loadRoster() {
   try {
     const r = await call("roster", {}, 20_000);
     if (r.status === 200) { roster = r.data; store.set(ROSTER, roster); }
-  } catch { /* تُعاد مع النبض التالي */ }
+  } catch { /* ignore */ }
 }
 let locating = false;
 function locate() {
@@ -185,7 +177,6 @@ function locate() {
     () => { locating = false; }, { enableHighAccuracy: true, timeout: 15_000, maximumAge: 120_000 });
 }
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-/** يعرف الطالب من البطاقة دون اتصال (بصمة الرمز في قائمة الجهاز) */
 async function localLookup(code) {
   if (!roster?.students || !crypto.subtle) return null;
   let tok = String(code).trim();
@@ -195,7 +186,6 @@ async function localLookup(code) {
   const h = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(tok)));
   return roster.students.find((s) => s.h === h) || null;
 }
-/** الحالة المتوقعة محليًا (حاضر/متأخر) بساعة الخادم المصححة وأوقات مرحلة الطالب */
 function localGuess(st) {
   const w = roster?.stage_hours?.find((x) => Number(x.stage_id) === Number(st.stage)) || info?.window;
   if (!w) return {};
@@ -207,7 +197,6 @@ function localGuess(st) {
   return late ? { result: "late", minutes_late: toMin(hm) - toMin(w.late_after) } : { result: "present" };
 }
 
-/* ---------- الطابور (المسحات أثناء انقطاع الاتصال) ---------- */
 const queue = () => store.get(QUEUE, []);
 let flushing = false;
 async function flush() {
@@ -234,7 +223,6 @@ setInterval(flush, 10_000);
 window.addEventListener("online", () => { online = true; heartbeat(); });
 window.addEventListener("offline", () => { online = false; updateBar(); });
 
-/* ---------- السجل المحلي (آخر من مُسح) ---------- */
 const todayKey = () => new Date(Date.now() + (skew || 0)).toLocaleDateString("en-CA");
 function logs() { const l = store.get(LOG, { day: todayKey(), items: [] }); return l.day === todayKey() ? l : { day: todayKey(), items: [] }; }
 function logResult(r) {
@@ -249,7 +237,6 @@ function logResult(r) {
   renderLog();
 }
 
-/* ---------- المسح ---------- */
 const STATUS_LABEL = { permitted: "مستأذن", excused: "بعذر", trip: "رحلة", activity: "نشاط خارجي", present: "حاضر", late: "متأخر", absent: "غائب" };
 function describe(r) {
   const who = [r.student?.name, r.student?.class_name].filter(Boolean);
@@ -290,11 +277,9 @@ async function scan(code, source = "qr") {
     if (r.status === 200) { show(r.data); logResult(r.data); bump(r.data); return; }
     throw new Error("server");
   } catch {
-    // بلا اتصال (أو خطأ مؤقت): يعرف الطالب من قائمة الجهاز، ويحفظ المسح بوقته وفرق الساعة، ويُرسل لاحقًا بنفس الهوية
     online = false;
     const student = local ? { id: local.sid, name: local.name, class_name: local.cls } : null;
     const guess = local && direction === "in" ? localGuess(local) : local ? { result: "present" } : null;
-    // نفس الطالب سُجّل اليوم على هذا الجهاز: لا يُكرر
     if (local && logs().items.some((x) => x.sid === local.sid && x.direction !== "out" && direction === "in"
         && ["present", "late"].includes(x.result === "pending" ? x.guess?.result : x.result))) {
       return show({ result: "duplicate", student });
@@ -313,7 +298,6 @@ function bump(r) {
   updateBar();
 }
 
-/* ---------- شاشة المسح ---------- */
 const PHASE = {
   open: (w) => ["open", `الحضور مفتوح — يُحسب متأخرًا بعد ${w.late_after}`],
   before: (w) => ["wait", `تفتح البوابة الساعة ${w.open_at}`],
@@ -331,7 +315,6 @@ function scanner() {
   const dirBtn = (k, label) => h("button", { type: "button", class: `gt-dir-b${direction === k ? " on" : ""}`, onclick: () => { direction = k; drawDir(); } }, label);
   const drawDir = () => mount(ui.dir, dirBtn("in", "دخول"), dirBtn("out", "انصراف"));
   drawDir();
-  // قارئ NFC (أندرويد): نفس الرمز مكتوبًا على شريحة
   if ("NDEFReader" in window) {
     ui.nfc = btn("قراءة شرائح NFC", async () => {
       try {
@@ -406,7 +389,6 @@ setInterval(() => {
   if (ui) ui.clock.textContent = new Date(Date.now() + (skew || 0)).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit", second: "2-digit" });
 }, 1000);
 
-/* ---------- البدء ---------- */
 (async () => {
   try { await pairFromHash(); } catch { return; }
   if (!cred) return joinScreen();

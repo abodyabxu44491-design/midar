@@ -1,5 +1,8 @@
-// طلابي: طلاب كل فصل مسند للمعلم مع حالة اليوم وملخص الغياب والتأخر في السنة الحالية.
-// بدون اتصال: الأسماء وحالة اليوم من نسخة الجهاز.
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, input, btn, empty, notice, sub } from "../../shared/js/ui.js";
@@ -9,7 +12,7 @@ import { attendanceSource } from "../offline.js";
 import { alertDialog, alertCard } from "../../shared/js/student-alerts.js";
 import { dialog, toast } from "../../shared/js/ui.js";
 
-let remembered = null;   // يبقى الفصل المختار عند التنقل بين الصفحات
+let remembered = null;
 
 export default function students({ me, params, goTo }) {
   const classes = myClasses(me);
@@ -56,7 +59,6 @@ export default function students({ me, params, goTo }) {
   };
   search.addEventListener("input", paint);
 
-  // تنبيهات الطالب: يرى المعلم كل التنبيهات ويضيف ويحذف ما كتبه
   async function alertsOf(r) {
     let list;
     try { list = await api(`/api/teacher/students/${r.id}/alerts`); } catch (e) { return toast(e.message, true); }

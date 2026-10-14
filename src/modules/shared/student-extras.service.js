@@ -1,4 +1,8 @@
-// بيانات الأقسام الجديدة في ملف الطالب: كل قسم يُضاف فقط إذا كان مفعّلًا (ومسموحًا لولي الأمر)
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { activeModules } from "./notify.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 import * as behavior from "./behavior.service.js";

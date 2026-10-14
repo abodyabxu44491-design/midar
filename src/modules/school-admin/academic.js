@@ -1,4 +1,8 @@
-// السنة الدراسية والفصول الدراسية
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -18,7 +22,6 @@ r.get("/", handle(async (req, res) => {
   };}));
 }));
 
-/* ---------- الإجازات والعطل ---------- */
 r.get("/holidays", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({ holidays: await academic.listHolidays(q), kinds: academic.HOLIDAY_KINDS })));
 }));
@@ -38,7 +41,6 @@ r.delete("/holidays/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// تعديل السنة الحالية وعدد فصولها (نفس ما يفعله معالج الإعداد الأول)
 r.put("/year", handle(async (req, res) => {
   const b = parse(academic.yearSchema.omit({ make_current: true }), req.body);
   res.json(await inTenant(req, (q) => academic.configureYear(q, b)));
@@ -61,7 +63,6 @@ r.patch("/terms/:id", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// معاينة النتائج والإجراء المقترح لكل طالب قبل التنفيذ
 r.post("/promotion-preview", handle(async (req, res) => {
   const b = parse(academic.rolloverSchema.partial({ year: true }), req.body);
   res.json(await inTenant(req, (q) => academic.promotionPreview(q, b.moves || [])));
@@ -81,13 +82,11 @@ r.patch("/years/:id/pass-mark", handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// بدء سنة جديدة: أرشفة السنة المنتهية ونقل الطلاب
 r.post("/start-year", handle(async (req, res) => {
   const b = parse(academic.rolloverSchema, req.body);
   res.json(await inTenant(req, (q) => academic.startNewYear(q, b)));
 }));
 
-// سجل الطالب عبر السنوات
 r.get("/students/:id/history", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   res.json(await inTenant(req, async (q) => {

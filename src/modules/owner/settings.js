@@ -1,4 +1,8 @@
-// إعدادات المنصة: شكل الصفحة الرئيسية وبيانات التواصل
+/*!
+ * Midar (مدار) - School Management Platform
+ * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
+ * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
+ */
 import { Router } from "express";
 import { env } from "../../config/env.js";
 import { transaction } from "../../core/db/pool.js";
@@ -14,7 +18,6 @@ const schema = z.object({
   brand_instagram: z.string().trim().transform((v) => v.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/.*$/, ""))
     .pipe(z.string().regex(/^[A-Za-z0-9._]{0,30}$/, "اسم حساب إنستغرام غير صحيح")).optional().transform((v) => v || null),
   support_note: z.string().trim().max(300).optional().or(z.literal("")).transform((v) => v || null),
-  // التجربة المجانية والاشتراكات
   trial_enabled: z.boolean().optional(),
   trial_days: z.coerce.number().int().min(1).max(365).optional(),
   trial_all_plans: z.boolean().optional(),
@@ -52,9 +55,6 @@ r.put("/", handle(async (req, res) => {
   res.json(row);
 }));
 
-/* ---------- فحص بيئة التشغيل ----------
-   ما يراه الخادم فعليًا: عنوان الزائر المكتشف وسلسلة الوكلاء، وإعدادات الوكيل والكوكي والرابط، وسرعة قاعدة البيانات.
-   يُستخدم للتحقق بعد النشر (مثلًا على Render): إن ظهر عنوان الزائر عنوانَ الوكيل، فالثقة بالوكيل غير مضبوطة. */
 r.get("/diagnostics", handle(async (req, res) => {
   const t0 = Date.now();
   const [db] = await transaction({ platform: true }, (q) => q("SELECT now() AS now, version() AS version, current_setting('server_version') AS server_version"));
