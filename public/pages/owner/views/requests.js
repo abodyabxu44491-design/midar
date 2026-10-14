@@ -47,13 +47,15 @@ function row(r, refresh, root) {
       leadDetails(r.details),
       r.note ? sub(`«${r.note}»`) : null,
       r.owner_note ? sub(`ملاحظتك: ${r.owner_note}`) : null,
+      r.last_error ? notice(`تعثّر إنشاء المدرسة: ${r.last_error} — صحّح البيانات وأعد «إنشاء وتفعيل».`, "err") : null,
       r.similar_trials ? notice(`تنبيه: ${r.similar_trials} طلب تجربة سابق بنفس الجوال أو البريد`, "warn") : null,
       r.tenant_trials && r.kind === "trial" ? notice(`هذه المدرسة استخدمت ${r.tenant_trials} تجربة سابقة`, "warn") : null),
     h("div", { class: "acts" },
       setStatus,
       canConvert ? btn(r.kind === "trial" ? "تفعيل التجربة" : "إنشاء المدرسة والاشتراك", () => convert(r, refresh), "sm") : null,
       r.kind === "feature" && r.tenant_id && r.status !== "active" ? btn("منح الميزة", () => grant(r, refresh), "sm") : null,
-      r.tenant_id ? btn("اشتراك المدرسة", () => detail(r.tenant_id, root, refresh), "soft sm") : null,
+      r.tenant_id ? btn("ملف المدرسة", () => { location.hash = `#/schools?school=${r.tenant_id}`; }, "soft sm") : null,
+      r.tenant_id ? btn("اشتراك المدرسة", () => detail(r.tenant_id, root, refresh), "ghost sm") : null,
       wa ? h("a", { class: "btn ghost sm", href: wa, target: "_blank", rel: "noopener" }, "واتساب") : null,
       btn("ملاحظة", () => note(r, refresh), "ghost sm"),
       r.source === "public" ? btn("حذف", async () => { if (!confirmAction("حذف الطلب نهائيًا؟")) return; await api(`/api/owner/requests/${r.id}`, undefined, "DELETE"); refresh(); }, "danger sm") : null));
@@ -71,18 +73,16 @@ async function convert(r, refresh) {
     !r.plan_id && r.kind === "trial" ? notice("طلب العميل تجربة المنصة بدون تحديد باقة. اختر الباقة التي سيجربها.", "") : null,
     h("div", { class: "row" }, field("اسم المدرسة", name), field("رمز المدرسة", id, "إنجليزي صغير، يظهر في الرابط")),
     field("اسم المدير", admin), h("hr"), form.el),
-  [btn("إنشاء وتفعيل", async () => {
-    const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value, name: name.value, admin_name: admin.value, subscription: form.value() });
-    d.close(); refresh();
-    const text = handoverText(res);
-    const wa = res.lead?.phone ? waLink(res.lead.phone, text) : null;
-    dialog("تم تفعيل المدرسة", h("div", {},
-      notice("أرسل بيانات الدخول للمدرسة الآن. كلمة المرور لن تظهر مرة أخرى.", "warn"),
-      [["رابط الدخول", `${location.origin}/${res.credentials.school}/idara`], ["اسم المستخدم", res.credentials.username],
-        ["كلمة المرور المؤقتة", res.credentials.password], ["رابط أولياء الأمور", `${location.origin}/${res.credentials.school}`]].map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
-      sub("بعد أول دخول: تغيير كلمة المرور ← معالج إعداد المدرسة ← لوحة التحكم.")),
-    [wa ? h("a", { class: "btn", href: wa, target: "_blank", rel: "noopener" }, "إرسال عبر واتساب") : null,
-      btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }, "ghost")].filter(Boolean));
+  [btn("إنشاء وتفعيل", async (e) => {
+    const b = e?.currentTarget; if (b) b.disabled = true;
+    try {
+      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value, name: name.value, admin_name: admin.value, subscription: form.value() });
+      d.close(); toast("اعتُمدت المدرسة وأُنشئ حسابها");
+      location.hash = `#/schools?school=${res.tenant_id}&handover=1`;
+    } catch (err) {
+      if (err.data?.tenant_id) { d.close(); location.hash = `#/schools?school=${err.data.tenant_id}`; return; }
+      toast(err.message, true); if (b) b.disabled = false;
+    }
   })]);
   d.classList.add("xb-wide");
 }

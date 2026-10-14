@@ -98,7 +98,10 @@ test("طلب تجربة من الصفحة العامة ← يصل للمالك �
     subscription: { kind: "trial", plan_id: s.basic.id, ends_on: day(365) },
   });
   assert.equal(conv.status, 201, JSON.stringify(conv.data));
-  s.adminPw = conv.data.credentials.password;
+  // The school sets its own password from the activation link handed over by the owner.
+  s.adminPw = "Future-School-2026";
+  const token = new URL(conv.data.activation.url).searchParams.get("token");
+  assert.equal((await client(srv.base).post("/api/public/activation", { token, password: s.adminPw })).status, 200);
   const detail = (await owner.get(`/api/owner/subscriptions/${s.school}`)).data;
   assert.equal(detail.current.kind, "trial");
   assert.equal(detail.current.status, "trial");

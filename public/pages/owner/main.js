@@ -36,12 +36,14 @@ async function start() {
       points: ["إنشاء المدارس والاشتراكات", "إدارة الباقات والفوترة", "المؤشرات العامة وسجل العمليات"],
     }));
   }
+  const ownerCtx = {};
   const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
-    [null, "المدارس والاشتراكات"], ["schools", "المدارس"], ["create", "إضافة مدرسة"], ["groups", "مجموعات المدارس"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
+    [null, "المدارس والاشتراكات"], ["schools", "ملفات المدارس"], ["create", "إضافة مدرسة"], ["groups", "مجموعات المدارس"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
     [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
     [null, "المنصة"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "آراء العملاء"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, groups, billing, passwords: passwordRequests, sms, settings, testimonials, audit, danger }, {},
+    { overview, requests, subscriptions, plans, schools, create, groups, billing, passwords: passwordRequests, sms, settings, testimonials, audit, danger }, ownerCtx,
     { primary: ["overview", "requests", "schools", "subscriptions"] });
+  ownerCtx.go = (k) => t.show(k);
   let lastUnseen = null;
   const badgeTick = async () => {
     try {

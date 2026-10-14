@@ -18,6 +18,7 @@ import { buildShowcase } from "../shared/showcase-school.service.js";
 import { startJob } from "../../core/jobs.js";
 import { forgetDemoCache } from "../shared/demo.service.js";
 import { groupQuota } from "../shared/groups.service.js";
+import { addEvent as addSchoolEvent } from "../shared/school-files.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -90,6 +91,10 @@ export async function createTenant(req, b) {
     };
     if (!b.subscription && !b.subscription_end) sub.billing_cycle = "none";
     await activate(q, b.id, sub, req.actor);
+  });
+  await transaction({ actor: req.actor, ip: req.ip, platform: true }, async (q) => {
+    await q("UPDATE tenants SET approved_at = COALESCE(approved_at, now()), approved_by = COALESCE(approved_by, $2) WHERE id = $1", [b.id, req.actor]);
+    await addSchoolEvent(q, b.id, { kind: "account", body: "أُنشئت المدرسة وحساب مديرها" }, req.actor);
   });
   return { school: { id: b.id, name: b.name }, credentials: { school: b.id, username: "admin", password, directory_code: directory } };
 }

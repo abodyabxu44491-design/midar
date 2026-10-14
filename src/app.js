@@ -98,6 +98,7 @@ export function createApp() {
   app.use(env.OWNER_PATH, ownerNetwork, express.static(file("owner"), { index: "index.html", redirect: true }));
   app.get("/reset", send("reset", "index.html"));
   app.get("/group", send("group", "index.html"));
+  app.get("/activate", send("activate", "index.html"));
   app.get("/reset/", send("reset", "index.html"));
   const withOrigin = (...p) => (req, res) => res.set("Cache-Control", "no-cache").type("html")
     .send(renderPage(file(...p), { isProd: env.isProd }).replaceAll("__ORIGIN__", baseUrl(req)));
