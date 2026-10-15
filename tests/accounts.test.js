@@ -311,3 +311,54 @@ test("Apple: يعود برسالة POST من خادم Apple، ويُربط با�
   assert.equal(f.account.linked_via, "apple");
   assert.equal(f.account.full_name, "سارة علي");
 });
+
+test("مدرسة قائمة قبل التحديث: المدير يدخل ببياناته السابقة مرة واحدة فينتقل لإنشاء حسابه، ثم لا يعود الدخول القديم", async () => {
+  const { hashPassword } = await import("../src/core/auth/password.js");
+  const s = await newSchool("مدرسة الأمل القديمة");
+  // An existing school: its manager still has the username and password from before the move.
+  await transaction({ tenantId: s.id }, async (q) => q("UPDATE users SET password_hash = $1, must_change_password = false, full_name = 'أ. سالم باوزير' WHERE role = 'admin'",
+    [await hashPassword("Old-School-Pass-1")]));
+  const pub = client(srv.base);
+  assert.deepEqual((await pub.get(`/api/staff/manager?school=${s.id}`)).data, { account: false });
+
+  const wrong = await pub.post("/api/staff/login", { school: s.id, username: "admin", password: "Wrong-Pass-123" });
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.data.setup, undefined, "لا رابط بلا كلمة مرور صحيحة");
+
+  const c = client(srv.base);
+  const first = await c.post("/api/staff/login", { school: s.id, username: "admin", password: "Old-School-Pass-1" });
+  assert.equal(first.status, 200, JSON.stringify(first.data));
+  assert.match(first.data.setup, /^\/activate\?token=[0-9a-f]{64}$/);
+  assert.equal((await c.get("/api/admin/me")).status, 401, "البيانات القديمة لا تفتح اللوحة");
+  const f = await state(s.id);
+  assert.ok(!JSON.stringify(f).includes(tokenOf(`http://x${first.data.setup}`)), "رابط أول دخول لا يظهر للمالك");
+
+  const token = tokenOf(`http://x${first.data.setup}`);
+  const info = await c.post("/api/account/setup", { token });
+  assert.equal(info.data.manager_name, "أ. سالم باوزير");
+  const email = randomEmail();
+  assert.equal((await signup(c, email, token)).status, 200);
+  const link = await c.post("/api/account/setup/link", { token, via: "email" });
+  assert.equal(link.status, 200, JSON.stringify(link.data));
+
+  const me = await c.get("/api/admin/me");
+  assert.equal(me.status, 200);
+  assert.equal(me.data.name, "منى الشامي", "اسم المدير من حسابه");
+  assert.equal(me.data.account.email, email);
+  assert.ok(me.data.account.verified_at && me.data.account.linked_at);
+  assert.equal(me.data.account.linked_via, "email");
+  assert.ok(!("password_hash" in me.data.account));
+
+  assert.deepEqual((await pub.get(`/api/staff/manager?school=${s.id}`)).data, { account: true });
+  const again = await client(srv.base).post("/api/staff/login", { school: s.id, username: "admin", password: "Old-School-Pass-1" });
+  assert.equal(again.status, 403);
+  assert.equal(again.data.code, "use_account", "بعد إنشاء الحساب يتوقف الدخول القديم");
+  assert.equal((await c.post("/api/account/setup", { token })).status, 410, "الرابط يُستخدم مرة واحدة");
+
+  // A deputy administrator has no account record in settings.
+  const username = `dep-${uid()}`.slice(0, 20).toLowerCase();
+  const pw = (await c.post("/api/admin/users/admins", { name: "وكيل", username })).data.credentials.password;
+  const d = client(srv.base);
+  assert.equal((await d.post("/api/staff/login", { school: s.id, username, password: pw })).status, 200);
+  assert.equal((await d.get("/api/admin/me")).data.account, null);
+});

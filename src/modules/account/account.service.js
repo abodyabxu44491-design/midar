@@ -93,12 +93,12 @@ export async function linkSetup(rawToken, accountId, via, req, res, { hash = nul
     await logEvent(q, { actor: acct.email, action: `ربط حساب مدير بمدرسة ${x.tenant_id}${x.recovery ? " (استعادة وصول)" : ""}` });
     return { tenantId: x.tenant_id, userId: x.user_id, recovery: x.recovery, name: acct.full_name };
   });
-  return openSchool(out.tenantId, out.userId, accountId, req, res, { revokeOthers: out.recovery, via });
+  return openSchool(out.tenantId, out.userId, accountId, req, res, { revokeOthers: out.recovery, via, name: out.name });
 }
 const VIA = { email: "البريد الإلكتروني", google: "Google", apple: "Apple", password: "البريد وكلمة المرور" };
 
 // Creates the admin session for a school the account is linked to (server-side checks every time).
-async function openSchool(tenantId, userId, accountId, req, res, { revokeOthers = false, via = "email" } = {}) {
+async function openSchool(tenantId, userId, accountId, req, res, { revokeOthers = false, via = "email", name = null } = {}) {
   await transaction({ tenantId, actor: "مدير المدرسة", ip: req.ip }, async (q) => {
     const [tn] = await q("SELECT status, emergency_locked_at FROM tenants WHERE id = $1", [tenantId]);
     if (!tn || tn.status !== "active") throw forbidden("حساب المدرسة موقوف. تواصل مع إدارة مدار.");
@@ -106,6 +106,8 @@ async function openSchool(tenantId, userId, accountId, req, res, { revokeOthers 
     const [u] = await q("SELECT id, full_name, is_active FROM users WHERE id = $1 AND role = 'admin'", [userId]);
     if (!u?.is_active) throw forbidden("حساب مدير المدرسة موقوف. تواصل مع إدارة مدار.");
     if (revokeOthers) await q("DELETE FROM sessions WHERE user_id = $1", [userId]);
+    // On linking, the school knows its manager by the name on the account.
+    if (name) await q("UPDATE users SET full_name = $2 WHERE id = $1", [userId, name]);
     await q("UPDATE users SET last_login_at = now(), failed_logins = 0, locked_until = NULL, must_change_password = false WHERE id = $1", [userId]);
     await createSession(res, "admin", { userId, tenantId, ip: req.ip, userAgent: req.get("user-agent"), remember: true }, q);
     await logEvent(q, { tenantId, actor: u.full_name, action: `دخول المدير بحساب مدار (${VIA[via] || via})` });

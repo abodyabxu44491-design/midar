@@ -27,7 +27,7 @@ const SECTIONS = [
   { key: "users", name: "المستخدمون والصلاحيات", note: "الإدارة العامة وإدارة المدرسة والمحاسبين" },
   { key: "passwords", name: "طلبات كلمات المرور", note: "تحقق من هوية الطالب ثم أحِل الطلب" },
   { key: "money", name: "العملة", note: "عملة المدرسة الأساسية" },
-  { key: "access", name: "الدخول والأمان", note: "كلمة المرور والجلسات" },
+  { key: "access", name: "الدخول والأمان", note: "حسابك في مدار وطرق الدخول والجلسات" },
   { key: "sync", name: "المزامنة والأجهزة", note: "العمل بدون إنترنت: التعارضات والأجهزة" },
   { key: "data", name: "نسخة من بياناتك", note: "تصدير Excel أو نسخة كاملة" },
   { key: "subscription", name: "اشتراكي", note: "الباقة والمميزات والتجديد والترقية" },
@@ -469,9 +469,35 @@ async function moneyView({ show }) {
 }
 
 // The manager's Midar account (email, Google / Apple, password, devices). Deputies keep the username password.
-async function accountPanels(show) {
+const VIA = { email: "البريد الإلكتروني", google: "Google", apple: "Apple", password: "البريد وكلمة المرور" };
+const dateAr = (d) => (d ? new Date(d).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" }) : "—");
+
+// The official record of the manager's account, from the server's link (not from this device).
+function accountCard(a, schoolName) {
+  const initial = String(a.name || a.email).replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0).toUpperCase();
+  const row = (k, v) => h("div", { class: "acc-row" }, h("dt", {}, k), h("dd", {}, v));
+  return h("div", { class: "acc-card" },
+    h("div", { class: "acc-head" },
+      h("span", { class: "acc-av", "aria-hidden": "true" }, initial),
+      h("div", { class: "acc-who" }, h("b", {}, a.name || "مدير المدرسة"), h("small", {}, `مدير المدرسة · ${schoolName}`))),
+    h("dl", { class: "acc-list" },
+      row("البريد الإلكتروني", h("span", { class: "acc-mail" }, h("bdi", { dir: "ltr" }, a.email), a.verified_at ? badge("موثّق", "green") : badge("غير موثّق", "gray"))),
+      row("إنشاء الحساب", dateAr(a.created_at)),
+      row("مرتبط بالمدرسة منذ", dateAr(a.linked_at)),
+      row("طريقة الربط", VIA[a.linked_via] || "—"),
+      row("آخر دخول", a.last_login_at ? fmtDate(a.last_login_at) : "—")));
+}
+
+async function accountPanels(show, me) {
+  if (!me?.account) return null;
   const [acct, cfg] = await Promise.all([api("/api/account/me").catch(() => null), api("/api/account/config").catch(() => ({}))]);
-  if (!acct) return null;
+  const official = panel("حسابك في مدار", null,
+    accountCard(me.account, me.school?.name || ""),
+    sub("بهذا الحساب تدخل إلى مدرستك من أي جهاز. البريد لا يتغير إلا عبر إدارة مدار بعد التحقق منك."));
+  // Changes need the same account signed in on this device.
+  if (!acct || acct.email.toLowerCase() !== me.account.email.toLowerCase()) {
+    return [official, notice("لتعديل إعدادات الحساب، سجّل الخروج ثم ادخل بحساب المدير على هذا الجهاز.", "warn")];
+  }
   const school = location.pathname.split("/")[1];
   const back = new URLSearchParams(location.search).get("oauth");
   const has = (p) => acct.identities.some((i) => i.provider === p);
@@ -486,12 +512,13 @@ async function accountPanels(show) {
   const cur = passwordInput({ autocomplete: "current-password" });
   const nxt = passwordInput({ autocomplete: "new-password" });
   return [
-    panel("حسابك في مدار", null,
+    official,
+    panel("طرق الدخول", null,
       back === "linked" ? notice("تم ربط طريقة الدخول بحسابك.", "") : null,
-      sub("بهذا الحساب تدخل إلى مدرستك من أي جهاز. البريد لا يتغير إلا عبر إدارة مدار بعد التحقق منك."),
-      h("div", { class: "ph-now" }, h("span", {}, "البريد الإلكتروني"), h("b", { dir: "ltr" }, acct.email)),
-      acct.schools.length > 1 ? sub(`مرتبط بـ ${acct.schools.length} مدارس: ${acct.schools.map((x) => x.name).join("، ")}`) : null,
-      method("google"), method("apple")),
+      line(h("div", {}, h("b", {}, "البريد وكلمة المرور"), " ", acct.has_password ? badge("مفعّل", "green") : badge("بدون كلمة مرور", "gray"),
+        sub(acct.has_password ? "تدخل ببريدك وكلمة المرور من أي جهاز" : "أضف كلمة مرور من الأسفل لتدخل بالبريد أيضًا")), null),
+      method("google"), method("apple"),
+      acct.schools.length > 1 ? sub(`حسابك يدير ${acct.schools.length} مدارس: ${acct.schools.map((x) => x.name).join("، ")}`) : null),
     panel(acct.has_password ? "كلمة مرور الحساب" : "أضف كلمة مرور", null,
       acct.has_password ? field("كلمة المرور الحالية", cur) : sub("تحتاجها لتأكيد العمليات الحساسة، وللدخول بالبريد من جهاز جديد."),
       field("كلمة المرور الجديدة", nxt, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),
@@ -510,7 +537,7 @@ async function accountPanels(show) {
 }
 
 async function accessView({ me, refresh, show }) {
-  const account = await accountPanels(show || refresh);
+  const account = await accountPanels(show || refresh, me);
   if (account) {
     return [...account,
       panel("جلسات المستخدمين", null,

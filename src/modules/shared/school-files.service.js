@@ -98,8 +98,8 @@ async function adminOf(q, tenantId) {
 // The current activation link, if one is still valid, decrypted so it can be shown again.
 async function currentLink(q, tenantId, baseUrl) {
   const [a] = await q(`SELECT id, token_enc, expires_at, created_at, created_by, started_at, account_id, recovery FROM school_activations
-                        WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
-                        ORDER BY id DESC LIMIT 1`, [tenantId]);
+                        WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now() AND created_by <> $2
+                        ORDER BY id DESC LIMIT 1`, [tenantId, SELF_SETUP]);
   if (!a) return null;
   const token = a.token_enc ? openSecret(a.token_enc, `activation:${tenantId}`) : null;
   return { expires_at: a.expires_at, created_at: a.created_at, created_by: a.created_by, started_at: a.started_at,
@@ -181,6 +181,27 @@ export async function issueLink(q, id, actor, baseUrl) {
     ? { kind: "access_reset", body: `رابط استعادة وصول المدير صالح ${LINK_DAYS} أيام (الرابط السابق أُلغي)` }
     : { kind: "activation_link", body: `رابط إعداد حساب المدير صالح ${LINK_DAYS} أيام (الرابط السابق أُلغي)` }, actor);
   return { url: `${baseUrl}/activate?token=${token}`, expires_at: a.expires_at };
+}
+
+// An existing school's manager proved who they are with the school's current username and password:
+// a short setup link (never shown to the owner) takes them straight to creating their Midar account.
+// Returns null when the school is already linked to an account.
+export const SELF_SETUP = "المدير — أول دخول";
+const SELF_MINUTES = 30;
+export async function selfSetupLink(tenantId, userId, ip) {
+  return transaction({ platform: true, actor: SELF_SETUP, ip }, async (q) => {
+    const [{ linked }] = await q("SELECT EXISTS (SELECT 1 FROM account_schools WHERE tenant_id = $1 AND revoked_at IS NULL) AS linked", [tenantId]);
+    if (linked) return null;
+    const [u] = await transaction({ tenantId, actor: "النظام" }, (tq) => tq("SELECT full_name FROM users WHERE id = $1", [userId]));
+    await q("UPDATE school_activations SET revoked_at = now() WHERE tenant_id = $1 AND created_by = $2 AND used_at IS NULL AND revoked_at IS NULL", [tenantId, SELF_SETUP]);
+    const token = crypto.randomBytes(32).toString("hex");
+    await q(
+      `INSERT INTO school_activations (tenant_id, user_id, token_hash, expires_at, created_by, manager_name, recovery)
+       VALUES ($1, $2, $3, now() + make_interval(mins => $4), $5, $6, false)`,
+      [tenantId, userId, sha(token), SELF_MINUTES, SELF_SETUP, u?.full_name || null]);
+    await addEvent(q, tenantId, { kind: "activation_link", body: "دخل المدير ببياناته السابقة وبدأ إنشاء حساب مدار" }, SELF_SETUP);
+    return { url: `/activate?token=${token}` };
+  });
 }
 
 // Stops any open activation link (lost phone, wrong recipient). A new link can be issued afterwards.

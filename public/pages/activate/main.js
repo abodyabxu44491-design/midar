@@ -61,7 +61,9 @@ async function start() {
 
 function welcome(note) {
   const providers = providersFor("setup");
-  page(authHead("مرحبًا بك في مدار", "لبدء استخدام مدرستك، أنشئ حسابك أو اربط حسابًا لديك.", school()),
+  const first = String(info.manager_name || "").replace(/^(أ\.|د\.|م\.)\s*/, "").trim().split(/\s+/)[0];
+  page(first ? authHead(`أهلًا، ${first}`, "مرحبًا بك في مدار. لبدء استخدام مدرستك، أنشئ حسابك أو اربط حسابًا لديك.", school())
+    : authHead("مرحبًا بك في مدار", "لبدء استخدام مدرستك، أنشئ حسابك أو اربط حسابًا لديك.", school()),
     info.recovery ? notice("هذا رابط استعادة وصول: الحساب الذي تربطه الآن يصبح حساب إدارة المدرسة بدل الحساب السابق.", "warn") : null,
     oauth && OAUTH_MESSAGES[oauth] && !note ? notice(OAUTH_MESSAGES[oauth], oauth === "linked" ? "" : "err") : null,
     note ? notice(note, "err") : null,

@@ -12,6 +12,7 @@ import { createSession, destroySession, currentSessionHash } from "../../core/au
 import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
 import { env } from "../../config/env.js";
+import { selfSetupLink } from "./school-files.service.js";
 
 const MAX_FAILS = 5, MAX_FAILS_ACCOUNT = 30, LOCK_MIN = 5;
 const FAIL_IP = "staff_login_failed", FAIL_ACCOUNT = "staff_login_failed_all";
@@ -68,23 +69,38 @@ export const staffLoginRouter = () => {
         if (ipFails + 1 >= MAX_FAILS) return locked(await unlockIn(q, user, ipKey, acctKey));
         return denied;
       }
-      // The school's manager signs in with a Midar account (email, Google or Apple), not a username.
-      if (user.primary_admin && !env.ADMIN_LEGACY_LOGIN) {
-        return { error: "يدخل مدير المدرسة بحساب مدار: البريد الإلكتروني أو Google أو Apple. اختر «الإدارة» في صفحة الدخول.", status: 403, code: "use_account" };
-      }
       if (tenant.status !== "active") return { error: "حساب المدرسة موقوف. تواصل مع إدارة المنصة.", status: 403 };
       if (tenant.emergency_locked_at) return { error: "الدخول للمدرسة موقوف مؤقتًا من إدارة المنصة. تواصل معها.", status: 403 };
       await q("DELETE FROM security_events WHERE kind = $1 AND subject = $2", [FAIL_IP, ipKey]);
+      // The school's manager signs in with a Midar account (email, Google or Apple), not a username.
+      // A school not linked to an account yet: these credentials open account creation, once.
+      if (user.primary_admin && !env.ADMIN_LEGACY_LOGIN) {
+        await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: "تحقق المدير ببياناته السابقة (الانتقال إلى حساب مدار)" });
+        return { manager: { tenantId: tenant.id, userId: user.id } };
+      }
       await q("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [user.id]);
       if (user.role === "admin") await q("UPDATE tenants SET activated_at = now() WHERE id = $1 AND activated_at IS NULL", [tenant.id]);
       await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);
       await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role] || "موظف"})${b.remember ? " - تذكرني" : ""}` });
       return { role: user.role, name: user.full_name };
     });
+    if (outcome.manager) {
+      const setup = await selfSetupLink(outcome.manager.tenantId, outcome.manager.userId, req.ip);
+      if (!setup) throw new AppError(403, "يدخل مدير المدرسة بحساب مدار: البريد الإلكتروني أو Google أو Apple. اختر «الإدارة» في صفحة الدخول.", "use_account");
+      return res.json({ role: "admin", setup: setup.url });
+    }
     if (outcome.locked) throw new AppError(429, outcome.error, "locked", { retry_after: outcome.retry_after });
     if (outcome.code) throw new AppError(403, outcome.error, outcome.code);
     if (outcome.error) throw outcome.status === 403 ? forbidden(outcome.error) : unauthorized(outcome.error);
     res.json({ role: outcome.role, name: outcome.name });
+  }));
+
+  // Whether this school's manager already has a Midar account (decides what the manager tab asks for).
+  r.get("/manager", limits.site, handle(async (req, res) => {
+    const school = parse(loginSchema.shape.school, req.query.school);
+    const [row] = await transaction({ platform: true, actor: "زائر", ip: req.ip }, (q) => q(
+      "SELECT EXISTS (SELECT 1 FROM account_schools WHERE tenant_id = $1 AND revoked_at IS NULL) AS linked", [school]));
+    res.json({ account: Boolean(row?.linked) || env.ADMIN_LEGACY_LOGIN });
   }));
 
   return r;
