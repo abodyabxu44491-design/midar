@@ -30,6 +30,7 @@ import teacherApi from "./modules/teacher/index.js";
 import accountantApi from "./modules/accountant/index.js";
 import publicApi from "./modules/public/index.js";
 import gateApi from "./modules/gate/index.js";
+import { accountRouter, appleCallback } from "./modules/account/routes.js";
 import { staffLoginRouter } from "./modules/shared/staff-auth.js";
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
@@ -74,6 +75,7 @@ export function createApp() {
       || /^\/admin\/teachers\/\d+\/photo$/.test(req.path)
       || /^\/(admin|teacher)\/papers\/import$/.test(req.path)))
     || (req.method === "PUT" && /^\/(admin|teacher)\/papers\/\d+$/.test(req.path));
+  app.post("/api/account/oauth/apple/callback", limits.login, express.urlencoded({ extended: false, limit: "16kb" }), cookieParser(), noStore, appleCallback);
   api.use((req, res, next) => { res.set("X-App-Version", APP_VERSION); next(); });
   api.use(limits.api, noStore, (req, res, next) => (isUpload(req) ? uploadJson : smallJson)(req, res, next), cookieParser(), sameOrigin);
   api.use("/owner", ownerApi);
@@ -84,6 +86,7 @@ export function createApp() {
   api.use("/gate", gateApi);
   api.use("/group", groupApi);
   api.use("/staff", staffLoginRouter());
+  api.use("/account", accountRouter());
   api.use((req, res, next) => next(notFound("المسار غير موجود")));
   app.use("/api", api);
 
@@ -99,6 +102,7 @@ export function createApp() {
   app.get("/reset", send("reset", "index.html"));
   app.get("/group", send("group", "index.html"));
   app.get("/activate", send("activate", "index.html"));
+  app.get("/account", send("activate", "index.html"));
   app.get("/reset/", send("reset", "index.html"));
   const withOrigin = (...p) => (req, res) => res.set("Cache-Control", "no-cache").type("html")
     .send(renderPage(file(...p), { isProd: env.isProd }).replaceAll("__ORIGIN__", baseUrl(req)));

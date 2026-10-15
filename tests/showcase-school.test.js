@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
@@ -80,10 +80,7 @@ test("الرسوم: فاتورة لكل طالب ودفعات مسجلة", async
 });
 
 test("المدير يدخل ويرى المدرسة، والمعلم يرى جدوله، وولي الأمر يرى الحضور والدرجات", async () => {
-  const c = r.data.credentials;
-  const admin = client(srv.base);
-  assert.equal((await admin.post("/api/staff/login", { school: id, username: c.username, password: c.password })).status, 200);
-  await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false WHERE username = 'admin'"));
+  const admin = await setupAdmin(client(srv.base), r.data.setup.url);
   const dash = await admin.get("/api/admin/dashboard");
   assert.equal(dash.status, 200, JSON.stringify(dash.data));
 
@@ -96,7 +93,7 @@ test("المدير يدخل ويرى المدرسة، والمعلم يرى جد
   assert.ok(JSON.stringify(tt.data).length > 200);
 
   const p = r.data.summary.parent_samples[0];
-  const pr = await client(srv.base).post(`/api/public/${id}/student`, { access: c.directory_code, student_id: p.student_id, key: p.access_key });
+  const pr = await client(srv.base).post(`/api/public/${id}/student`, { access: r.data.directory_code, student_id: p.student_id, key: p.access_key });
   assert.equal(pr.status, 200, JSON.stringify(pr.data));
   assert.ok(pr.data.attendance.length > 0, "سجل حضور");
   assert.ok(JSON.stringify(pr.data).includes("اختبار"), "درجات منشورة");
@@ -107,7 +104,7 @@ test("لا تُنشأ مرتين بنفس الرمز، وكلمات المرور
   assert.equal(again.status, 409);
   const row = await transaction({ platform: true }, async (q) => (await q("SELECT * FROM jobs WHERE id = $1", [jobId]))[0]);
   assert.equal(row.status, "done");
-  assert.ok(!JSON.stringify(row).includes(r.data.credentials.password), "لا كلمة مرور في jobs");
+  assert.ok(!JSON.stringify(row).includes(new URL(r.data.setup.url).searchParams.get("token")), "لا رابط إعداد في jobs");
   assert.ok(!JSON.stringify(row).includes(r.data.summary.teacher_samples[0].password));
   const second = (await owner.get(`/api/owner/jobs/${jobId}`)).data;
   assert.equal(second.status, "done");

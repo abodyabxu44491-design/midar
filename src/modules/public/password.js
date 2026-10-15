@@ -6,7 +6,6 @@
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
-import * as activation from "../shared/activation.service.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
 import { inSchool } from "./context.js";
@@ -29,25 +28,6 @@ r.get("/password-reset/check", limits.login, handle(async (req, res) => {
 r.post("/password-reset", limits.login, handle(async (req, res) => {
   const b = parse(reqs.resetSchema, req.body);
   res.json(await anon(req, (q) => reqs.reset(q, b)));
-}));
-
-// School activation: the manager verifies a mobile number by SMS, then sets the password and signs in.
-const tokenQ = z.object({ token: z.string().regex(/^[0-9a-f]{64}$/, "الرابط غير صحيح") });
-r.get("/activation/check", limits.login, handle(async (req, res) => {
-  const { token } = parse(tokenQ, req.query);
-  res.json(await activation.info(token));
-}));
-r.post("/activation/send-code", limits.login, handle(async (req, res) => {
-  const b = parse(tokenQ.extend({ phone: z.string().trim().min(6, "أدخل رقم الجوال").max(25).optional() }), req.body);
-  res.json(await activation.sendCode(b.token, b.phone));
-}));
-r.post("/activation/verify", limits.login, handle(async (req, res) => {
-  const b = parse(tokenQ.extend({ code: z.string().trim().max(10) }), req.body);
-  res.json(await activation.verifyCode(b.token, b.code));
-}));
-r.post("/activation", limits.login, handle(async (req, res) => {
-  const b = parse(tokenQ.extend({ password: t.password }), req.body);
-  res.json(await activation.complete(b.token, b.password, req, res));
 }));
 
 export default r;

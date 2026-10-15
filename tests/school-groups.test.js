@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, ownerPassword, endPool, uid } from "./helpers.js";
+import { startServer, client, ownerPassword, endPool, uid, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 
 let srv, owner;
@@ -41,7 +41,8 @@ test("مجموعة المدارس: دخول الإدارة العامة، إنش
   const a = `${id}-a`, b = `${id}-b`;
   const s1 = await g.post("/api/group/schools", { id: a, name: "مدرسة النخبة - البنين", admin_name: "علي سالم" });
   assert.equal(s1.status, 201, JSON.stringify(s1.data));
-  assert.ok(s1.data.credentials.password, "بيانات دخول مدير المدرسة تُعطى للإدارة العامة");
+  assert.match(s1.data.setup.url, /\/activate\?token=/, "رابط إعداد حساب مدير المدرسة يُعطى للإدارة العامة");
+  assert.equal(s1.data.credentials, undefined, "لا كلمة مرور");
   assert.match(s1.data.links.staff.admin, new RegExp(`/${a}/idara`));
   assert.equal((await g.post("/api/group/schools", { id: b, name: "مدرسة النخبة - البنات", admin_name: "فاطمة علي" })).status, 201);
   const over = await g.post("/api/group/schools", { id: `${id}-c`, name: "مدرسة ثالثة", admin_name: "محمد" });
@@ -53,13 +54,12 @@ test("مجموعة المدارس: دخول الإدارة العامة، إنش
   assert.equal(list.data.totals.schools, 2);
   assert.equal(list.data.schools[0].subscription_end?.slice(0, 10), "2027-12-31", "المدارس على اشتراك المجموعة");
 
-  const admin = client(srv.base);
-  const login = await admin.post("/api/staff/login", { school: a, username: s1.data.credentials.username, password: s1.data.credentials.password });
-  assert.equal(login.status, 200, "لكل مدرسة إدارتها الخاصة");
+  const admin = await setupAdmin(client(srv.base), s1.data.setup.url);
+  assert.equal((await admin.get("/api/admin/me")).status, 200, "لكل مدرسة إدارتها الخاصة");
 
   const reset = await g.post(`/api/group/schools/${a}/reset-admin`);
   assert.equal(reset.status, 200);
-  assert.notEqual(reset.data.credentials.password, s1.data.credentials.password);
+  assert.notEqual(reset.data.setup.url, s1.data.setup.url);
 
   const outsider = `iso-${uid()}`;
   assert.equal((await owner.post("/api/owner/tenants", { id: outsider, name: "مدرسة خارج المجموعة" })).status, 201);

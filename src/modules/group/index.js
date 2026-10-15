@@ -15,6 +15,8 @@ import { limits } from "../../core/rate-limit.js";
 import { schoolLinks } from "../../core/links.js";
 import { createTenant, codeSchema } from "../owner/tenants.js";
 import { groupSchoolRows, groupSubscription, schoolFigures } from "../shared/groups.service.js";
+import { issueLink } from "../shared/school-files.service.js";
+import { env } from "../../config/env.js";
 
 const r = Router();
 const MAX_FAILS = 5;
@@ -127,21 +129,15 @@ async function member(req, id) {
   if (!t) throw notFound("المدرسة ليست ضمن مجموعتك");
 }
 
+// Restoring a school manager's access: a new setup link; the manager links their own Midar account again.
 r.post("/schools/:id/reset-admin", handle(async (req, res) => {
   const id = parse(codeSchema, req.params.id);
   await member(req, id);
-  const password = newTempPassword();
-  const hash = await hashPassword(password);
-  const username = await transaction({ tenantId: id, actor: req.actor, ip: req.ip }, async (q) => {
-    const [u] = await q(`UPDATE users SET password_hash = $1, must_change_password = true, failed_logins = 0, locked_until = NULL, is_active = true, password_changed_at = now()
-      WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) RETURNING id, username`, [hash]);
-    if (!u) throw notFound("لا يوجد مدير لهذه المدرسة");
-    await q("DELETE FROM sessions WHERE user_id = $1", [u.id]);
-    await clearLoginFailures(q, id, u.username);
-    await logEvent(q, { tenantId: id, actor: req.actor, action: "إعادة تعيين كلمة مرور مدير المدرسة من إدارة المجموعة" });
-    return u.username;
-  });
-  res.json({ credentials: { school: id, username, password }, links: schoolLinks(req, id) });
+  const setup = await transaction({ platform: true, actor: req.actor, ip: req.ip }, (q) => issueLink(q, id, req.actor, env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`));
+  await transaction({ tenantId: id, actor: req.actor, ip: req.ip }, (q) =>
+    logEvent(q, { tenantId: id, actor: req.actor, action: "إصدار رابط إعداد/استعادة لمدير المدرسة من إدارة المجموعة" }));
+  const [t] = await platform(req, (q) => q("SELECT name FROM tenants WHERE id = $1", [id]));
+  res.json({ school: { id, name: t?.name }, setup, links: schoolLinks(req, id) });
 }));
 
 export default r;

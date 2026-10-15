@@ -25,7 +25,7 @@ export async function ensureDemoSchool({ log = console.log } = {}) {
   if (!t) {
     log("[العرض التجريبي] إنشاء مدرسة العرض…");
     await createTenant({ actor: ACTOR, ip: null }, { id: ID, name: "مدارس الرواد الأهلية للبنين", admin_name: "أ. عبدالله محمد باوزير",
-      plan: "enterprise", max_students: 2000, currency: "YER" });
+      plan: "enterprise", max_students: 2000, currency: "YER" }, { link: false });
   }
   if (!t || !t.students) {
     const t0 = Date.now();

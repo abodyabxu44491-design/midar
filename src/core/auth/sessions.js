@@ -20,10 +20,12 @@ export const SESSION = {
   accountant: { cookie: "midar_f", path: "/api/accountant", idleMin: 120, maxHours: 12 },
   parent:     { cookie: "midar_p", path: "/api/public",     idleMin: 30 * 24 * 60, maxHours: 30 * 24 },
   group:      { cookie: "midar_g", path: "/api/group",      idleMin: 120, maxHours: 12 },
+  // A school manager's Midar account on this device (who they are); school access is a separate admin session.
+  account:    { cookie: "midar_ac", path: "/api/account",   idleMin: 30 * 24 * 60, maxHours: 30 * 24 },
 };
 
 const SINGLE = "__session";
-const TAG = { owner: "o", admin: "a", teacher: "t", accountant: "f", parent: "p", group: "g" };
+const TAG = { owner: "o", admin: "a", teacher: "t", accountant: "f", parent: "p", group: "g", account: "c" };
 const single = () => env.SESSION_COOKIE_MODE === "single";
 
 function readSingle(req) {
@@ -45,15 +47,15 @@ function tokenOf(req, kind) {
   return single() ? readSingle(req)[TAG[kind]] : req.cookies?.[prefix() + SESSION[kind].cookie];
 }
 
-export async function createSession(res, kind, { userId = null, parentId = null, groupId = null, tenantId = null, ip, userAgent, remember = false }, q) {
+export async function createSession(res, kind, { userId = null, parentId = null, groupId = null, accountId = null, tenantId = null, ip, userAgent, remember = false }, q) {
   const cfg = SESSION[kind];
   const token = newToken();
   const maxHours = remember ? REMEMBER_HOURS : cfg.maxHours;
   const idleMinutes = remember ? REMEMBER_IDLE_MIN : null;
   await q(
-    `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at, idle_minutes, parent_id, group_id)
-     VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7), $8, $9, $10)`,
-    [sha256(token), kind, userId, tenantId, ip || null, String(userAgent || "").slice(0, 200), maxHours, idleMinutes, parentId, groupId],
+    `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at, idle_minutes, parent_id, group_id, account_id)
+     VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7), $8, $9, $10, $11)`,
+    [sha256(token), kind, userId, tenantId, ip || null, String(userAgent || "").slice(0, 200), maxHours, idleMinutes, parentId, groupId, accountId],
   );
   if (single()) {
     const req = res.req;
@@ -82,7 +84,7 @@ export async function readSession(req, kind) {
 export async function sessionRow(q, hash, kind) {
   const [s] = await q(
     `WITH s AS (
-       SELECT user_id, parent_id, group_id, tenant_id, last_seen_at FROM sessions
+       SELECT user_id, parent_id, group_id, account_id, tenant_id, last_seen_at FROM sessions
         WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
           AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
      ), touch AS (
@@ -91,7 +93,7 @@ export async function sessionRow(q, hash, kind) {
               expires_at = CASE WHEN idle_minutes IS NOT NULL THEN GREATEST(expires_at, now() + make_interval(mins => idle_minutes)) ELSE expires_at END
         WHERE token_hash = $1 AND EXISTS (SELECT 1 FROM s) AND last_seen_at < now() - interval '60 seconds'
      )
-     SELECT user_id, parent_id, group_id, tenant_id FROM s`,
+     SELECT user_id, parent_id, group_id, account_id, tenant_id FROM s`,
     [hash, kind, SESSION[kind].idleMin]);
   return s || null;
 }

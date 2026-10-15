@@ -7,14 +7,14 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { promisify } from "node:util";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
 let srv, owner;
 const s = {};
 const ar = (t) => t.replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]);
-const login = (password, username = "admin", school = s.id) => client(srv.base).post("/api/staff/login", { school, username, password });
+const login = (password, username = "deputy", school = s.id) => client(srv.base).post("/api/staff/login", { school, username, password });
 
 before(async () => {
   srv = await startServer();
@@ -24,7 +24,11 @@ before(async () => {
   s.id = `login-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id: s.id, name: "مدرسة اختبار الدخول" });
   assert.equal(r.status, 201, JSON.stringify(r.data));
-  s.pw = r.data.credentials.password;
+  // The manager (Midar account) adds a deputy administrator, who signs in with a username and a temporary password.
+  const manager = await setupAdmin(client(srv.base), r.data.setup.url);
+  const d = await manager.post("/api/admin/users/admins", { name: "وكيل المدرسة", username: "deputy" });
+  assert.equal(d.status, 201, JSON.stringify(d.data));
+  s.pw = d.data.credentials.password;
 });
 
 after(async () => { await srv.close(); await endPool(); });
@@ -38,19 +42,19 @@ test("مدرسة جديدة: كلمة المرور المؤقتة تُقبل ك�
     ["علامة LRM مخفية", `\u200E${s.pw}\u200F`],
     ["أرقام عربية", ar(s.pw)],
     ["شرطة بديلة", s.pw.replace(/-/g, "\u2010")],
-    ["اسم مستخدم بحرف كبير ومسافة", s.pw, " Admin "],
+    ["اسم مستخدم بحرف كبير ومسافة", s.pw, " Deputy "],
   ];
   for (const [label, pw, user] of variants) {
     const r = await login(pw, user);
     assert.equal(r.status, 200, `${label}: ${JSON.stringify(r.data)}`);
   }
   assert.equal((await login("WRONG-PASS-00")).status, 401, "كلمة خاطئة فعلًا تُرفض");
-  assert.equal((await login(s.pw, "admin", "no-such-school")).status, 401);
+  assert.equal((await login(s.pw, "deputy", "no-such-school")).status, 401);
 });
 
 test("تغيير كلمة المرور المؤقتة بعد الدخول بها بحروف صغيرة", async () => {
   const c = client(srv.base);
-  assert.equal((await c.post("/api/staff/login", { school: s.id, username: "admin", password: s.pw.toLowerCase() })).status, 200);
+  assert.equal((await c.post("/api/staff/login", { school: s.id, username: "deputy", password: s.pw.toLowerCase() })).status, 200);
   const r = await c.post("/api/admin/password", { current: s.pw.toLowerCase(), next: "MySecret٩٩x" });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   s.userPw = "MySecret99x";
@@ -68,7 +72,7 @@ test("كلمة المرور التي يختارها المستخدم: الأحر
 test("توافق مع كلمات مرور حُفظت قبل التوحيد (بالشكل الأصلي كما كُتب)", async () => {
   const salt = crypto.randomBytes(16);
   const hash = await promisify(crypto.scrypt)("قديم٢٠٢٤".normalize("NFKC"), salt, 64, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-  await transaction({ tenantId: s.id }, (q) => q("UPDATE users SET password_hash = $1, must_change_password = false WHERE username = 'admin'",
+  await transaction({ tenantId: s.id }, (q) => q("UPDATE users SET password_hash = $1, must_change_password = false WHERE username = 'deputy'",
     [`scrypt$32768$8$1$${salt.toString("base64")}$${hash.toString("base64")}`]));
   assert.equal((await login("قديم٢٠٢٤")).status, 200, "الشكل الأصلي ما زال يعمل");
 });

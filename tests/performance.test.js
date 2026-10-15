@@ -6,7 +6,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { APP_VERSION } from "../src/core/version.js";
 
@@ -21,7 +21,7 @@ before(async () => {
   s.id = `perf-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id: s.id, name: "مدرسة الأداء", max_students: 500 });
   admin = client(srv.base);
-  assert.equal((await admin.post("/api/staff/login", { school: s.id, username: "admin", password: r.data.credentials.password })).status, 200);
+  await setupAdmin(admin, r.data.setup.url);
   s.c1 = (await admin.post("/api/admin/structure/classes", { name: "الأول" })).data.id;
   s.c2 = (await admin.post("/api/admin/structure/classes", { name: "الثاني" })).data.id;
   s.subject = (await admin.post("/api/admin/structure/subjects", { name: "العلوم" })).data.id;

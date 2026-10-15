@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, ownerPath, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, ownerPath, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { PgStore } from "../src/core/rate-limit.js";
@@ -17,10 +17,15 @@ async function makeSchool(name) {
   const id = `t-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id, name, max_students: 3 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
-  const admin = client(srv.base);
-  const login = await admin.post("/api/staff/login", { school: id, username: "admin", password: r.data.credentials.password });
-  assert.equal(login.status, 200);
-  return { id, admin, directory: r.data.credentials.directory_code, password: r.data.credentials.password };
+  const admin = await setupAdmin(client(srv.base), r.data.setup.url);
+  return { id, admin, directory: r.data.directory_code, password: admin.password, email: admin.email };
+}
+// The manager opens the school on another device with their Midar account.
+async function managerIn(o) {
+  const c = client(srv.base);
+  assert.equal((await c.post("/api/account/login", { email: o.email, password: o.password })).status, 200);
+  assert.equal((await c.post("/api/account/enter", { school: o.id })).status, 200);
+  return c;
 }
 
 before(async () => {
@@ -65,9 +70,8 @@ test("الرموز المحجوزة لا تُستخدم كرمز مدرسة", as
 });
 
 test("باب المدرسة الموحّد يوجّه كل حساب للوحته", async () => {
-  const adminIn = client(srv.base);
-  const r1 = await adminIn.post("/api/staff/login", { school: A.id, username: "admin", password: s.adminPw });
-  assert.equal(r1.data.role, "admin");
+  const adminIn = await managerIn(A);
+  assert.equal((await client(srv.base).post("/api/staff/login", { school: A.id, username: "admin", password: "Wrong-Pass-2026" })).status, 401);
   assert.equal((await adminIn.get("/api/admin/me")).status, 200);
   assert.equal((await adminIn.get("/api/teacher/me")).status, 401, "حساب المدير لا يفتح بوابة المعلم");
 
@@ -428,8 +432,7 @@ test("اشتراكات المدارس: فاتورة، سداد، تمديد، و
   assert.equal((await A.admin.get("/api/admin/students")).status, 200, "عادت المدرسة للعمل ببياناتها");
   assert.equal((await owner.post(`/api/owner/billing/invoices/${inv.data.id}/pay`, { method: "cash" })).status, 400, "لا تُسدد مرتين");
 
-  const admin2 = client(srv.base);
-  await admin2.post("/api/staff/login", { school: A.id, username: "admin", password: s.adminPw });
+  const admin2 = await managerIn(A);
   assert.equal((await admin2.get("/api/owner/billing")).status, 401);
   A.admin = admin2;
 });
@@ -634,8 +637,7 @@ test("العملات: عملة المدرسة وحساب بعملة أخرى و�
   const tenantC = client(srv.base);
   const created = await owner.post("/api/owner/tenants", { id: `t-${uid()}`, name: "مدرسة بالريال اليمني", currency: "YER", max_students: 10 });
   assert.equal(created.status, 201, JSON.stringify(created.data));
-  const school = created.data.credentials;
-  await tenantC.post("/api/staff/login", { school: school.school, username: "admin", password: school.password });
+  await setupAdmin(tenantC, created.data.setup.url);
 
   const accs = await tenantC.get("/api/admin/ledger/accounts");
   assert.ok(accs.data.length >= 2);
@@ -1225,20 +1227,23 @@ test("نسيت كلمة المرور: المعلم والمحاسب تعتمده
   const ownerOk = await owner.post(`/api/owner/password-requests/${ownerRow.id}/review`, { decision: "approve", note: "تحققت من المدير" });
   assert.equal(ownerOk.status, 200, JSON.stringify(ownerOk.data));
   assert.equal((await reset(ownerOk.data.link.split("token=")[1], "Admin-Reset-2026")).status, 200);
-  const ac = client(srv.base);
-  assert.equal((await ac.post("/api/staff/login", { school: S.id, username: "admin", password: "Admin-Reset-2026" })).data.role, "admin");
+  // The school's manager signs in with a Midar account; a username password never opens the school.
+  const ac = await client(srv.base).post("/api/staff/login", { school: S.id, username: "admin", password: "Admin-Reset-2026" });
+  assert.equal(ac.status, 403);
+  assert.equal(ac.data.code, "use_account");
 
   assert.equal((await S.admin.get("/api/admin/me")).status, 401, "الجلسات القديمة انتهت");
+  const mgr = await managerIn(S);
 
   const ghost = await anon.post(`/api/public/${S.id}/password-request`, {
     full_name: "غير موجود", username: "nobody-here", phone: "0500000888", job_title: "accountant", description: "نسيت كلمة المرور" });
   assert.equal(ghost.status, 201, "لا يُكشف لصاحب الطلب وجود الحساب من عدمه");
-  const g = (await ac.get("/api/admin/password-requests")).data.find((x) => x.ref === ghost.data.ref);
+  const g = (await mgr.get("/api/admin/password-requests")).data.find((x) => x.ref === ghost.data.ref);
   assert.equal(g.account_role, null);
-  const noAcc = await ac.post(`/api/admin/password-requests/${g.id}/review`, { decision: "approve" });
+  const noAcc = await mgr.post(`/api/admin/password-requests/${g.id}/review`, { decision: "approve" });
   assert.equal(noAcc.status, 400);
   assert.match(noAcc.data.error, /لا يوجد حساب/);
-  assert.equal((await ac.post(`/api/admin/password-requests/${g.id}/review`, { decision: "reject", note: "غير معروف" })).status, 200);
+  assert.equal((await mgr.post(`/api/admin/password-requests/${g.id}/review`, { decision: "reject", note: "غير معروف" })).status, 200);
 });
 
 test("الحقول المخصصة: تعريفها وقيمها وتحققها وظهورها لولي الأمر", async () => {
@@ -1341,8 +1346,7 @@ test("التحليلات والتنبيهات والبحث السريع", async 
   assert.equal((await A.admin.get("/api/admin/analytics/search?q=ط")).status, 400, "حرف واحد غير كافٍ");
 
   await owner.patch(`/api/owner/tenants/${B.id}`, { status: "active" });
-  B.admin = client(srv.base);
-  await B.admin.post("/api/staff/login", { school: B.id, username: "admin", password: B.password });
+  B.admin = await managerIn(B);
   const other = await B.admin.get(`/api/admin/analytics/search?q=${encodeURIComponent("طالب")}`);
   assert.equal(other.status, 200, JSON.stringify(other.data));
   assert.equal(other.data.students.length, 0);
@@ -1637,27 +1641,34 @@ test("أداة فحص الشبكة للمالك: تعرض عنوان IP الذي
 
 test("كلمة المرور المؤقتة: لا يعمل شيء قبل تغييرها، والتغيير يُنهي جلسات الأجهزة الأخرى", async () => {
   const C = await makeSchool("مدرسة كلمة المرور");
+  // A deputy administrator added by the manager keeps the username + temporary password sign-in.
+  const dep = await C.admin.post("/api/admin/users/admins", { name: "وكيل المدرسة", username: "deputy-temp" });
+  assert.equal(dep.status, 201, JSON.stringify(dep.data));
+  const TEMP = dep.data.credentials.password;
+  const D = client(srv.base);
+  assert.equal((await D.post("/api/staff/login", { school: C.id, username: "deputy-temp", password: TEMP })).status, 200);
   const other = client(srv.base);
-  assert.equal((await other.post("/api/staff/login", { school: C.id, username: "admin", password: C.password })).status, 200);
+  assert.equal((await other.post("/api/staff/login", { school: C.id, username: "deputy-temp", password: TEMP })).status, 200);
 
   process.env.FORCE_PASSWORD_CHANGE = "true";
   try {
-    const me = await C.admin.get("/api/admin/me");
+    const me = await D.get("/api/admin/me");
     assert.equal(me.status, 200, "قراءة /me مسموحة لتعرف الواجهة أن التغيير لازم");
     assert.equal(me.data.must_change_password, true);
 
-    const blocked = await C.admin.get("/api/admin/students");
+    const blocked = await D.get("/api/admin/students");
     assert.equal(blocked.status, 403);
     assert.equal(blocked.data.code, "password_change_required");
 
     const NEW = `Brand-New-${uid()}9`;
-    assert.equal((await C.admin.post("/api/admin/password", { current: C.password, next: C.password })).status, 400, "لا تُقبل نفس المؤقتة");
-    assert.equal((await C.admin.post("/api/admin/password", { current: "wrong-password-1", next: NEW })).status, 401);
-    assert.equal((await C.admin.post("/api/admin/password", { current: C.password, next: NEW })).status, 200);
+    assert.equal((await D.post("/api/admin/password", { current: TEMP, next: TEMP })).status, 400, "لا تُقبل نفس المؤقتة");
+    assert.equal((await D.post("/api/admin/password", { current: "wrong-password-1", next: NEW })).status, 401);
+    assert.equal((await D.post("/api/admin/password", { current: TEMP, next: NEW })).status, 200);
 
-    assert.equal((await C.admin.get("/api/admin/students")).status, 200, "بعد التغيير يعمل كل شيء");
-    assert.equal((await C.admin.get("/api/admin/me")).data.must_change_password, false);
+    assert.equal((await D.get("/api/admin/students")).status, 200, "بعد التغيير يعمل كل شيء");
+    assert.equal((await D.get("/api/admin/me")).data.must_change_password, false);
     assert.equal((await other.get("/api/admin/me")).status, 401, "جلسة الجهاز الآخر أُنهيت (حتى لو كانت نشطة الآن)");
+    assert.equal((await C.admin.get("/api/admin/me")).data.must_change_password, false, "المدير بحساب مدار لا يُطلب منه تغيير كلمة مرور مؤقتة");
 
     const created = await C.admin.post("/api/admin/users", { name: "محاسب مؤقت", username: "acc-temp" });
     const acc = client(srv.base);

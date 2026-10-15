@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { purgeExpiredSessions } from "../src/core/auth/sessions.js";
@@ -21,10 +21,8 @@ before(async () => {
   assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
   s.id = `site-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id: s.id, name: "مدرسة الموقع", max_students: 500 });
-  s.code = r.data.credentials.directory_code;
-  s.adminPw = r.data.credentials.password;
-  admin = client(srv.base);
-  assert.equal((await admin.post("/api/staff/login", { school: s.id, username: "admin", password: s.adminPw })).status, 200);
+  s.code = r.data.directory_code;
+  admin = await setupAdmin(client(srv.base), r.data.setup.url);
   const st = await admin.post("/api/admin/setup/stages", { name: "الابتدائية" });
   assert.equal(st.status, 201, JSON.stringify(st.data));
   s.stage = st.data.id;
@@ -115,14 +113,18 @@ test("صفحة المدرسة عند المالك: الروابط والاشتر
   assert.ok(o.data.subscription.plan_name);
   assert.ok(o.data.links.staff.admin.includes("role=admin"));
   assert.ok(!/password_hash|\$scrypt|\$2[aby]\$/.test(JSON.stringify(o.data)), "لا بصمات كلمات مرور");
+  // Restoring the manager's access issues a setup link, never a password.
   const reset = await owner.post(`/api/owner/tenants/${s.id}/reset-admin`, {});
-  assert.match(reset.data.credentials.password, /^[A-Z0-9]{4}-[A-Z0-9]{4}-\d{2}$/);
+  assert.match(reset.data.setup.url, /\/activate\?token=[0-9a-f]{64}$/);
+  assert.equal(reset.data.credentials, undefined);
+  assert.equal((await owner.get(`/api/owner/files/${s.id}`)).data.activation_state, "recovery");
 });
 
 test("الجلسات: «ابقني مسجلًا» افتراضي بكوكي دائم، وبدونه كوكي ينتهي بإغلاق المتصفح، والتنظيف لا يحذف الجلسات الطويلة", async () => {
-  const pw = (await owner.post(`/api/owner/tenants/${s.id}/reset-admin`, {})).data.credentials.password;
+  // A deputy administrator (username sign-in) keeps the classic session behaviour.
+  const pw = (await admin.post("/api/admin/users/admins", { name: "وكيل", username: "deputy-s" })).data.credentials.password;
   const res = await fetch(`${srv.base}/api/staff/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: srv.base },
-    body: JSON.stringify({ school: s.id, username: "admin", password: pw }) });
+    body: JSON.stringify({ school: s.id, username: "deputy-s", password: pw }) });
   assert.equal(res.status, 200);
   const single = process.env.SESSION_COOKIE_MODE === "single";
   const cookieName = single ? "__session" : "midar_a";
@@ -131,7 +133,7 @@ test("الجلسات: «ابقني مسجلًا» افتراضي بكوكي دا
   const token = cookie.split(";")[0];
 
   const res2 = await fetch(`${srv.base}/api/staff/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: srv.base },
-    body: JSON.stringify({ school: s.id, username: "admin", password: pw, remember: false }) });
+    body: JSON.stringify({ school: s.id, username: "deputy-s", password: pw, remember: false }) });
   assert.equal(res2.status, 200);
   if (!single) assert.doesNotMatch(res2.headers.getSetCookie().find((c) => c.includes(cookieName)), /Max-Age/, "بدون تذكر: كوكي جلسة المتصفح");
 

@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, ownerPassword, endPool, uid, readySchool } from "./helpers.js";
+import { startServer, client, ownerPassword, endPool, uid, readySchool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
@@ -29,7 +29,7 @@ before(async () => {
   inst = `in-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id: inst, name: "معهد المهارات للتدريب", org_type: "institute", max_students: 50 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
-  admin = await staff(inst, "admin", r.data.credentials.password);
+  admin = await setupAdmin(client(srv.base), r.data.setup.url);
   await transaction({ tenantId: inst }, (q) => q("UPDATE users SET must_change_password = false"));
   // Trainers are teacher accounts with no school load
   const mk = async (name, username) => {

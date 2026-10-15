@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 
 let srv, admin, teacher, school, code;
@@ -20,9 +20,9 @@ before(async () => {
   school = `af-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id: school, name: "مدرسة المتابعة", max_students: 50 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
-  code = r.data.credentials.directory_code;
+  code = r.data.directory_code;
   admin = client(srv.base);
-  assert.equal((await admin.post("/api/staff/login", { school, username: "admin", password: r.data.credentials.password })).status, 200);
+  await setupAdmin(admin, r.data.setup.url);
   s.cls = (await admin.post("/api/admin/structure/classes", { name: "الأول - أ" })).data.id;
   s.other = (await admin.post("/api/admin/structure/classes", { name: "الأول - ب" })).data.id;
   const sub = (await admin.post("/api/admin/structure/subjects", { name: "العلوم" })).data.id;
