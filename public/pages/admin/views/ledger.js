@@ -71,6 +71,7 @@ async function overview({ show, go }) {
   const from = input({ type: "date", value: monthStart() });
   const to = input({ type: "date", value: today() });
   const box = h("div");
+  const acts = h("div");
 
   const load = async () => {
     mount(box, empty("جارٍ الحساب…"));
@@ -85,6 +86,10 @@ async function overview({ show, go }) {
     const label = { today: "اليوم", week: "هذا الأسبوع", month: "هذا الشهر", year: "هذا العام" }[range.value] || "الفترة";
     const quick = (icon, text, tone, key) => h("button", { type: "button", class: `quick-act ${tone}`, onclick: () => go(key) },
       h("span", { class: "qa-ic" }, icons[icon]({ size: 20 })), h("span", {}, text));
+    // What the accountant does every day comes first; the numbers follow, and the detailed reports are folded.
+    mount(acts, h("div", { class: "quick-acts fin-acts" },
+      quick("plus", "قبض رسوم", "teal", "fees"), quick("minus", "تسجيل مصروف", "red", "money"),
+      d.staff ? quick("users", "الرواتب", "navy", "payroll") : null, quick("list", "سجل الحركات", "violet", "entries")));
     mount(box,
       h("div", { class: "bal-hero" },
         h("span", { class: "bal-k" }, "الرصيد الحالي في كل الحسابات"),
@@ -95,9 +100,6 @@ async function overview({ show, go }) {
         kpiCard({ icon: "down", tone: "red", label: "المصروفات", value: money(d.expense), note: label }),
         kpiCard({ icon: "wallet", tone: "amber", label: "رسوم غير مسددة", value: money(d.unpaid_fees), note: d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", onClick: () => go("fees") }),
         d.staff ? kpiCard({ icon: "users", tone: "navy", label: "الرواتب الشهرية", value: money(d.staff.monthly), note: `${d.staff.count} موظفًا`, onClick: () => go("staff") }) : null),
-      h("div", { class: "quick-acts" },
-        quick("plus", "قبض رسوم", "teal", "fees"), quick("minus", "تسجيل مصروف", "red", "money"),
-        d.staff ? quick("users", "الرواتب", "navy", "payroll") : null, quick("list", "سجل الحركات", "violet", "entries")),
       d.pending ? notice(`${d.pending} حركة بانتظار الاعتماد في «سجل الحركات».`, "warn") : null,
       low.length ? notice(`رصيد منخفض: ${low.map((a) => `${a.name} (${money(a.balance)})`).join("، ")}`, "err") : null,
 
@@ -115,19 +117,20 @@ async function overview({ show, go }) {
             sub(`${KINDS[a.kind]}${a.methods.length ? ` — ${a.methods.map((m) => METHODS[m]).join("، ")}` : ""}`)),
           h("b", { class: Number(a.balance) < 0 ? "danger-text" : "" }, money(a.balance, a.currency))))),
 
+      h("details", { class: "fin-more" }, h("summary", {}, "التحليل: الحركة الشهرية والتوزيع حسب التصنيف"),
       panel("الحركة الشهرية", null,
         barChart(d.by_month.map((m) => ({ label: monthName(m.month), value: Math.round(m.income), color: "var(--teal)" }))),
         sub("المداخيل"),
         barChart(d.by_month.map((m) => ({ label: monthName(m.month), value: Math.round(m.expense), color: "var(--red)" }))),
         sub("المصروفات")),
 
-      printReport(d),
 
       panel("التوزيع حسب التصنيف", btn("تصدير", () => exportRows("التصنيفات", d.by_category,
         [["التصنيف", "name"], ["النوع", (r) => (r.direction === "income" ? "إيراد" : "مصروف")], ["المبلغ", "total"]]), "ghost sm"),
         d.by_category.length ? d.by_category.map((c) => line(
           h("div", {}, h("b", {}, c.name), sub(c.direction === "income" ? "إيراد" : "مصروف")),
-          h("b", { class: c.direction === "income" ? "" : "danger-text" }, money(c.total)))) : empty("لا توجد حركات في هذه الفترة.")));
+          h("b", { class: c.direction === "income" ? "" : "danger-text" }, money(c.total)))) : empty("لا توجد حركات في هذه الفترة."))),
+      printReport(d));
   };
 
   const applyRange = () => {
@@ -146,7 +149,7 @@ async function overview({ show, go }) {
       onclick: () => { range.value = k; custom.hidden = k !== "custom"; drawSeg(); applyRange(); } }, t)));
   drawSeg();
   await load();
-  return [seg, custom, box];
+  return [acts, seg, custom, box];
 }
 
 function finCard(title, rows, note, action, onClick, tone = "") {

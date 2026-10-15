@@ -2720,3 +2720,16 @@ body.cd-open { overflow: hidden; }
 .tc-more summary small { font-weight: 400; color: var(--muted); }
 .tc-search { width: 100%; max-width: 360px; margin-top: 10px; }
 @media (min-width: 900px) { .tc-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.fin-acts { margin: 4px 0 14px; }
+.fin-acts .quick-act { font-size: 14px; padding: 16px 6px; }
+.fin-more { margin: 14px 0; }
+.fin-more > summary { cursor: pointer; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; font-weight: 700; color: var(--navy); }
+.fin-more[open] > summary { margin-bottom: 12px; }
+button.sf-kpi.go { font: inherit; color: inherit; text-align: start; cursor: pointer; position: relative; }
+button.sf-kpi.go::after { content: "‹"; position: absolute; inset-inline-end: 12px; top: 10px; color: var(--muted); font-size: 18px; line-height: 1; }
+button.sf-kpi.go:hover { border-color: var(--line-2); }
+@media (max-width: 560px) {
+  .att-monthly th:nth-child(5), .att-monthly td:nth-child(5) { display: none; }
+  .att-monthly table { width: 100%; }
+  .att-monthly th, .att-monthly td { padding-inline: 6px; white-space: nowrap; }
+}
