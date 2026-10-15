@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, ownerPath, endPool, setupAdmin } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, ownerPath, endPool, setupAdmin, accountLogin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { PgStore } from "../src/core/rate-limit.js";
@@ -23,7 +23,7 @@ async function makeSchool(name) {
 // The manager opens the school on another device with their Midar account.
 async function managerIn(o) {
   const c = client(srv.base);
-  assert.equal((await c.post("/api/account/login", { email: o.email, password: o.password })).status, 200);
+  assert.equal((await accountLogin(c, o.email, o.password)).status, 200);
   assert.equal((await c.post("/api/account/enter", { school: o.id })).status, 200);
   return c;
 }

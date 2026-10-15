@@ -42,6 +42,19 @@ export async function sendMail(msg) {
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 // A short branded message with the one-time code; the code is never logged.
+// A short notice without a code (e.g. "your account was signed in on a new device").
+export function noticeMail({ to, title, lines }) {
+  const text = `${title}\n\n${lines.join("\n")}\n\n— مدار`;
+  const html = `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#F3F5F8;font-family:Tahoma,Arial,sans-serif">
+<div style="max-width:480px;margin:24px auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #E3E7EC">
+<div style="background:#16244A;color:#fff;padding:18px 24px;font-size:20px;font-weight:bold">مدار</div>
+<div style="padding:24px;color:#1A2233;line-height:1.9">
+<h1 style="font-size:19px;margin:0 0 8px;color:#16244A">${esc(title)}</h1>
+${lines.map((l) => `<p style="margin:0 0 8px">${esc(l)}</p>`).join("")}
+</div></div></body></html>`;
+  return { to, subject: `${title} — مدار`, text, html };
+}
+
 export function codeMail({ to, title, intro, code, minutes }) {
   const text = `${title}\n\n${intro}\n\nالرمز: ${code}\nصالح ${minutes} دقيقة. لا تشاركه مع أحد.\n\nإذا لم تطلب هذا الرمز فتجاهل الرسالة.\n— مدار`;
   const html = `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#F3F5F8;font-family:Tahoma,Arial,sans-serif">

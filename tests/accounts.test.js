@@ -6,7 +6,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { startServer, client, ownerPassword, endPool, mailOn, mails, lastCode, randomEmail, uid } from "./helpers.js";
+import { startServer, client, ownerPassword, endPool, mailOn, mails, lastCode, randomEmail, uid, accountLogin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { setMailTransport } from "../src/modules/shared/mail.service.js";
@@ -93,14 +93,14 @@ test("إغلاق الصفحة قبل الإكمال ثم العودة: لا حس
   const again = client(srv.base);
   assert.equal((await again.post("/api/account/signup", { email, password: "Manager-Pass-2026", name: "منى", setup: s.token })).data.code, "exists");
   assert.equal((await again.post("/api/account/login", { email, password: "wrong-pass-123" })).status, 401);
-  assert.equal((await again.post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 200);
+  assert.equal((await accountLogin(again, email, "Manager-Pass-2026")).status, 200);
   assert.equal((await again.post("/api/account/setup/link", { token: s.token })).status, 200);
   assert.equal((await again.get("/api/admin/me")).status, 200);
 
   // A new device: email + password, then the school (checked on the server).
   const tablet = client(srv.base);
   assert.equal((await tablet.post("/api/account/enter", { school: s.id })).status, 401);
-  assert.equal((await tablet.post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 200);
+  assert.equal((await accountLogin(tablet, email, "Manager-Pass-2026")).status, 200);
   const me = (await tablet.get("/api/account/me")).data;
   assert.deepEqual(me.schools.map((x) => x.id), [s.id]);
   assert.equal(me.has_password, true);
@@ -124,7 +124,7 @@ test("مدرستان لحساب واحد، وتسجيل الخروج من كل �
   assert.equal((await c.post("/api/account/setup/link", { token: b.token })).status, 200, "الحساب نفسه يُربط بالمدرسة الثانية");
   assert.deepEqual((await c.get("/api/account/me")).data.schools.map((x) => x.id).sort(), [a.id, b.id].sort());
   const d2 = client(srv.base);
-  assert.equal((await d2.post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 200);
+  assert.equal((await accountLogin(d2, email, "Manager-Pass-2026")).status, 200);
   assert.equal((await d2.post("/api/account/enter", { school: b.id })).status, 200);
   assert.equal((await c.post("/api/account/logout-all", {})).status, 200);
   assert.equal((await d2.get("/api/account/me")).status, 401, "انتهت جلسة الجهاز الآخر");
@@ -157,7 +157,7 @@ test("نسيت كلمة المرور: رمز على البريد الموثّق�
   assert.equal((await r.post("/api/account/reset/finish", { ticket: v.data.ticket, password: "Recovered-Pass-2026" })).status, 410, "التذكرة مرة واحدة");
   assert.equal((await c.get("/api/admin/me")).status, 401, "جلسة المدرسة القديمة انتهت");
   assert.equal((await client(srv.base).post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 401);
-  assert.equal((await client(srv.base).post("/api/account/login", { email, password: "Recovered-Pass-2026" })).status, 200);
+  assert.equal((await accountLogin(client(srv.base), email, "Recovered-Pass-2026")).status, 200);
 });
 
 test("استعادة الوصول من المالك: رابط استعادة ينقل المدرسة لحساب جديد ويقطع القديم", async () => {
@@ -433,4 +433,54 @@ test("أول دخول: مدرسة بلا بريد مدير لا تُربط، وG
   assert.equal((await c.get("/api/admin/me")).status, 200);
   assert.equal((await owner.get(`/api/owner/files/${id}`)).data.account.linked_via, "google");
   assert.equal((await fetch(`${srv.base}/api/account/oauth/google/start?purpose=claim`, { redirect: "manual" })).status, 401, "الرابط يحتاج المدرسة");
+});
+
+test("جهاز جديد: كلمة مرور صحيحة ثم رمز على البريد، والجهاز يُحفظ، وإشعار بالدخول، والخروج من كل الأجهزة يلغي الثقة", async () => {
+  const s = await newSchool("مدرسة الأمان");
+  const email = randomEmail();
+  const home = client(srv.base);
+  assert.equal((await signup(home, email, s.token)).status, 200);
+  assert.equal((await home.post("/api/account/setup/link", { token: s.token })).status, 200);
+  // The device that created the account is trusted: the password alone is enough there.
+  assert.equal((await home.post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 200);
+
+  const phone = client(srv.base);
+  assert.equal((await phone.post("/api/account/login", { email, password: "wrong-pass-123" })).status, 401, "لا رمز لكلمة مرور خاطئة");
+  const sentBefore = mails.length;
+  const r = await phone.post("/api/account/login", { email, password: "Manager-Pass-2026" });
+  assert.equal(r.status, 202);
+  assert.equal(r.data.code_required, true);
+  assert.ok(!r.data.email.includes(email.split("@")[0]), "البريد يظهر مخفيًا");
+  assert.equal(mails.length, sentBefore + 1);
+  assert.match(mails.at(-1).subject, /جهاز جديد/);
+  assert.equal((await phone.get("/api/account/me")).status, 401, "لا جلسة قبل الرمز");
+  assert.equal((await phone.post("/api/account/enter", { school: s.id })).status, 401);
+  // Asking again within a minute keeps the same code (no flood of emails).
+  assert.equal((await phone.post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 202);
+  assert.equal(mails.length, sentBefore + 1);
+  const code = lastCode(email);
+  assert.equal((await phone.post("/api/account/login/verify", { email, code: code === "111111" ? "222222" : "111111" })).status, 400);
+  assert.equal((await client(srv.base).post("/api/account/login/verify", { email: randomEmail(), code })).status, 400, "الرمز لبريده فقط");
+  const ok = await phone.post("/api/account/login/verify", { email, code });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.equal((await phone.post("/api/account/login/verify", { email, code })).status, 400, "الرمز مرة واحدة");
+  await new Promise((done) => setTimeout(done, 100));
+  assert.match(mails.at(-1).subject, /تم الدخول إلى حسابك من جهاز جديد/, "إشعار بالدخول على البريد");
+  assert.equal((await phone.post("/api/account/enter", { school: s.id })).status, 200);
+  assert.equal((await phone.get("/api/admin/me")).status, 200);
+
+  // Next time on the same phone: the password only, no code.
+  await phone.post("/api/account/logout", {});
+  const n = mails.length;
+  assert.equal((await phone.post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 200);
+  assert.equal(mails.length, n, "لا رمز لجهاز معروف");
+  // The trust belongs to this account only: another account on the same phone still needs its code.
+  const other = randomEmail();
+  const s2 = await newSchool("مدرسة ثانية");
+  assert.equal((await signup(client(srv.base), other, s2.token)).status, 200);
+  assert.equal((await phone.post("/api/account/login", { email: other, password: "Manager-Pass-2026" })).status, 202);
+
+  // Signing out everywhere forgets every trusted device.
+  assert.equal((await home.post("/api/account/logout-all", {})).status, 200);
+  assert.equal((await phone.post("/api/account/login", { email, password: "Manager-Pass-2026" })).status, 202, "يُطلب الرمز من جديد");
 });

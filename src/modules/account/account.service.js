@@ -13,7 +13,8 @@ import { hashPassword, verifyPassword } from "../../core/auth/password.js";
 import { createSession } from "../../core/auth/sessions.js";
 import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
 import { z, t } from "../../core/http/validate.js";
-import { sendMail, codeMail, mailReady } from "../shared/mail.service.js";
+import { sendMail, codeMail, noticeMail, mailReady } from "../shared/mail.service.js";
+import { env } from "../../config/env.js";
 import { addEvent } from "../shared/school-files.service.js";
 
 export const CODE_MINUTES = 15, CODE_ATTEMPTS = 5, CODE_SENDS = 5, RESEND_SECONDS = 60, TICKET_MINUTES = 15;
@@ -190,16 +191,46 @@ export async function me(accountId) {
   });
 }
 
-const accountSession = (q, res, req, accountId) =>
-  createSession(res, "account", { accountId, ip: req.ip, userAgent: req.get("user-agent"), remember: true }, q);
+// Trusted devices: a device that proved the email once (a code, a password reset, Google or Apple) is remembered
+// for a year; signing in from any other device with the password also needs a code sent to the email.
+const DEVICE_DAYS = 365;
+const deviceCookie = () => `${env.COOKIE_SECURE ? "__Secure-" : ""}midar_dv`;
+const deviceLabel = (ua) => {
+  const s = String(ua || "");
+  const os = /iPhone|iPad/.test(s) ? "آيفون" : /Android/.test(s) ? "أندرويد" : /Windows/.test(s) ? "ويندوز" : /Mac OS/.test(s) ? "ماك" : /Linux/.test(s) ? "لينكس" : "جهاز";
+  const br = /Edg\//.test(s) ? "Edge" : /SamsungBrowser/.test(s) ? "Samsung" : /Chrome\//.test(s) ? "Chrome" : /Firefox\//.test(s) ? "Firefox" : /Safari\//.test(s) ? "Safari" : "";
+  return [os, br].filter(Boolean).join(" — ");
+};
+async function isTrustedDevice(q, req, accountId) {
+  const raw = req.cookies?.[deviceCookie()];
+  if (!raw || !/^[A-Za-z0-9_-]{40,60}$/.test(raw)) return false;
+  const [d] = await q("UPDATE account_devices SET last_used_at = now(), ip = $3 WHERE token_hash = $1 AND account_id = $2 AND revoked_at IS NULL RETURNING id",
+    [sha(raw), accountId, req.ip || null]);
+  return Boolean(d);
+}
+async function trustDevice(q, req, res, accountId) {
+  if (await isTrustedDevice(q, req, accountId)) return;
+  const raw = crypto.randomBytes(32).toString("base64url");
+  await q("INSERT INTO account_devices (account_id, token_hash, label, ip) VALUES ($1, $2, $3, $4)",
+    [accountId, sha(raw), deviceLabel(req.get("user-agent")), req.ip || null]);
+  res.cookie(deviceCookie(), raw, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: "/api/account", maxAge: DEVICE_DAYS * 86_400_000 });
+}
+
+// Every account session opened after the email (or Google / Apple) was proven also remembers the device.
+const accountSession = async (q, res, req, accountId, { trust = true } = {}) => {
+  if (trust) await trustDevice(q, req, res, accountId);
+  return createSession(res, "account", { accountId, ip: req.ip, userAgent: req.get("user-agent"), remember: true }, q);
+};
 export const startAccountSession = (q, req, res, accountId) => accountSession(q, res, req, accountId);
 
 // A code to an email: resend waits a minute, at most five per hour; wrong codes are counted and capped.
 async function issueCode(q, purpose, mail, extra = {}) {
+  // The one-minute wait applies to a code still waiting to be entered; the hourly cap counts codes never used.
   const [last] = await q(
-    `SELECT last_sent_at, (SELECT count(*) FROM account_codes WHERE lower(email) = $1 AND purpose = $2 AND created_at > now() - interval '1 hour')::int AS n
+    `SELECT last_sent_at, (consumed_at IS NULL AND expires_at > now()) AS pending,
+            (SELECT count(*) FROM account_codes WHERE lower(email) = $1 AND purpose = $2 AND used_at IS NULL AND created_at > now() - interval '1 hour')::int AS n
        FROM account_codes WHERE lower(email) = $1 AND purpose = $2 ORDER BY id DESC LIMIT 1`, [mail, purpose]);
-  if (last && Date.now() - new Date(last.last_sent_at) < RESEND_SECONDS * 1000) throw new AppError(429, "انتظر دقيقة قبل طلب رمز جديد.", "rate_limited");
+  if (last?.pending && Date.now() - new Date(last.last_sent_at) < RESEND_SECONDS * 1000) throw new AppError(429, "انتظر دقيقة قبل طلب رمز جديد.", "rate_limited");
   if (last && last.n >= CODE_SENDS) throw new AppError(429, "طلبت رموزًا كثيرة. حاول بعد ساعة.", "rate_limited");
   await q("UPDATE account_codes SET consumed_at = now() WHERE lower(email) = $1 AND purpose = $2 AND consumed_at IS NULL", [mail, purpose]);
   const code = String(crypto.randomInt(100000, 1000000));
@@ -230,7 +261,7 @@ async function checkCode(purpose, mail, code) {
       await q("UPDATE account_codes SET attempts = attempts + 1 WHERE id = $1", [row.id]);
       return { wrong: CODE_ATTEMPTS - row.attempts - 1 };
     }
-    await q("UPDATE account_codes SET consumed_at = now() WHERE id = $1", [row.id]);
+    await q("UPDATE account_codes SET consumed_at = now(), used_at = now() WHERE id = $1", [row.id]);
     return { row };
   });
   if (out.error) throw out.error;
@@ -277,6 +308,7 @@ export async function signupVerify(b, req, res) {
 
 export async function login(b, req, res) {
   const mail = normEmail(b.email);
+  const canMail = await mailReady();
   const subject = `${mail}:${req.ip || "?"}`;
   const out = await platform(mail, req.ip, async (q) => {
     if (await recentFailures(q, "account_login_failed", subject, LOGIN_WINDOW_MIN) >= LOGIN_FAILS
@@ -291,12 +323,54 @@ export async function login(b, req, res) {
       return { denied: true };
     }
     await q("DELETE FROM security_events WHERE kind = 'account_login_failed' AND subject = $1", [subject]);
+    // A new device: the password was right, and the account owner confirms with a code sent to the email.
+    // (Without a mail service the code cannot be sent; the password alone is accepted as before.)
+    if (canMail && !(await isTrustedDevice(q, req, a.id))) return { needCode: true, account: a };
     await q("UPDATE accounts SET last_login_at = now() WHERE id = $1", [a.id]);
-    await accountSession(q, res, req, a.id);
+    await accountSession(q, res, req, a.id, { trust: false });
     return { ok: true, email: a.email, name: a.full_name };
   });
   if (out.locked) throw new AppError(429, `تم إيقاف الدخول مؤقتًا بسبب محاولات خاطئة متكررة. حاول بعد ${LOGIN_WINDOW_MIN} دقيقة.`, "locked", { retry_after: LOGIN_WINDOW_MIN * 60 });
   if (out.denied) throw unauthorized("البريد الإلكتروني أو كلمة المرور غير صحيحة.");
+  if (out.needCode) return deviceCodeStart(out.account, req);
+  return out;
+}
+
+async function deviceCodeStart(a, req) {
+  const mail = normEmail(a.email);
+  let issued = null;
+  try {
+    issued = await platform(mail, req.ip, (q) => issueCode(q, "device", mail, { accountId: a.id }));
+  } catch (e) {
+    // A code was sent less than a minute ago: the same screen stays, the user enters that code.
+    if (e.code !== "rate_limited") throw e;
+    const [pending] = await platform(mail, req.ip, (q) => q(
+      "SELECT 1 FROM account_codes WHERE lower(email) = $1 AND purpose = 'device' AND consumed_at IS NULL AND expires_at > now() LIMIT 1", [mail]));
+    if (!pending) throw e;
+  }
+  if (issued) {
+    await deliver(issued.id, codeMail({ to: mail, title: "رمز الدخول من جهاز جديد",
+      intro: `طُلب الدخول إلى حسابك في مدار من جهاز جديد (${deviceLabel(req.get("user-agent"))}). أدخل هذا الرمز لإكماله. إذا لم تكن أنت فغيّر كلمة المرور فورًا.`,
+      code: issued.code, minutes: CODE_MINUTES }));
+  }
+  return { code_required: true, email: maskEmail(mail), resend_in: RESEND_SECONDS, expires_minutes: CODE_MINUTES };
+}
+
+// The code from the email: the device is remembered, the session opens, and the owner gets a notice.
+export async function loginVerify(b, req, res) {
+  const mail = normEmail(b.email);
+  const row = await checkCode("device", mail, b.code);
+  const out = await platform(mail, req.ip, async (q) => {
+    const [a] = await q("SELECT id, email, full_name, disabled_at FROM accounts WHERE id = $1", [row.account_id]);
+    if (!a || a.disabled_at) throw unauthorized("الحساب غير متاح.");
+    await q("UPDATE accounts SET last_login_at = now() WHERE id = $1", [a.id]);
+    await accountSession(q, res, req, a.id);
+    await logEvent(q, { actor: a.email, action: `دخول حساب مدير من جهاز جديد (${deviceLabel(req.get("user-agent"))})` });
+    return { ok: true, email: a.email, name: a.full_name };
+  });
+  const when = new Date().toLocaleString("ar-SA-u-ca-gregory-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Riyadh" });
+  sendMail(noticeMail({ to: mail, title: "تم الدخول إلى حسابك من جهاز جديد",
+    lines: [`الجهاز: ${deviceLabel(req.get("user-agent"))}`, `الوقت: ${when}`, "إذا لم تكن أنت، ادخل إلى مدار وغيّر كلمة المرور ثم اختر «الخروج من كل الأجهزة»."] })).catch(() => {});
   return out;
 }
 
@@ -342,6 +416,7 @@ export async function resetFinish(b, req, res) {
 // Ends the account's sessions on every device, and the school sessions opened through it.
 async function endEverywhere(q, accountId) {
   await q("DELETE FROM sessions WHERE account_id = $1", [accountId]);
+  await q("UPDATE account_devices SET revoked_at = now() WHERE account_id = $1 AND revoked_at IS NULL", [accountId]);
   await q(`DELETE FROM sessions WHERE kind = 'admin' AND user_id IN (SELECT user_id FROM account_schools WHERE account_id = $1 AND revoked_at IS NULL)`, [accountId]);
 }
 

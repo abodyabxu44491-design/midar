@@ -90,6 +90,12 @@ export async function mailOn() {
     "UPDATE mail_gateway SET enabled = true, host = 'smtp.test', from_email = 'no-reply@midar.test' WHERE id = 1"));
 }
 export const lastCode = (to) => [...mails].reverse().find((m) => !to || m.to === to)?.text.match(/(\d{6})/)?.[1];
+// Email sign-in as a real person does it: on a new device (202) the code from the email completes it.
+export async function accountLogin(c, email, password) {
+  const r = await c.post("/api/account/login", { email, password });
+  if (r.status !== 202) return r;
+  return c.post("/api/account/login/verify", { email, code: lastCode(email) });
+}
 export const randomEmail = (tag = "m") => `${tag}.${uid()}${uid()}@school.test`;
 
 // Runs the manager's first setup from the school's setup link: a new email account, its code, then the link.

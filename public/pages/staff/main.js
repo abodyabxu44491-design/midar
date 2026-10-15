@@ -7,7 +7,7 @@ import { h, $, mount } from "../shared/js/dom.js";
 import { offlineProfile } from "../shared/js/offline/sync.js";
 import { api } from "../shared/js/api.js";
 import { field, input, select, textarea, btn, notice, dialog, showInstallBar, passwordInput, preloadModule, schoolLogoUrl } from "../shared/js/ui.js";
-import { authShell, authHead, authField, providerButtons, orDivider, OAUTH_MESSAGES } from "../shared/js/auth.js";
+import { authShell, authHead, authField, providerButtons, orDivider, OAUTH_MESSAGES, codeField } from "../shared/js/auth.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 
@@ -94,6 +94,41 @@ const BRAND = () => ({
 });
 const go = (label, onClick) => { const b = btn(label, onClick, "au-go"); b.append(icons.chevronLeft({ size: 18 })); return b; };
 const page = (...content) => mount(app, authShell(BRAND(), ...content));
+
+// Signing in on a new device: the password was right, and a code went to the account's email.
+// Entering it remembers this device; `resend` asks for a new code (the same password again).
+function deviceCode({ masked, email, resend, done, back: onBack, schoolInfo }) {
+  const msg = h("div", { "aria-live": "polite" });
+  let wait = 60, timer, busy = false;
+  const again = h("button", { type: "button", class: "au-link" });
+  const finish = async () => {
+    if (busy) return;
+    mount(msg);
+    if (!/^\d{6}$/.test(code.value)) { code.invalid(); return mount(msg, notice("أدخل الرمز المكوّن من 6 أرقام.", "err")); }
+    busy = true; next.disabled = true;
+    try {
+      await api("/api/account/login/verify", { email, code: code.value });
+      clearInterval(timer);
+      await done();
+    } catch (e) { mount(msg, notice(e.message, "err")); code.invalid(); code.clear(); }
+    finally { busy = false; next.disabled = false; }
+  };
+  const code = codeField({ onComplete: finish });
+  const next = go("تأكيد الدخول", finish);
+  const paint = () => { again.disabled = wait > 0; again.textContent = wait > 0 ? `إعادة الإرسال بعد ${wait} ث` : "إعادة إرسال الرمز"; };
+  const tick = () => { clearInterval(timer); paint(); timer = setInterval(() => { wait = Math.max(0, wait - 1); paint(); if (!wait) clearInterval(timer); }, 1000); };
+  again.addEventListener("click", async () => {
+    mount(msg); again.disabled = true;
+    try { await resend(); wait = 60; tick(); code.clear(); mount(msg, notice("أرسلنا رمزًا جديدًا إلى بريدك.", "")); }
+    catch (e) { mount(msg, notice(e.message, "err")); again.disabled = false; }
+  });
+  page(authHead("تأكيد الدخول من جهاز جديد",
+    h("span", {}, "لحماية حسابك، أرسلنا رمزًا من 6 أرقام إلى بريدك:", h("b", { class: "au-mail", dir: "ltr" }, masked),
+      "أدخله هنا. بعدها يتذكر مدار هذا الجهاز ولا يطلب الرمز مرة أخرى."), schoolInfo),
+    code.el, h("div", { class: "au-sent" }, again), msg, next,
+    h("p", { class: "au-tabs-note" }, h("button", { type: "button", class: "au-link", onclick: () => { clearInterval(timer); onBack(); } }, "رجوع")));
+  tick(); code.focus();
+}
 const loadSchool = () => (schoolInfo ? Promise.resolve(schoolInfo) : api(`/api/public/${encodeURIComponent(school)}/home`, {})
   .then((r) => (schoolInfo = r?.school?.name ? { name: r.school.name, logo: schoolLogoUrl(school, r.school.logo_v, "thumb") } : null))
   .catch(() => null));
@@ -199,10 +234,18 @@ function showLogin(error) {
     try {
       if (usesAccount()) {
         // The manager's Midar account, then this school (the server checks the link).
-        const a = await api("/api/account/login", { email: id, password: pass.value });
+        const password = pass.value;
+        const a = await api("/api/account/login", { email: id, password });
         pass.value = "";
-        if (remember.checked) saveAccount({ id, by: "email", role: "admin", name: a.name || "" }); else forgetAccount();
-        return await openManagedSchool();
+        const after = async () => {
+          if (remember.checked) saveAccount({ id, by: "email", role: "admin", name: a.name || "" }); else forgetAccount();
+          return openManagedSchool();
+        };
+        if (a.code_required) {
+          return deviceCode({ masked: a.email, email: id, schoolInfo, back: () => showLogin(),
+            resend: () => api("/api/account/login", { email: id, password }), done: after });
+        }
+        return await after();
       }
       const r = await api("/api/staff/login", { school, username: id, password: pass.value, remember: remember.checked });
       pass.value = "";
