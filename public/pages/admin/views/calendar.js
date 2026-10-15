@@ -43,6 +43,6 @@ export default async function calendar() {
   let cal;
   const add = btn("+ فعالية", () => form(null, () => cal.refresh()), "sm");
   cal = calendarView({ load: (from, to) => api(`${A}/calendar?from=${from}&to=${to}`), actions: add,
-    onOpen: (e) => (e.type === "event" ? form(e, () => cal.refresh()) : toast(e.type === "holiday" ? "الإجازات تُدار من «السنة الدراسية»" : "الاختبارات تُدار من «الاختبارات»")) });
+    onOpen: (e) => (e.type === "event" ? form(e, () => cal.refresh()) : toast(e.type === "holiday" ? "الإجازات تُدار من «السنة الدراسية»" : "الاختبارات تُدار من «الدرجات»")) });
   return [sub("الإجازات والاختبارات وبداية الفصول تظهر هنا تلقائيًا. أضف الفعاليات والاجتماعات والأنشطة، واختر من يراها."), cal.el];
 }

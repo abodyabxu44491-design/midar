@@ -82,7 +82,7 @@ export default async function dashboard({ me, goTo }) {
         note: `المتبقي ${money(d.fees_remaining)}`, onClick: () => go(me.modules?.finance ? "ledger" : "finance") })),
 
     h("div", { class: "dash-cols" },
-      h("div", { class: "dash-main" }, stagesPanel(d.by_grade || [], go), center(notifications, go)),
+      h("div", { class: "dash-main" }, center(notifications, go), stagesPanel(d.by_grade || [], go)),
       h("div", { class: "dash-side" }, activityPanel(d, go), quickSearch(go))),
 
 

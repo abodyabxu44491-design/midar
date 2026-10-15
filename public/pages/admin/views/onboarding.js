@@ -48,12 +48,15 @@ export function startHere({ me, d, goTo }) {
         onclick: () => { store.set(key("hidden"), "1"); mount(card); card.remove(); } }, icons.close({ size: 18 }))),
     h("div", { class: "sh-bar", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": steps.length, "aria-valuenow": done },
       h("span", { style: `width:${Math.round((done / steps.length) * 100)}%` })),
-    h("ol", { class: "sh-list" }, steps.map((s, i) => h("li", { class: s.done ? "done" : "" },
+    // Only what is left stays in view; the finished steps fold under one line.
+    h("ol", { class: "sh-list" }, steps.map((s, i) => (s.done ? null : h("li", {},
       h("span", { class: "sh-mark", "aria-hidden": "true" }, s.done ? icons.check({ size: 16, stroke: 3 }) : String(i + 1)),
       h("div", { class: "sh-text" },
         s.tab && !s.done ? h("button", { type: "button", class: "sh-go", onclick: () => goTo?.(s.tab) }, s.title, icons.chevronLeft({ size: 16 }))
           : h("b", {}, s.title),
         s.done ? null : h("small", {}, s.hint),
-        s.done ? null : share(s))))));
+        s.done ? null : share(s)))))),
+    done ? h("details", { class: "sh-done" }, h("summary", {}, `الخطوات المكتملة (${done})`),
+      h("ul", {}, steps.filter((s) => s.done).map((s) => h("li", {}, icons.check({ size: 14, stroke: 3 }), s.title)))) : null);
   return card;
 }

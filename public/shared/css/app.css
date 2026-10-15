@@ -2733,3 +2733,8 @@ button.sf-kpi.go:hover { border-color: var(--line-2); }
   .att-monthly table { width: 100%; }
   .att-monthly th, .att-monthly td { padding-inline: 6px; white-space: nowrap; }
 }
+.sh-done { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.sh-done summary { cursor: pointer; }
+.sh-done ul { list-style: none; padding: 6px 0 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.sh-done li { display: inline-flex; align-items: center; gap: 4px; color: var(--teal); }
+.att-source { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; padding: 10px 14px; border-radius: var(--radius); background: var(--teal-soft); font-size: 13.5px; color: var(--navy); }

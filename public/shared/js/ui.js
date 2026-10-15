@@ -251,7 +251,11 @@ export function sectionMenu({ title, items, render, intro }) {
     }
   };
 
-  openMenu();
+  // Another page can send the user straight to one section (e.g. attendance → "who records attendance").
+  let want = null;
+  try { want = sessionStorage.getItem("midar_settings_section"); sessionStorage.removeItem("midar_settings_section"); } catch { /* storage unavailable */ }
+  const target = want && items.find((it) => it.key === want);
+  if (target) open(target); else openMenu();
   return title ? [h("h2", { class: "menu-title" }, title), box] : box;
 }
 
