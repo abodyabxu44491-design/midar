@@ -17,7 +17,7 @@ const myClasses = async (q, teacherId) =>
   (await q("SELECT DISTINCT class_id FROM teacher_assignments WHERE teacher_id = $1", [teacherId])).map((r) => Number(r.class_id));
 
 export async function bootstrap(q, teacherId) {
-  const [{ cursor }] = await q("SELECT COALESCE(max(seq), 0)::bigint AS cursor FROM sync_changes");
+  const [{ cursor }] = await q("SELECT COALESCE(max(seq), 0)::bigint AS cursor FROM sync_changes WHERE tenant_id = app_tenant()");
   const classes = await myClasses(q, teacherId);
   const load = await q(
     `SELECT a.class_id, a.subject_id, c.name AS class_name, s.name AS subject_name
@@ -44,10 +44,10 @@ export const changesQuery = z.object({ since: z.coerce.number().int().min(0), li
 
 export async function changes(q, teacherId, { since, limit }) {
   if (since > 0) {
-    const [{ min }] = await q("SELECT min(seq)::bigint AS min FROM sync_changes");
+    const [{ min }] = await q("SELECT min(seq)::bigint AS min FROM sync_changes WHERE tenant_id = app_tenant()");
     if (min !== null && since < Number(min) - 1) return { reset: true };
   }
-  const rows = await q("SELECT seq, entity, entity_key, class_id, op FROM sync_changes WHERE seq > $1 ORDER BY seq LIMIT $2", [since, limit]);
+  const rows = await q("SELECT seq, entity, entity_key, class_id, op FROM sync_changes WHERE tenant_id = app_tenant() AND seq > $1 ORDER BY seq LIMIT $2", [since, limit]);
   const cursor = rows.length ? Number(rows[rows.length - 1].seq) : since;
   const classes = new Set(await myClasses(q, teacherId));
   const latest = new Map();

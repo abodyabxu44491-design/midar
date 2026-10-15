@@ -2635,3 +2635,51 @@ body.cd-open { overflow: hidden; }
 .lb-info { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .lb-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 @media (max-width: 560px) { .lb-grade-row { grid-template-columns: 1fr 76px; } .lb-grade-row .lb-check { grid-column: 1 / -1; } }
+/* Teacher grade entry */
+.ge { display: grid; gap: 12px; }
+.ge-step { font-size: 14px; color: var(--navy); margin-top: 4px; }
+.ge-pairs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.ge-pair { flex: none; border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 10px 14px; font: inherit; font-size: 14px; cursor: pointer; display: grid; gap: 2px; text-align: right; color: var(--ink); }
+.ge-pair small { color: #B26B00; font-size: 11.5px; }
+.ge-pair.on { background: var(--teal); border-color: var(--teal); color: #fff; }
+.ge-pair.on small { color: #FFE7B8; }
+.ge-new { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; }
+.ge-field { display: grid; gap: 6px; font-size: 13px; color: var(--muted); min-width: 0; }
+.ge-field input { height: 42px; }
+.ge-row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+.ge-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ge-chip { border: 1px solid var(--line); background: #F7F9FB; border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 13.5px; cursor: pointer; color: var(--ink); display: inline-flex; gap: 6px; align-items: center; }
+.ge-chip small { color: var(--muted); font-size: 11px; }
+.ge-chip.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+.ge-chip.on small { color: #C9D6EE; }
+.ge-max-in { width: 90px; height: 38px; }
+.ge-list { display: grid; gap: 8px; }
+.ge-item { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 12px 14px; font: inherit; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: right; }
+.ge-item:hover { border-color: var(--teal); }
+.ge-item > div { display: grid; gap: 3px; min-width: 0; }
+.ge-item small { color: var(--muted); font-size: 12px; }
+.ge-item-s { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.ge-go { color: var(--teal); font-weight: 700; font-size: 13px; }
+.ge-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.ge-head h2 { margin: 0; font-size: 19px; }
+.ge-back { border: 0; background: none; color: var(--teal); font: inherit; font-weight: 700; cursor: pointer; padding: 4px 0; flex-basis: 100%; text-align: right; }
+.ge-tools { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.ge-sheet { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; padding-bottom: 80px; }
+.ge-sheet li { display: grid; grid-template-columns: 32px minmax(0, 1fr) 96px 44px; gap: 8px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; }
+.ge-n { color: var(--muted); font-size: 12.5px; text-align: center; }
+.ge-name { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ge-score { height: 44px; font-size: 18px; font-weight: 700; text-align: center; }
+.ge-score.bad { border-color: var(--red); background: #FDECEA; }
+.ge-score::-webkit-outer-spin-button, .ge-score::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ge-score { -moz-appearance: textfield; appearance: textfield; }
+.ge-of { color: var(--muted); font-size: 12.5px; }
+.ge-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; box-shadow: 0 -6px 20px -12px rgba(22,36,74,.35); }
+.ge-bar > div { display: grid; gap: 2px; }
+.ge-state { color: var(--muted); font-size: 12px; }
+.ge-state.ok { color: var(--teal); } .ge-state.err { color: var(--red); }
+@media (max-width: 560px) {
+  .ge-row { grid-template-columns: 1fr; }
+  .ge-sheet li { grid-template-columns: 26px minmax(0, 1fr) 84px; }
+  .ge-of { display: none; }
+  .ge-bar { bottom: 64px; }
+}
