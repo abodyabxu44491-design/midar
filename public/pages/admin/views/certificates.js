@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn, confirmAction, dialog } from "../../shared/js/ui.js";
+import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn, confirmAction, dialog, askReason } from "../../shared/js/ui.js";
 import { fmtDate, fmtDateTime } from "../../shared/js/format.js";
 import { partsView } from "../../shared/js/parts.js";
 import { certificateSheet, printCertificateSheet } from "../../shared/js/cert-render.js";
@@ -46,7 +46,7 @@ export default async function certificates(ctx = {}) {
   const keyQ = () => `class_id=${classId}&scope=${kind}${kind === "term" && termId ? `&term_id=${termId}` : ""}`;
   const keyB = () => ({ class_id: classId, scope: kind, ...(kind === "term" && termId ? { term_id: termId } : {}) });
 
-  return partsView([["results", "اعتماد النتائج"], ["issue", "إصدار"], ["issued", "الشهادات الصادرة"], ["custom", "شهادة مخصصة"], ["designs", "التصاميم"], ["settings", "الإعدادات"]], async (part, nav) => {
+  return partsView([["results", "١. اعتماد النتائج"], ["issue", "٢. إصدار الشهادات"], ["issued", "الشهادات الصادرة"], ["custom", "شهادة شكر وتقدير"], ["designs", "تصميم الشهادة"], ["settings", "الإعدادات"]], async (part, nav) => {
     if (part === "results") return resultsView(nav);
     if (part === "designs") return panel("تصاميم الشهادات", null, await designsView({ base: `${A}/certificates` }));
     if (part === "issue") return issueView(nav);
@@ -116,7 +116,6 @@ export default async function certificates(ctx = {}) {
     const rows = await api(`${A}/certificates?class_id=${classId}`);
     const valid = rows.filter((r) => r.status === "issued");
     const out = h("div");
-    const ask = (title) => { const v = prompt(title); return v && v.trim().length >= 2 ? v.trim() : null; };
     return [panel("الشهادات الصادرة", valid.length ? btn("طباعة كل السارية", () => printIds(valid.map((r) => r.id), out), "ghost sm") : null,
       classPick(() => nav.show()),
       rows.length ? rows.map((r) => line(
@@ -128,13 +127,15 @@ export default async function certificates(ctx = {}) {
           btn("طباعة", () => printIds([r.id], out), "ghost sm"),
           btn("السجل", () => historyOf(r), "ghost sm"),
           r.status === "issued" && canApprove ? btn("استبدال", async () => {
-            const reason = ask("سبب إصدار شهادة بديلة (تبقى الحالية في السجل «مستبدلة»):");
+            const reason = await askReason({ title: `شهادة بديلة لـ ${r.student}`, action: "إصدار البديلة",
+              explain: "تصدر شهادة جديدة برقم جديد، وتبقى الحالية في السجل بحالة «مستبدلة» ويظهر ذلك عند التحقق منها.", label: "سبب الاستبدال" });
             if (!reason) return;
             try { const x = await api(`${A}/certificates/${r.id}/replace`, { reason }); toast("صدرت الشهادة البديلة"); await printIds(x.ids, out); }
             catch (e) { toast(e.message, true); }
           }, "ghost sm") : null,
           r.status === "issued" && canApprove ? btn("إلغاء", async () => {
-            const reason = ask("سبب إلغاء الشهادة:");
+            const reason = await askReason({ title: `إلغاء شهادة ${r.student}`, action: "إلغاء الشهادة", danger: true,
+              explain: "لا تُحذف الشهادة، لكن من يتحقق منها يرى أنها «ملغاة». لا يمكن التراجع عن الإلغاء.", label: "سبب الإلغاء" });
             if (!reason) return;
             try { await api(`${A}/certificates/${r.id}/revoke`, { reason }); toast("أُلغيت. التحقق منها يظهر «ملغاة»."); nav.show(); }
             catch (e) { toast(e.message, true); }

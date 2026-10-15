@@ -424,6 +424,23 @@ export function dialog(title, content, actions = []) {
   return d;
 }
 
+// Asks for a written reason in a dialog (instead of the browser prompt). Resolves to the text, or null if cancelled.
+export function askReason({ title, explain = "", label = "السبب", action = "تأكيد", danger = false, value = "" }) {
+  return new Promise((resolve) => {
+    const ta = h("textarea", { rows: 3, maxLength: 200, value, "aria-label": label });
+    const err = h("small", { class: "err" });
+    let out = null;
+    const d = dialog(title, h("div", { class: "ask-reason" }, explain ? h("p", { class: "sub" }, explain) : null, h("label", { class: "field" }, h("span", {}, label), ta), err),
+      [h("button", { type: "button", class: `btn${danger ? " danger" : ""}`, onclick: () => {
+        const v = ta.value.trim();
+        if (v.length < 2) { err.textContent = "اكتب السبب (حرفان على الأقل)."; ta.focus(); return; }
+        out = v; d.close();
+      } }, action)]);
+    d.addEventListener("close", () => resolve(out));
+    setTimeout(() => ta.focus(), 50);
+  });
+}
+
 const CRED_LABELS = { school: "رمز المدرسة", username: "اسم المستخدم", password: "كلمة المرور المؤقتة",
   access_key: "معرّف الطالب" };
 export function passwordChangeScreen({ endpoint, logoutEndpoint, school, name }) {

@@ -7,7 +7,7 @@
 // sessions, assessments, results), trainers, schedule, certificates, fees, reports, staff and settings.
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, empty, badge, sub, toast, dialog, notice, kpiCard, kpiGrid, skeleton, confirmAction, copyRow, passwordInput } from "../../shared/js/ui.js";
+import { panel, field, input, select, btn, empty, badge, sub, toast, dialog, notice, kpiCard, kpiGrid, skeleton, confirmAction, copyRow, passwordInput, askReason } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { resultsApproval } from "../../shared/js/results-approval.js";
 import { designsView } from "../../shared/js/cert-designer.js";
@@ -161,7 +161,7 @@ export async function traineeFile(id, refresh) {
         c.revoked_at ? badge(c.status === "replaced" ? "مستبدلة" : "ملغاة", c.status === "replaced" ? "gray" : "red") : h("div", { class: "row", style: "flex:none;gap:6px" },
           btn([icons.print({ size: 14 }), "طباعة"], () => printCertificates([c.id]), "ghost sm"),
           has("approve") ? btn("إلغاء", async () => {
-            const reason = prompt("سبب إلغاء الشهادة"); if (!reason) return;
+            const reason = await askReason({ title: `إلغاء ${c.title}`, action: "إلغاء الشهادة", danger: true, label: "سبب الإلغاء", explain: "لا تُحذف الشهادة، لكن من يتحقق منها يرى أنها «ملغاة»." }); if (!reason) return;
             try { await api(`${I()}/certificates/${c.id}/revoke`, { reason }); toast("أُلغيت"); again("certificates")(); } catch (e) { toast(e.message, true); }
           }, "ghost sm danger") : null)))) : empty("لا توجد شهادات صادرة."),
       fees: () => r.invoices ? feesBlock(r, again("fees")) : notice("الرسوم متاحة لأصحاب الصلاحية المالية فقط."),
