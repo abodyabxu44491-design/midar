@@ -43,7 +43,14 @@
 .xp-student.n1, .xp-student.n2 { grid-template-columns: 2fr 1fr; }
 .xp-student.n4 { grid-template-columns: 2fr 1fr 1fr 1fr; }
 .xp-field { display: flex; align-items: flex-end; gap: 1.5mm; min-width: 0; }
-.xp-u { flex: 1; border-bottom: .3mm dotted #333; min-height: 1.25em; min-width: 10mm; display: inline-block; padding-inline: 1mm; white-space: nowrap; overflow: hidden; }
+.xp-u { flex: 1; border-bottom: .3mm dotted #333; min-height: 1.25em; min-width: 10mm; display: inline-block; padding-inline: 1mm; white-space: normal; overflow-wrap: anywhere; }
+/* The student's name has the whole first line (room to write a full four-part name, and a printed name never cut). */
+.xp-student.name-full .f-name { grid-column: 1 / -1; }
+.xp-student.name-full.n1 { grid-template-columns: 1fr; }
+.xp-student.name-full.n2 { grid-template-columns: 1fr 1fr; }
+.xp-student.name-full.n3, .xp-student.name-full.n5, .xp-student.name-full.n6 { grid-template-columns: repeat(3, 1fr); }
+.xp-student.name-full.n4 { grid-template-columns: repeat(4, 1fr); }
+.xp-field .xp-lbl { flex: none; white-space: nowrap; }
 .xp-u.filled { font-weight: 700; }
 .xp-score { display: flex; align-items: flex-end; gap: 1mm; white-space: nowrap; }
 .xp-u.short { flex: none; width: 12mm; }

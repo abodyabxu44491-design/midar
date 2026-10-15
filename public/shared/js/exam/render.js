@@ -6,7 +6,7 @@
 import { h } from "../dom.js";
 import { rich } from "./math.js";
 import {
-  OPTION_LETTERS, QTYPES, FONTS, numbered, spaceLines, fmtNum, marksWord, sectionSummary, totals, withLayoutDefaults,
+  OPTION_LETTERS, QTYPES, FONTS, numbered, spaceLines, fmtNum, marksWord, sectionSummary, totals, withLayoutDefaults, examDateText
 } from "./engine.js";
 
 const FIELD_LABEL = { name: "اسم الطالب", grade: "الصف", section: "الشعبة", number: "رقم الطالب", date: "التاريخ", score: "الدرجة" };
@@ -149,7 +149,7 @@ export function headerBlock(paper, L, { school, logoUrl, versionCode, total, sec
   const rows = [
     ["المادة", paper.subject_name],
     ["الصف", gradeText],
-    L.show_date && paper.exam_date ? ["التاريخ", paper.exam_date] : null,
+    L.show_date && paper.exam_date ? ["التاريخ", examDateText(paper.exam_date, L.date_style)] : null,
     L.show_duration && paper.duration_min ? ["الزمن", `${paper.duration_min} دقيقة`] : null,
     L.show_marks ? ["الدرجة", fmtNum(paper.total_marks || total)] : null,
   ].filter((r) => r && r[1]);
@@ -172,7 +172,9 @@ export function studentBlock(L, { total, student, sectionsEnabled = true, hide =
     .map((k) => [k, FIELD_LABEL[k]]).concat((L.extra_fields || []).filter(Boolean).map((l, i) => [`x${i}`, l]));
   if (!fields.length) return null;
   const val = (k) => (student ? { name: student.name, grade: student.grade_name, section: student.class_name, number: student.number }[k] : null);
-  return h("div", { class: `xp-student n${Math.min(fields.length, 6)}` }, fields.map(([k, label]) =>
+  // The name never gets cut: by default it has its own full line, and any long value wraps instead of hiding.
+  const fullName = L.name_row !== "inline" && fields.some(([k]) => k === "name");
+  return h("div", { class: `xp-student n${Math.min(fields.length - (fullName ? 1 : 0), 6)}${fullName ? " name-full" : ""}` }, fields.map(([k, label]) =>
     h("div", { class: `xp-field f-${k}` }, h("span", { class: "xp-lbl" }, `${label}:`),
       k === "score"
         ? h("span", { class: "xp-score" }, h("span", { class: "xp-u short" }), ` / ${fmtNum(total)}`)

@@ -7,6 +7,7 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, empty, notice, btn, sub } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
+import { shows } from "../prefs.js";
 
 export const myClasses = (me) => [...new Map(me.load.map((l) => [l.class_id, { id: l.class_id, name: l.class_name }])).values()];
 
@@ -30,11 +31,11 @@ export default function home({ me, goTo }) {
         h("span", { class: "t-hero-k" }, today.length ? `لديك ${today.length} ${today.length === 1 ? "حصة" : today.length <= 10 ? "حصص" : "حصة"} اليوم` : "اليوم"),
         h("b", {}, first ? `الحصة ${first.period}: ${first.subject} · ${first.class_name}` : "لا توجد حصص لك اليوم"),
         first?.room ? h("small", {}, first.room) : null,
-        first && me.modules?.attendance ? btn("سجّل الحضور الآن", () => go("attendance", { classId: first.class_id }), "light") : null);
+        first && shows(me, "attendance") ? btn("سجّل الحضور الآن", () => go("attendance", { classId: first.class_id }), "light") : null);
       mount(todayBox, today.length ? today.map((s) => h("div", { class: "today-item" },
         h("span", { class: "today-no" }, s.period),
         h("div", { class: "stu-main" }, h("b", {}, s.subject), h("small", {}, [s.class_name, s.room].filter(Boolean).join(" · "))),
-        me.modules?.attendance ? btn("الحضور", () => go("attendance", { classId: s.class_id }), "soft sm") : null))
+        shows(me, "attendance") ? btn("الحضور", () => go("attendance", { classId: s.class_id }), "soft sm") : null))
         : sub("لا توجد حصص لك اليوم."));
       todayPanel.hidden = !today.length;
     }).catch(() => { mount(hero, h("span", { class: "t-hero-k" }, "حصص اليوم"), h("b", {}, "تعذر تحميل الجدول الآن")); mount(todayBox, sub("تعذر تحميل الجدول الآن.")); });
@@ -42,7 +43,7 @@ export default function home({ me, goTo }) {
     mount(hero, h("span", { class: "t-hero-k" }, dateLabel), h("b", {}, `${classes.length} ${classes.length === 1 ? "فصل" : "فصول"} · ${subjects} ${subjects === 1 ? "مادة" : "مواد"}`));
     mount(todayBox, sub(me.modules?.timetable ? "حصص اليوم تظهر عند الاتصال بالإنترنت." : "الجدول غير مفعّل في مدرستك."));
   }
-  if (me.modules?.chat && navigator.onLine) {
+  if (shows(me, "chat") && navigator.onLine) {
     api("/api/teacher/chat").then((c) => { if (c.unread) { unread.textContent = String(c.unread); unread.hidden = false; } }).catch(() => {});
   }
 
@@ -59,7 +60,7 @@ export default function home({ me, goTo }) {
         h("button", { type: "button", class: "ct-main", onclick: () => go("students", { classId: c.id }) },
           h("b", {}, c.name),
           h("small", {}, me.load.filter((l) => l.class_id === c.id).map((l) => l.subject_name).join("، "))),
-        me.modules?.attendance ? h("button", { type: "button", class: "ct-att", title: "تسجيل الحضور", "aria-label": `تسجيل حضور ${c.name}`,
+        shows(me, "attendance") ? h("button", { type: "button", class: "ct-att", title: "تسجيل الحضور", "aria-label": `تسجيل حضور ${c.name}`,
           onclick: () => go("attendance", { classId: c.id }) }, icons.check({ size: 18 })) : null)))
       : empty("لم تُسند لك فصول بعد. تواصل مع إدارة المدرسة.")),
   ];
@@ -70,10 +71,12 @@ function quickActs(me, go, unread) {
   const act = (icon, text, tone, key, extra = null) => h("button", { type: "button", class: `quick-act ${tone}`, onclick: () => go(key) },
     h("span", { class: "qa-ic" }, icons[icon]({ size: 20 }), extra), text);
   const list = [
-    me.modules?.attendance ? act("check", "تسجيل الحضور", "teal", "attendance") : null,
-    me.modules?.exams ? act("edit", "رصد الدرجات", "navy", "exams") : null,
-    me.modules?.homework ? act("book", "الواجبات", "violet", "homework") : null,
-    me.modules?.chat ? act("message", "الرسائل", "red", "chat", unread) : act("users", "طلابي", "red", "students"),
-  ].filter(Boolean);
+    shows(me, "attendance") ? act("check", "تسجيل الحضور", "teal", "attendance") : null,
+    shows(me, "exams") ? act("edit", "رصد الدرجات", "navy", "exams") : null,
+    shows(me, "homework") ? act("book", "الواجبات", "violet", "homework") : null,
+    shows(me, "chat") ? act("message", "الرسائل", "red", "chat", unread) : null,
+    shows(me, "students", null) ? act("users", "طلابي", "teal", "students") : null,
+    shows(me, "timetable") ? act("calendar", "جدولي", "navy", "timetable") : null,
+  ].filter(Boolean).slice(0, 4);
   return h("div", { class: "quick-acts t-acts" }, list);
 }

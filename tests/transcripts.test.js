@@ -23,8 +23,7 @@ before(async () => {
   exam = e.data.id;
   const [s1, s2] = A.students;
   await A.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [s1.id]: 18, [s2.id]: 6 } });
-  await A.teacher.post(`/api/teacher/exams/${exam}/submit`, {});
-  assert.equal((await A.admin.post(`/api/admin/exams/${exam}/status`, { status: "published" })).status, 200);
+  assert.equal((await A.teacher.post(`/api/teacher/exams/${exam}/submit`, {})).data.status, "published");
   const username = `trd-${uid()}`;
   const pw = (await A.admin.post("/api/admin/users/admins", { name: "وكيل الشؤون", username, admin_scope: "school" })).data.credentials.password;
   deputy = client(srv.base);
@@ -94,9 +93,7 @@ test("إصدار رسمي من النتائج المعتمدة: رقم ورمز 
 test("تصحيح بعد الإصدار: نسخة جديدة برقم جديد، والسابقة «مستبدلة» في السجل والتحقق", async () => {
   const [s1] = A.students;
   // A grade change sends the approved results back to review; no transcript is issued until approval again.
-  assert.equal((await A.admin.post(`/api/admin/exams/${exam}/status`, { status: "draft" })).status, 200);
-  await A.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [s1.id]: 19 } });
-  assert.equal((await A.admin.post(`/api/admin/exams/${exam}/status`, { status: "published" })).status, 200);
+  assert.equal((await A.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [s1.id]: 19 } })).status, 200);
   assert.equal((await A.admin.post(`${T}/issue`, { ...key(), student_ids: [s1.id] })).status, 409);
   assert.equal((await client(srv.base).get(`/api/public/verify/${first.code}`)).data.status, "issued", "الكشف الصادر لا يتغير وحده");
   assert.equal((await A.admin.post("/api/admin/certificates/results/approve", { ...key(), allow_incomplete: true, reason: "اعتماد بعد تصحيح الدرجة" })).status, 200);

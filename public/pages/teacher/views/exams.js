@@ -4,7 +4,8 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 // Grade entry in one simple flow: tap the class, tap the grade type, enter the scores (saved automatically,
-// Enter moves to the next student), then send them to the administration.
+// Enter moves to the next student), then approve them: published to parents at once (the teacher can still
+// correct them), or sent to the administration when the school approves grades itself.
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { input, btn, empty, badge, sub, toast, notice, confirmAction } from "../../shared/js/ui.js";
@@ -18,6 +19,7 @@ const MAXES = [5, 10, 20, 30, 50, 100];
 const KEY = "midar_grades_pair";
 
 export default async function exams({ me, refresh }) {
+  const selfApprove = me.prefs?.teacher_publishes !== false;
   if (!me.load.length) return empty("لا توجد مواد مسندة لك.");
   let list, offline = false;
   try { list = await api(T); } catch (e) {
@@ -51,7 +53,7 @@ export default async function exams({ me, refresh }) {
       mine.length ? h("div", { class: "ge-list" }, mine.map((e) => h("button", { type: "button", class: "ge-item", onclick: () => openSheet(e) },
         h("div", {}, h("b", {}, e.title), h("small", {}, `${fmtDate(e.exam_date)} · من ${Number(e.max_score)} · أُدخلت ${e.graded}`)),
         h("span", { class: "ge-item-s" }, e.component_name ? badge(e.component_name, "gray") : null, badge(...EXAM[e.status]),
-          h("span", { class: "ge-go" }, e.status === "draft" ? "إدخال" : "عرض"))))) : empty("لا توجد درجات مرصودة لهذا الفصل بعد."));
+          h("span", { class: "ge-go" }, e.status === "draft" ? "إدخال" : e.status === "published" && selfApprove ? "تصحيح" : "عرض"))))) : empty("لا توجد درجات مرصودة لهذا الفصل بعد."));
   };
 
   // A new grade: its type (the school's grade components, or common names), the maximum, then straight to entry.
@@ -108,7 +110,7 @@ export default async function exams({ me, refresh }) {
     mount(root, h("p", { class: "empty loading" }, "جارٍ فتح الكشف…"));
     const local = await localExam(e.id);
     const rows = local ? await localScoreRows(local) : await api(`${T}/${e.id}/scores`);
-    const locked = e.status !== "draft";
+    const locked = !(e.status === "draft" || (e.status === "published" && selfApprove));
     const max = Number(e.max_score);
     const state = h("small", { class: "ge-state" });
     const progress = h("b", {});
@@ -154,12 +156,14 @@ export default async function exams({ me, refresh }) {
     const schedule = () => { clearTimeout(timer); state.textContent = "تعديلات جديدة…"; state.className = "ge-state"; timer = setTimeout(() => { saving = save(); }, 900); };
     const back = async () => { clearTimeout(timer); if (!locked) await save(); try { list = await api(T); } catch { /* offline: keep the list */ } draw(); };
     const fillFull = () => { for (const [, el] of inputs) if (el.value.trim() === "") el.value = max; count(); schedule(); };
-    const send = btn("إرسال للإدارة", async () => {
+    const published = e.status === "published";
+    const send = published ? btn("تم", back) : btn(selfApprove ? "اعتماد ونشر" : "إرسال للإدارة", async () => {
       clearTimeout(timer); await saving;
       let scores;
       try { scores = collect(); } catch (err) { return toast(err.message, true); }
       const missing = Object.values(scores).filter((v) => v === null).length;
-      if (!confirmAction(missing ? `${missing} طالب بدون درجة. إرسال الدرجات للإدارة؟ لن تستطيع تعديلها بعد ذلك.` : "إرسال الدرجات للإدارة؟ لن تستطيع تعديلها بعد ذلك.")) return;
+      const ask = selfApprove ? "اعتماد الدرجات ونشرها لأولياء الأمور؟ تستطيع تصحيح أي درجة بعد النشر." : "إرسال الدرجات للإدارة للاعتماد؟ لن تستطيع تعديلها حتى تُرجعها الإدارة.";
+      if (!confirmAction(missing ? `${missing} طالب بدون درجة. ${ask}` : ask)) return;
       if (!navigator.onLine) return toast("الإرسال يحتاج اتصالًا. درجاتك محفوظة على الجهاز، أرسلها عند عودة الاتصال.", true);
       send.disabled = true;
       try {
@@ -167,8 +171,8 @@ export default async function exams({ me, refresh }) {
           await saveScoresLocal(local, scores);
           if (!(await examSynced(e.id))) { send.disabled = false; return toast("لم تكتمل مزامنة الدرجات بعد. انتظر قليلًا ثم أعد المحاولة.", true); }
         } else await api(`${T}/${e.id}/scores`, { scores }, "PUT");
-        await api(`${T}/${e.id}/submit`, {});
-        toast("أُرسلت الدرجات للإدارة"); refresh();
+        const r = await api(`${T}/${e.id}/submit`, {});
+        toast(r.status === "published" ? "اعتُمدت الدرجات ونُشرت لأولياء الأمور" : "أُرسلت الدرجات للإدارة"); refresh();
       } catch (err) { send.disabled = false; toast(err.message, true); }
     });
     count();
@@ -177,8 +181,8 @@ export default async function exams({ me, refresh }) {
         h("button", { type: "button", class: "ge-back", onclick: back }, "→ كل الدرجات"),
         h("div", {}, h("h2", {}, e.title), sub(`${e.class_name} — ${e.subject_name} · الدرجة من ${max} · ${fmtDate(e.exam_date)}`)),
         badge(...EXAM[e.status])),
-      locked ? notice(e.status === "published" ? "الدرجات منشورة لأولياء الأمور." : "أُرسلت الدرجات للإدارة، ولا تُعدَّل حتى تُرجعها الإدارة.", "") : h("div", { class: "ge-tools" },
-        sub("اكتب الدرجة واضغط Enter للانتقال للطالب التالي. يُحفظ كل شيء تلقائيًا، واترك خانة الغائب فارغة."),
+      locked ? notice(e.status === "published" ? "الدرجات منشورة لأولياء الأمور، واعتمدتها الإدارة. لتصحيح درجة تواصل مع الإدارة." : "أُرسلت الدرجات للإدارة، ولا تُعدَّل حتى تُرجعها الإدارة.", "") : h("div", { class: "ge-tools" },
+        sub(published ? "الدرجات منشورة لأولياء الأمور. صحّح أي درجة وتُحفظ وتظهر لهم مباشرة." : "اكتب الدرجة واضغط Enter للانتقال للطالب التالي. يُحفظ كل شيء تلقائيًا، واترك خانة الغائب فارغة."),
         btn(`تعبئة الفارغ بـ ${max}`, fillFull, "ghost sm")),
       rows.length ? h("ol", { class: "ge-sheet" }, rows.map((r, i) => h("li", {},
         h("span", { class: "ge-n" }, String(i + 1)), h("span", { class: "ge-name" }, r.name, r.pending ? h("span", { class: "pending-dot" }, "بانتظار المزامنة") : null),

@@ -6,6 +6,7 @@
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
+import { featureSettings } from "./feature-settings.service.js";
 
 export const STATUSES = ["present", "absent", "late", "excused", "permitted", "trip", "activity"];
 export const LABEL = { present: "حاضر", absent: "غائب", late: "متأخر", excused: "غياب بعذر", permitted: "مستأذن", trip: "رحلة", activity: "نشاط خارجي" };
@@ -220,4 +221,12 @@ export async function submitParentExcuse(q, studentId, { date, text }) {
       RETURNING day`, [studentId, date, text]);
   if (!row) throw badRequest("لا يمكن إرسال عذر لهذا اليوم (غير مسجل غياب، أو مضى عليه أكثر من 30 يومًا، أو قُبل عذره)");
   return { ok: true };
+}
+
+// Who takes the daily attendance in this school. When it is the administration or the gate, the teacher does not
+// record it (one record, no duplicate entry); the teacher still sees it and can add excuses if allowed.
+export const TAKERS = { teacher: "المعلم في الحصة", admin: "الإدارة", gate: "بوابة الحضور الذكية" };
+export async function assertTeacherRecords(q) {
+  const { attendance_by } = await featureSettings(q, "teachers");
+  if (attendance_by !== "teacher") throw forbidden(`الحضور في مدرستك تسجله ${TAKERS[attendance_by]}، ويظهر لك للاطلاع فقط`);
 }

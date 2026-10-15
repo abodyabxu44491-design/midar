@@ -11,6 +11,7 @@ import { sortable } from "../sortable.js";
 import {
   QTYPES, DIFFICULTY, STATUS, PAPER_TEMPLATES, FONTS, STUDENT_FIELDS, ORDINALS, VERSION_CODES,
   newQuestion, newSection, totals, checkPaper, sectionSummary, fmtNum, withLayoutDefaults, buildVersion, uid, SECTION_TITLES,
+  DATE_STYLES, examDateText,
 } from "./engine.js";
 import { sectionTitleFor } from "./parse.js";
 import { pasteDialog as openPaste } from "./paste-dialog.js";
@@ -174,7 +175,10 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
 
     const term = on(select([["", "بدون"], ...ctx.terms.map((t) => [t.id, `${t.name} — ${t.year_name}`])], { value: paper.term_id ?? "" }),
       () => setMeta("term_id", term.value ? Number(term.value) : null), "change");
-    const date = on(input({ type: "date", value: paper.exam_date || "" }), (e) => setMeta("exam_date", e.target.value || null));
+    // The date is written automatically (today) and stays editable.
+    if (!paper.exam_date && !ro) { paper.exam_date = new Date().toLocaleDateString("en-CA"); setMeta("exam_date", paper.exam_date); }
+    const dateNote = h("small", { class: "xb-date-note" }, examDateText(paper.exam_date, withLayoutDefaults(paper.layout).date_style));
+    const date = on(input({ type: "date", value: paper.exam_date || "" }), (e) => { setMeta("exam_date", e.target.value || null); dateNote.textContent = examDateText(e.target.value, withLayoutDefaults(paper.layout).date_style); });
     const duration = on(input({ type: "number", min: 1, max: 600, value: paper.duration_min ?? "", placeholder: "60" }),
       (e) => setMeta("duration_min", e.target.value ? Number(e.target.value) : null));
     const total = on(input({ type: "number", min: 0.25, step: 0.25, value: paper.total_marks ?? "" }),
@@ -210,7 +214,7 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       panel("بيانات الاختبار", null,
         field("اسم الاختبار", title),
         h("div", { class: "row" }, field("الصف والشعبة والمادة", pair, "تُعبأ من المواد المسندة لك"), field("نوع الاختبار", type)),
-        h("div", { class: "row" }, field("الفصل الدراسي", term), field("تاريخ الاختبار", date), field("المدة (دقيقة)", duration)),
+        h("div", { class: "row" }, field("الفصل الدراسي", term), field("تاريخ الاختبار", h("div", {}, date, dateNote)), field("المدة (دقيقة)", duration)),
         h("div", { class: "row" },
           field("الدرجة النهائية", total, `مجموع درجات الأسئلة الآن: ${fmtNum(t.total)}`),
           field("عدد الصفحات المتوقع", pagesIn),
@@ -636,7 +640,12 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
           tog("show_marks", "درجات الأسئلة"), tog("show_date", "التاريخ"), tog("show_duration", "مدة الاختبار"), tog("show_version", "رقم النموذج"),
           tog("page_numbers", "ترقيم الصفحات (صفحة 1 من 5)"), tog("show_instructions", "التعليمات"), tog("show_signature", "توقيع المعلم والمراجع"), tog("color", "طباعة ملونة")),
         sub(logoInfo)),
-      panel("بيانات الطالب أعلى الورقة", null, fields, field("حقول إضافية (مفصولة بفاصلة، حتى 4)", extra)),
+      panel("التاريخ", null,
+        h("div", { class: "row" }, field("صيغة التاريخ في الورقة", sel("date_style", Object.entries(DATE_STYLES))),
+          field("تاريخ هذا الاختبار", h("b", {}, examDateText(paper.exam_date, L.date_style) || "لم يُحدد — من «بيانات الاختبار»")))),
+      panel("بيانات الطالب أعلى الورقة", null, fields,
+        field("مساحة اسم الطالب", sel("name_row", [["full", "سطر كامل للاسم (مستحسن)"], ["inline", "بجانب باقي البيانات"]]), "الاسم لا يُقصّ أبدًا: الطويل ينزل لسطر ثانٍ."),
+        field("حقول إضافية (مفصولة بفاصلة، حتى 4)", extra)),
       panel("الترويسة والتذييل", null, field("أسطر أعلى الترويسة", note), field("التذييل", foot)),
       h("div", { class: "row", style: "justify-content:space-between" }, btn("السابق", () => show("questions"), "ghost"), btn("التالي: المعاينة والطباعة", () => show("preview"))));
     return h("div", { class: "xb-design" }, form, h("div", { class: "xb-mini" }, panel("معاينة الصفحة الأولى", null, mini)));

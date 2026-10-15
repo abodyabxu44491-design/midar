@@ -8,6 +8,7 @@ import { waLink } from "../../shared/js/whatsapp.js";
 import syncView from "./sync.js";
 import academicRecord from "./academic-record.js";
 import schoolIdentity from "./school-identity.js";
+import teacherControl from "./teacher-control.js";
 import { mySubscription } from "./my-subscription.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
@@ -19,6 +20,7 @@ import { dangerZone } from "../../shared/js/danger-zone.js";
 const SECTIONS = [
   { key: "identity", name: "هوية المدرسة", note: "الشعار واسم المدرسة وبيانات التواصل" },
   { key: "modules", name: "أقسام المنصة", note: "شغّل وأوقف أقسام اللوحة" },
+  { key: "teachers", name: "المعلمون وطريقة العمل", note: "من يعتمد الدرجات، ومن يسجل الحضور، وما يظهر لكل معلم" },
   { key: "academic", name: "السجل الأكاديمي", note: "المراحل والصفوف والشعب والمواد والسنة والفصول والإجازات" },
   { key: "fields", name: "الحقول المخصصة", note: "أضف أي معلومة تحتاجها مدرستك" },
   { key: "page", name: "صفحة المدرسة العامة", note: "ما يراه أولياء الأمور" },
@@ -35,7 +37,7 @@ const SECTIONS = [
 ];
 
 export default function settings(ctx) {
-  const views = { identity: schoolIdentity, modules: modulesView, academic: () => academicRecord(), fields: customFieldsView, page: pageView, payment: paymentView,
+  const views = { identity: schoolIdentity, modules: modulesView, teachers: teacherControl, academic: () => academicRecord(), fields: customFieldsView, page: pageView, payment: paymentView,
     messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
     access: accessView, data: dataView,
     subscription: mySubscription, sync: syncView,

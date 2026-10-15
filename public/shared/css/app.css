@@ -2667,7 +2667,7 @@ body.cd-open { overflow: hidden; }
 .ge-sheet { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; padding-bottom: 80px; }
 .ge-sheet li { display: grid; grid-template-columns: 32px minmax(0, 1fr) 96px 44px; gap: 8px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; }
 .ge-n { color: var(--muted); font-size: 12.5px; text-align: center; }
-.ge-name { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ge-name { font-size: 14.5px; overflow-wrap: anywhere; line-height: 1.5; }
 .ge-score { height: 44px; font-size: 18px; font-weight: 700; text-align: center; }
 .ge-score.bad { border-color: var(--red); background: #FDECEA; }
 .ge-score::-webkit-outer-spin-button, .ge-score::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -2687,3 +2687,36 @@ body.cd-open { overflow: hidden; }
 .qa-badge { position: absolute; top: -6px; inset-inline-start: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
 .t-acts .quick-act { font-size: 14px; padding: 16px 6px; }
 @media (max-width: 719px) { .t-acts .quick-act { font-size: 12.5px; padding: 12px 2px; } }
+/* Option cards (one choice) and section chips (on/off), used in the teachers settings */
+.pick-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+.pick-card { display: flex; gap: 10px; align-items: flex-start; text-align: start; padding: 14px; border: 1.5px solid var(--line); border-radius: var(--radius); background: #fff; font: inherit; color: var(--navy); cursor: pointer; }
+.pick-card b { display: block; font-size: 14.5px; margin-bottom: 4px; }
+.pick-card small { color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.pick-card.on { border-color: var(--teal); background: var(--teal-soft); }
+.pick-dot { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--line-2); background: #fff; }
+.pick-card.on .pick-dot { border-color: var(--teal); box-shadow: inset 0 0 0 4px #fff; background: var(--teal); }
+.sec-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.sec-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1.5px dashed var(--line-2); border-radius: 999px; background: #fff; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; text-decoration: line-through; }
+.sec-chip.on { border-style: solid; border-color: var(--teal); background: var(--teal-soft); color: var(--navy); font-weight: 600; text-decoration: none; }
+.sec-tick { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font-size: 11px; background: var(--teal); color: #fff; }
+.sec-chip:not(.on) .sec-tick { background: var(--line); }
+.tc-h { font-size: 14.5px; margin: 18px 0 2px; }
+.tc-list { display: grid; gap: 8px; margin-top: 10px; }
+.tc-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.tc-row > div { flex: 1; min-width: 0; }
+.tc-row small { display: block; color: var(--muted); font-size: 12px; }
+/* Administration grades list */
+.ax-list { display: grid; gap: 8px; margin-top: 12px; }
+.ax-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.ax-main { flex: 1; min-width: 0; }
+.ax-main small { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; }
+.ax-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.ax-sheet { max-height: 60vh; overflow: auto; }
+@media (max-width: 719px) { .ax-item { flex-direction: column; align-items: stretch; } .ax-acts { justify-content: flex-start; } }
+.s-guardian { display: block; margin-top: 3px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.s-phone { margin-inline-start: 6px; font-weight: 700; color: var(--teal); text-decoration: none; unicode-bidi: isolate; white-space: nowrap; }
+.tc-more { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.tc-more summary { cursor: pointer; font-weight: 700; color: var(--navy); }
+.tc-more summary small { font-weight: 400; color: var(--muted); }
+.tc-search { width: 100%; max-width: 360px; margin-top: 10px; }
+@media (min-width: 900px) { .tc-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

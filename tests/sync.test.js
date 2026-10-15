@@ -113,9 +113,15 @@ test("الدرجات: تعارض على نسخة قديمة، ونفس قواع�
   const over = await push(s.t, [op("score.set", { exam_id: s.exam, student_id: s.st1.id, score: 25 }, 0)]);
   assert.equal(over.data.results[0].status, "rejected");
   assert.match(over.data.results[0].error, /العظمى/);
-  assert.equal((await s.t.post(`/api/teacher/exams/${s.exam}/submit`)).status, 200);
-  const locked = await push(s.t, [op("score.set", { exam_id: s.exam, student_id: s.st1.id, score: 10 }, 0)]);
+  // The teacher approves (published at once) and can still correct offline.
+  assert.equal((await s.t.post(`/api/teacher/exams/${s.exam}/submit`)).data.status, "published");
+  const fixed = await push(s.t, [op("score.set", { exam_id: s.exam, student_id: s.st1.id, score: 10 }, 0)]);
+  assert.equal(fixed.data.results[0].status, "applied", "المعلم يصحح درجة منشورة حتى بدون اتصال");
+  // When the administration approves grades, what left the teacher is locked even offline.
+  await s.A.admin.put("/api/admin/communication/features/teachers", { teacher_publishes: false });
+  const locked = await push(s.t, [op("score.set", { exam_id: s.exam, student_id: s.st1.id, score: 9 }, 0)]);
   assert.equal(locked.data.results[0].status, "rejected", "الاختبار المُرسل للاعتماد مقفل حتى بدون اتصال");
+  await s.A.admin.put("/api/admin/communication/features/teachers", { teacher_publishes: true });
 });
 
 test("الصلاحيات والعزل: لا فصل غير مسند، ولا طالب مدرسة أخرى، وفشل عملية لا يلغي غيرها", async () => {

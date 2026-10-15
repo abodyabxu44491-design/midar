@@ -28,10 +28,13 @@ r.get("/day-status", handle(async (req, res) => {
 
 r.post("/", handle(async (req, res) => {
   const b = parse(attendance.markSchema, req.body);
-  res.json(await inTenant(req, async (q) => attendance.mark(q, b, {
-    actor: req.actor, source: "teacher", ip: req.ip, lockGate: !(await featureSettings(q, "gate")).teacher_can_edit,
-    allowedClass: (classId) => classId !== null && teachesClass(q, req.user.teacher_id, classId),
-  })));
+  res.json(await inTenant(req, async (q) => {
+    await attendance.assertTeacherRecords(q);
+    return attendance.mark(q, b, {
+      actor: req.actor, source: "teacher", ip: req.ip, lockGate: !(await featureSettings(q, "gate")).teacher_can_edit,
+      allowedClass: (classId) => classId !== null && teachesClass(q, req.user.teacher_id, classId),
+    });
+  }));
 }));
 
 r.patch("/excuse", handle(async (req, res) => {

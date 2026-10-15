@@ -22,8 +22,7 @@ before(async () => {
   exam = e.data.id;
   const [s1, s2] = A.students;
   await A.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [s1.id]: 18, [s2.id]: 6 } });
-  await A.teacher.post(`/api/teacher/exams/${exam}/submit`, {});
-  assert.equal((await A.admin.post(`/api/admin/exams/${exam}/status`, { status: "published" })).status, 200);
+  assert.equal((await A.teacher.post(`/api/teacher/exams/${exam}/submit`, {})).data.status, "published", "المعلم يعتمد وتُنشر مباشرة");
 });
 after(async () => { setTransport(null); await srv.close(); await endPool(); });
 
@@ -109,15 +108,13 @@ test("الشهادة الصادرة لا تُعدَّل ولا تُحذف حتى
 });
 
 test("تعديل درجة بعد الاعتماد يعيد النتائج للمراجعة ويمنع الإصدار حتى يُعاد الاعتماد", async () => {
-  // A published exam is locked; correcting a grade means sending it back to draft first.
-  assert.equal((await A.admin.post(`/api/admin/exams/${exam}/status`, { status: "draft" })).status, 200);
+  // The teacher corrects a published grade directly; the approved results go back to review.
+  assert.equal((await A.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [A.students[0].id]: 19 } })).status, 200);
   const r = (await results()).data;
   assert.equal(r.status, "review");
   assert.equal(r.events.at(-1).action, "changed");
   assert.equal((await A.admin.post("/api/admin/certificates/issue", { class_id: A.c1.id, kind: "term" })).status, 409);
   assert.equal((await client(srv.base).get(`/api/public/verify/${issued.code}`)).data.status, "issued", "الشهادات الصادرة تبقى كما هي");
-  await A.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [A.students[0].id]: 19 } });
-  assert.equal((await A.admin.post(`/api/admin/exams/${exam}/status`, { status: "published" })).status, 200);
   assert.equal((await A.admin.post("/api/admin/certificates/results/approve", { ...key(), allow_incomplete: true, reason: "اعتماد بعد التصحيح" })).status, 200);
   assert.equal((await results()).data.ready, true);
 });

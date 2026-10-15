@@ -166,6 +166,7 @@ async function applyAttendance(q, ctx, op, { force = false } = {}) {
   const p = attPayload.parse(op.payload);
   const [st] = await q("SELECT class_id FROM students WHERE id = $1", [p.student_id]);
   if (!st) throw notFound("الطالب غير موجود");
+  await attendance.assertTeacherRecords(q);
   const [cur] = await q("SELECT status, version, recorded_by FROM attendance WHERE student_id = $1 AND day = $2", [p.student_id, p.day]);
   if (cur && cur.status === p.status && !p.excuse) return { status: "applied", classId: st.class_id, result: { version: cur.version, unchanged: true } };
   if (cur && cur.status !== p.status && !force && cur.version !== op.base_version) {
@@ -184,7 +185,7 @@ async function applyScore(q, ctx, op, { force = false } = {}) {
   const p = scorePayload.parse(op.payload);
   const e = await exams.get(q, p.exam_id);
   if (!(await teachesPairQ(q, ctx.teacherId, e.class_id, e.subject_id))) throw forbidden("هذا الاختبار ليس ضمن موادك");
-  if (e.status !== "draft") throw badRequest("لا يمكن التعديل بعد إرسال الاختبار للاعتماد");
+  if (!(await exams.teacherCanEdit(q, e))) throw badRequest("لا يمكن التعديل بعد إرسال الاختبار للاعتماد");
   if (p.score !== null && p.score > Number(e.max_score)) throw badRequest(`الدرجة أكبر من الدرجة العظمى (${e.max_score})`);
   const [cur] = await q("SELECT score, version, updated_by FROM scores WHERE exam_id = $1 AND student_id = $2", [p.exam_id, p.student_id]);
   const same = cur && (cur.score === null ? p.score === null : Number(cur.score) === p.score);
@@ -242,7 +243,7 @@ async function applyScoreAs(q, ctx, op, admin) {
   if (!admin) return applyScore(q, ctx, { payload: op.payload, base_version: 0 }, { force: true });
   const p = scorePayload.parse(op.payload);
   const e = await exams.get(q, p.exam_id);
-  await exams.saveScores(q, e, { [p.student_id]: p.score }, ctx.actor);
+  await exams.saveScores(q, e, { [p.student_id]: p.score }, ctx.actor, { admin: true });
   return { status: "applied" };
 }
 

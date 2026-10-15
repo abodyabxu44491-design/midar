@@ -23,8 +23,7 @@ async function graded(S, { title, max, scores, component_id }) {
   const e = await S.teacher.post("/api/teacher/exams", { class_id: S.c1.id, subject_id: S.math.id, title, max_score: max, component_id });
   assert.equal(e.status, 201, JSON.stringify(e.data));
   await S.teacher.put(`/api/teacher/exams/${e.data.id}/scores`, { scores });
-  await S.teacher.post(`/api/teacher/exams/${e.data.id}/submit`, {});
-  assert.equal((await S.admin.post(`/api/admin/exams/${e.data.id}/status`, { status: "published" })).status, 200);
+  assert.equal((await S.teacher.post(`/api/teacher/exams/${e.data.id}/submit`, {})).data.status, "published");
   return e.data;
 }
 const card = async (S, s) => (await S.admin.get(`/api/admin/reports/report-card/${s.id}`)).data;

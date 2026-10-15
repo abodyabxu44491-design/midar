@@ -37,6 +37,8 @@ export const layoutSchema = z.object({
   header_note: z.string().max(200), footer_text: z.string().max(200),
   student_fields: z.array(z.enum(["name", "grade", "section", "number", "date", "score"])).max(6),
   extra_fields: z.array(z.string().trim().min(1).max(40)).max(4),
+  date_style: z.enum(["gregorian", "hijri", "both"]),
+  name_row: z.enum(["full", "inline"]),
 }).partial();
 
 const meta = {

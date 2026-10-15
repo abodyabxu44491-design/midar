@@ -135,7 +135,10 @@ export default async function students({ me, refresh }) {
       h("div", { class: "s-main" },
         h("b", { class: "s-title" }, s.name),
         h("span", { class: "sub" }, s.student_no ? `رقم الطالب: ${s.student_no}` : "بدون رقم طالب"),
-        h("span", { class: "s-meta" }, [loc?.stage, loc?.grade, loc?.section ? `شعبة ${loc.section}` : null].filter(Boolean).join(" • ") || (s.class_name || "بدون فصل"))),
+        h("span", { class: "s-meta" }, [loc?.stage, loc?.grade, loc?.section ? `شعبة ${loc.section}` : null].filter(Boolean).join(" • ") || (s.class_name || "بدون فصل")),
+        h("span", { class: "s-guardian" }, "ولي الأمر: ", s.guardian_name || "—",
+          s.guardian_phone ? h("a", { class: "s-phone", href: `tel:${s.guardian_phone}`, dir: "ltr", onclick: (e) => e.stopPropagation() }, s.guardian_phone)
+            : h("span", { class: "muted" }, " · لا يوجد جوال"))),
       s.status !== "active" ? statusBadge(s.status) : badge("نشط"));
     return el;
   }
