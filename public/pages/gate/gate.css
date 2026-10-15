@@ -92,3 +92,6 @@ body.gate-app { background: #0F1A36; color: #fff; min-height: 100dvh; }
 .gt-err { min-height: 1.4em; color: #FFB4A6 !important; font-size: 14px; }
 .gt-note { background: rgba(240,165,58,.16); color: #FFD9A0 !important; border-radius: 12px; padding: 8px 12px; font-size: 14px; }
 .gt-join .btn.gt-start { width: 100%; justify-content: center; }
+.gt-install { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 16px; padding: 12px; border: 1px dashed rgba(255,255,255,.35); border-radius: 12px; background: transparent; color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.gt-torch { position: absolute; top: 12px; inset-inline-start: 12px; z-index: 3; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.4); background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+.gt-torch.on { background: #F4C542; color: #16244A; border-color: #F4C542; }

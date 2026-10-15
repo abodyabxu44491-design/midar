@@ -10,7 +10,6 @@ import { icons } from "../../shared/js/icons.js";
 import { money, fmtDate } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
-import { startHere } from "./onboarding.js";
 
 export default async function dashboard({ me, goTo }) {
   const [d, alerts, notifications, templates] = await Promise.all([
@@ -29,7 +28,7 @@ export default async function dashboard({ me, goTo }) {
 
   const center = (data, goTo) => {
     if (!data.items.length) return null;
-    return panel("مركز التنبيهات", null,
+    return h("div", {},
       ["urgent", "action", "info"].map((level) => {
         const rows = data.items.filter((x) => x.level === level);
         if (!rows.length) return null;
@@ -70,8 +69,6 @@ export default async function dashboard({ me, goTo }) {
       h("b", {}, "إعلانات المدرسة"),
       h("span", { class: "ann-items" }, d.recent_announcements.slice(0, 3).map((a) => h("span", {}, a.title)))) : null,
 
-    startHere({ me, d, goTo }),
-
     kpiGrid(
       kpiCard({ icon: "users", tone: "teal", label: "الطلاب", value: String(d.students), ratio: me.school.max_students ? d.students / me.school.max_students : null,
         note: me.school.max_students ? `من ${me.school.max_students} في الباقة · ${d.classes} فصل` : `${d.classes} فصل`, onClick: () => go("students") }),
@@ -81,24 +78,26 @@ export default async function dashboard({ me, goTo }) {
       me.modules?.fees === false ? null : kpiCard({ icon: "wallet", tone: "amber", label: "الرسوم المحصّلة", value: money(d.fees_paid), ratio: feesTotal ? Number(d.fees_paid || 0) / feesTotal : null,
         note: `المتبقي ${money(d.fees_remaining)}`, onClick: () => go(me.modules?.finance ? "ledger" : "finance") })),
 
-    h("div", { class: "dash-cols" },
-      h("div", { class: "dash-main" }, center(notifications, go), stagesPanel(d.by_grade || [], go)),
-      h("div", { class: "dash-side" }, activityPanel(d, go), quickSearch(go))),
-
-
-    shortList("غياب متكرر (آخر 30 يومًا)", alerts.absentees, c.frequent_absentees, (s) => line(
-        h("div", {}, h("b", {}, s.name), sub(`${s.class_name || "—"} — ${s.absences} أيام غياب`)),
-        canMessage ? waButton({ phone: s.guardian_phone, template: templates.absence, countryCode: templates.country_code,
-          vars: messageVars({ student: s, school: me.school.name }), label: "تنبيه ولي الأمر" }) : null),
-      () => goTo?.("attendance"), "كل الغياب في قسم الحضور"),
-
-    shortList("فواتير متأخرة", alerts.overdue, c.overdue_invoices, (i) => line(
+    // Everything that happened or needs action, in one panel with tabs.
+    activityPanel(d, go, [
+      notifications.items.length ? ["alerts", "التنبيهات", notifications.items.reduce((n, x) => n + Number(x.count || 0), 0), () => center(notifications, go)] : null,
+      alerts.overdue.length ? ["overdue", "الفواتير المتأخرة", Math.max(c.overdue_invoices || 0, alerts.overdue.length), () => shortList(alerts.overdue, (i) => line(
         h("div", {}, h("b", {}, `${i.student_name} — ${money(i.remaining)}`),
           sub(`${i.title} — استحقت ${fmtDate(i.due_date)}${i.class_name ? ` — ${i.class_name}` : ""}`)),
         canMessage ? waButton({ phone: i.guardian_phone, template: templates.fees, countryCode: templates.country_code,
           vars: messageVars({ student: { name: i.student_name, class_name: i.class_name }, school: me.school.name,
             fees: { remaining: i.remaining }, link: directoryLink(me) }), label: "تذكير واتساب" }) : null),
-      () => goTo?.("finance"), "كل الفواتير في قسم الرسوم"),
+        () => go("finance"), "كل الفواتير في قسم الرسوم")] : null,
+      alerts.absentees.length ? ["absent", "غياب متكرر", Math.max(c.frequent_absentees || 0, alerts.absentees.length), () => shortList(alerts.absentees, (s) => line(
+        h("div", {}, h("b", {}, s.name), sub(`${s.class_name || "—"} — ${s.absences} أيام غياب في آخر 30 يومًا`)),
+        canMessage ? waButton({ phone: s.guardian_phone, template: templates.absence, countryCode: templates.country_code,
+          vars: messageVars({ student: s, school: me.school.name }), label: "تنبيه ولي الأمر" }) : null),
+        () => go("attendance"), "كل الغياب في قسم الحضور")] : null,
+    ].filter(Boolean)),
+
+    h("div", { class: "dash-cols" },
+      h("div", { class: "dash-main" }, stagesPanel(d.by_grade || [], go)),
+      h("div", { class: "dash-side" }, quickSearch(go))),
 
     panel("روابط مدرستك", null,
       linkRow("صفحة الطلاب وأولياء الأمور", L?.public?.home || directoryLink(me), { note: "شاركها مع الأهالي" }),
@@ -108,13 +107,10 @@ export default async function dashboard({ me, goTo }) {
 }
 
 const SHORT = 5;
-function shortList(title, rows, total, row, openTab, openLabel) {
-  if (!rows.length) return null;
-  const count = Math.max(total || 0, rows.length);
+function shortList(rows, row, openTab, openLabel) {
   const box = h("div", {}, rows.slice(0, SHORT).map(row));
   const more = rows.length > SHORT ? btn(`عرض المزيد (${rows.length - SHORT})`, () => { mount(box, rows.map(row)); more.remove(); }, "ghost sm") : null;
-  return panel(h("span", {}, title, " ", badge(String(count), "gray")), null, box,
-    h("div", { class: "row spaced" }, more, count > SHORT ? btn(openLabel, openTab, "ghost sm") : null));
+  return h("div", {}, box, h("div", { class: "row spaced" }, more, btn(openLabel, openTab, "ghost sm")));
 }
 
 function quickSearch(goTo) {
@@ -168,22 +164,25 @@ function stagesPanel(rows, go) {
   })));
 }
 
-function activityPanel(d, go) {
-  const tabsDef = [["students", "الطلاب الجدد"], ["ann", "التعاميم"]].filter(([k]) => k === "students" ? d.recent_students?.length : d.recent_announcements?.length);
+function activityPanel(d, go, extra = []) {
+  const when = (t) => new Date(t).toLocaleDateString("ar", { day: "numeric", month: "short" });
+  const tabsDef = [
+    ...extra,
+    d.recent_students?.length ? ["students", "الطلاب الجدد", null, () => h("div", { class: "act-list" }, d.recent_students.map((s) => h("button", { type: "button", class: "act-row", onclick: () => go("students") },
+      personAvatar(s.gender, 34), h("span", { class: "act-main" }, h("b", {}, s.name), h("small", {}, s.class_name || "بدون فصل")), h("small", { class: "act-when" }, when(s.created_at)))))] : null,
+    d.recent_announcements?.length ? ["ann", "التعاميم", null, () => h("div", { class: "act-list" }, d.recent_announcements.map((a) => h("button", { type: "button", class: "act-row", onclick: () => go("announcements") },
+      h("span", { class: "act-ic" }, icons.megaphone({ size: 16 })), h("span", { class: "act-main" }, h("b", {}, a.title)), h("small", { class: "act-when" }, when(a.created_at)))))] : null,
+  ].filter(Boolean);
   if (!tabsDef.length) return null;
   let cur = tabsDef[0][0];
-  const list = h("div", { class: "act-list" });
-  const bar = h("div", { class: "seg-tabs", role: "tablist" });
-  const when = (t) => new Date(t).toLocaleDateString("ar", { day: "numeric", month: "short" });
+  const body = h("div");
+  const bar = h("div", { class: "act-tabs", role: "tablist" });
   const draw = () => {
-    bar.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === cur));
-    mount(list, cur === "students"
-      ? d.recent_students.map((s) => h("button", { type: "button", class: "act-row", onclick: () => go("students") },
-        personAvatar(s.gender, 34), h("span", { class: "act-main" }, h("b", {}, s.name), h("small", {}, s.class_name || "بدون فصل")), h("small", { class: "act-when" }, when(s.created_at))))
-      : d.recent_announcements.map((a) => h("button", { type: "button", class: "act-row", onclick: () => go("announcements") },
-        h("span", { class: "act-ic" }, icons.megaphone({ size: 16 })), h("span", { class: "act-main" }, h("b", {}, a.title)), h("small", { class: "act-when" }, when(a.created_at)))));
+    bar.querySelectorAll("button").forEach((b) => { const on = b.dataset.k === cur; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); });
+    mount(body, tabsDef.find((t) => t[0] === cur)[3]());
   };
-  mount(bar, tabsDef.map(([k, label]) => h("button", { type: "button", role: "tab", "data-k": k, onclick: () => { cur = k; draw(); } }, label)));
+  mount(bar, tabsDef.map(([k, label, n]) => h("button", { type: "button", role: "tab", "data-k": k, onclick: () => { cur = k; draw(); } },
+    label, n ? h("span", { class: "act-n" }, String(n)) : null)));
   draw();
-  return panel("آخر النشاطات", null, bar, list);
+  return panel("آخر النشاطات", null, bar, body);
 }

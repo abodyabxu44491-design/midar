@@ -22,7 +22,8 @@ async function cleanup() {
   await Promise.all(keys.filter((k) => k.startsWith("midar-") && k !== CACHE).map((k) => caches.delete(k)));
 }
 
-const APP_PAGE = /^\/[a-z0-9][a-z0-9-]{1,29}\/idara\/?$/;
+// Pages that open without internet once visited: the staff app and the gate phone (it scans offline).
+const APP_PAGE = /^\/[a-z0-9][a-z0-9-]{1,29}\/(idara|gate)\/?$/;
 const pageKey = (url) => `${url.origin}${url.pathname.replace(/\/$/, "")}`;
 
 self.addEventListener("message", (e) => {

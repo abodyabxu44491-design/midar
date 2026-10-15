@@ -54,6 +54,10 @@ export async function startCamera(video, onCode) {
   }
   video.srcObject = stream;
   await video.play().catch(() => {});
+  // Keep the picture sharp on phones that support it.
+  const track = stream.getVideoTracks()[0];
+  const caps = track?.getCapabilities?.() || {};
+  if (caps.focusMode?.includes("continuous")) track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
   const read = await makeReader();
   let timer = null, busy = false, last = "", lastAt = 0, stopped = false;
   const loop = () => {
@@ -71,5 +75,13 @@ export async function startCamera(video, onCode) {
     }, 200);
   };
   loop();
-  return () => { stopped = true; clearTimeout(timer); stream.getTracks().forEach((t) => t.stop()); video.srcObject = null; };
+  const stop = () => { stopped = true; clearTimeout(timer); stream.getTracks().forEach((t) => t.stop()); video.srcObject = null; };
+  // The flashlight, when the phone has one (dark mornings at the gate).
+  let lit = false;
+  stop.torch = caps.torch ? async () => {
+    lit = !lit;
+    try { await track.applyConstraints({ advanced: [{ torch: lit }] }); } catch { lit = false; }
+    return lit;
+  } : null;
+  return stop;
 }

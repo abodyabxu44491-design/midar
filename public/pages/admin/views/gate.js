@@ -72,11 +72,13 @@ export async function gateView({ me }) {
       h("div", { class: "row spaced" }, field("اليوم", dateIn), s.rate !== null ? h("div", { class: "gate-rate" }, h("b", {}, `${s.rate}%`), h("small", {}, "نسبة الحضور")) : null),
       noDevice ? notice("لا يوجد جوال بوابة مفعّل بعد. من «البوابات والأجهزة» اضغط «ربط جوال» واكتب الرمز على جوال الحارس.", "") : null,
       h("div", { class: `gate-phase ${PH[0]}` }, PH[1]),
+      // The four numbers that matter first; the rest only when they are not zero.
       h("div", { class: "gate-stats" },
-        stat(c.students, "طالب مقيد"), stat(c.present, "حاضر", "ok"), stat(c.late, "متأخر", "late"),
+        stat(c.present, "حاضر", "ok"), stat(c.late, "متأخر", "late"),
         stat(c.unrecorded, "لم يسجل حضور", c.unrecorded ? "warn" : ""), stat(c.absent, "غائب", "bad"),
-        stat(c.excused + c.permitted, "بعذر / مستأذن"), stat(c.out_of_school, "رحلة / نشاط"), stat(c.suspicious, "مسح مشبوه", c.suspicious ? "bad" : ""),
-        c.departed ? stat(c.departed, "انصرف") : null),
+        c.excused + c.permitted ? stat(c.excused + c.permitted, "بعذر / مستأذن") : null, c.out_of_school ? stat(c.out_of_school, "رحلة / نشاط") : null,
+        c.suspicious ? stat(c.suspicious, "مسح مشبوه", "bad") : null, c.departed ? stat(c.departed, "انصرف") : null),
+      sub(`${c.students} طالب مقيد`),
       s.gates.length > 1 ? h("div", { class: "row" }, s.gates.map((g) => badge(`${g.name}: ${g.n}`, "gray"))) : null,
       ["closed", "finalized"].includes(s.phase) ? await reviewPanel(s) : null,
       panel("المباشر — آخر المسحات", null, feedBox),
@@ -119,14 +121,25 @@ export async function gateView({ me }) {
         show("day");
       } catch (e) { toast(e.message, true); }
     }, list.length ? "danger" : "");
+    // Steps in order: (1) mark who has an excuse or is on a trip, (2) approve the absence of the rest.
+    // Each class is one folded row with its count, so a whole school fits on one screen.
+    const groupEl = ([name, rows]) => {
+      const all = btn("تحديد الكل", (ev) => { ev.preventDefault(); ev.target.closest(".gate-group").querySelectorAll("input").forEach((cb) => { cb.checked = true; cb.dispatchEvent(new Event("change")); }); }, "ghost sm");
+      return h("details", { class: "gate-group" },
+        h("summary", { class: "gg-head" }, h("b", {}, name), h("span", { class: "gg-n" }, `${rows.length} لم يسجل`), all),
+        h("div", { class: "gg-body" }, rows.map(checkbox)));
+    };
     return panel(`لم يسجل حضور (${list.length})`, null,
-      sub("هؤلاء لم يُسجَّل لهم حضور اليوم. لم يُكتب عليهم غياب ولم يصل أي إشعار بعد. حدد من له عذر أو في رحلة، ثم اعتمد الغياب للباقين."),
-      list.length ? h("div", { class: "gate-groups" }, [...groups].map(([name, rows]) => h("div", { class: "gate-group" },
-        h("div", { class: "gg-head" }, h("b", {}, name), h("small", {}, `${rows.length}`),
-          btn("تحديد الكل", (ev) => { ev.target.closest(".gate-group").querySelectorAll("input").forEach((cb) => { cb.checked = true; cb.dispatchEvent(new Event("change")); }); }, "ghost sm")),
-        rows.map(checkbox)))) : notice("كل الطلاب مسجلون. اعتمد اليوم لإغلاقه.", ""),
-      list.length ? h("div", { class: "gate-actions" }, h("span", { class: "sub" }, "المحددون: ", counter), field("الحالة", status), reason, apply) : null,
-      h("div", { class: "row" }, finalize));
+      sub("لم يُكتب عليهم غياب ولم يصل أي إشعار بعد."),
+      list.length ? [
+        h("div", { class: "gate-steps" },
+          h("div", { class: "gate-step" }, h("b", {}, "١. من له عذر أو في رحلة؟"),
+            sub("افتح الشعبة وحدد الطلاب، ثم اختر الحالة واكتب السبب."),
+            h("div", { class: "gate-actions" }, h("span", { class: "sub" }, "المحددون: ", counter), field("الحالة", status), reason, apply)),
+          h("div", { class: "gate-step" }, h("b", {}, "٢. اعتماد الغياب للباقين"),
+            sub("يُسجَّلون غائبين ويصل الإشعار لأولياء أمورهم."), finalize)),
+        h("div", { class: "gate-groups" }, [...groups].map(groupEl)),
+      ] : [notice("كل الطلاب مسجلون. اعتمد اليوم لإغلاقه.", ""), h("div", { class: "row" }, finalize)]);
   }
 
   async function devicesView() {

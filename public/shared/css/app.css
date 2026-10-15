@@ -2738,3 +2738,23 @@ button.sf-kpi.go:hover { border-color: var(--line-2); }
 .sh-done ul { list-style: none; padding: 6px 0 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .sh-done li { display: inline-flex; align-items: center; gap: 4px; color: var(--teal); }
 .att-source { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; padding: 10px 14px; border-radius: var(--radius); background: var(--teal-soft); font-size: 13.5px; color: var(--navy); }
+/* Admin home: one activity panel with tabs (alerts, overdue invoices, absences, new students, announcements) */
+.act-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.act-tabs::-webkit-scrollbar { display: none; }
+.act-tabs button { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: none; border-radius: 999px; background: transparent; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.act-tabs button.on { background: var(--navy); color: #fff; }
+.act-n { min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--red-soft); color: var(--red); font-size: 11.5px; line-height: 20px; text-align: center; }
+.act-tabs button.on .act-n { background: rgba(255,255,255,.2); color: #fff; }
+/* Gate review: folded classes and the two steps */
+.gate-stats { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 4px; }
+.gate-groups { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
+.gate-group { padding: 0; }
+.gate-group > summary.gg-head { list-style: none; cursor: pointer; padding: 10px 12px; }
+.gate-group > summary.gg-head::-webkit-details-marker { display: none; }
+.gate-group > summary.gg-head::before { content: "‹"; color: var(--muted); font-size: 18px; transition: transform .15s; }
+.gate-group[open] > summary.gg-head::before { transform: rotate(-90deg); }
+.gg-n { flex: 1; color: var(--muted); font-size: 12.5px; }
+.gg-body { display: grid; gap: 2px; padding: 0 12px 10px; border-top: 1px solid var(--line); }
+.gate-steps { display: grid; gap: 10px; grid-template-columns: 2fr 1fr; margin-top: 10px; }
+.gate-step { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg, #F6F8FA); display: grid; gap: 6px; align-content: start; }
+@media (max-width: 760px) { .gate-steps { grid-template-columns: 1fr; } }
