@@ -37,7 +37,7 @@ function showcasePanel(refresh) {
     btn("إنشاء مدرسة العرض", async () => {
       const { secret: r } = await runJob("/api/owner/tenants/showcase", { name: f.name.value, id: f.id.value },
         { title: "إنشاء مدرسة العرض", jobsBase: "/api/owner/jobs" });
-      if (!r) { toast("اكتملت المدرسة، لكن انتهت صلاحية عرض بيانات الدخول. أصدر كلمة مرور جديدة للمدير من صفحة المدرسة.", true); refresh(); return; }
+      if (!r) { toast("اكتملت المدرسة. رابط إعداد حساب المدير متاح في ملف المدرسة.", true); refresh(); return; }
       const s = r.summary;
       handoverCard(r, [
         ["الطلاب", s.students], ["المعلمون", s.teachers], ["الشعب", s.structure.sections], ["العام الدراسي", s.year.name], ["أيام الدوام المسجلة", s.school_days],
@@ -50,22 +50,21 @@ function showcasePanel(refresh) {
 
 export function handoverCard(r, extra = []) {
   const site = location.origin;
-  const publicLink = `${site}/${r.credentials.school}`;
+  const publicLink = `${site}/${r.school.id}`;
   const staffLink = `${publicLink}/idara`;
   const rows = [
     ["اسم المدرسة", r.school.name],
     ["رابط الطلاب وأولياء الأمور", publicLink],
     ["رابط دخول المدير والمعلمين", staffLink],
-    ["اسم المستخدم", r.credentials.username],
-    ["كلمة المرور المؤقتة", r.credentials.password],
+    ["رابط إعداد حساب المدير", r.setup?.url || "يصدر من ملف المدرسة"],
     ...extra.map(([k, v]) => [k, String(v)]),
   ];
   const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
   dialog("بطاقة تسليم المدرسة", h("div", { class: "handover" },
     h("div", { class: "print-only" }, brandLogo("print-logo", false)),
-    notice("انسخ البطاقة أو اطبعها الآن. كلمة المرور لن تظهر مرة أخرى.", "warn"),
+    notice("أرسل رابط الإعداد لمدير المدرسة. يفتحه ويُنشئ حسابه بالبريد الإلكتروني أو Google أو Apple، ثم يدخل لوحة المدرسة مباشرة. الرابط صالح 7 أيام ويُستخدم مرة واحدة، ويعود في أي وقت من ملف المدرسة.", "warn"),
     rows.map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
-    sub("يغيّر المدير كلمة المرور بعد أول دخول من: الإعدادات ← تغيير كلمة المرور.")),
+    sub("لا تُسلَّم كلمة مرور للمدير: هو يختار طريقة دخوله بنفسه.")),
   [
     btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }),
     btn("طباعة", () => window.print(), "ghost"),

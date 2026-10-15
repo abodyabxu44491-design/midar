@@ -57,7 +57,7 @@ export async function startAdmin() {
   if (me.setup_completed === false) {
     mount(app,
       topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: "إعداد المدرسة",
-        onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } }),
+        onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } }),
       h("main", {}, await setupWizard({ me, refresh: () => location.reload() })),
       footer());
     return;
@@ -104,7 +104,7 @@ export async function startAdmin() {
   };
 
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `إدارة المدرسة — ${me.name}`,
-    onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } });
+    onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } });
   attachBell(bar, "/api/admin", (n) => {
     const tab = { leave: "staff", request: n.link === "staff" ? "staff" : "admissions", meeting: "communication", survey: "communication", grades_review: "exams",
       timetable: "timetable", announcement: "announcements", system: "students" }[n.kind] || n.link;
@@ -139,7 +139,7 @@ async function startInstitute(me) {
   ctx.goTo = (key) => t.show(key);
   const roleName = meta.labels.staff_roles[meta.staff_role] || "إدارة المعهد";
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `${roleName} — ${me.name}`,
-    onLogout: async () => { await api("/api/admin/logout", {}); location.reload(); } });
+    onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } });
   attachBell(bar, "/api/admin", () => false);
   mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
   t.start("dashboard");

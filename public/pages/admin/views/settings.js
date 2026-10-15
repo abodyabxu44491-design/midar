@@ -468,7 +468,59 @@ async function moneyView({ show }) {
     msg);
 }
 
-async function accessView({ me, refresh }) {
+// The manager's Midar account (email, Google / Apple, password, devices). Deputies keep the username password.
+async function accountPanels(show) {
+  const [acct, cfg] = await Promise.all([api("/api/account/me").catch(() => null), api("/api/account/config").catch(() => ({}))]);
+  if (!acct) return null;
+  const school = location.pathname.split("/")[1];
+  const back = new URLSearchParams(location.search).get("oauth");
+  const has = (p) => acct.identities.some((i) => i.provider === p);
+  const NAMES = { google: "Google", apple: "Apple" };
+  const method = (p) => (cfg[p] || has(p)) && line(
+    h("div", {}, h("b", {}, NAMES[p]), " ", has(p) ? badge("مرتبط", "green") : badge("غير مرتبط", "gray"),
+      has(p) ? sub(acct.identities.find((i) => i.provider === p).email || "") : sub(`ادخل بحساب ${NAMES[p]} بدل كلمة المرور`)),
+    has(p) ? btn("إلغاء الربط", async () => {
+      if (!confirmAction(`إلغاء ربط ${NAMES[p]} من حسابك؟`)) return;
+      try { await api(`/api/account/identities/${p}/remove`, {}); toast("أُلغي الربط"); show(); } catch (e) { toast(e.message, true); }
+    }, "ghost sm") : cfg[p] ? h("a", { class: "btn soft sm", href: `/api/account/oauth/${p}/start?purpose=link&school=${encodeURIComponent(school)}` }, "ربط") : null);
+  const cur = passwordInput({ autocomplete: "current-password" });
+  const nxt = passwordInput({ autocomplete: "new-password" });
+  return [
+    panel("حسابك في مدار", null,
+      back === "linked" ? notice("تم ربط طريقة الدخول بحسابك.", "") : null,
+      sub("بهذا الحساب تدخل إلى مدرستك من أي جهاز. البريد لا يتغير إلا عبر إدارة مدار بعد التحقق منك."),
+      h("div", { class: "ph-now" }, h("span", {}, "البريد الإلكتروني"), h("b", { dir: "ltr" }, acct.email)),
+      acct.schools.length > 1 ? sub(`مرتبط بـ ${acct.schools.length} مدارس: ${acct.schools.map((x) => x.name).join("، ")}`) : null,
+      method("google"), method("apple")),
+    panel(acct.has_password ? "كلمة مرور الحساب" : "أضف كلمة مرور", null,
+      acct.has_password ? field("كلمة المرور الحالية", cur) : sub("تحتاجها لتأكيد العمليات الحساسة، وللدخول بالبريد من جهاز جديد."),
+      field("كلمة المرور الجديدة", nxt, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا"),
+      btn("حفظ كلمة المرور", async () => {
+        try { await api("/api/account/password", { current: cur.value, next: nxt.value }); cur.value = nxt.value = ""; toast("حُفظت كلمة المرور"); show(); }
+        catch (e) { toast(e.message, true); }
+      })),
+    panel("أجهزتك", null,
+      sub("يبقى حسابك مسجّلًا على أجهزتك 30 يومًا من آخر استخدام. أنهِ الجلسات إذا فقدت جهازًا أو دخلت من جهاز ليس لك."),
+      h("div", { class: "spaced" }, btn("تسجيل الخروج من كل الأجهزة", async () => {
+        if (!confirmAction("تسجيل الخروج من كل الأجهزة، ومنها هذا الجهاز؟")) return;
+        await api("/api/account/logout-all", {});
+        location.reload();
+      }, "danger"))),
+  ];
+}
+
+async function accessView({ me, refresh, show }) {
+  const account = await accountPanels(show || refresh);
+  if (account) {
+    return [...account,
+      panel("جلسات المستخدمين", null,
+        sub("ينهي جلسات بقية مستخدمي المدرسة (المعلمين والمحاسبين) ويطلب دخولهم من جديد."),
+        h("div", { class: "spaced" }, btn("إنهاء جلسات المستخدمين الآخرين", async () => {
+          if (!confirmAction("إنهاء جلسات جميع المستخدمين الآخرين؟")) return;
+          await api(`${A}/settings/sign-out-all`, {});
+          toast("أُنهيت الجلسات الأخرى");
+        }, "danger")))];
+  }
   const cur = passwordInput({ autocomplete: "current-password" });
   const nxt = passwordInput({ autocomplete: "new-password" });
   return [
