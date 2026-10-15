@@ -5,60 +5,95 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn, confirmAction } from "../../shared/js/ui.js";
-import { fmtDate } from "../../shared/js/format.js";
+import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn, confirmAction, dialog } from "../../shared/js/ui.js";
+import { fmtDate, fmtDateTime } from "../../shared/js/format.js";
 import { partsView } from "../../shared/js/parts.js";
 import { certificatesSheet } from "../../shared/js/certificate.js";
+import { resultsApproval } from "../../shared/js/results-approval.js";
 import { A } from "./common.js";
 
 const KIND = { term: "نتيجة فصل", year: "إتمام عام", custom: "مخصصة" };
+const STATE = { issued: ["سارية", "green"], revoked: ["ملغاة", "red"], replaced: ["مستبدلة", "gray"] };
 
-export default async function certificates() {
+export default async function certificates(ctx = {}) {
   const [classes, academic] = await Promise.all([api(`${A}/structure/classes`), api(`${A}/academic`)]);
   if (!classes.length) return notice("أنشئ الشعب أولًا من الهيكل الأكاديمي.", "warn");
-  let classId = Number(sessionStorage.getItem("midar_cert_class")) || classes[0].id;
+  const canApprove = (ctx.me?.admin_scope || "full") === "full";
+  const store = (k, v) => { try { sessionStorage.setItem(k, String(v)); } catch { /* storage unavailable */ } };
+  const read = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
+  let classId = Number(read("midar_cert_class")) || classes[0].id;
   if (!classes.some((c) => c.id === classId)) classId = classes[0].id;
+  const terms = academic.terms.filter((t) => t.year_id === academic.current?.year_id);
+  let kind = read("midar_cert_kind") === "year" ? "year" : "term";
+  let termId = Number(read("midar_cert_term")) || academic.current?.term_id || terms[0]?.id || null;
+  if (!terms.some((t) => t.id === termId)) termId = academic.current?.term_id || terms[0]?.id || null;
   const classPick = (on) => {
     const s = select(classes.map((c) => [c.id, c.name]), { value: classId });
-    s.addEventListener("change", () => { classId = Number(s.value); try { sessionStorage.setItem("midar_cert_class", String(classId)); } catch { /* */ } on(); });
+    s.addEventListener("change", () => { classId = Number(s.value); store("midar_cert_class", classId); on(); });
     return field("الشعبة", s);
   };
-  return partsView([["issue", "إصدار"], ["issued", "الشهادات الصادرة"], ["custom", "شهادة مخصصة"], ["settings", "الإعدادات"]], async (part, nav) => {
+  // Class, then term result or year result (and which term).
+  const scopePick = (on) => {
+    const k = select([["term", "نتيجة الفصل الدراسي"], ["year", "نتيجة العام الدراسي"]], { value: kind });
+    const t = select(terms.map((x) => [x.id, x.name]), { value: termId });
+    const tf = field("الفصل الدراسي", t);
+    tf.hidden = kind !== "term";
+    k.addEventListener("change", () => { kind = k.value; store("midar_cert_kind", kind); on(); });
+    t.addEventListener("change", () => { termId = Number(t.value); store("midar_cert_term", termId); on(); });
+    return h("div", { class: "row" }, classPick(on), field("النطاق", k), tf);
+  };
+  const keyQ = () => `class_id=${classId}&scope=${kind}${kind === "term" && termId ? `&term_id=${termId}` : ""}`;
+  const keyB = () => ({ class_id: classId, scope: kind, ...(kind === "term" && termId ? { term_id: termId } : {}) });
+
+  return partsView([["results", "اعتماد النتائج"], ["issue", "إصدار"], ["issued", "الشهادات الصادرة"], ["custom", "شهادة مخصصة"], ["settings", "الإعدادات"]], async (part, nav) => {
+    if (part === "results") return resultsView(nav);
     if (part === "issue") return issueView(nav);
     if (part === "issued") return issuedView(nav);
     if (part === "custom") return customView(nav);
     return settingsView();
   });
 
+  function resultsView(nav) {
+    const table = (r) => h("div", { class: "table-wrap" }, h("table", { class: "grid" },
+      h("thead", {}, h("tr", {}, h("th", {}, "الطالب"), h("th", {}, "المواد"), h("th", {}, "النسبة"), h("th", {}, "الترتيب"), h("th", {}, "النتيجة"))),
+      h("tbody", {}, r.students.map((s) => h("tr", {}, h("td", {}, s.name), h("td", {}, String(s.subjects)),
+        h("td", {}, s.percent === null ? "—" : `${s.percent}%`), h("td", {}, s.rank ? String(s.rank) : "—"),
+        h("td", {}, s.subjects ? badge(s.result, s.passed ? "green" : "red") : badge("لا درجات منشورة", "gray")))))));
+    return [panel("اعتماد النتائج قبل إصدار الشهادات", null,
+      sub("تُراجع النتائج وتُعتمد داخليًا، ثم تصدر الشهادات منها فقط. أي تعديل في الدرجات بعد الاعتماد يعيدها للمراجعة تلقائيًا."),
+      scopePick(() => nav.show())),
+    resultsApproval({
+      load: () => api(`${A}/certificates/results?${keyQ()}`),
+      act: (step, body = {}) => api(`${A}/certificates/results/${step}`, { ...keyB(), ...body }),
+      studentsTable: table, onIssue: () => nav.go("issue"),
+    })];
+  }
+
   async function issueView(nav) {
-    const kind = select([["term", "شهادة نتيجة الفصل الدراسي"], ["year", "شهادة إتمام العام الدراسي"]]);
-    const terms = academic.terms.filter((t) => t.year_id === academic.current?.year_id);
-    const term = select(terms.map((t) => [t.id, t.name]), { value: academic.current?.term_id });
-    const termField = field("الفصل الدراسي", term);
     const out = h("div");
-    const body = () => ({ class_id: classId, kind: kind.value, term_id: kind.value === "term" ? Number(term.value) || null : null });
-    const preview = async () => {
-      termField.hidden = kind.value !== "term";
-      mount(out, empty("جارٍ حساب النتائج…"));
-      const p = await api(`${A}/certificates/issue`, { ...body(), dry_run: true });
-      const ready = p.students.filter((s) => s.subjects);
-      mount(out,
-        sub(`${p.title} — حد النجاح ${p.pass_mark}% في كل مادة. ${ready.length} من ${p.students.length} طالب لهم درجات منشورة.`),
-        p.students.length ? h("div", { class: "table-wrap" }, h("table", { class: "grid" },
-          h("thead", {}, h("tr", {}, h("th", {}, "الطالب"), h("th", {}, "النسبة"), h("th", {}, "النتيجة"))),
-          h("tbody", {}, p.students.map((s) => h("tr", {}, h("td", {}, s.name), h("td", {}, s.percent === null ? "—" : `${s.percent}%`),
-            h("td", {}, s.subjects ? badge(s.result, s.passed ? "" : "red") : badge("لا درجات منشورة", "gray"))))))) : empty("لا يوجد طلاب."),
-        ready.length ? btn(`إصدار ${ready.length} شهادة`, async () => {
-          if (!confirmAction("إصدار الشهادات؟ تُلغى أي شهادة سابقة لنفس الفصل وتُستبدل بالجديدة، ويصل إشعار لأولياء الأمور.")) return;
+    const body = () => ({ class_id: classId, kind, term_id: kind === "term" ? termId : null });
+    const p = await api(`${A}/certificates/issue`, { ...body(), dry_run: true });
+    const ready = p.students.filter((s) => s.subjects);
+    const approved = p.status === "approved";
+    mount(out,
+      sub(`${p.title} — حد النجاح ${p.pass_mark}% في كل مادة. ${ready.length} من ${p.students.length} طالب لهم درجات منشورة.`),
+      approved ? notice("النتائج معتمدة داخليًا. ستصدر الشهادات بالأرقام المعتمدة نفسها، ولكل شهادة رقم تسلسلي ورمز تحقق.", "")
+        : notice(h("span", {}, `حالة النتائج: ${p.status_label}. لا تصدر الشهادات إلا من نتائج معتمدة. `,
+          h("button", { type: "button", class: "au-link", onclick: () => nav.go("results") }, "اذهب إلى «اعتماد النتائج»")), "warn"),
+      p.students.length ? h("div", { class: "table-wrap" }, h("table", { class: "grid" },
+        h("thead", {}, h("tr", {}, h("th", {}, "الطالب"), h("th", {}, "النسبة"), h("th", {}, "النتيجة"))),
+        h("tbody", {}, p.students.map((s) => h("tr", {}, h("td", {}, s.name), h("td", {}, s.percent === null ? "—" : `${s.percent}%`),
+          h("td", {}, s.subjects ? badge(s.result, s.passed ? "green" : "red") : badge("لا درجات منشورة", "gray"))))))) : empty("لا يوجد طلاب."),
+      approved && ready.length && canApprove ? btn(`إصدار ${ready.length} شهادة`, async (e) => {
+        if (!confirmAction("إصدار الشهادات من النتائج المعتمدة؟ الشهادة السابقة لنفس النطاق تصبح «مستبدلة» وتبقى في السجل، ويصل إشعار لأولياء الأمور.")) return;
+        e.currentTarget.disabled = true;
+        try {
           const r = await api(`${A}/certificates/issue`, body());
           toast(`صدرت ${r.issued} شهادة`);
           await printIds(r.ids, out);
-        }) : notice("انشر درجات الاختبارات أولًا (الاختبارات ← اعتماد ونشر).", "warn"));
-    };
-    kind.addEventListener("change", preview);
-    term.addEventListener("change", preview);
-    preview();
-    return panel("إصدار شهادات لشعبة", null, h("div", { class: "row" }, classPick(() => nav.show()), field("نوع الشهادة", kind), termField), out);
+        } catch (err) { toast(err.message, true); nav.show(); }
+      }) : approved && !canApprove ? notice("إصدار الشهادات لإدارة المدرسة العامة.", "") : null);
+    return panel("إصدار شهادات لشعبة", null, scopePick(() => nav.show()), out);
   }
 
   async function printIds(ids, box) {
@@ -66,23 +101,40 @@ export default async function certificates() {
     mount(box, h("div", { class: "toolbar" }, btn("طباعة", () => window.print()), sub(`${list.length} شهادة — صفحة لكل شهادة`)), certificatesSheet(list));
   }
 
+  async function historyOf(r) {
+    const rows = await api(`${A}/certificates/${r.id}/history`);
+    const L = { issued: "إصدار", revoked: "إلغاء", replaced: "استبدال", printed: "طباعة" };
+    dialog(`سجل الشهادة ${r.serial}`, h("ol", { class: "ra-log" }, rows.map((x) => h("li", {}, h("b", {}, L[x.action] || x.action),
+      h("span", {}, ` — ${x.actor}`), h("small", {}, fmtDateTime(x.created_at)), x.reason ? h("div", { class: "sub" }, x.reason) : null))));
+  }
+
   async function issuedView(nav) {
     const rows = await api(`${A}/certificates?class_id=${classId}`);
-    const valid = rows.filter((r) => !r.revoked_at);
+    const valid = rows.filter((r) => r.status === "issued");
     const out = h("div");
+    const ask = (title) => { const v = prompt(title); return v && v.trim().length >= 2 ? v.trim() : null; };
     return [panel("الشهادات الصادرة", valid.length ? btn("طباعة كل السارية", () => printIds(valid.map((r) => r.id), out), "ghost sm") : null,
       classPick(() => nav.show()),
       rows.length ? rows.map((r) => line(
-        h("div", {}, h("b", {}, r.student), " ", badge(KIND[r.kind]), r.revoked_at ? badge("ملغاة", "red") : null,
-          sub(`${r.title} — ${fmtDate(r.issued_at)} — رمز ${r.code}${r.result ? ` — ${r.result}` : ""}`),
-          r.revoked_at && r.revoke_reason ? sub(`سبب الإلغاء: ${r.revoke_reason}`) : null),
-        h("div", { class: "row", style: "flex:none;gap:6px" },
+        h("div", {}, h("b", {}, r.student), " ", badge(KIND[r.kind] || r.title), " ", badge(...STATE[r.status]),
+          sub(h("span", {}, "رقم ", h("bdi", { dir: "ltr" }, r.serial), ` — ${r.title} — ${fmtDate(r.issued_at)}${r.result ? ` — ${r.result}` : ""}`)),
+          r.status === "replaced" ? sub(h("span", {}, "استُبدلت بالشهادة ", h("bdi", { dir: "ltr" }, r.replaced_by_serial || "—"), r.revoke_reason ? ` — ${r.revoke_reason}` : "")) : null,
+          r.status === "revoked" && r.revoke_reason ? sub(`سبب الإلغاء: ${r.revoke_reason}${r.revoked_by ? ` — ${r.revoked_by}` : ""}`) : null),
+        h("div", { class: "row", style: "flex:none;gap:6px;flex-wrap:wrap" },
           btn("طباعة", () => printIds([r.id], out), "ghost sm"),
-          r.revoked_at ? null : btn("إلغاء", async () => {
-            const reason = prompt("سبب إلغاء الشهادة:");
-            if (!reason || reason.trim().length < 2) return;
-            await api(`${A}/certificates/${r.id}/revoke`, { reason: reason.trim() }); toast("أُلغيت. التحقق منها يظهر «ملغاة»."); nav.show();
-          }, "ghost sm")))) : empty("لم تصدر شهادات لهذه الشعبة بعد.")), out];
+          btn("السجل", () => historyOf(r), "ghost sm"),
+          r.status === "issued" && canApprove ? btn("استبدال", async () => {
+            const reason = ask("سبب إصدار شهادة بديلة (تبقى الحالية في السجل «مستبدلة»):");
+            if (!reason) return;
+            try { const x = await api(`${A}/certificates/${r.id}/replace`, { reason }); toast("صدرت الشهادة البديلة"); await printIds(x.ids, out); }
+            catch (e) { toast(e.message, true); }
+          }, "ghost sm") : null,
+          r.status === "issued" && canApprove ? btn("إلغاء", async () => {
+            const reason = ask("سبب إلغاء الشهادة:");
+            if (!reason) return;
+            try { await api(`${A}/certificates/${r.id}/revoke`, { reason }); toast("أُلغيت. التحقق منها يظهر «ملغاة»."); nav.show(); }
+            catch (e) { toast(e.message, true); }
+          }, "ghost sm") : null))) : empty("لم تصدر شهادات لهذه الشعبة بعد.")), out];
   }
 
   async function customView(nav) {
@@ -94,7 +146,8 @@ export default async function certificates() {
     return [panel("شهادة مخصصة لطالب", null,
       h("div", { class: "row" }, classPick(() => nav.show()), field("الطالب", st)),
       field("عنوان الشهادة", title), field("نص الشهادة", text, "يأتي بعد «تشهد إدارة المدرسة بأن الطالب … من …»"),
-      btn("إصدار وطباعة", async () => {
+      canApprove ? null : notice("إصدار الشهادات لإدارة المدرسة العامة.", ""),
+      canApprove && btn("إصدار وطباعة", async () => {
         if (!st.value) return toast("اختر الطالب", true);
         const r = await api(`${A}/certificates/custom`, { student_id: Number(st.value), title: title.value.trim(), body: text.value.trim() });
         toast("صدرت الشهادة"); await printIds([r.id], out);

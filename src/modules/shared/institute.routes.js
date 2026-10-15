@@ -9,7 +9,8 @@ import { handle, notFound } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { logEvent } from "../../core/audit.js";
 import * as svc from "./institute.service.js";
-import { forPrint } from "./certificates.service.js";
+import { forPrint, revoke } from "./certificates.service.js";
+import * as results from "./results.service.js";
 import { logoId } from "./school-logo.service.js";
 import { newTempPassword } from "../../core/auth/codes.js";
 import { hashPassword } from "../../core/auth/password.js";
@@ -179,25 +180,47 @@ export function instituteRouter() {
   }));
   r.post("/enrollments/:id/certificate", requireCap("certificates"), handle(async (req, res) => {
     const b = parse(svc.certificateSchema, req.body);
-    res.status(201).json(await inTenant(req, async (q) => {
+    const out = await inTenant(req, async (q) => {
       const c = await svc.issueCertificate(q, id(req), b, req.actor, await school(req, q));
-      await audit(q, req, `إصدار ${c.title} رقم ${c.code}`);
+      if (!c.stale) await audit(q, req, `إصدار ${c.title} رقم ${c.serial}`);
       return c;
-    }));
+    });
+    if (out.stale) throw conflict(results.STALE);
+    res.status(201).json(out);
   }));
   r.post("/certificates/print", requireCap("view"), handle(async (req, res) => {
     const { ids } = parse(z.object({ ids: z.array(t.id).min(1).max(200) }), req.body);
-    res.json(await inTenant(req, (q) => forPrint(q, ids, originOf(req))));
+    res.json(await inTenant(req, (q) => forPrint(q, ids, originOf(req), { actor: req.actor })));
   }));
-  r.post("/certificates/:id/revoke", requireCap("certificates"), handle(async (req, res) => {
+  r.post("/certificates/:id/revoke", requireCap("approve"), handle(async (req, res) => {
     const { reason } = parse(z.object({ reason: t.shortText("سبب الإلغاء", 200) }), req.body);
     await inTenant(req, async (q) => {
-      const rows = await q("UPDATE certificates SET revoked_at = now(), revoke_reason = $2 WHERE id = $1 AND revoked_at IS NULL AND kind IN ('course', 'attendance') RETURNING code", [id(req), reason]);
-      if (!rows.length) throw notFound("الشهادة غير موجودة أو ملغاة");
-      await audit(q, req, `إلغاء الشهادة ${rows[0].code}: ${reason}`);
+      const c = await revoke(q, id(req), reason, req.actor, { kinds: ["course", "attendance"] });
+      await audit(q, req, `إلغاء الشهادة ${c.serial}: ${reason}`);
     });
     res.json({ ok: true });
   }));
+  r.get("/certificates/:id/history", requireCap("view"), handle(async (req, res) => {
+    res.json(await inTenant(req, (q) => q("SELECT action, actor, reason, created_at FROM certificate_events WHERE certificate_id = $1 ORDER BY id", [id(req)])));
+  }));
+
+  // Course results: the academic office prepares and sends them for review; the director approves them.
+  const courseSc = (q, req) => results.courseScope(q, id(req));
+  r.get("/courses/:id/results", requireCap("view"), handle(async (req, res) => {
+    res.json(await inTenant(req, async (q) => ({ ...(await results.overview(q, await courseSc(q, req))), can_approve: svc.can(req.user, "approve") })));
+  }));
+  const step = (path, cap, fn, label) => r.post(`/courses/:id/results/${path}`, requireCap(cap), handle(async (req, res) => {
+    res.json(await inTenant(req, async (q) => {
+      const sc = await courseSc(q, req);
+      const out = await fn(q, sc, req);
+      await audit(q, req, `${label} نتائج ${sc.label}${req.body?.reason ? `: ${req.body.reason}` : ""}`);
+      return out;
+    }));
+  }));
+  step("submit", "certificates", (q, sc, req) => results.submit(q, sc, req.actor), "إرسال للمراجعة:");
+  step("return", "certificates", (q, sc, req) => results.sendBack(q, sc, req.actor, parse(results.reasonSchema, req.body).reason), "إعادة للتعديل:");
+  step("approve", "approve", (q, sc, req) => results.approve(q, sc, req.actor, parse(results.approveSchema, req.body)), "اعتماد داخلي:");
+  step("reopen", "approve", (q, sc, req) => results.reopen(q, sc, req.actor, parse(results.reasonSchema, req.body).reason), "إعادة فتح:");
 
   // Fees and reports
   r.get("/fees", requireCap("finance"), handle(async (req, res) => {

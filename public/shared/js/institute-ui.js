@@ -144,11 +144,13 @@ export async function printCertificates(ids) {
         d.result ? [h("dt", {}, "النتيجة"), h("dd", {}, d.result)] : null,
         c.kind === "attendance" && d.attendance_pct != null ? [h("dt", {}, "نسبة الحضور"), h("dd", {}, pct(d.attendance_pct))] : null),
       d.footer_note ? h("p", { class: "ic-note" }, d.footer_note) : null,
+      d.approval ? h("p", { class: "ic-note" }, `النتائج معتمدة داخليًا من إدارة ${d.school?.name || "المعهد"} بتاريخ ${fmtDate(d.approval.at)}`) : null,
       h("footer", {},
         h("div", { class: "ic-sign" }, h("small", {}, d.signer?.title || "مدير المعهد"), h("b", {}, d.signer?.name || ""), h("i")),
-        h("div", { class: "ic-verify" }, h("img", { src: c.qr, alt: "رمز التحقق" }), h("small", {}, "رقم الشهادة"), h("b", { dir: "ltr" }, c.code),
+        h("div", { class: "ic-verify" }, h("img", { src: c.qr, alt: "رمز التحقق" }), h("small", {}, "رقم الشهادة"), h("b", { dir: "ltr" }, c.serial || c.code),
+          c.serial ? h("small", { dir: "ltr" }, `رمز التحقق ${c.code}`) : null,
           h("small", { dir: "ltr" }, c.verify_url))),
-      c.revoked_at ? h("div", { class: "ic-void" }, "ملغاة") : null);
+      c.revoked_at ? h("div", { class: "ic-void" }, c.status === "replaced" ? "مستبدلة" : "ملغاة") : null);
   }));
   document.body.append(sheet);
   document.body.classList.add("ic-printing");

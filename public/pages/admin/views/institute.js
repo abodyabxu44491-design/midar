@@ -9,6 +9,7 @@ import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, sub, toast, dialog, notice, kpiCard, kpiGrid, skeleton, confirmAction, copyRow, passwordInput } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
+import { resultsApproval } from "../../shared/js/results-approval.js";
 import { money, fmtDate, fmtDateTime, today, METHODS } from "../../shared/js/format.js";
 import { inst, T, L, has, courseBadge, enrollBadge, num, pct, bar, progressBlock, attendanceDialog, scoresDialog, printCertificates,
   reportTable, printReport, textareaField } from "../../shared/js/institute-ui.js";
@@ -155,10 +156,10 @@ export async function traineeFile(id, refresh) {
           e.score_changes.map((c) => sub(`${fmtDateTime(c.created_at)} — ${c.assessment}: ${c.old_score ?? (c.old_passed == null ? "—" : c.old_passed ? "اجتاز" : "لم يجتز")} ← ${c.new_score ?? (c.new_passed == null ? "—" : c.new_passed ? "اجتاز" : "لم يجتز")} · ${c.actor}${c.reason ? ` · ${c.reason}` : ""}`))) : null))
         .concat(r.enrollments.some((e) => e.progress.items.length) ? [] : [empty("لا توجد تقييمات مرصودة بعد.")]),
       certificates: () => r.certificates.length ? h("div", { class: "in-list" }, r.certificates.map((c) => h("div", { class: "in-item" },
-        h("div", {}, h("b", {}, c.title), sub(`رقم ${c.code} · ${fmtDate(c.issued_at)}${c.hours ? ` · ${num(c.hours)} ساعة` : ""}`)),
-        c.revoked_at ? badge("ملغاة", "red") : h("div", { class: "row", style: "flex:none;gap:6px" },
+        h("div", {}, h("b", {}, c.title), sub(`رقم ${c.serial || c.code} · ${fmtDate(c.issued_at)}${c.hours ? ` · ${num(c.hours)} ساعة` : ""}`)),
+        c.revoked_at ? badge(c.status === "replaced" ? "مستبدلة" : "ملغاة", c.status === "replaced" ? "gray" : "red") : h("div", { class: "row", style: "flex:none;gap:6px" },
           btn([icons.print({ size: 14 }), "طباعة"], () => printCertificates([c.id]), "ghost sm"),
-          has("certificates") ? btn("إلغاء", async () => {
+          has("approve") ? btn("إلغاء", async () => {
             const reason = prompt("سبب إلغاء الشهادة"); if (!reason) return;
             try { await api(`${I()}/certificates/${c.id}/revoke`, { reason }); toast("أُلغيت"); again("certificates")(); } catch (e) { toast(e.message, true); }
           }, "ghost sm danger") : null)))) : empty("لا توجد شهادات صادرة."),
@@ -277,7 +278,7 @@ function finalizeDialog(e, again) {
 async function issueCert(enrollmentId, kind, again) {
   try {
     const c = await api(`${I()}/enrollments/${enrollmentId}/certificate`, { kind });
-    toast(`صدرت ${c.title} برقم ${c.code}`); again?.();
+    toast(`صدرت ${c.title} برقم ${c.serial}`); again?.();
     printCertificates([c.id]);
   } catch (e) { toast(e.message, true); }
 }
@@ -491,12 +492,21 @@ export async function courseFile(id, refresh) {
           roster.filter((e) => e.status !== "withdrawn").map((e) => enrollmentCard({ ...e, course: e.full_name, course_id: c.id, grading: c.grading, mode: null, program: e.group_name, trainer: null }, again("results"))),
         ];
       },
+      approval: () => resultsApproval({
+        load: () => api(`${I()}/courses/${c.id}/results`),
+        act: (step, body = {}) => api(`${I()}/courses/${c.id}/results/${step}`, body),
+        onIssue: again("results"),
+        studentsTable: (r) => h("div", { class: "table-wrap" }, h("table", { class: "grid" },
+          h("thead", {}, h("tr", {}, h("th", {}, T("trainee")), h("th", {}, "الحالة"), h("th", {}, "النتيجة"))),
+          h("tbody", {}, r.students.map((x) => h("tr", {}, h("td", {}, x.name), h("td", {}, enrollBadge(x.status)),
+            h("td", {}, x.final_score != null ? pct(x.final_score) : x.result === "passed" ? "اجتاز" : x.result === "failed" ? "لم يجتز" : "—")))))),
+      }),
       history: () => d.history.length ? h("div", { class: "in-timeline" }, d.history.map((x) => h("div", { class: "in-tl" },
         h("b", {}, { trainer: `تغيير ${T("trainer")}`, status: "تغيير الحالة", fee: "تعديل الرسوم" }[x.kind] || x.kind), sub(`${x.from_value || "—"} ← ${x.to_value || "—"}`),
         x.reason ? sub(x.reason) : null, h("small", {}, `${fmtDateTime(x.created_at)} · ${x.actor}`)))) : empty("لا توجد تغييرات مسجلة."),
     };
     const t = tabbed([["overview", "نظرة عامة"], ["groups", T("groups")], ["trainees", T("trainees")], ["sessions", T("sessions")], ["assessments", "التقييمات"],
-      ["results", "النتائج"], ["history", "السجل"]], views, tab || "overview");
+      ["results", "النتائج"], ["approval", "اعتماد النتائج"], ["history", "السجل"]], views, tab || "overview");
     mount(holder, h("div", { class: "in-file" },
       h("header", { class: "in-file-head" }, h("span", { class: "in-av lg" }, icons.clipboard({ size: 26 })),
         h("div", {}, h("h2", {}, c.name), sub(h("bdi", { dir: "ltr" }, c.code), ` · ${c.program || `بدون ${T("program")}`}`)), courseBadge(c.status)),

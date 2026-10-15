@@ -1144,6 +1144,7 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .verify-card .verify-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
 .verify-card .verify-head h1 { margin: 0; font-size: 22px; }
 .verify-card .verify-head p { margin: 2px 0 0; color: var(--muted); }
+.verify-card .verify-note { margin: 14px 0 0; padding-top: 12px; border-top: 1px dashed var(--line); color: var(--muted); font-size: 12.5px; line-height: 1.8; }
 .verify-card.valid .verify-head { color: var(--teal); }
 .verify-card.revoked .verify-head { color: var(--red); }
 .cert-sheet { display: grid; gap: 18px; }
@@ -1165,7 +1166,9 @@ input.num { text-align: left; font-variant-numeric: tabular-nums; }
 .cert .cert-qr img { width: 92px; height: 92px; display: block; margin: 0 auto 4px; }
 .cert .cert-sign { text-align: center; min-width: 180px; }
 .cert .cert-sign .line-sign { border-top: 1px solid var(--ink); margin-top: 38px; padding-top: 4px; }
-.cert.revoked::after { content: "ملغاة"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 80px; color: rgba(184,65,47,.18); transform: rotate(-20deg); pointer-events: none; }
+.cert .cert-approval { text-align: center; font-size: 12.5px; color: var(--teal); margin: 4px 0 0; }
+.cert .cert-meta { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.9; }
+.cert.revoked::after { content: attr(data-void); position: absolute; inset: 0; display: grid; place-items: center; font-size: 80px; color: rgba(184,65,47,.18); transform: rotate(-20deg); pointer-events: none; }
 @media print {
   .cert-sheet { gap: 0; }
   .cert { break-after: page; page-break-after: always; border-radius: 0; min-height: 26cm; }
@@ -2336,3 +2339,22 @@ html:has(> body > #app > .au) { scrollbar-gutter: auto; }
 .au-first { padding: 14px 16px; margin: 0 0 18px; border-radius: 16px; background: linear-gradient(180deg, #EEF7F6, #E3F1F0); border: 1px solid #CDE7E4; }
 .au-first b { display: block; color: var(--navy); font-size: 15.5px; margin-bottom: 4px; }
 .au-first p { margin: 0; color: #35505A; font-size: 13.5px; line-height: 1.85; }
+
+/* Results approval (schools and institutes) */
+.ra { display: grid; gap: 12px; }
+.ra-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.ra-head small { color: var(--muted); font-size: 12px; }
+.ra-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; font-weight: 600; color: var(--navy); }
+.ra-steps { list-style: none; display: flex; gap: 6px; margin: 0; padding: 0; flex-wrap: wrap; }
+.ra-steps li { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: #F1F3F7; color: var(--muted); font-size: 12.5px; }
+.ra-steps li i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #fff; font-size: 11px; font-weight: 700; }
+.ra-steps li.done { background: #E3F1F0; color: var(--teal); }
+.ra-steps li.on { background: var(--navy); color: #fff; }
+.ra-steps li.on i { color: var(--navy); }
+.ra-actions { justify-content: flex-start; gap: 8px; flex-wrap: wrap; }
+.ra-issues { margin: 0; padding: 0 18px 0 0; display: grid; gap: 6px; font-size: 13.5px; line-height: 1.7; }
+.ra-issues.err li::marker { color: var(--red); } .ra-issues.warn li::marker { color: #C88A12; }
+.ra-issues .ra-subj { color: var(--navy); font-weight: 600; }
+.ra-sub { margin: 14px 0 6px; font-size: 14px; color: var(--ink); }
+.ra-log { margin: 0; padding: 0 18px 0 0; display: grid; gap: 8px; font-size: 13.5px; }
+.ra-log small { color: var(--muted); margin-inline-start: 8px; }

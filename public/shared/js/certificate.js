@@ -10,7 +10,8 @@ import { fmtDate } from "./format.js";
 export function certificateEl(c) {
   const d = c.data;
   const result = d.result ? h("div", { class: `cert-result ${d.passed ? "pass" : "fail"}` }, `النتيجة: ${d.result}`) : null;
-  return h("article", { class: `cert${c.revoked_at ? " revoked" : ""}` },
+  const voidText = c.status === "replaced" ? "مستبدلة" : c.revoked_at ? "ملغاة" : null;
+  return h("article", { class: `cert${voidText ? " revoked" : ""}`, "data-void": voidText || "" },
     h("div", { class: "cert-top" }, h("div", { class: "cert-school" }, d.school), docLogo("print-logo")),
     h("h2", { class: "cert-title" }, c.title),
     d.scope ? h("div", { class: "cert-scope" }, d.scope) : null,
@@ -27,9 +28,11 @@ export function certificateEl(c) {
     d.rank ? h("div", { class: "cert-scope" }, `الترتيب في الشعبة: ${d.rank.position} من ${d.rank.of}`) : null,
     d.attendance?.recorded ? h("div", { class: "cert-scope" }, `الحضور: ${d.attendance.rate ?? "—"}% — أيام الغياب ${d.attendance.absent}`) : null,
     d.footer_note ? h("div", { class: "cert-scope" }, d.footer_note) : null,
+    d.approval ? h("div", { class: "cert-approval" }, `النتائج معتمدة داخليًا من إدارة المدرسة بتاريخ ${fmtDate(d.approval.at)}`) : null,
     h("div", { class: "cert-foot" },
       h("div", { class: "cert-qr" }, h("img", { src: c.qr, alt: "رمز التحقق" }), "امسح للتحقق", h("div", { class: "ltr" }, c.code)),
-      h("div", { class: "cert-scope" }, `تاريخ الإصدار: ${fmtDate(c.issued_at)}`),
+      h("div", { class: "cert-meta" }, c.serial ? h("div", {}, "رقم الشهادة: ", h("b", { dir: "ltr" }, c.serial)) : null,
+        h("div", {}, `تاريخ الإصدار: ${fmtDate(c.issued_at)}`)),
       h("div", { class: "cert-sign" }, h("div", {}, d.signer?.title || "مدير المدرسة"), h("div", { class: "line-sign" }, d.signer?.name || " "))));
 }
 

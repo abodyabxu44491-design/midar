@@ -140,8 +140,19 @@ test("المعهد: من إنشاء البرنامج حتى الشهادة وا�
 
   // 9. Certificate with public verification; attendance letter for the other
   assert.equal((await admin.post(`${I}/enrollments/${e2.id}/certificate`, { kind: "course" })).status, 400, "لا شهادة قبل الاجتياز");
+  assert.equal((await admin.post(`${I}/enrollments/${e1.data.id}/certificate`, { kind: "course" })).status, 409, "لا شهادة قبل اعتماد نتائج الدورة");
+  const CR = `${I}/courses/${course.data.id}/results`;
+  let res = (await admin.get(CR)).data;
+  assert.ok(res.errors.some((x) => x.student && /لم تُعتمد نتيجته/.test(x.reason)), "المتدرب الذي لم تُعتمد نتيجته يظهر باسمه");
+  assert.equal((await admin.post(`${CR}/submit`, {})).status, 200);
+  assert.equal((await admin.post(`${CR}/approve`, {})).status, 400, "نتائج ناقصة لا تُعتمد بلا استثناء");
+  assert.equal((await admin.post(`${CR}/approve`, { allow_incomplete: true, reason: "متدرب متغيب يُعاد تقييمه" })).status, 200);
+  res = (await admin.get(CR)).data;
+  assert.equal(res.status, "approved");
+  assert.equal(res.can_approve, true);
   const cert = await admin.post(`${I}/enrollments/${e1.data.id}/certificate`, { kind: "course" });
   assert.equal(cert.status, 201, JSON.stringify(cert.data));
+  assert.match(cert.data.serial, /^\d{4}-\d{6}$/);
   const pub = client(srv.base);
   const v = (await pub.get(`/api/public/verify/${cert.data.code}`)).data;
   assert.equal(v.student, "ريم خالد العتيبي");
@@ -204,6 +215,16 @@ test("المعهد: من إنشاء البرنامج حتى الشهادة وا�
   assert.equal((await rc.put(`${I}/assessments/${a1.id}/scores`, { scores: [{ enrollment_id: e1.data.id, score: 1 }] })).status, 403);
   assert.equal((await rc.get("/api/admin/finance/invoices")).status, 403, "أقسام المدرسة مغلقة على أدوار المعهد");
   assert.equal((await rc.get(`${I}/reports/fees`)).status, 404);
+  // Academic affairs prepares and sends results for review; only the director approves or revokes.
+  const aca = await admin.post(`${I}/staff`, { name: "الشؤون الأكاديمية", username: `aca${uid()}`, staff_role: "academic" });
+  await transaction({ tenantId: inst }, (q) => q("UPDATE users SET must_change_password = false WHERE id = $1", [aca.data.id]));
+  const ak = await staff(inst, aca.data.credentials.username, aca.data.credentials.password);
+  const CR2 = `${I}/courses/${course.data.id}/results`;
+  assert.equal((await ak.get(CR2)).data.can_approve, false);
+  assert.equal((await ak.post(`${CR2}/reopen`, { reason: "تجربة الصلاحية" })).status, 403);
+  assert.equal((await ak.post(`${CR2}/approve`, { allow_incomplete: true, reason: "تجربة الصلاحية" })).status, 403);
+  assert.equal((await ak.post(`${I}/certificates/${cert.data.id}/revoke`, { reason: "تجربة الصلاحية" })).status, 403);
+  assert.equal((await rc.post(`${CR2}/submit`, {})).status, 403, "مسؤول التسجيل لا يرسل النتائج");
   const acc = await admin.post("/api/admin/users", { name: "محاسب المعهد", username: `acc${uid()}` });
   assert.equal(acc.status, 201, JSON.stringify(acc.data));
   await transaction({ tenantId: inst }, (q) => q("UPDATE users SET must_change_password = false WHERE role = 'accountant'"));

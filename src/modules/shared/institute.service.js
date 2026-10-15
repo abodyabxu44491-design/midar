@@ -9,7 +9,8 @@ import { badRequest, notFound, conflict, forbidden } from "../../core/http/error
 import { t, z } from "../../core/http/validate.js";
 import { newStudentKey } from "../../core/auth/codes.js";
 import { normalizePhone, cleanName } from "./students.service.js";
-import { newCode } from "./certificates.service.js";
+import { writeCertificate } from "./certificates.service.js";
+import * as results from "./results.service.js";
 
 // ---------- Terms, settings and permissions ----------
 export const DEFAULT_TERMS = {
@@ -27,7 +28,7 @@ export const STAFF_ROLES = { director: "مدير المعهد", academic: "ال�
 
 // Capabilities per role. Trainers (teacher accounts) only ever reach their own courses through the trainer routes.
 const CAN = {
-  director: ["view", "trainees", "enroll", "catalog", "teach", "certificates", "finance", "reports", "settings"],
+  director: ["view", "trainees", "enroll", "catalog", "teach", "certificates", "approve", "finance", "reports", "settings"],
   academic: ["view", "trainees", "enroll", "catalog", "teach", "certificates", "reports"],
   registrar: ["view", "trainees", "enroll"],
   reception: ["view", "trainees"],
@@ -642,7 +643,7 @@ export async function traineeRecord(q, studentId) {
   const history = ids.length ? await q("SELECT * FROM training_log WHERE enrollment_id = ANY($1) ORDER BY id DESC", [ids]) : [];
   const changes = ids.length ? await q(`SELECT sc.*, a.name AS assessment FROM score_changes sc JOIN assessments a ON a.id = sc.assessment_id
                                          WHERE sc.enrollment_id = ANY($1) ORDER BY sc.id DESC`, [ids]) : [];
-  const certificates = await q(`SELECT id, code, kind, title, issued_at, revoked_at, enrollment_id, data -> 'course' ->> 'hours' AS hours
+  const certificates = await q(`SELECT id, code, serial, status, kind, title, issued_at, revoked_at, enrollment_id, data -> 'course' ->> 'hours' AS hours
                                   FROM certificates WHERE student_id = $1 ORDER BY issued_at DESC`, [studentId]);
   const invoices = await q(
     `SELECT i.id, i.title, i.amount, i.status, i.created_at, i.enrollment_id,
@@ -675,7 +676,9 @@ async function programsCompleted(q, studentId) {
 
 // ---------- Certificates ----------
 export const certificateSchema = z.object({ kind: z.enum(["course", "attendance"]).default("course"), title: t.optText(120) });
-export async function issueCertificate(q, enrollmentId, b, actor, school) {
+// A completion certificate comes only from the course's approved results; an attendance statement is not a
+// result and needs no approval. Re-issuing replaces the earlier certificate (kept, marked «مستبدلة»).
+export async function issueCertificate(q, enrollmentId, b, actor, school, { reason = null } = {}) {
   const [e] = await q(
     `SELECT e.*, s.full_name, c.name AS course, c.hours, c.mode, p.name AS program, c.starts_on, c.ends_on
        FROM enrollments e JOIN students s ON s.id = e.student_id JOIN courses c ON c.id = e.course_id LEFT JOIN programs p ON p.id = c.program_id
@@ -685,9 +688,15 @@ export async function issueCertificate(q, enrollmentId, b, actor, school) {
   const p = (await progressMany(q, [e])).get(Number(enrollmentId));
   if (b.kind === "course" && !(e.status === "completed" && e.result === "passed")) throw badRequest("شهادة الإكمال تصدر بعد اعتماد اجتياز الدورة");
   if (b.kind === "attendance" && !p.attended_hours) throw badRequest("لا توجد ساعات حضور لإصدار إفادة");
+  let batch = null;
+  if (b.kind === "course") {
+    const ok = await results.approvedResults(q, await results.courseScope(q, e.course_id));
+    if (ok.stale) return { stale: true };
+    batch = ok.batch;
+  }
   const T = settings.terms;
   const title = b.title || (b.kind === "course" ? `شهادة إتمام ${T.course}` : "إفادة حضور");
-  await q(`UPDATE certificates SET revoked_at = now(), revoke_reason = 'أُعيد إصدارها' WHERE enrollment_id = $1 AND kind = $2 AND revoked_at IS NULL`, [enrollmentId, b.kind]);
+  const [prev] = await q("SELECT id FROM certificates WHERE enrollment_id = $1 AND kind = $2 AND status = 'issued'", [enrollmentId, b.kind]);
   const data = {
     school, student: { name: e.full_name },
     course: { name: e.course, program: e.program || null, hours: b.kind === "course" ? Number(e.hours) : p.attended_hours, mode: MODES[e.mode],
@@ -696,16 +705,12 @@ export async function issueCertificate(q, enrollmentId, b, actor, school) {
     result: b.kind === "course" ? (e.final_score != null ? `اجتاز بنسبة ${Number(e.final_score)}%` : "اجتاز") : null,
     attendance_pct: p.attendance_pct, terms: { trainee: T.trainee, course: T.course, program: T.program },
     signer: { title: settings.signer_title, name: settings.signer_name }, footer_note: settings.certificate_note || null,
+    approval: batch ? { by: batch.approved_by, at: batch.approved_at, version: batch.version } : null,
   };
-  for (let i = 0; i < 5; i++) {
-    try {
-      const [row] = await q(`INSERT INTO certificates (tenant_id, code, student_id, kind, title, data, issued_by, enrollment_id)
-                             VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id, code, title, kind, issued_at`,
-      [newCode(), e.student_id, b.kind, title, JSON.stringify(data), actor, enrollmentId]);
-      return row;
-    } catch (err) { if (err.code !== "23505") throw err; }
-  }
-  throw conflict("تعذر إنشاء رمز فريد للشهادة، أعد المحاولة");
+  const row = await writeCertificate(q, { studentId: e.student_id, kind: b.kind, title, data, actor, batchId: batch?.id ?? null,
+    enrollmentId, replaces: prev?.id ?? null, reason: prev ? reason || "أُعيد إصدارها" : null });
+  if (batch) await results.issuedEvent(q, batch.id, actor, 1);
+  return row;
 }
 
 // ---------- Fees ----------
