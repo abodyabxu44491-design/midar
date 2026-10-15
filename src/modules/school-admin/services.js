@@ -9,6 +9,7 @@ import { handle } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { requireModule } from "../../core/auth/guards.js";
 import * as sv from "../shared/services.service.js";
+import { matchesMime } from "../shared/attachments.service.js";
 
 const r = Router();
 const id = (req, k = "id") => parse(t.id, req.params[k]);
@@ -28,8 +29,19 @@ bus.post("/:id/bill", run((q, req) => sv.billRiders(q, id(req), parse(z.object({
 r.use("/transport", requireModule("transport"), bus);
 
 const lib = Router();
-lib.get("/books", run((q, req) => sv.books(q, parse(z.object({ q: z.string().trim().max(80).optional() }), req.query).q || null)));
+lib.get("/meta", run((q) => sv.libraryMeta(q)));
+lib.get("/books", run((q, req) => {
+  const f = parse(z.object({ q: z.string().trim().max(80).optional(), grade_id: t.optId }), req.query);
+  return sv.books(q, { search: f.q || null, grade_id: f.grade_id ?? null });
+}));
 lib.post("/books", run((q, req) => sv.saveBook(q, parse(sv.bookSchema, req.body))));
+lib.post("/books/grade", run((q, req) => sv.addGradeBooks(q, parse(sv.bulkSchema, req.body))));
+lib.post("/books/:id/cover", run(async (q, req) => { await sv.setCover(q, id(req), parse(sv.coverSchema, req.body), matchesMime); return { ok: true }; }));
+lib.delete("/books/:id/cover", run(async (q, req) => { await sv.removeCover(q, id(req)); return { ok: true }; }));
+lib.get("/books/:id/cover", handle(async (req, res) => {
+  const c = await inTenant(req, (q) => sv.readCover(q, id(req)));
+  res.set("Cache-Control", "private, max-age=300").type(c.mime).send(c.data);
+}));
 lib.put("/books/:id", run((q, req) => sv.saveBook(q, parse(sv.bookSchema, req.body), id(req))));
 lib.delete("/books/:id", run(async (q, req) => { await sv.removeBook(q, id(req)); return { ok: true }; }));
 lib.get("/loans", run((q, req) => sv.loans(q, { open: req.query.all !== "1" })));

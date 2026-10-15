@@ -27,6 +27,7 @@ const surveys = lazy(() => import("./views/surveys.js"), new URL("./views/survey
 const mine = lazy(() => import("./views/mine.js"), new URL("./views/mine.js", import.meta.url).pathname);
 const chat = lazy(() => import("./views/chat.js"), new URL("./views/chat.js", import.meta.url).pathname);
 
+import { teacherHides } from "./prefs.js";
 const app = $("#app");
 
 export async function startTeacher(offlineMe = null) {
@@ -49,10 +50,12 @@ export async function startTeacher(offlineMe = null) {
     behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat" };
   const list = [["home", "الرئيسية"], ["attendance", "الحضور"], ["exams", "رصد الدرجات"], ["chat", "الرسائل"],
     [null, "طلابي وفصولي"], ["students", "طلابي"], ["behavior", "السلوك"], ["homework", "الواجبات"], ["timetable", "جدولي"],
-    [null, "الاختبارات والدروس"], ["papers", "الاختبارات والامتحانات"], ["lessons", "تحضير الدروس"],
+    [null, "الاختبارات والدروس"], ["papers", "أوراق الاختبارات"], ["lessons", "تحضير الدروس"],
     [null, "المدرسة"], ["announcements", "التعاميم"], ["calendar", "التقويم"], ["meetings", "المواعيد"], ["surveys", "الاستبيانات"],
     [null, "حسابي"], ["me", "حضوري وإجازاتي"], ["account", "حسابي"]]
-    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
+    .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]])
+    .filter(([key]) => !teacherHides(me, key))
+    .filter(([key], i, all) => key !== null || (all[i + 1] && all[i + 1][0] !== null));
   if (!me.offline) saveOfflineProfile({ role: "teacher", tenantId: me.school.id, userId: me.user_id, savedAt: Date.now(), me: { ...me, offline: true } });
   try { await startSync({ tenantId: me.school.id, userId: me.user_id, me }); } catch (e) { console.warn("المزامنة غير متاحة على هذا المتصفح", e); }
   warmOfflineShell();
@@ -63,7 +66,7 @@ export async function startTeacher(offlineMe = null) {
   };
   const ctx = { me };
   const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine, chat }, ctx,
-    { primary: ["home", "attendance", "exams", "chat", "students"] });
+    { primary: ["home", "attendance", "exams", "chat", "students", "homework", "timetable"] });
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);

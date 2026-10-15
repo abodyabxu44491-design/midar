@@ -12,6 +12,7 @@ import { newTempPassword } from "../../core/auth/codes.js";
 import { clearLoginFailures, logEvent } from "../../core/audit.js";
 import { sealCredential } from "../../core/auth/secret-box.js";
 import * as file from "../shared/teacher-file.service.js";
+import { featureSettings, TEACHER_SECTIONS } from "../shared/feature-settings.service.js";
 
 const r = Router();
 const loadSchema = z.array(z.object({ class_id: t.id, subject_id: t.id })).max(200).default([]);
@@ -50,7 +51,7 @@ async function setLoad(q, teacherId, load) {
 r.get("/", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const list = await q(`SELECT t.id, t.full_name AS name, t.phone, t.employee_no, t.national_id, t.email,
-             t.specialty, t.department, t.job_title, t.employment_type, (t.photo IS NOT NULL) AS has_photo, t.updated_at,
+             t.specialty, t.department, t.job_title, t.employment_type, (t.photo IS NOT NULL) AS has_photo, t.updated_at, t.hidden_sections,
              u.username, u.is_active, u.last_login_at, u.must_change_password, u.password_changed_at, u.created_at AS account_created_at,
              u.username_changed_at, (u.locked_until IS NOT NULL AND u.locked_until > now()) AS locked
       FROM teachers t JOIN users u ON u.teacher_id = t.id ORDER BY t.id`);
@@ -182,6 +183,25 @@ r.post("/assignments/bulk", handle(async (req, res) => {
     }
     return { saved };
   }));
+}));
+
+// The sections this teacher sees: his own list, or null to follow the school's list for all teachers.
+r.get("/:id/sections", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  res.json(await inTenant(req, async (q) => {
+    const [row] = await q("SELECT hidden_sections FROM teachers WHERE id = $1", [id]);
+    if (!row) throw notFound("المعلم غير موجود");
+    return { own: row.hidden_sections, school: (await featureSettings(q, "teachers")).hidden, all: TEACHER_SECTIONS };
+  }));
+}));
+r.put("/:id/sections", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const { hidden } = parse(z.object({ hidden: z.array(z.enum(TEACHER_SECTIONS)).max(TEACHER_SECTIONS.length).nullable() }), req.body);
+  await inTenant(req, async (q) => {
+    const rows = await q("UPDATE teachers SET hidden_sections = $2 WHERE id = $1 RETURNING id", [id, hidden ? [...new Set(hidden)] : null]);
+    if (!rows.length) throw notFound("المعلم غير موجود");
+  });
+  res.json({ ok: true });
 }));
 
 r.get("/:id/file", handle(async (req, res) => {

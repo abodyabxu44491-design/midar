@@ -6,6 +6,9 @@
 import { z, parse } from "../../core/http/validate.js";
 import { badRequest } from "../../core/http/errors.js";
 
+// The teacher app sections a school (or a teacher's file) can hide. The home page and the account never hide.
+export const TEACHER_SECTIONS = ["attendance", "exams", "chat", "students", "behavior", "homework", "timetable", "papers", "lessons",
+  "announcements", "calendar", "meetings", "surveys", "me"];
 const time = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, "الوقت بصيغة 07:30");
 const pct = z.coerce.number().min(0).max(100);
 
@@ -26,9 +29,11 @@ export const SECTIONS = {
       reminder_days: z.coerce.number().int().min(0).max(30) }),
   },
   certificates: {
-    defaults: { pass_mark: 50, signer_title: "مدير المدرسة", signer_name: "", show_rank: false, footer_note: "" },
+    defaults: { pass_mark: 50, signer_title: "مدير المدرسة", signer_name: "", show_rank: false, footer_note: "",
+      tr_components: true, tr_percent: true, tr_grade: true, tr_subject_result: true, tr_absence: true, tr_guardian_sign: true },
     schema: z.object({ pass_mark: pct, signer_title: z.string().trim().max(60), signer_name: z.string().trim().max(80),
-      show_rank: z.boolean(), footer_note: z.string().trim().max(200) }),
+      show_rank: z.boolean(), footer_note: z.string().trim().max(200),
+      tr_components: z.boolean(), tr_percent: z.boolean(), tr_grade: z.boolean(), tr_subject_result: z.boolean(), tr_absence: z.boolean(), tr_guardian_sign: z.boolean() }),
   },
   library: {
     defaults: { loan_days: 14, max_loans: 2 },
@@ -59,6 +64,13 @@ export const SECTIONS = {
     defaults: { self_activation: true, link_by_key: true, auto_link_siblings: true, allow_requests: true, show_inactive: true },
     schema: z.object({ self_activation: z.boolean(), link_by_key: z.boolean(), auto_link_siblings: z.boolean(),
       allow_requests: z.boolean(), show_inactive: z.boolean() }),
+  },
+  // How teachers work in this school: who approves grades, who takes the daily attendance, and which sections
+  // every teacher sees (each teacher can also have his own list, kept on the teacher's record).
+  teachers: {
+    defaults: { teacher_publishes: true, attendance_by: "teacher", hidden: [] },
+    schema: z.object({ teacher_publishes: z.boolean(), attendance_by: z.enum(["teacher", "admin", "gate"]),
+      hidden: z.array(z.enum(TEACHER_SECTIONS)).max(TEACHER_SECTIONS.length) }),
   },
   transport: {
     defaults: { notify_parent: true },

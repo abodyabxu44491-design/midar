@@ -10,6 +10,7 @@ import { money, csv, fmtDate, fmtDateTime, today, METHODS, CURRENCIES, getCurren
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { receiptDialog, statementDialog } from "../../shared/js/receipt.js";
 import { A, loadClasses, optional } from "./common.js";
+import { fundField } from "../../shared/js/fund-picker.js";
 
 export default async function finance({ refresh }) {
   const PAGE = 50;
@@ -106,27 +107,29 @@ function invoiceRow(i, refresh, ctx = {}) {
       i.paid <= 0 && btn("إلغاء", () => voidDialog(i, refresh), "danger sm")));
 }
 
-function payDialog(i, rem, refresh) {
+async function payDialog(i, rem, refresh) {
   const amount = input({ type: "number", min: 0.01, max: rem, step: "0.01", value: rem });
   const method = select(Object.entries(METHODS).filter(([k]) => k !== "online"));
   const note = input({ placeholder: "اختياري" });
   const key = idempotencyKey();
+  const fund = await fundField(`${A}/finance/funds`, { label: "يُورد المبلغ إلى", methodSelect: method });
   const d = dialog(`دفعة — ${i.student_name}`, h("div", {},
-    sub(`${i.title} — المتبقي ${money(rem)}`), field("المبلغ", amount), field("طريقة الدفع", method), field("ملاحظة", note)),
+    sub(`${i.title} — المتبقي ${money(rem)}`), field("المبلغ", amount), h("div", { class: "row" }, field("طريقة الدفع", method), fund.el), field("ملاحظة", note)),
   [btn("تسجيل", async () => {
-    const r = await api(`${A}/finance/invoices/${i.id}/payments`, { amount: amount.value, method: method.value, note: note.value || null, idempotency_key: key });
+    const r = await api(`${A}/finance/invoices/${i.id}/payments`, { amount: amount.value, method: method.value, account_id: fund.value(), note: note.value || null, idempotency_key: key });
     d.close(); toast(`تم التسجيل. رقم الإيصال ${r.receipt}`); refresh();
   })]);
 }
 
-function refundDialog(i, refresh) {
+async function refundDialog(i, refresh) {
   const amount = input({ type: "number", min: 0.01, max: i.paid, step: "0.01" });
   const note = input({ placeholder: "سبب الاسترداد (مطلوب)" });
   const key = idempotencyKey();
+  const fund = await fundField(`${A}/finance/funds`, { label: "يُصرف المبلغ من", method: "cash" });
   const d = dialog(`استرداد — ${i.student_name}`, h("div", {},
-    sub(`المدفوع ${money(i.paid)}. التصحيح يكون بقيد استرداد.`), field("المبلغ", amount), field("السبب", note)),
+    sub(`المدفوع ${money(i.paid)}. التصحيح يكون بقيد استرداد.`), field("المبلغ", amount), fund.el, field("السبب", note)),
   [btn("تسجيل الاسترداد", async () => {
-    const r = await api(`${A}/finance/invoices/${i.id}/refunds`, { amount: amount.value, note: note.value, idempotency_key: key });
+    const r = await api(`${A}/finance/invoices/${i.id}/refunds`, { amount: amount.value, note: note.value, account_id: fund.value(), idempotency_key: key });
     d.close(); toast(`تم. رقم القيد ${r.receipt}`); refresh();
   }, "danger")]);
 }

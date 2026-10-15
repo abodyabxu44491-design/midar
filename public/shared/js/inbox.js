@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { chime, soundOn, setSound } from "./chime.js";
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { btn, dialog, empty, notice, sub, toast, input, switchBtn } from "./ui.js";
@@ -184,8 +185,10 @@ export function notificationsBell(base, go) {
   const count = h("span", { class: "bell-count", hidden: true });
   const bell = h("button", { type: "button", class: "bell-btn", "aria-label": "الإشعارات", title: "الإشعارات", onclick: () => open() },
     icons.bell({ size: 20 }), count);
-  let data = null;
+  let data = null, seen = null;
   const setCount = (n) => {
+    if (seen !== null && n > seen) chime();
+    seen = n;
     count.hidden = !n;
     count.textContent = n > 99 ? "99+" : String(n);
     bell.setAttribute("aria-label", n ? `الإشعارات (${n} جديد)` : "الإشعارات");
@@ -208,6 +211,8 @@ export function notificationsBell(base, go) {
       read: (b) => api(`${base}/notifications/read`, b), archive: (ids) => api(`${base}/notifications/archive`, { ids }),
       onUnread: setCount, onOpen: (n) => { let ok = false; try { ok = go?.(n); } catch { /* ignore */ } if (ok) d.close(); } }).el);
     const showSettings = () => mount(view,
+      h("div", { class: "line" }, h("div", {}, h("b", {}, "صوت الإشعارات"), h("small", { class: "sub" }, "تنبيه صوتي عند وصول إشعار جديد والصفحة مفتوحة")),
+        switchBtn(soundOn(), "صوت الإشعارات", (v) => { setSound(v); if (v) chime({ force: true }); return true; })),
       pushToggle({ key: data.push.key, save, remove: (e) => api(`${base}/notifications/push/remove`, { endpoint: e }) }),
       needsInstallFirst() ? notice("على الآيفون تصل الإشعارات بعد تثبيت التطبيق على الشاشة الرئيسية.", "") : null,
       notificationPrefs({ load: () => api(`${base}/notifications/prefs`), save: (muted) => api(`${base}/notifications/prefs`, { muted }, "PUT") }));
@@ -217,7 +222,9 @@ export function notificationsBell(base, go) {
   };
   refresh();
   setTimeout(() => { if (data?.push?.key) refreshPush(save).catch(() => {}); }, 3000);
-  setInterval(() => { if (!document.hidden) refresh(); }, 120_000);
+  setInterval(() => { if (!document.hidden) refresh(); }, 45_000);
+  document.addEventListener("midar:push", () => refresh());
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data?.type === "midar:notification") refresh(); });
   if (new URLSearchParams(location.search).get("n")) setTimeout(open, 600);
   return bell;

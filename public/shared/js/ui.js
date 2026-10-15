@@ -9,6 +9,7 @@ import { startAnalytics } from "./analytics.js";
 import { icons } from "./icons.js";
 
 export const DEV = "مدار MIDAR";
+export { chime, soundOn, setSound } from "./chime.js";
 
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; refreshInstall(); });
@@ -251,7 +252,11 @@ export function sectionMenu({ title, items, render, intro }) {
     }
   };
 
-  openMenu();
+  // Another page can send the user straight to one section (e.g. attendance → "who records attendance").
+  let want = null;
+  try { want = sessionStorage.getItem("midar_settings_section"); sessionStorage.removeItem("midar_settings_section"); } catch { /* storage unavailable */ }
+  const target = want && items.find((it) => it.key === want);
+  if (target) open(target); else openMenu();
   return title ? [h("h2", { class: "menu-title" }, title), box] : box;
 }
 
@@ -422,6 +427,23 @@ export function dialog(title, content, actions = []) {
   document.body.append(d);
   d.showModal();
   return d;
+}
+
+// Asks for a written reason in a dialog (instead of the browser prompt). Resolves to the text, or null if cancelled.
+export function askReason({ title, explain = "", label = "السبب", action = "تأكيد", danger = false, value = "" }) {
+  return new Promise((resolve) => {
+    const ta = h("textarea", { rows: 3, maxLength: 200, value, "aria-label": label });
+    const err = h("small", { class: "err" });
+    let out = null;
+    const d = dialog(title, h("div", { class: "ask-reason" }, explain ? h("p", { class: "sub" }, explain) : null, h("label", { class: "field" }, h("span", {}, label), ta), err),
+      [h("button", { type: "button", class: `btn${danger ? " danger" : ""}`, onclick: () => {
+        const v = ta.value.trim();
+        if (v.length < 2) { err.textContent = "اكتب السبب (حرفان على الأقل)."; ta.focus(); return; }
+        out = v; d.close();
+      } }, action)]);
+    d.addEventListener("close", () => resolve(out));
+    setTimeout(() => ta.focus(), 50);
+  });
 }
 
 const CRED_LABELS = { school: "رمز المدرسة", username: "اسم المستخدم", password: "كلمة المرور المؤقتة",

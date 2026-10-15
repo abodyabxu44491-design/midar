@@ -5,6 +5,7 @@
  */
 // Shared institute UI: terminology, progress display, attendance and score sheets, certificate printing.
 // Used by the institute administration, the accountant and the trainer portal.
+import { printCertificateSheet } from "./cert-render.js";
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { btn, dialog, empty, badge, sub, toast, notice, select, input, textarea, field, docLogo } from "./ui.js";
@@ -126,36 +127,7 @@ export function scoresDialog(assessment, roster, { grading, onSaved } = {}) {
 
 // Course certificates and attendance letters, printed from the stored certificate data (with QR verification).
 export async function printCertificates(ids) {
-  const rows = await api(`${inst.base}/certificates/print`, { ids });
-  const sheet = h("div", { class: "ic-sheet" }, rows.map((c) => {
-    const d = c.data, T2 = d.terms || {};
-    return h("article", { class: "ic" },
-      h("header", {}, docLogo("ic-logo"), h("div", {}, h("b", {}, d.school?.name || ""), h("small", {}, c.kind === "course" ? "شهادة" : "إفادة"))),
-      h("h1", {}, c.title),
-      h("p", { class: "ic-lead" }, c.kind === "course" ? `يشهد ${d.school?.name || "المعهد"} بأن ${T2.trainee || "المتدرب"}` : `يفيد ${d.school?.name || "المعهد"} بأن ${T2.trainee || "المتدرب"}`),
-      h("h2", {}, d.student?.name || ""),
-      h("p", { class: "ic-lead" }, c.kind === "course" ? `قد أتم بنجاح ${T2.course || "الدورة"}` : `قد حضر ${T2.course || "الدورة"}`),
-      h("h3", {}, d.course?.name || ""),
-      d.course?.program ? h("p", { class: "ic-sub" }, `ضمن ${T2.program || "البرنامج"}: ${d.course.program}`) : null,
-      h("dl", { class: "ic-facts" },
-        d.course?.hours ? [h("dt", {}, c.kind === "course" ? "عدد الساعات" : "الساعات المحضورة"), h("dd", {}, num(d.course.hours))] : null,
-        d.course?.mode ? [h("dt", {}, "نظام التدريب"), h("dd", {}, d.course.mode)] : null,
-        d.course?.completed_on ? [h("dt", {}, "تاريخ الإكمال"), h("dd", {}, fmtDate(d.course.completed_on))] : null,
-        d.result ? [h("dt", {}, "النتيجة"), h("dd", {}, d.result)] : null,
-        c.kind === "attendance" && d.attendance_pct != null ? [h("dt", {}, "نسبة الحضور"), h("dd", {}, pct(d.attendance_pct))] : null),
-      d.footer_note ? h("p", { class: "ic-note" }, d.footer_note) : null,
-      h("footer", {},
-        h("div", { class: "ic-sign" }, h("small", {}, d.signer?.title || "مدير المعهد"), h("b", {}, d.signer?.name || ""), h("i")),
-        h("div", { class: "ic-verify" }, h("img", { src: c.qr, alt: "رمز التحقق" }), h("small", {}, "رقم الشهادة"), h("b", { dir: "ltr" }, c.code),
-          h("small", { dir: "ltr" }, c.verify_url))),
-      c.revoked_at ? h("div", { class: "ic-void" }, "ملغاة") : null);
-  }));
-  document.body.append(sheet);
-  document.body.classList.add("ic-printing");
-  const done = () => { sheet.remove(); document.body.classList.remove("ic-printing"); window.removeEventListener("afterprint", done); };
-  window.addEventListener("afterprint", done);
-  await Promise.all([...sheet.querySelectorAll("img")].map((i) => (i.complete ? null : new Promise((r) => { i.onload = r; i.onerror = r; }))));
-  setTimeout(() => { window.print(); setTimeout(() => { if (!matchMedia("print").matches) done(); }, 1500); }, 100);
+  printCertificateSheet(await api(`${inst.base}/certificates/print`, { ids }));
 }
 
 // Generic printable/exportable report table.

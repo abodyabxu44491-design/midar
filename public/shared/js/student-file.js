@@ -155,7 +155,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     if (by.size < 1) return null;
     const name = (m) => new Date(`${m}-01T12:00:00`).toLocaleDateString("ar", { month: "long", year: "numeric" });
     return h("div", { class: "table-wrap att-monthly" }, h("table", { class: "grid" },
-      h("thead", {}, h("tr", {}, ["الشهر", "حضور", "غياب", "تأخر", "متوسط التأخر", "نسبة الحضور"].map((t) => h("th", {}, t)))),
+      h("thead", {}, h("tr", {}, ["الشهر", "حضور", "غياب", "تأخر", "متوسط التأخر", "النسبة"].map((t) => h("th", {}, t)))),
       h("tbody", {}, [...by].sort((a, b) => b[0].localeCompare(a[0])).map(([m, x]) => {
         const base = x.present + x.late + x.absent;
         return h("tr", {}, h("td", {}, name(m)), h("td", {}, x.present + x.late), h("td", {}, x.absent), h("td", {}, x.late),
@@ -208,7 +208,11 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
 
   const avatar = photo ? h("img", { class: "sf-avatar", src: photo, alt: "" }) : personAvatar(s.gender, 72, "sf-avatar");
   const todayRec = d.attendance.find((a) => a.day === new Date().toLocaleDateString("en-CA"));
-  const tile = (tone, label, value) => h("div", { class: `sf-kpi ${tone}` }, h("span", {}, label), h("b", {}, value));
+  // Each number opens its section (attendance, grades, fees) with one tap.
+  const has = (k) => sections.some((x) => x.key === k);
+  const tile = (tone, label, value, key) => (key && has(key)
+    ? h("button", { type: "button", class: `sf-kpi ${tone} go`, onclick: () => open(key), title: `فتح ${label}` }, h("span", {}, label), h("b", {}, value))
+    : h("div", { class: `sf-kpi ${tone}` }, h("span", {}, label), h("b", {}, value)));
   const canCard = (d.admin || d.has_gate) && actions.attendanceCard;
   const acts = headActions;
   const copyId = (value, b) => {
@@ -244,11 +248,11 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
       ids.length ? h("div", { class: "sf-ids" }, ids) : null),
     bar,
     h("div", { class: "sf-kpis" },
-      d.settings.profile_show_attendance && rate !== null ? tile("teal", "نسبة الحضور", `${rate}%`) : null,
-      d.settings.profile_show_grades ? tile("violet", "متوسط الدرجات", avg === null ? "—" : `${avg}%`) : null,
-      d.settings.profile_show_attendance ? tile("red", "أيام الغياب", String(count("absent"))) : null,
-      d.settings.profile_show_attendance ? tile("amber", "مرات التأخر", String(count("late"))) : null,
-      f ? tile("navy", f.status === "unpaid" ? "رسوم متبقية" : "الرسوم", f.status === "paid" ? "مسددة" : f.status === "unpaid" ? money(f.remaining) : "—") : null),
+      d.settings.profile_show_attendance && rate !== null ? tile("teal", "نسبة الحضور", `${rate}%`, "attendance") : null,
+      d.settings.profile_show_grades ? tile("violet", "متوسط الدرجات", avg === null ? "—" : `${avg}%`, "grades") : null,
+      d.settings.profile_show_attendance ? tile("red", "أيام الغياب", String(count("absent")), "attendance") : null,
+      d.settings.profile_show_attendance ? tile("amber", "مرات التأخر", String(count("late")), "attendance") : null,
+      f ? tile("navy", f.status === "unpaid" ? "رسوم متبقية" : "الرسوم", f.status === "paid" ? "مسددة" : f.status === "unpaid" ? money(f.remaining) : "—", "fees") : null),
     afterHead,
     h("div", { class: "profile-layout" }, body));
   elRef = el;

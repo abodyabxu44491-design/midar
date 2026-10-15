@@ -115,6 +115,59 @@ async function openSchool(tenantId, userId, accountId, req, res, { revokeOthers 
   return { ok: true, school: tenantId, redirect: `/${tenantId}/idara?role=admin` };
 }
 
+// ---- First entry through the school's own login link ----
+// A school with no manager account yet shows "create the manager account" on its login page. Only the
+// manager email recorded in the school file (from the school's request, editable by Midar) can complete it,
+// so knowing the school's link is not enough to take it over.
+export const maskEmail = (v) => {
+  const [user, host = ""] = normEmail(v).split("@");
+  const [dom, ...tld] = host.split(".");
+  const m = (x) => (x.length <= 2 ? `${x[0] || ""}*` : `${x.slice(0, 2)}${"*".repeat(Math.min(6, x.length - 2))}`);
+  return `${m(user)}@${m(dom)}${tld.length ? `.${tld.join(".")}` : ""}`;
+};
+export async function claimInfo(school) {
+  return platform("زائر", null, async (q) => {
+    const [t] = await q("SELECT id, name, status, profile->>'email' AS email FROM tenants WHERE id = $1", [school]);
+    if (!t || t.status !== "active") return { first_entry: false };
+    const [linked] = await q("SELECT 1 FROM account_schools WHERE tenant_id = $1 AND revoked_at IS NULL LIMIT 1", [school]);
+    if (linked) return { first_entry: false, school: t.name };
+    return { first_entry: true, school: t.name, email_hint: t.email ? maskEmail(t.email) : null, ready: Boolean(t.email) };
+  });
+}
+
+export async function claimSchool(accountId, school, via, req, res) {
+  const [admin] = await transaction({ tenantId: school, actor: "النظام", ip: req.ip }, (q) => q(
+    "SELECT id, is_active FROM users WHERE role = 'admin' ORDER BY id LIMIT 1"));
+  const out = await platform("مدير المدرسة", req.ip, async (q) => {
+    const [t] = await q("SELECT id, status, profile->>'email' AS email FROM tenants WHERE id = $1 FOR UPDATE", [school]);
+    if (!t) throw notFound("المدرسة غير موجودة.");
+    if (t.status !== "active") throw forbidden("حساب المدرسة موقوف حاليًا. تواصل مع إدارة مدار.");
+    const [linked] = await q("SELECT account_id FROM account_schools WHERE tenant_id = $1 AND revoked_at IS NULL LIMIT 1", [school]);
+    if (linked) {
+      if (Number(linked.account_id) === Number(accountId)) return { already: true };
+      throw conflict("لهذه المدرسة مدير مرتبط بحسابه بالفعل. سجّل الدخول بحساب المدير، أو تواصل مع إدارة مدار.");
+    }
+    if (!admin?.is_active) throw forbidden("حساب مدير المدرسة موقوف. تواصل مع إدارة مدار.");
+    if (!t.email) throw forbidden("لم يُسجَّل بريد مدير هذه المدرسة لدى مدار بعد. تواصل مع إدارة مدار.");
+    const [acct] = await q("SELECT id, email, full_name FROM accounts WHERE id = $1 AND disabled_at IS NULL AND email_verified_at IS NOT NULL", [accountId]);
+    if (!acct) throw unauthorized("سجّل الدخول بحسابك أولًا.");
+    if (normEmail(acct.email) !== normEmail(t.email)) {
+      throw new AppError(403, `أول دخول لمدير المدرسة يكون بالبريد المسجل لدى مدار (${maskEmail(t.email)}). استخدم هذا البريد، أو تواصل مع إدارة مدار لتغييره.`, "email_mismatch");
+    }
+    await q(`INSERT INTO account_schools (account_id, tenant_id, user_id, linked_via) VALUES ($1, $2, $3, $4)
+             ON CONFLICT (account_id, tenant_id) DO UPDATE SET user_id = EXCLUDED.user_id, linked_via = EXCLUDED.linked_via, linked_at = now(), revoked_at = NULL`,
+    [accountId, school, admin.id, via]);
+    // Any setup link still open becomes unnecessary.
+    await q("UPDATE school_activations SET revoked_at = now(), token_enc = NULL WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL", [school]);
+    await q("UPDATE tenants SET activated_at = COALESCE(activated_at, now()) WHERE id = $1", [school]);
+    await addEvent(q, school, { kind: "account_linked", body: `أول دخول للمدير من رابط المدرسة: رُبط حسابه (${acct.email}) عبر ${VIA[via] || via}` }, acct.full_name || acct.email);
+    await logEvent(q, { actor: acct.email, action: `أول دخول لمدير المدرسة ${school} وربط حسابه` });
+    return { name: acct.full_name };
+  });
+  if (out.already) return enterSchool(accountId, school, req, res, via);
+  return openSchool(school, admin.id, accountId, req, res, { via, name: out.name });
+}
+
 export async function enterSchool(accountId, school, req, res, via = "email") {
   const [link] = await platform("مدير المدرسة", req.ip, (q) => q(
     `SELECT s.user_id FROM account_schools s JOIN accounts a ON a.id = s.account_id

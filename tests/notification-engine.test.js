@@ -260,6 +260,8 @@ test("العزل بين المدارس: لا جهاز ولا سجل ولا إع�
 });
 
 test("أحداث جديدة: اعتماد الدرجات للإدارة والمعلم، وتغيّر الجدول مرة واحدة، والحضور لا يُرسل إلا إذا فعّلته المدرسة", async () => {
+  // This school asks the administration to approve grades before they are published.
+  assert.equal((await A.admin.put("/api/admin/communication/features/teachers", { teacher_publishes: false })).status, 200);
   const exr = await A.teacher.post("/api/teacher/exams", { class_id: A.c1.id, subject_id: A.math.id, title: "اختبار قصير", max_score: 10 });
   assert.equal(exr.status, 201, JSON.stringify(exr.data));
   const ex = exr.data;
@@ -269,6 +271,7 @@ test("أحداث جديدة: اعتماد الدرجات للإدارة والم
   assert.equal((await A.admin.post(`/api/admin/exams/${ex.id}/status`, { status: "published" })).status, 200);
   assert.ok((await A.teacher.get("/api/teacher/notifications")).data.items.some((n) => /اعتُمدت/.test(n.title)), "المعلم عرف بالاعتماد");
   assert.ok((await inbox(A, A.students[0], { category: "grades" })).data.items.some((n) => /9 من 10/.test(n.body)), "ولي الأمر وصلته الدرجة");
+  await A.admin.put("/api/admin/communication/features/teachers", { teacher_publishes: true });
   for (const period of [1, 2, 3]) {
     await A.admin.put("/api/admin/timetable/slot", { class_id: A.c1.id, day: 0, period, subject_id: A.math.id, teacher_id: A.teacherId });
   }

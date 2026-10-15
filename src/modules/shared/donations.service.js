@@ -14,6 +14,7 @@ export const donationSchema = z.object({
   amount: z.coerce.number().positive("المبلغ يجب أن يكون أكبر من صفر").max(100_000_000).multipleOf(0.01),
   purpose: t.optText(200),
   method: z.enum(["cash", "transfer", "card", "online"]),
+  account_id: t.optId,
   reference: t.optText(80),
   received_on: t.date,
   note: t.optText(300),
@@ -34,7 +35,7 @@ export async function add(q, b, actor) {
     direction: "income", amount: b.amount, method: b.method, occurredOn: b.received_on,
     reason: b.purpose ? `تبرع: ${b.purpose}` : "تبرع للمدرسة",
     beneficiary: donor, reference: b.reference, categoryCode: "donation",
-    sourceType: "donation", sourceId: null, actor,
+    sourceType: "donation", sourceId: null, actor, accountId: b.account_id ?? null,
   });
   const [row] = await q(
     `INSERT INTO donations (tenant_id, donor_name, anonymous, phone, amount, purpose, method, reference,

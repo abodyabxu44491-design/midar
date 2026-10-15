@@ -49,6 +49,7 @@ export const itemSchema = z.object({
 });
 export const paySchema = z.object({
   method: z.enum(["cash", "transfer", "card", "online"]).default("cash"),
+  account_id: t.optId,
   paid_on: t.optDate,
 });
 
@@ -202,7 +203,7 @@ export async function approveRun(q, runId, actor) {
   await q("UPDATE payroll_runs SET status = 'approved', approved_by = $2 WHERE id = $1", [runId, actor]);
 }
 
-export async function payRun(q, runId, { method = "cash", paid_on = null } = {}, actor) {
+export async function payRun(q, runId, { method = "cash", paid_on = null, account_id = null } = {}, actor) {
   const run = await getRun(q, runId, true);
   if (run.status === "paid") throw badRequest("المسير مصروف مسبقًا");
   if (run.status !== "approved") throw badRequest("اعتمد المسير قبل الصرف");
@@ -215,7 +216,7 @@ export async function payRun(q, runId, { method = "cash", paid_on = null } = {},
     const entry = await addSystemEntry(q, {
       direction: "expense", amount: item.net, method, occurredOn: on,
       reason: `راتب شهر ${monthLabel}`, beneficiary: item.full_name, reference: item.account_number,
-      categoryCode: "salaries", sourceType: "salary", sourceId: item.id, actor,
+      categoryCode: "salaries", sourceType: "salary", sourceId: item.id, actor, accountId: account_id,
     });
     await q("UPDATE payroll_items SET entry_id = $2 WHERE id = $1", [item.id, entry.id]);
   }

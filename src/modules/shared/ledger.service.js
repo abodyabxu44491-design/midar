@@ -8,7 +8,7 @@ import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 
 export const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };
 export const CURRENCIES = { SAR: "ريال سعودي", YER: "ريال يمني", USD: "دولار أمريكي" };
-export const KINDS = { bank: "حساب بنكي", cash: "صندوق نقدي", online: "محفظة إلكترونية", other: "أخرى" };
+export const KINDS = { cash: "صندوق نقدي", bank: "حساب بنكي", online: "محفظة إلكترونية", donations: "صندوق تبرعات", other: "أخرى" };
 export const SOURCES = {
   manual: "قيد يدوي", fee: "رسوم دراسية", refund: "استرداد رسوم", donation: "تبرع",
   salary: "رواتب", expense: "مصروف تشغيلي", withdrawal: "سحب",
@@ -19,7 +19,7 @@ const money = z.coerce.number().positive("المبلغ يجب أن يكون أك
 
 export const accountSchema = z.object({
   name: t.shortText("اسم الحساب", 80),
-  kind: z.enum(["bank", "cash", "online", "other"]),
+  kind: z.enum(["bank", "cash", "online", "donations", "other"]),
   currency: z.enum(["SAR", "YER", "USD"]).optional(),
   opening_balance: z.coerce.number().min(-100_000_000).max(100_000_000).default(0),
   low_balance: z.union([z.coerce.number().min(0), z.literal("")]).optional().transform((v) => (v === "" || v === undefined ? null : Number(v))),
@@ -126,14 +126,55 @@ export async function categoryByCode(q, code) {
   return row?.id ?? null;
 }
 
-async function accountForMethod(q, method) {
+// The fund an amount goes to (or is paid from) when the screen did not choose one: donations go to the donations
+// fund; anything else to the fund set for its payment method, never to a donations fund.
+async function accountForMethod(q, method, { donation = false } = {}) {
   const base = await baseCurrency(q);
+  if (donation) {
+    const [d] = await q("SELECT id FROM finance_accounts WHERE kind = 'donations' AND is_active AND currency = $1 ORDER BY id LIMIT 1", [base]);
+    if (d) return Number(d.id);
+  }
   const [row] = await q(
     `SELECT a.id FROM finance_method_accounts m JOIN finance_accounts a ON a.id = m.account_id
-      WHERE m.method = $1 AND a.is_active AND a.currency = $2`, [method, base]);
+      WHERE m.method = $1 AND a.is_active AND a.currency = $2 AND (a.kind <> 'donations' OR $3)`, [method, base, donation]);
   if (row) return Number(row.id);
-  const [any] = await q("SELECT id FROM finance_accounts WHERE is_active AND currency = $1 ORDER BY id LIMIT 1", [base]);
+  const [any] = await q(
+    `SELECT id FROM finance_accounts WHERE is_active AND currency = $1 AND kind <> 'donations'
+      ORDER BY (kind = CASE WHEN $2 = 'cash' THEN 'cash' ELSE 'bank' END) DESC, id LIMIT 1`, [base, method]);
   return any ? Number(any.id) : null;
+}
+
+// The usual fund for each kind of amount, shown pre-selected (and changeable) on every money screen.
+export async function fundChoices(q) {
+  await ensureDefaults(q);
+  const base = await baseCurrency(q);
+  const funds = await q(
+    `SELECT id, name, kind, currency, account_balance(id) AS balance FROM finance_accounts
+      WHERE is_active AND currency = $1 AND purpose IS NULL ORDER BY id`, [base]);
+  const defaults = {};
+  for (const m of Object.keys(METHODS)) defaults[m] = await accountForMethod(q, m);
+  defaults.donation = await accountForMethod(q, "cash", { donation: true });
+  return { funds, defaults, kinds: KINDS };
+}
+
+// Sets the usual fund for each payment method in one place.
+export const defaultsSchema = z.object({ cash: t.optId, transfer: t.optId, card: t.optId, online: t.optId });
+export async function setDefaults(q, b) {
+  for (const [method, id] of Object.entries(b)) {
+    if (!id) continue;
+    await fundFor(q, id);
+    await setMethods(q, id, [method]);
+  }
+}
+
+// A fund chosen on a screen: it must exist, be active, and be in the school's currency.
+async function fundFor(q, id) {
+  const [a] = await q("SELECT id, name, is_active, currency, purpose FROM finance_accounts WHERE id = $1", [id]);
+  if (!a) throw notFound("الصندوق أو الحساب غير موجود");
+  if (!a.is_active) throw badRequest(`«${a.name}» موقوف. اختر صندوقًا آخر.`);
+  if (a.currency !== (await baseCurrency(q))) throw badRequest(`«${a.name}» بعملة مختلفة. سجّل هذه الحركة يدويًا مع سعر التحويل، أو اختر صندوقًا بعملة المدرسة.`);
+  if (a.purpose) throw badRequest(`«${a.name}» مخصص لغرض محدد ولا تُسجَّل فيه هذه الحركة.`);
+  return Number(a.id);
 }
 
 async function nextEntryNo(q) {
@@ -168,13 +209,14 @@ export async function addEntry(q, b, { actor, sourceType = "manual", sourceId = 
 }
 
 export async function addSystemEntry(q, { direction, amount, method, occurredOn, reason, beneficiary, reference,
-  categoryCode, sourceType, sourceId, actor }) {
+  categoryCode, sourceType, sourceId, actor, accountId: chosen = null }) {
+  const donation = sourceType === "donation";
   let categoryId = await categoryByCode(q, categoryCode);
-  let accountId = await accountForMethod(q, method || "cash");
+  let accountId = chosen ? await fundFor(q, chosen) : await accountForMethod(q, method || "cash", { donation });
   if (!categoryId || !accountId) {
     await ensureDefaults(q);
     categoryId = await categoryByCode(q, categoryCode);
-    accountId = await accountForMethod(q, method || "cash");
+    accountId = accountId || await accountForMethod(q, method || "cash", { donation });
   }
   if (!categoryId || !accountId) {
     throw badRequest(`لا يوجد حساب نشط بعملة المدرسة (${await baseCurrency(q)}) أو تصنيف مناسب. فعّل حسابًا أو أنشئ حسابًا من الحسابات المالية ثم أعد المحاولة.`);

@@ -4,9 +4,28 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { z, t } from "../../core/http/validate.js";
-import { notFound } from "../../core/http/errors.js";
+import { notFound, badRequest } from "../../core/http/errors.js";
 import { notify, adminUserIds } from "./notify.service.js";
 import { resolveForExam } from "./grade-components.service.js";
+import { featureSettings } from "./feature-settings.service.js";
+
+// Who approves grades: by default the teacher approves and they are published at once (the administration can
+// still review, correct, or hide them); a school can instead require the administration to approve first.
+export const teacherPublishes = async (q) => (await featureSettings(q, "teachers")).teacher_publishes;
+
+// A teacher edits a draft, and also published grades when teachers approve their own grades.
+export async function teacherCanEdit(q, exam) {
+  if (exam.status === "draft") return true;
+  return exam.status === "published" && (await teacherPublishes(q));
+}
+
+// The teacher's "approve" button: published directly, or sent to the administration for approval.
+export async function teacherApprove(q, exam) {
+  if (exam.status !== "draft") throw badRequest(exam.status === "published" ? "الدرجات منشورة مسبقًا" : "الدرجات مرسلة للإدارة مسبقًا");
+  const status = (await teacherPublishes(q)) ? "published" : "pending";
+  await setStatus(q, exam, status, { byTeacher: true });
+  return status;
+}
 
 export const createSchema = z.object({
   class_id: t.id, subject_id: t.id,
@@ -52,7 +71,16 @@ export const sheet = (q, exam) => q(
      FROM students st LEFT JOIN scores sc ON sc.student_id = st.id AND sc.exam_id = $1
     WHERE st.class_id = $2 AND st.archived_at IS NULL ORDER BY st.full_name`, [exam.id, exam.class_id]);
 
-export async function saveScores(q, exam, scores, actor) {
+export async function saveScores(q, exam, scores, actor, { admin = false } = {}) {
+  // Correcting grades that left the draft needs the unlock, scoped to this save. The caller has checked who may
+  // correct: the teacher only published grades (when teachers approve), the administration any grade.
+  const unlock = exam.status === "published" || (admin && exam.status !== "draft");
+  if (unlock) await q("SELECT set_config('app.scores_unlock', 'on', true)");
+  const n = await writeScores(q, exam, scores, actor);
+  if (unlock) await q("SELECT set_config('app.scores_unlock', '', true)");
+  return n;
+}
+async function writeScores(q, exam, scores, actor) {
   const ids = Object.keys(scores).map(Number);
   const valid = new Set((await q("SELECT id FROM students WHERE class_id = $1 AND id = ANY($2::bigint[])", [exam.class_id, ids])).map((r) => Number(r.id)));
   let n = 0;
@@ -68,7 +96,7 @@ export async function saveScores(q, exam, scores, actor) {
   return n;
 }
 
-export async function setStatus(q, exam, status) {
+export async function setStatus(q, exam, status, { byTeacher = false } = {}) {
   await q("UPDATE exams SET status = $2 WHERE id = $1", [exam.id, status]);
   if (status === exam.status) return;
   const [info] = await q(`SELECT e.title, s.name AS subject, c.name AS class_name FROM exams e JOIN subjects s ON s.id = e.subject_id
@@ -91,6 +119,6 @@ export async function setStatus(q, exam, status) {
       await notify(q, { event: "grades", students: [r.student_id], title: `درجة جديدة: ${r.subject}`,
         body: `${r.title}: ${r.score} من ${r.max_score}`, link: "grades", dedupKey: `exam-${exam.id}`, dedupMinutes: 24 * 60 });
     }
-    await notify(q, { event: "grades_review", users: await teachers(), title: "اعتُمدت الدرجات ونُشرت لأولياء الأمور", body: what, link: "exams", dedupKey: `published-${exam.id}`, dedupMinutes: 60 });
+    if (!byTeacher) await notify(q, { event: "grades_review", users: await teachers(), title: "اعتُمدت الدرجات ونُشرت لأولياء الأمور", body: what, link: "exams", dedupKey: `published-${exam.id}`, dedupMinutes: 60 });
   }
 }

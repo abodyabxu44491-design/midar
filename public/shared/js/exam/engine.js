@@ -272,8 +272,20 @@ export function defaultLayout() {
     show_version: true, page_numbers: true, show_duration: true, show_date: true,
     show_signature: true, show_instructions: true, numbering: "continuous",
     header_note: "", footer_text: "",
+    date_style: "gregorian", name_row: "full",
     student_fields: STUDENT_FIELDS.map(([key]) => key),
     extra_fields: [],
   };
+}
+// The exam date as printed: Gregorian, Hijri (Umm al-Qura), or both.
+export const DATE_STYLES = { gregorian: "ميلادي", hijri: "هجري", both: "هجري وميلادي" };
+export function examDateText(date, style = "gregorian") {
+  if (!date) return "";
+  const d = new Date(`${String(date).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return String(date);
+  const opts = { day: "numeric", month: "long", year: "numeric" };
+  const g = d.toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", opts);
+  const hj = d.toLocaleDateString("ar-SA-u-ca-islamic-umalqura-nu-latn", opts);
+  return style === "hijri" ? hj : style === "both" ? `${hj} — ${g}` : g;
 }
 export const withLayoutDefaults = (layout) => ({ ...defaultLayout(), ...(layout || {}) });

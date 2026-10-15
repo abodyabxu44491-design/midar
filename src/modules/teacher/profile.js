@@ -13,14 +13,24 @@ import { myLoad, teachesClass } from "./access.js";
 import { forTeacher } from "../shared/timetable.service.js";
 import * as alerts from "../shared/student-alerts.service.js";
 import { current } from "../shared/academic.service.js";
+import { featureSettings } from "../shared/feature-settings.service.js";
 
 const r = Router();
+
+// How this teacher works: who approves grades, who takes attendance, and the sections hidden for him (his own
+// list from his file, or the school's list for all teachers).
+async function teacherPrefs(q, teacherId) {
+  const t = await featureSettings(q, "teachers");
+  const [own] = await q("SELECT hidden_sections FROM teachers WHERE id = $1", [teacherId]);
+  return { teacher_publishes: t.teacher_publishes, attendance_by: t.attendance_by, hidden: own?.hidden_sections ?? t.hidden };
+}
 
 r.get("/me", handle(async (req, res) => {
   const { school, photo, ...data } = await inTenant(req, async (q) => ({
     load: await myLoad(q, req.user.teacher_id), academic: await current(q),
     school: await logoId(q),
     photo: (await q("SELECT (photo IS NOT NULL) AS has, extract(epoch FROM updated_at)::bigint AS v FROM teachers WHERE id = $1", [req.user.teacher_id]))[0],
+    prefs: await teacherPrefs(q, req.user.teacher_id),
   }));
   res.json({ access: accessSummary(req), modules: req.modules, name: req.user.full_name, user_id: req.user.id, must_change_password: req.user.must_change_password,
     school: { id: req.tenant.id, name: req.tenant.name, logo: school, org_type: req.tenant.org_type || "school" },

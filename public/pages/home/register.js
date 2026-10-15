@@ -79,7 +79,7 @@ export function registerDialog(site, { kind = "trial", plan = null, cycle = "yea
     m_first: fieldBox("الاسم الأول", c.m_first, { req: true }), m_second: fieldBox("اسم الأب", c.m_second),
     m_third: fieldBox("اسم الجد", c.m_third), m_family: fieldBox("اسم العائلة", c.m_family, { req: true }),
     m_title: fieldBox("المسمى الوظيفي", c.m_title), preferred: fieldBox("وسيلة التواصل المفضلة", c.preferred, { req: true }),
-    phone: fieldBox("رقم الجوال", c.phone, { req: true, hint: "اكتبه مع رمز الدولة" }), email: fieldBox("البريد الإلكتروني", c.email),
+    phone: fieldBox("رقم الجوال", c.phone, { req: true, hint: "اكتبه مع رمز الدولة" }), email: fieldBox("البريد الإلكتروني للمدير", c.email, { req: true, hint: "يدخل به المدير لوحة المدرسة أول مرة (أو بحساب Google بنفس البريد)" }),
     note: fieldBox("ملاحظات", c.note, { wide: true }),
   };
   const stages = new Set();
@@ -108,7 +108,7 @@ export function registerDialog(site, { kind = "trial", plan = null, cycle = "yea
         group("الاسم", F.m_first, F.m_second, F.m_third, F.m_family, F.m_title),
         group("التواصل", F.phone, F.email, F.preferred),
       ],
-      check: () => req([["m_first", "اكتب الاسم الأول"], ["m_family", "اكتب اسم العائلة"], ["phone", "اكتب رقم الجوال"]])
+      check: () => req([["m_first", "اكتب الاسم الأول"], ["m_family", "اكتب اسم العائلة"], ["phone", "اكتب رقم الجوال"], ["email", "اكتب البريد الإلكتروني للمدير"]])
         .concat(opt("phone", PHONE_RE, "أرقام فقط، ويمكن البدء بـ +"), opt("email", EMAIL_RE, "البريد غير صحيح")) },
     { title: "المراجعة والإرسال", hint: kind === "trial" ? "راجع بياناتك ثم أرسل الطلب، وسيصلك رقم الطلب فورًا." : "راجع بياناتك ثم أرسل طلب الاشتراك.", icon: "check",
       body: () => [

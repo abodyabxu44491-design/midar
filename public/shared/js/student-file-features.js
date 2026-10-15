@@ -6,7 +6,7 @@
 import { h } from "./dom.js";
 import { empty, sub, btn, line, toast, badge } from "./ui.js";
 import { mount } from "./dom.js";
-import { certificatesSheet } from "./certificate.js";
+import { certificateSheet, printCertificateSheet } from "./cert-render.js";
 import { eventList } from "./calendar-view.js";
 import { fmtDate, fmtDateTime } from "./format.js";
 
@@ -62,7 +62,7 @@ export function featureSections(d, actions = {}) {
         actions.printCertificate ? btn("عرض وطباعة", async () => {
           try {
             const list = await actions.printCertificate(c.id);
-            mount(box, h("div", { class: "toolbar" }, btn("طباعة", () => window.print())), certificatesSheet(list));
+            mount(box, h("div", { class: "toolbar" }, btn("طباعة", () => printCertificateSheet(list))), certificateSheet(list));
             box.scrollIntoView({ behavior: "smooth" });
           } catch (e) { toast(e.message, true); }
         }, "ghost sm") : null))), box];

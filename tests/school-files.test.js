@@ -142,5 +142,5 @@ test("رابط الإعداد المنتهي يُرفض من الخادم ويظ
   await transaction({ platform: true }, (q) => q("UPDATE school_activations SET expires_at = now() - interval '1 minute' WHERE tenant_id = $1", [id]));
   assert.equal((await pub.post("/api/account/setup", { token })).status, 410, "الرابط المنتهي مرفوض");
   assert.equal((await pub.post("/api/account/signup", { email: randomEmail(), password: "Noor-School-2026", name: "سعيد علي", setup: token })).status, 410);
-  assert.equal((await owner.get(`/api/owner/files/${id}`)).data.activation_state, "expired");
+  assert.ok(["waiting", "no_email"].includes((await owner.get(`/api/owner/files/${id}`)).data.activation_state), "الرابط المنتهي لا يفعّل؛ المدرسة بانتظار أول دخول للمدير");
 });

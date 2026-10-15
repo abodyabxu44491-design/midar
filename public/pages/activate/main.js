@@ -20,8 +20,10 @@ const store = (fn) => { try { return fn(); } catch { return null; } };
 let token = params.get("token") || (params.get("resume") ? store(() => sessionStorage.getItem(KEY)) : "") || "";
 if (params.get("token")) store(() => sessionStorage.setItem(KEY, token));
 // The secret link leaves the address bar (and history); a refresh resumes from this tab's storage.
-if (params.has("token") || params.has("oauth") || params.has("email")) history.replaceState(null, "", location.pathname + (token && !accountPage ? "?resume=1" : params.get("forgot") ? `?forgot=1${params.get("school") ? `&school=${encodeURIComponent(params.get("school"))}` : ""}` : ""));
+if (params.has("token") || params.has("oauth") || params.has("email")) history.replaceState(null, "", location.pathname + (token && !accountPage ? "?resume=1" : params.get("forgot") ? `?forgot=1${params.get("school") ? `&school=${encodeURIComponent(params.get("school"))}` : ""}` : !accountPage && params.get("school") ? `?school=${encodeURIComponent(params.get("school"))}` : ""));
 const oauth = params.get("oauth");
+// First entry from the school's own login link (/activate?school=…): no secret link, the manager's recorded email decides.
+const claimSchool = !accountPage && /^[a-z0-9-]{3,30}$/.test(params.get("school") || "") ? params.get("school") : null;
 
 let cfg = { email: true, google: false, apple: false };
 let info = null;
@@ -36,7 +38,8 @@ const ghost = (label, onClick) => h("button", { type: "button", class: "au-alt-b
 const back = (onClick) => h("button", { type: "button", class: "au-back", onclick: onClick }, icons.chevronLeft({ size: 16 }), "رجوع");
 const msgBox = () => h("div", { "aria-live": "polite" });
 const emailInput = (id, value = "") => input({ id, type: "email", class: "ltr", autocomplete: "email", inputMode: "email", placeholder: "name@example.com", value });
-const providersFor = (purpose) => providerButtons(cfg, (p) => `/api/account/oauth/${p}/start?${new URLSearchParams(purpose === "setup" ? { purpose, setup: token } : { purpose })}`);
+const providersFor = (purpose) => providerButtons(cfg, (p) => `/api/account/oauth/${p}/start?${new URLSearchParams(
+  claimSchool && purpose !== "login" ? { purpose: "claim", school: claimSchool } : purpose === "setup" ? { purpose, setup: token } : { purpose })}`);
 const school = () => (info?.school ? { name: info.school } : null);
 
 async function start() {
@@ -51,6 +54,15 @@ async function start() {
     return resetFlow(params.get("email") || "", then, () => { location.href = back ? `/${encodeURIComponent(back)}/idara?role=admin` : "/account"; });
   }
   if (accountPage) return accountHome();
+  if (claimSchool) {
+    const c = await api(`/api/account/claim?school=${encodeURIComponent(claimSchool)}`).catch(() => null);
+    if (!c?.first_entry) { location.replace(`/${encodeURIComponent(claimSchool)}/idara?role=admin`); return; }
+    if (!c.ready) return fail("لم تُسجَّل بيانات مدير هذه المدرسة لدى مدار بعد. تواصل مع إدارة مدار ليضيفوا بريدك، ثم افتح رابط المدرسة مرة أخرى.");
+    info = { school: c.school, email_hint: c.email_hint, claim: true };
+    const me = await api("/api/account/me").catch(() => null);
+    if (me) { info.account = { email: me.email, name: me.name }; return continueAs(); }
+    return welcome();
+  }
   if (!/^[0-9a-f]{64}$/.test(token)) return fail("رابط الإعداد غير مكتمل. افتح الرابط كما وصلك بالكامل.");
   try { info = await api("/api/account/setup", { token }); } catch (e) {
     store(() => sessionStorage.removeItem(KEY));
@@ -62,8 +74,10 @@ async function start() {
 function welcome(note) {
   const providers = providersFor("setup");
   const first = String(info.manager_name || "").replace(/^(أ\.|د\.|م\.)\s*/, "").trim().split(/\s+/)[0];
-  page(first ? authHead(`أهلًا، ${first}`, "مرحبًا بك في مدار. لبدء استخدام مدرستك، أنشئ حسابك أو اربط حسابًا لديك.", school())
+  page(info.claim ? authHead("أول دخول لمدير المدرسة", "أنشئ حساب المدير مرة واحدة، وبعدها تدخل من رابط المدرسة بأي جهاز.", school())
+    : first ? authHead(`أهلًا، ${first}`, "مرحبًا بك في مدار. لبدء استخدام مدرستك، أنشئ حسابك أو اربط حسابًا لديك.", school())
     : authHead("مرحبًا بك في مدار", "لبدء استخدام مدرستك، أنشئ حسابك أو اربط حسابًا لديك.", school()),
+    info.claim ? notice(h("span", {}, "سجّل ببريد المدير المسجل لدى مدار: ", h("b", { dir: "ltr" }, info.email_hint), "، أو تابع بحساب Google بنفس البريد."), "") : null,
     info.recovery ? notice("هذا رابط استعادة وصول: الحساب الذي تربطه الآن يصبح حساب إدارة المدرسة بدل الحساب السابق.", "warn") : null,
     oauth && OAUTH_MESSAGES[oauth] && !note ? notice(OAUTH_MESSAGES[oauth], oauth === "linked" ? "" : "err") : null,
     note ? notice(note, "err") : null,
@@ -98,7 +112,7 @@ function signupForm(prefill = {}) {
     if (!email.value.trim()) { email.focus(); return mount(msg, notice("أدخل بريدك الإلكتروني.", "err")); }
     if (pass.value !== again.value) { again.focus(); return mount(msg, notice("كلمتا المرور غير متطابقتين.", "err")); }
     submit.disabled = true;
-    const body = { email: email.value.trim(), password: pass.value, name: name.value.trim(), setup: token };
+    const body = { email: email.value.trim(), password: pass.value, name: name.value.trim(), ...(info?.claim ? {} : { setup: token }) };
     try {
       const r = await api("/api/account/signup", body);
       codeStep(r.email, () => api("/api/account/signup", body), async (code) => {
@@ -222,7 +236,8 @@ function newPassword(ticket, then) {
 // The signed-in account is linked to the school of this link, and the school opens.
 async function link(via) {
   if (accountPage) return accountHome();
-  const r = await api("/api/account/setup/link", { token, via });
+  const r = info?.claim ? await api("/api/account/claim", { school: claimSchool, via })
+    : await api("/api/account/setup/link", { token, via });
   store(() => sessionStorage.removeItem(KEY));
   const enter = go("الدخول إلى المدرسة", () => { location.href = r.redirect; });
   page(h("div", { class: "au-done" }, h("span", { class: "big" }, icons.check({ size: 36 })),

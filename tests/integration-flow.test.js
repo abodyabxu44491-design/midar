@@ -57,8 +57,7 @@ test("طالب جديد يظهر في كل الأقسام: القائمة، ال
   const sc = (await teacher.get(`/api/teacher/exams/${S.exam}/scores`)).data;
   assert.ok(JSON.stringify(sc).includes(S.student.name), "في قائمة إدخال الدرجات");
   assert.equal((await teacher.put(`/api/teacher/exams/${S.exam}/scores`, { scores: { [S.student.id]: 17 } })).status, 200);
-  await teacher.post(`/api/teacher/exams/${S.exam}/submit`, {});
-  assert.equal((await admin.post(`/api/admin/exams/${S.exam}/status`, { status: "published" })).status, 200);
+  assert.equal((await teacher.post(`/api/teacher/exams/${S.exam}/submit`, {})).data.status, "published");
 
   const rc = (await admin.get(`/api/admin/reports/report-cards?class_id=${S.c1.id}`)).data;
   assert.ok(JSON.stringify(rc).includes("17"), "الدرجة في كشف الدرجات");

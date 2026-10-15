@@ -18,6 +18,18 @@ r.get("/:id/scores", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => exams.sheet(q, await exams.get(q, id))));
 }));
 
+// The administration reviews and corrects any grade (draft, waiting, or published).
+r.put("/:id/scores", handle(async (req, res) => {
+  const id = parse(t.id, req.params.id);
+  const b = parse(exams.scoresSchema, req.body);
+  const saved = await inTenant(req, async (q) => {
+    const e = await exams.get(q, id);
+    for (const v of Object.values(b.scores)) if (v !== "" && v !== null && Number(v) > Number(e.max_score)) throw badRequest(`الدرجة ${v} أكبر من الدرجة القصوى ${Number(e.max_score)}`);
+    return exams.saveScores(q, e, b.scores, req.actor, { admin: true });
+  });
+  res.json({ saved });
+}));
+
 r.post("/:id/status", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const { status } = parse(z.object({ status: z.enum(["published", "draft"]) }), req.body);

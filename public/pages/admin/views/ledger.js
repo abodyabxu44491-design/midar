@@ -11,9 +11,10 @@ import { icons } from "../../shared/js/icons.js";
 import { barChart } from "../../shared/js/charts.js";
 import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
 import { A } from "./common.js";
+import { fundField } from "../../shared/js/fund-picker.js";
 
 const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };
-const KINDS = { bank: "حساب بنكي", cash: "صندوق نقدي", online: "محفظة إلكترونية", other: "أخرى" };
+const KINDS = { cash: "صندوق نقدي", bank: "حساب بنكي", online: "محفظة إلكترونية", donations: "صندوق تبرعات", other: "أخرى" };
 const SOURCES = { manual: "قيد يدوي", fee: "رسوم", refund: "استرداد", donation: "تبرع", salary: "رواتب", expense: "مصروف", withdrawal: "سحب" };
 const STATUS = { pending: ["بانتظار الاعتماد", "amber"], approved: ["معتمدة", ""], rejected: ["مرفوضة", "gray"], void: ["ملغاة", "gray"] };
 const monthName = (ym) => new Date(`${ym}-15`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "short", year: "2-digit" });
@@ -70,6 +71,7 @@ async function overview({ show, go }) {
   const from = input({ type: "date", value: monthStart() });
   const to = input({ type: "date", value: today() });
   const box = h("div");
+  const acts = h("div");
 
   const load = async () => {
     mount(box, empty("جارٍ الحساب…"));
@@ -84,6 +86,10 @@ async function overview({ show, go }) {
     const label = { today: "اليوم", week: "هذا الأسبوع", month: "هذا الشهر", year: "هذا العام" }[range.value] || "الفترة";
     const quick = (icon, text, tone, key) => h("button", { type: "button", class: `quick-act ${tone}`, onclick: () => go(key) },
       h("span", { class: "qa-ic" }, icons[icon]({ size: 20 })), h("span", {}, text));
+    // What the accountant does every day comes first; the numbers follow, and the detailed reports are folded.
+    mount(acts, h("div", { class: "quick-acts fin-acts" },
+      quick("plus", "قبض رسوم", "teal", "fees"), quick("minus", "تسجيل مصروف", "red", "money"),
+      d.staff ? quick("users", "الرواتب", "navy", "payroll") : null, quick("list", "سجل الحركات", "violet", "entries")));
     mount(box,
       h("div", { class: "bal-hero" },
         h("span", { class: "bal-k" }, "الرصيد الحالي في كل الحسابات"),
@@ -94,9 +100,6 @@ async function overview({ show, go }) {
         kpiCard({ icon: "down", tone: "red", label: "المصروفات", value: money(d.expense), note: label }),
         kpiCard({ icon: "wallet", tone: "amber", label: "رسوم غير مسددة", value: money(d.unpaid_fees), note: d.overdue_invoices ? `${d.overdue_invoices} فاتورة متأخرة` : "لا فواتير متأخرة", onClick: () => go("fees") }),
         d.staff ? kpiCard({ icon: "users", tone: "navy", label: "الرواتب الشهرية", value: money(d.staff.monthly), note: `${d.staff.count} موظفًا`, onClick: () => go("staff") }) : null),
-      h("div", { class: "quick-acts" },
-        quick("plus", "قبض رسوم", "teal", "fees"), quick("minus", "تسجيل مصروف", "red", "money"),
-        d.staff ? quick("users", "الرواتب", "navy", "payroll") : null, quick("list", "سجل الحركات", "violet", "entries")),
       d.pending ? notice(`${d.pending} حركة بانتظار الاعتماد في «سجل الحركات».`, "warn") : null,
       low.length ? notice(`رصيد منخفض: ${low.map((a) => `${a.name} (${money(a.balance)})`).join("، ")}`, "err") : null,
 
@@ -114,19 +117,20 @@ async function overview({ show, go }) {
             sub(`${KINDS[a.kind]}${a.methods.length ? ` — ${a.methods.map((m) => METHODS[m]).join("، ")}` : ""}`)),
           h("b", { class: Number(a.balance) < 0 ? "danger-text" : "" }, money(a.balance, a.currency))))),
 
+      h("details", { class: "fin-more" }, h("summary", {}, "التحليل: الحركة الشهرية والتوزيع حسب التصنيف"),
       panel("الحركة الشهرية", null,
         barChart(d.by_month.map((m) => ({ label: monthName(m.month), value: Math.round(m.income), color: "var(--teal)" }))),
         sub("المداخيل"),
         barChart(d.by_month.map((m) => ({ label: monthName(m.month), value: Math.round(m.expense), color: "var(--red)" }))),
         sub("المصروفات")),
 
-      printReport(d),
 
       panel("التوزيع حسب التصنيف", btn("تصدير", () => exportRows("التصنيفات", d.by_category,
         [["التصنيف", "name"], ["النوع", (r) => (r.direction === "income" ? "إيراد" : "مصروف")], ["المبلغ", "total"]]), "ghost sm"),
         d.by_category.length ? d.by_category.map((c) => line(
           h("div", {}, h("b", {}, c.name), sub(c.direction === "income" ? "إيراد" : "مصروف")),
-          h("b", { class: c.direction === "income" ? "" : "danger-text" }, money(c.total)))) : empty("لا توجد حركات في هذه الفترة.")));
+          h("b", { class: c.direction === "income" ? "" : "danger-text" }, money(c.total)))) : empty("لا توجد حركات في هذه الفترة."))),
+      printReport(d));
   };
 
   const applyRange = () => {
@@ -145,7 +149,7 @@ async function overview({ show, go }) {
       onclick: () => { range.value = k; custom.hidden = k !== "custom"; drawSeg(); applyRange(); } }, t)));
   drawSeg();
   await load();
-  return [seg, custom, box];
+  return [acts, seg, custom, box];
 }
 
 function finCard(title, rows, note, action, onClick, tone = "") {
@@ -254,7 +258,7 @@ async function expenses({ show }) {
     const cats = direction === "expense" ? expenseCats : incomeCats;
     const f = {
       amount: input({ type: "number", min: 0.01, step: "0.01" }),
-      account: select(accounts.filter((a) => a.is_active).map((a) => [a.id, `${a.name} — ${money(a.balance, a.currency)}`])),
+      account: select(accounts.filter((a) => a.is_active && !a.purpose).map((a) => [a.id, `${a.name} (${KINDS[a.kind] || ""}) — ${money(a.balance, a.currency)}`])),
       rate: input({ type: "number", min: 0.000001, step: "0.000001", placeholder: "سعر التحويل" }),
       category: select(cats.map((c) => [c.id, c.name])),
       date: input({ type: "date", value: today() }),
@@ -269,7 +273,7 @@ async function expenses({ show }) {
     };
     return panel(direction === "expense" ? "تسجيل مصروف أو سحب" : "تسجيل إيراد", null,
       h("div", { class: "row" }, field("المبلغ", f.amount), field("التاريخ", f.date), field("طريقة الدفع", f.method)),
-      h("div", { class: "row" }, field("الحساب", f.account), field("التصنيف", f.category)),
+      h("div", { class: "row" }, field(direction === "expense" ? "يُصرف من (الصندوق / الحساب)" : "يُورد إلى (الصندوق / الحساب)", f.account), field("التصنيف", f.category)),
       rateRow(f, accounts),
       field("سبب الحركة", f.reason),
       h("div", { class: "row" }, field(direction === "expense" ? "الجهة المستفيدة" : "المصدر", f.beneficiary), field("رقم العملية / المرجع", f.reference)),
@@ -380,6 +384,7 @@ async function donationsView({ show }) {
     method: select(Object.entries(METHODS)), reference: input({ class: "ltr" }),
     date: input({ type: "date", value: today() }), note: textarea({ rows: 2 }),
   };
+  const fund = await fundField(`${A}/ledger/funds`, { label: "يُورد التبرع إلى", donation: true, methodSelect: f.method });
   const total = list.reduce((s, d) => s + Number(d.amount), 0);
 
   return [
@@ -387,13 +392,14 @@ async function donationsView({ show }) {
     panel("تسجيل تبرع", null,
       h("div", { class: "row" }, field("اسم المتبرع", f.donor), field("الجوال", f.phone)),
       h("label", { class: "f pill" }, f.anonymous, "تسجيله باسم مجهول"),
-      h("div", { class: "row" }, field("المبلغ", f.amount), field("التاريخ", f.date), field("طريقة الدفع", f.method)),
+      h("div", { class: "row" }, field("المبلغ", f.amount), field("التاريخ", f.date)),
+      h("div", { class: "row" }, field("طريقة الدفع", f.method), fund.el),
       h("div", { class: "row" }, field("الغرض من التبرع", f.purpose), field("رقم العملية", f.reference)),
       field("ملاحظات", f.note),
       btn("تسجيل التبرع", async () => {
         const r = await api(`${A}/ledger/donations`, {
           donor_name: f.donor.value || null, anonymous: f.anonymous.checked, phone: f.phone.value || null,
-          amount: f.amount.value, purpose: f.purpose.value || null, method: f.method.value,
+          amount: f.amount.value, purpose: f.purpose.value || null, method: f.method.value, account_id: fund.value(),
           reference: f.reference.value || null, received_on: f.date.value, note: f.note.value || null,
         });
         toast(r.entry_no ? `سُجل التبرع — حركة ${r.entry_no}` : "سُجل التبرع");
@@ -548,14 +554,15 @@ async function payrollView({ show, go }) {
           if (!confirmAction(`اعتماد مسير ${label} بإجمالي ${money(run.total)}؟ لن يمكن تعديله بعدها.`)) return;
           await api(`${A}/ledger/payroll/${run.id}/approve`, {}); toast("اعتُمد المسير"); show();
         }) : null,
-        run.status === "approved" ? btn("صرف الرواتب", () => {
+        run.status === "approved" ? btn("صرف الرواتب", async () => {
           const method = select(Object.entries(METHODS), { value: "cash" });
           const on = input({ type: "date", value: today(), max: today() });
+          const fund = await fundField(`${A}/ledger/funds`, { label: "تُصرف الرواتب من", methodSelect: method });
           const d = dialog(`صرف رواتب ${label}`, h("div", {},
             sub(`يُسجَّل مصروف لكل موظف في سجل الحركات بإجمالي ${money(run.total)}.`),
-            h("div", { class: "row" }, field("طريقة الصرف", method), field("تاريخ الصرف", on))),
+            h("div", { class: "row" }, field("طريقة الصرف", method), fund.el), field("تاريخ الصرف", on)),
           [btn("تأكيد الصرف", async () => {
-            const r = await api(`${A}/ledger/payroll/${run.id}/pay`, { method: method.value, paid_on: on.value || null });
+            const r = await api(`${A}/ledger/payroll/${run.id}/pay`, { method: method.value, account_id: fund.value(), paid_on: on.value || null });
             d.close(); toast(`صُرفت رواتب ${r.paid} موظفًا`); show();
           })]);
         }) : null)),
@@ -573,31 +580,38 @@ function historyPanel(runs, show) {
 }
 
 async function accounts({ show }) {
-  const [list, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
+  const [list, categories, funds] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`), api(`${A}/ledger/funds`)]);
   const f = { name: input(), kind: select(Object.entries(KINDS)),
     currency: select(Object.entries(CURRENCIES).map(([k, v]) => [k, v.name]), { value: getCurrency() }),
     opening: input({ type: "number", step: "0.01", value: 0 }),
     low: input({ type: "number", min: 0, step: "0.01" }), note: input() };
-  const methodBoxes = Object.entries(METHODS).map(([k, label]) => {
-    const cb = input({ type: "checkbox" });
-    return { k, cb, el: h("label", { class: "small", style: "margin-inline-end:12px" }, cb, " ", label) };
+  // The usual fund for each payment method, set in one place (pre-selected, and changeable, on every money screen).
+  const usual = Object.entries(METHODS).map(([k, label]) => {
+    const s = select(funds.funds.filter((x) => x.kind !== "donations").map((x) => [x.id, x.name]), { value: funds.defaults[k] ?? "" });
+    return { k, s, el: field(label, s) };
   });
   const cat = { direction: select([["expense", "مصروف"], ["income", "إيراد"]]), name: input() };
 
   return [
-    panel("إضافة حساب أو صندوق", null,
+    panel("فتح صندوق أو حساب جديد", null,
       h("div", { class: "row" }, field("الاسم", f.name), field("النوع", f.kind), field("العملة", f.currency)),
       h("div", { class: "row" }, field("الرصيد الافتتاحي", f.opening), field("تنبيه عند نزول الرصيد عن", f.low)),
       field("ملاحظة", f.note),
-      sub("طرق الدفع التي تدخل لهذا الحساب تلقائيًا"),
-      h("div", { class: "spaced" }, methodBoxes.map((m) => m.el)),
-      btn("إضافة الحساب", async () => {
+      sub("صندوق التبرعات تذهب إليه التبرعات تلقائيًا، ولا تدخله الرسوم أو المصروفات إلا إذا اخترته بنفسك في الحركة."),
+      btn("إضافة الصندوق", async () => {
         await api(`${A}/ledger/accounts`, { name: f.name.value, kind: f.kind.value, currency: f.currency.value,
           opening_balance: f.opening.value || 0,
-          low_balance: f.low.value || "", note: f.note.value || null,
-          methods: methodBoxes.filter((m) => m.cb.checked).map((m) => m.k) });
-        toast("أُضيف الحساب"); show();
+          low_balance: f.low.value || "", note: f.note.value || null, methods: [] });
+        toast("أُضيف الصندوق"); show();
       })),
+
+    panel("الصندوق المعتاد لكل طريقة دفع", null,
+      sub("يظهر مختارًا تلقائيًا عند تسجيل أي دفعة أو مصروف، ويمكن تغييره في كل حركة. التبرعات تذهب لصندوق التبرعات إن وُجد."),
+      h("div", { class: "row" }, usual.map((u) => u.el)),
+      btn("حفظ", async () => {
+        await api(`${A}/ledger/defaults`, Object.fromEntries(usual.map((u) => [u.k, Number(u.s.value) || null])), "PUT");
+        toast("حُفظ"); show();
+      }, "soft")),
 
     panel("الحسابات والصناديق", null, list.map((a) => line(
       h("div", { class: a.is_active ? "" : "muted-row" }, h("b", {}, a.name), " ", badge(KINDS[a.kind], "gray"),

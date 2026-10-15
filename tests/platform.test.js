@@ -163,8 +163,28 @@ test("المعلم لا يتجاوز فصوله، والدرجات تُقفل ب
   const over = await s.teacher.put(`/api/teacher/exams/${s.examId}/scores`, { scores: { [s.student.id]: 25 } });
   assert.equal(over.status, 400, "درجة أكبر من القصوى");
   assert.equal((await s.teacher.put(`/api/teacher/exams/${s.examId}/scores`, { scores: { [s.student.id]: 17.5 } })).status, 200);
-  assert.equal((await s.teacher.post(`/api/teacher/exams/${s.examId}/submit`)).status, 200);
-  assert.equal((await s.teacher.put(`/api/teacher/exams/${s.examId}/scores`, { scores: { [s.student.id]: 20 } })).status, 400);
+  // The teacher approves: published at once, and he can still correct a grade.
+  assert.equal((await s.teacher.post(`/api/teacher/exams/${s.examId}/submit`)).data.status, "published");
+  assert.equal((await s.teacher.post(`/api/teacher/exams/${s.examId}/submit`)).status, 400, "لا اعتماد مرتين");
+  assert.equal((await s.teacher.put(`/api/teacher/exams/${s.examId}/scores`, { scores: { [s.student.id]: 20 } })).status, 200);
+  assert.equal((await s.teacher.put(`/api/teacher/exams/${s.examId}/scores`, { scores: { [s.student.id]: 25 } })).status, 400, "العظمى بعد النشر أيضًا");
+  assert.equal((await s.teacher.put(`/api/teacher/exams/${s.examId}/scores`, { scores: { [s.student.id]: 17.5 } })).status, 200);
+
+  // A school that wants the administration to approve: sent for approval, locked for the teacher, and the
+  // administration corrects and publishes.
+  assert.equal((await A.admin.put("/api/admin/communication/features/teachers", { teacher_publishes: false })).status, 200);
+  const e2 = (await s.teacher.post("/api/teacher/exams", { class_id: s.classId, subject_id: s.subjectId, title: "اختبار بمراجعة", max_score: 10 })).data;
+  await s.teacher.put(`/api/teacher/exams/${e2.id}/scores`, { scores: { [s.student.id]: 7 } });
+  assert.equal((await s.teacher.post(`/api/teacher/exams/${e2.id}/submit`)).data.status, "pending");
+  assert.equal((await s.teacher.put(`/api/teacher/exams/${e2.id}/scores`, { scores: { [s.student.id]: 9 } })).status, 400, "مقفل عند الإدارة");
+  assert.equal((await A.admin.put(`/api/admin/exams/${e2.id}/scores`, { scores: { [s.student.id]: 8 } })).status, 200, "الإدارة تصحح");
+  assert.equal((await A.admin.put(`/api/admin/exams/${e2.id}/scores`, { scores: { [s.student.id]: 11 } })).status, 400);
+  assert.equal((await A.admin.get(`/api/admin/exams/${e2.id}/scores`)).data.find((r) => r.id === s.student.id).score, 8);
+  assert.equal((await B.admin.put(`/api/admin/exams/${e2.id}/scores`, { scores: { [s.student.id]: 1 } })).status, 404, "لا تعديل من مدرسة أخرى");
+  assert.equal((await A.admin.post(`/api/admin/exams/${e2.id}/status`, { status: "published" })).status, 200);
+  assert.equal((await s.teacher.put(`/api/teacher/exams/${e2.id}/scores`, { scores: { [s.student.id]: 9 } })).status, 400, "المنشور بعد مراجعة الإدارة لا يعدله المعلم");
+  assert.equal((await A.admin.post(`/api/admin/exams/${e2.id}/status`, { status: "draft" })).status, 200, "الإدارة تخفي المنشور");
+  await A.admin.put("/api/admin/communication/features/teachers", { teacher_publishes: true });
 });
 
 test("صفحة الطلاب: الأسماء فقط، والملف بالمعرّف فقط، والدرجات بعد النشر فقط", async () => {
@@ -179,7 +199,10 @@ test("صفحة الطلاب: الأسماء فقط، والملف بالمعرّ
   assert.equal((await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: "AAAA-BBBB" })).status, 401);
   const prof = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
   assert.equal(prof.status, 200);
-  assert.equal(prof.data.grades.length, 0, "الدرجات غير المنشورة لا تظهر");
+  assert.equal(prof.data.grades.length, 1, "الدرجات المعتمدة من المعلم تظهر");
+  assert.equal((await A.admin.post(`/api/admin/exams/${s.examId}/status`, { status: "draft" })).status, 200);
+  const hiddenNow = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
+  assert.equal(hiddenNow.data.grades.length, 0, "الدرجات غير المنشورة لا تظهر");
 
   assert.equal((await A.admin.post(`/api/admin/exams/${s.examId}/status`, { status: "published" })).status, 200);
   const after = await anon.post(`/api/public/${A.id}/student`, { student_id: s.student.id, key: s.student.access_key });
@@ -1379,8 +1402,7 @@ test("السنة الدراسية والفصول: ربط تلقائي وبدء �
   assert.equal(listed2.term_name, "الفصل الثاني");
 
   await s.teacher.put(`/api/teacher/exams/${e2.data.id}/scores`, { scores: { [s.student.id]: 9 } });
-  await s.teacher.post(`/api/teacher/exams/${e2.data.id}/submit`, {});
-  await A.admin.post(`/api/admin/exams/${e2.data.id}/status`, { status: "published" });
+  assert.equal((await s.teacher.post(`/api/teacher/exams/${e2.data.id}/submit`, {})).data.status, "published");
   const termCard = await A.admin.get(`/api/admin/reports/report-card/${s.student.id}?term_id=${second.id}`);
   assert.equal(termCard.data.subjects[0].score, 9, "درجات الفصل الثاني فقط");
   const yearCard = await A.admin.get(`/api/admin/reports/report-card/${s.student.id}`);

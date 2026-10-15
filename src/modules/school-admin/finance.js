@@ -8,6 +8,7 @@ import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
 import { parse, t } from "../../core/http/validate.js";
 import * as finance from "../shared/finance.service.js";
+import * as ledger from "../shared/ledger.service.js";
 import * as payments from "../shared/payments.service.js";
 import * as plans from "../shared/fee-plans.service.js";
 import { z } from "../../core/http/validate.js";
@@ -40,6 +41,9 @@ r.get("/invoices", handle(async (req, res) => {
   }));
 }));
 
+// The funds a payment can go to, with the usual one for each payment method pre-selected on screen.
+r.get("/funds", handle(async (req, res) => res.json(await inTenant(req, (q) => ledger.fundChoices(q)))));
+
 r.post("/invoices", handle(async (req, res) => {
   const b = parse(finance.invoiceSchema, req.body);
   res.status(201).json({ created: await inTenant(req, (q) => finance.createInvoices(q, b, req.actor)) });
@@ -49,7 +53,7 @@ r.post("/invoices/:id/payments", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(finance.paymentSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => finance.recordPayment(q, {
-    invoiceId: id, amount: b.amount, method: b.method, note: b.note, idempotencyKey: b.idempotency_key, actor: req.actor,
+    invoiceId: id, amount: b.amount, method: b.method, note: b.note, idempotencyKey: b.idempotency_key, actor: req.actor, accountId: b.account_id ?? null,
   })));
 }));
 
@@ -58,7 +62,7 @@ r.post("/invoices/:id/refunds", canRefund, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(finance.refundSchema, req.body);
   res.status(201).json(await inTenant(req, (q) => finance.recordPayment(q, {
-    invoiceId: id, kind: "refund", amount: b.amount, method: "cash", note: b.note, idempotencyKey: b.idempotency_key, actor: req.actor,
+    invoiceId: id, kind: "refund", amount: b.amount, method: "cash", note: b.note, idempotencyKey: b.idempotency_key, actor: req.actor, accountId: b.account_id ?? null,
   })));
 }));
 

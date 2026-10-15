@@ -109,8 +109,19 @@ async function setSwitch(section, key) {
   return switchBtn(s[key], key, async (v) => { await api(`${A}/communication/features/${section}`, { [key]: v }, "PUT"); toast("تم الحفظ"); return true; });
 }
 
+// Reads a chosen cover photo as a data URL (the page allows data: images), scaled to a sensible size.
+async function coverData(file) {
+  const src = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file); });
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("تعذر قراءة الصورة")); i.src = src; });
+  const k = Math.min(1, 900 / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = Object.assign(document.createElement("canvas"), { width: Math.round(img.naturalWidth * k), height: Math.round(img.naturalHeight * k) });
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  const url = c.toDataURL("image/jpeg", 0.86);
+  return { mime: "image/jpeg", data: url.split(",")[1], url };
+}
+
 async function library(nav) {
-  const [booksList, loansList] = await Promise.all([api(`${S()}/library/books`), api(`${S()}/library/loans`)]);
+  const [booksList, loansList, meta] = await Promise.all([api(`${S()}/library/books`), api(`${S()}/library/loans`), api(`${S()}/library/meta`)]);
   const { cls, st } = await studentPicker();
   const staff = (await api(`${A}/staff-affairs/attendance`).catch(() => ({ staff: [] }))).staff;
   const book = select([["", "اختر الكتاب"], ...booksList.map((b) => [b.id, `${b.title} (${b.copies - b.out} متاح)`])]);
@@ -119,21 +130,135 @@ async function library(nav) {
   const stF = h("div", { class: "row" }, field("الشعبة", cls), field("الطالب", st)), sfF = field("الموظف", staffSel);
   sfF.hidden = true;
   who.addEventListener("change", () => { stF.hidden = who.value !== "student"; sfF.hidden = who.value !== "staff"; });
+  const gradeName = (id) => meta.grades.find((g) => Number(g.id) === Number(id))?.name || "";
+  const subjectsOf = (gradeId) => {
+    const g = meta.grades.find((x) => Number(x.id) === Number(gradeId));
+    return g?.subjects?.length ? g.subjects : meta.subjects;
+  };
+  const seg = (options, value, onPick) => {
+    const box = h("div", { class: "lb-seg" });
+    let cur = value;
+    const paint = () => mount(box, options.map(([v, l]) => h("button", { type: "button", class: cur === v ? "on" : "", onclick: () => { cur = v; paint(); onPick(v); } }, l)));
+    paint();
+    return { el: box, value: () => cur };
+  };
+
   const bookForm = (b) => {
-    const f = { title: input({ value: b?.title || "" }), author: input({ value: b?.author || "" }), isbn: input({ value: b?.isbn || "", class: "ltr" }),
-      category: input({ value: b?.category || "" }), shelf: input({ value: b?.shelf || "" }), copies: input({ type: "number", min: 0, value: b?.copies ?? 1, class: "ltr" }) };
-    const d = dialog(b ? "تعديل كتاب" : "كتاب جديد", h("div", {}, field("العنوان", f.title), h("div", { class: "row" }, field("المؤلف", f.author), field("ISBN", f.isbn)),
-      h("div", { class: "row" }, field("التصنيف", f.category), field("الرف", f.shelf), field("عدد النسخ", f.copies))),
+    const isText = b ? Boolean(b.grade_id) : meta.grades.length > 0;
+    const kind = seg([["text", "كتاب مدرسي (منهج)"], ["general", "كتاب عام"]], isText ? "text" : "general", () => sync());
+    const grade = select([["", "اختر الصف"], ...meta.grades.map((g) => [g.id, `${g.name}${g.stage ? ` — ${g.stage}` : ""}`])], { value: b?.grade_id ?? "" });
+    const subject = select([["", "اختر المادة"]]);
+    let part = b?.part || "first";
+    const partSeg = seg(Object.entries(meta.parts), part, (v) => { part = v; autoTitle(); });
+    const source = seg(Object.entries(meta.sources), b?.source || "government", () => {});
+    const f = { title: input({ value: b?.title || "" }), author: input({ value: b?.author || "", placeholder: "اختياري" }), isbn: input({ value: b?.isbn || "", class: "ltr", placeholder: "اختياري" }),
+      category: input({ value: b?.category || "", placeholder: "مثال: قصص، مراجع" }), shelf: input({ value: b?.shelf || "", placeholder: "مثال: أ-3" }),
+      copies: input({ type: "number", min: 0, value: b?.copies ?? 1, class: "ltr" }) };
+    let titleByHand = Boolean(b);
+    f.title.addEventListener("input", () => { titleByHand = true; });
+    const fillSubjects = () => {
+      const list = subjectsOf(grade.value);
+      mount(subject, h("option", { value: "" }, "اختر المادة"), list.map((x) => h("option", { value: x.id }, x.name)));
+      if (b?.subject_id && list.some((x) => Number(x.id) === Number(b.subject_id))) subject.value = String(b.subject_id);
+    };
+    const autoTitle = () => {
+      if (titleByHand || kind.value() !== "text" || !grade.value || !subject.value) return;
+      f.title.value = `${subject.selectedOptions[0].textContent} — ${meta.parts[part]} — ${gradeName(grade.value)}`;
+    };
+    grade.addEventListener("change", () => { fillSubjects(); autoTitle(); });
+    subject.addEventListener("change", autoTitle);
+    fillSubjects();
+    const textBox = h("div", {}, h("div", { class: "row" }, field("الصف", grade), field("المادة", subject)), field("الجزء", partSeg.el));
+    const generalBox = field("التصنيف", f.category);
+    const sync = () => { textBox.hidden = kind.value() !== "text"; generalBox.hidden = kind.value() === "text"; autoTitle(); };
+    sync();
+    // Cover photo: chosen now, uploaded after saving.
+    let cover = null;
+    const preview = h("div", { class: "lb-cover" }, b?.has_cover ? h("img", { src: `${S()}/library/books/${b.id}/cover`, alt: "الغلاف" }) : h("span", {}, "لا توجد صورة"));
+    const fileIn = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", hidden: true });
+    fileIn.addEventListener("change", async () => {
+      const file = fileIn.files?.[0];
+      if (!file) return;
+      try { cover = await coverData(file); mount(preview, h("img", { src: cover.url, alt: "الغلاف" })); } catch (e) { toast(e.message, true); }
+    });
+    const d = dialog(b ? "تعديل كتاب" : "إضافة كتاب للمخزون", h("div", { class: "lb-form" },
+      kind.el, textBox,
+      field("عنوان الكتاب", f.title, isText ? "يُكتب تلقائيًا من الصف والمادة والجزء، ويمكنك تعديله" : null),
+      generalBox,
+      field("الطبعة", source.el),
+      h("div", { class: "row" }, field("عدد النسخ", f.copies), field("رقم الرف", f.shelf)),
+      h("div", { class: "row" }, field("المؤلف / الجهة", f.author), field("ISBN", f.isbn)),
+      h("div", { class: "lb-cover-row" }, preview, h("div", {}, h("b", {}, "صورة الغلاف"), sub("اختيارية — تساعد على التعرف على الكتاب بسرعة."),
+        btn(b?.has_cover || cover ? "تغيير الصورة" : "إرفاق صورة الغلاف", () => fileIn.click(), "ghost sm"), fileIn))),
     [b ? btn("حذف", async () => { if (!confirmAction("حذف الكتاب؟")) return; await api(`${S()}/library/books/${b.id}`, undefined, "DELETE"); d.close(); nav.show(); }, "danger") : null,
       btn("حفظ", async () => {
-        const body = Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value]));
-        if (b) await api(`${S()}/library/books/${b.id}`, body, "PUT"); else await api(`${S()}/library/books`, body);
+        const text = kind.value() === "text";
+        if (text && (!grade.value || !subject.value)) return toast("اختر الصف والمادة", true);
+        const body = { title: f.title.value, author: f.author.value, isbn: f.isbn.value, shelf: f.shelf.value, copies: f.copies.value,
+          category: text ? "كتاب مدرسي" : f.category.value, source: source.value(),
+          grade_id: text ? Number(grade.value) : null, subject_id: text ? Number(subject.value) : null, part: text ? part : null };
+        const saved = b ? await api(`${S()}/library/books/${b.id}`, body, "PUT") : await api(`${S()}/library/books`, body);
+        if (cover) await api(`${S()}/library/books/${saved.id || b.id}/cover`, { mime: cover.mime, data: cover.data });
         d.close(); toast("تم الحفظ"); nav.show();
       })]);
+    d.classList.add("dialog-lg");
   };
+
+  // A whole grade's textbooks at once: its subjects are listed with their parts and copies.
+  const gradeForm = () => {
+    const grade = select([["", "اختر الصف"], ...meta.grades.map((g) => [g.id, `${g.name}${g.stage ? ` — ${g.stage}` : ""}`])]);
+    const copies = input({ type: "number", min: 1, value: 30, class: "ltr" });
+    const shelf = input({ placeholder: "اختياري" });
+    const source = seg(Object.entries(meta.sources), "government", () => {});
+    const rows = h("div", { class: "lb-grade" });
+    let items = [];
+    const draw = () => {
+      const list = subjectsOf(grade.value);
+      if (!grade.value) return mount(rows, sub("اختر الصف لتظهر مواده."));
+      items = list.map((x) => ({ subject: x, on: input({ type: "checkbox", checked: true }), parts: select([["two", "جزءان (الأول والثاني)"], ["first", "الجزء الأول فقط"], ["second", "الجزء الثاني فقط"], ["combined", "جزء مشترك (مجلد واحد)"]]),
+        copies: input({ type: "number", min: 1, value: copies.value, class: "ltr" }) }));
+      mount(rows, items.map((it) => h("div", { class: "lb-grade-row" }, h("label", { class: "lb-check" }, it.on, h("b", {}, it.subject.name)), it.parts, it.copies)));
+    };
+    grade.addEventListener("change", draw);
+    copies.addEventListener("change", () => items.forEach((it) => { it.copies.value = copies.value; }));
+    draw();
+    const d = dialog("إضافة كتب صف كامل", h("div", { class: "lb-form" },
+      sub("اختر الصف فتظهر مواده. حدد لكل مادة أجزاءها وعدد النسخ. الكتاب الموجود مسبقًا تُضاف نسخه إلى رصيده."),
+      h("div", { class: "row" }, field("الصف", grade), field("عدد النسخ لكل كتاب", copies), field("رقم الرف", shelf)),
+      field("الطبعة", source.el), rows),
+    [btn("إضافة للمخزون", async () => {
+      const chosen = items.filter((it) => it.on.checked);
+      if (!chosen.length) return toast("اختر مادة واحدة على الأقل", true);
+      const list = chosen.flatMap((it) => (it.parts.value === "two" ? ["first", "second"] : [it.parts.value]).map((p) => ({ subject_id: Number(it.subject.id), part: p, copies: Number(it.copies.value) || 1 })));
+      const r = await api(`${S()}/library/books/grade`, { grade_id: Number(grade.value), source: source.value(), shelf: shelf.value, items: list });
+      d.close(); toast(`أُضيف ${r.added} كتابًا${r.increased ? `، وزيدت نسخ ${r.increased} موجودة` : ""}`); nav.show();
+    })]);
+    d.classList.add("dialog-lg");
+  };
+
+  const filter = select([["", "كل الصفوف"], ...meta.grades.map((g) => [g.id, g.name]), ["none", "كتب عامة"]]);
+  const search = input({ placeholder: "ابحث بالعنوان أو المؤلف أو الرف", type: "search" });
+  const listBox = h("div");
+  const paintList = () => {
+    const term = search.value.trim();
+    const shown = booksList.filter((b) => (!filter.value || (filter.value === "none" ? !b.grade_id : Number(b.grade_id) === Number(filter.value)))
+      && (!term || [b.title, b.author, b.shelf].some((v) => String(v || "").includes(term))));
+    mount(listBox, shown.length ? shown.map((b) => h("div", { class: "lb-item" },
+      b.has_cover ? h("img", { class: "lb-thumb", src: `${S()}/library/books/${b.id}/cover`, alt: "", loading: "lazy" }) : h("span", { class: "lb-thumb none" }, "كتاب"),
+      h("div", { class: "lb-info" }, h("b", {}, b.title),
+        h("div", { class: "lb-tags" }, b.grade ? badge(b.grade, "") : null, b.part ? badge(meta.parts[b.part], "gray") : null,
+          b.source ? badge(meta.sources[b.source], b.source === "government" ? "green" : "amber") : null, b.shelf ? badge(`الرف ${b.shelf}`, "gray") : null),
+        sub([b.author, `${b.copies - b.out} متاح من ${b.copies}`, b.out ? `${b.out} معار` : null].filter(Boolean).join(" — "))),
+      btn("تعديل", () => bookForm(b), "ghost sm"))) : empty(booksList.length ? "لا توجد كتب بهذا البحث." : "أضف كتب المخزون: كتابًا كتابًا، أو كتب صف كامل دفعة واحدة."));
+  };
+  filter.addEventListener("change", paintList);
+  search.addEventListener("input", paintList);
+  paintList();
   const late = loansList.filter((l) => l.overdue).length;
   return [
     stats([["الكتب", booksList.length], ["النسخ", booksList.reduce((a, b) => a + b.copies, 0)], ["معار الآن", loansList.length], ["متأخر", late]]),
+    panel("مخزون الكتب", h("div", { class: "row", style: "flex:none;gap:6px" }, meta.grades.length ? btn("+ كتب صف كامل", gradeForm, "ghost sm") : null, btn("+ كتاب", () => bookForm(null), "sm")),
+      h("div", { class: "row" }, field("الصف", filter), field("بحث", search)), listBox),
     panel("إعارة كتاب", null, field("الكتاب", book), field("المستعير", who), stF, sfF,
       btn("إعارة", async () => {
         if (!book.value) return toast("اختر الكتاب", true);
@@ -143,9 +268,6 @@ async function library(nav) {
     panel("المعار حاليًا", null, loansList.length ? loansList.map((l) => line(
       h("div", {}, h("b", {}, l.title), " ", l.overdue ? badge("متأخر", "red") : null, sub(`${l.student ? `${l.student} — ${l.class_name || ""}` : l.staff} — حتى ${fmtDate(l.due_on)}`)),
       btn("إرجاع", async () => { await api(`${S()}/library/loans/${l.id}/return`, {}); toast("أُرجع"); nav.show(); }, "ghost sm"))) : empty("لا توجد كتب معارة.")),
-    panel("الكتب", btn("+ كتاب", () => bookForm(null), "sm"),
-      booksList.length ? booksList.map((b) => line(h("div", {}, h("b", {}, b.title), sub([b.author, b.category, b.shelf ? `الرف ${b.shelf}` : null, `${b.copies - b.out} من ${b.copies} متاح`].filter(Boolean).join(" — "))),
-        btn("تعديل", () => bookForm(b), "ghost sm"))) : empty("أضف كتب المكتبة.")),
     await libSettings(),
   ];
 }

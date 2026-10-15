@@ -135,11 +135,15 @@ function showLogin(error) {
       type: "button", class: chosen === k ? "on" : "", role: "radio", "aria-checked": String(chosen === k),
       onclick: () => { chosen = k; drawWho(); checkLock(); firstField().focus(); },
     }, name)));
+    creds.hidden = firstTime();
     if (firstTime()) {
+      // The school has no manager account yet: its own link is where the manager creates it.
+      const to = `/activate?school=${encodeURIComponent(school)}`;
       return mount(who, seg, h("div", { class: "au-first" },
-        h("b", {}, "أهلًا بك في دخول مدار الجديد"),
-        h("p", {}, "أصبح دخول مدير المدرسة بحساب مدار الشخصي. أدخل اسم المستخدم وكلمة المرور الحاليين مرة واحدة، ثم أنشئ حسابك بالبريد الإلكتروني أو Google.")),
-      authField("اسم المستخدم", user, { id: "login-user" }));
+        h("b", {}, "أول دخول لمدير المدرسة"),
+        h("p", {}, "أنشئ حساب المدير مرة واحدة بالبريد المسجل لدى مدار، أو تابع بحساب Google بنفس البريد. بعدها تدخل من هذا الرابط بأي جهاز.")),
+      go("إنشاء حساب المدير", () => { location.href = to; }),
+      h("p", { class: "au-tabs-note" }, h("a", { class: "au-link", href: to }, "لديك حساب مدار؟ سجّل الدخول وارِبطه بالمدرسة")));
     }
     if (managerMode()) {
       const providers = providerButtons(cfg, (p) => `/api/account/oauth/${p}/start?purpose=login&school=${encodeURIComponent(school)}`);
@@ -236,15 +240,16 @@ function showLogin(error) {
     : usesAccount()
     ? (location.href = `/account?forgot=1&school=${encodeURIComponent(school)}${identity() ? `&email=${encodeURIComponent(identity())}` : ""}`)
     : requestDialog(school));
-  drawWho();
-
-  page(authHead("تسجيل الدخول", account ? "أدخل كلمة المرور للمتابعة." : "أهلًا بعودتك. سجّل الدخول للمتابعة.", schoolInfo),
-    who,
+  const creds = h("div", { class: "au-creds" },
     authField("كلمة المرور", pass, { id: "login-pass" }),
     h("div", { class: "au-row" },
       h("label", { class: "au-check" }, remember, h("span", {}, "تذكرني")),
       h("button", { class: "au-link", type: "button", onclick: forgot }, "نسيت كلمة المرور؟")),
-    msg, submit,
+    msg, submit);
+  drawWho();
+
+  page(authHead("تسجيل الدخول", account ? "أدخل كلمة المرور للمتابعة." : "أهلًا بعودتك. سجّل الدخول للمتابعة.", schoolInfo),
+    who, creds,
     !account && chosen === "admin" && !deputy && managerLinked ? h("p", { class: "au-tabs-note" }, h("button", { type: "button", class: "au-link", onclick: () => {
       deputy = true;
       try { localStorage.setItem("midar_admin_by", "username"); } catch { /* storage unavailable */ }

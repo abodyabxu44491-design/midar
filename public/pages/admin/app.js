@@ -80,7 +80,7 @@ export async function startAdmin() {
     [null, "الطلاب والأسر"], ["students", "الطلاب"], ["parents", "أولياء الأمور"], ["admissions", "طلبات التسجيل"],
     ["attendance", "الحضور"], ["behavior", "السلوك"],
     [null, "التعليم"], ["teachers", "المعلمون"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
-    ["exams", "الاختبارات"], ["papers", "الاختبارات الورقية"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"], ["sheets", "أوراق للطباعة"],
+    ["exams", "الدرجات"], ["papers", "أوراق الاختبارات"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"], ["sheets", "أوراق للطباعة"],
     [null, "المالية والموظفون"], ["finance", "الرسوم"], ["ledger", "المالية"], ["money-requests", "الطلبات المالية"], ["deposits", "تأمين الكتب"], ["staff", "شؤون الموظفين"],
     [null, "التواصل"], ["announcements", "التعاميم"], ["communication", "التواصل"],
     [null, "الإدارة"], ["academic", "السنة الدراسية"], ["calendar", "التقويم"], ["analytics", "التحليلات"], ["services", "الخدمات"],

@@ -233,5 +233,10 @@ export default async function attendance({ me }) {
   const VIEWS = { today: todayView, record: recordView, gate: () => gateView({ me }),
     excuses: excusesView, reports: reportsView, settings: settingsView };
   await show();
-  return [chips, box];
+  // Who records attendance in this school (one place only), with a link to change it.
+  const by = (await optional(api(`${A}/communication/features`), null))?.teachers?.attendance_by || "teacher";
+  const WHO = { teacher: "المعلم في الحصة", admin: "الإدارة من هنا", gate: "بوابة الحضور الذكية" };
+  const source = h("div", { class: "att-source" }, h("span", {}, "يسجل الحضور في مدرستك: ", h("b", {}, WHO[by])),
+    h("a", { href: "#/settings", class: "au-link", onclick: () => { try { sessionStorage.setItem("midar_settings_section", "teachers"); } catch { /* ignore */ } } }, "تغيير"));
+  return [source, chips, box];
 }

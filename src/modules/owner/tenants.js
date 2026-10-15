@@ -31,6 +31,8 @@ const createSchema = z.object({
   id: codeSchema,
   name: t.shortText("اسم المدرسة", 150),
   admin_name: t.name("اسم المدير").optional().default("مدير المدرسة"),
+  // The manager's email: their first entry from the school's login link is accepted with this email only.
+  manager_email: z.string().trim().toLowerCase().max(160).regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "بريد المدير غير صحيح").optional(),
   plan: z.enum(["basic", "pro", "enterprise"]).default("basic"),
   max_students: z.coerce.number().int().min(1).max(100000).default(200),
   subscription_end: t.optDate,
@@ -98,11 +100,14 @@ export async function createTenant(req, b, { link = true } = {}) {
   });
   await transaction({ actor: req.actor, ip: req.ip, platform: true }, async (q) => {
     await q("UPDATE tenants SET approved_at = COALESCE(approved_at, now()), approved_by = COALESCE(approved_by, $2) WHERE id = $1", [b.id, req.actor]);
+    if (b.manager_email) {
+      await q("UPDATE tenants SET profile = profile || jsonb_build_object('email', $2::text, 'contact_name', $3::text) WHERE id = $1", [b.id, b.manager_email, b.admin_name]);
+    }
     await addSchoolEvent(q, b.id, { kind: "account", body: b.org_type === "institute" ? "أُنشئ المعهد وحساب مديره" : "أُنشئت المدرسة وحساب مديرها" }, req.actor);
   });
   // The manager's sign-in comes from the setup link (their own Midar account); no password is handed out.
   const setup = link ? await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, b.id, req.actor, linkBase(req))) : null;
-  return { school: { id: b.id, name: b.name }, setup, directory_code: directory };
+  return { school: { id: b.id, name: b.name }, setup, login_url: `${linkBase(req)}/${b.id}/idara?role=admin`, manager_email: b.manager_email || null, directory_code: directory };
 }
 const linkBase = (req) => env.PUBLIC_URL || (req.protocol ? `${req.protocol}://${req.get("host")}` : "");
 

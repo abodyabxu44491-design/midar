@@ -87,11 +87,14 @@ test("مسير الشهر: معاينة ← إنشاء (أساسي + بدل) ←
 
   assert.equal((await admin.post(`${L}/payroll/${run.id}/approve`, {})).status, 200);
   assert.equal((await admin.del(`${L}/payroll/${run.id}`)).status, 400, "المعتمد لا يُحذف");
-  const paid = await admin.post(`${L}/payroll/${run.id}/pay`, { method: "cash", paid_on: "2026-06-30" });
+  const box = await admin.post(`${L}/accounts`, { name: "صندوق الرواتب", kind: "cash", opening_balance: 0 });
+  assert.equal(box.status, 201, JSON.stringify(box.data));
+  const paid = await admin.post(`${L}/payroll/${run.id}/pay`, { method: "cash", account_id: box.data.id, paid_on: "2026-06-30" });
   assert.equal(paid.status, 200, JSON.stringify(paid.data));
   assert.equal(paid.data.paid, 4);
   const entries = (await admin.get(`${L}/entries?from=2026-06-01&to=2026-06-30&source_type=salary`)).data;
   assert.equal(entries.length, 4);
+  assert.ok(entries.every((e) => e.account_name === "صندوق الرواتب"), "الرواتب تُصرف من الصندوق المختار");
   assert.ok(entries.every((e) => e.occurred_on.startsWith("2026-06-30")), "القيد بتاريخ الصرف");
   assert.equal(entries.reduce((n, e) => n + Number(e.amount), 0), 370000);
 

@@ -47,19 +47,16 @@ r.put("/:id/scores", handle(async (req, res) => {
   const b = parse(exams.scoresSchema, req.body);
   const saved = await inTenant(req, async (q) => {
     const e = await myExam(q, req);
-    if (e.status !== "draft") throw badRequest("لا يمكن التعديل بعد الإرسال للاعتماد");
+    if (!(await exams.teacherCanEdit(q, e))) throw badRequest("الدرجات عند الإدارة للاعتماد، ولا تُعدَّل حتى تُرجعها");
     return exams.saveScores(q, e, b.scores, req.actor);
   });
   res.json({ saved });
 }));
 
+// The teacher approves his grades: published at once, or sent for the administration's approval (school setting).
 r.post("/:id/submit", handle(async (req, res) => {
-  await inTenant(req, async (q) => {
-    const e = await myExam(q, req);
-    if (e.status !== "draft") throw badRequest("الاختبار مُرسل مسبقًا");
-    await exams.setStatus(q, e, "pending");
-  });
-  res.json({ ok: true });
+  const status = await inTenant(req, async (q) => exams.teacherApprove(q, await myExam(q, req)));
+  res.json({ ok: true, status });
 }));
 
 export default r;

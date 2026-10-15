@@ -12,7 +12,7 @@ import { AppError } from "../../core/http/errors.js";
 import { logEvent } from "../../core/audit.js";
 import { openSecret } from "../../core/auth/secret-box.js";
 import { env } from "../../config/env.js";
-import { startAccountSession, linkSetup, enterSchool } from "./account.service.js";
+import { startAccountSession, linkSetup, enterSchool, claimSchool } from "./account.service.js";
 
 export const PROVIDER_AAD = (p) => `auth-provider:${p}`;
 const STATE_MINUTES = 10;
@@ -161,7 +161,7 @@ export async function finish(provider, { code, state, user }, req, res, base) {
   }
 
   if (!accountId) {
-    if (st.purpose !== "setup") return fail("not_linked", st);
+    if (st.purpose !== "setup" && st.purpose !== "claim") return fail("not_linked", st);
     // First time, from a setup link: a new account for this identity. An email already registered is not
     // merged on its text alone; the manager signs in to that account and links the provider from settings.
     if (!mail) return fail("no_email", st);
@@ -187,6 +187,11 @@ export async function finish(provider, { code, state, user }, req, res, base) {
     try { const r = await linkSetup(null, accountId, provider, req, res, { hash: st.setup_token_hash }); return { redirect: r.redirect }; }
     catch (e) { return { redirect: `/activate?resume=1&oauth=${e.status === 409 ? "linked_other" : "link_failed"}` }; }
   }
+  if (st.purpose === "claim" && st.school) {
+    // First entry from the school's login link: link the account if its email is the manager's, then open the school.
+    try { const r = await claimSchool(accountId, st.school, provider, req, res); return { redirect: r.redirect }; }
+    catch (e) { return { redirect: `/activate?school=${encodeURIComponent(st.school)}&oauth=${e.code === "email_mismatch" ? "claim_email" : e.status === 409 ? "claim_taken" : "claim_failed"}` }; }
+  }
   if (st.school) {
     try { const r = await enterSchool(accountId, st.school, req, res, provider); return { redirect: r.redirect }; }
     catch { return { redirect: `/${encodeURIComponent(st.school)}/idara?account=1` }; }
@@ -197,6 +202,7 @@ export async function finish(provider, { code, state, user }, req, res, base) {
 // Where a provider round-trip lands when it cannot finish (or after linking from settings).
 function backTo(st, query) {
   if (st?.purpose === "setup") return `/activate?resume=1&${query}`;
+  if (st?.purpose === "claim" && st.school) return `/activate?school=${encodeURIComponent(st.school)}&${query}`;
   if (st?.purpose === "link" && st.school) return `/${encodeURIComponent(st.school)}/idara?role=admin&${query}#/settings`;
   if (st?.school) return `/${encodeURIComponent(st.school)}/idara?${query}`;
   return `/account?${query}`;

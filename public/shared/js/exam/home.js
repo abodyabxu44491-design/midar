@@ -11,7 +11,7 @@ import { STATUS, QTYPES, DIFFICULTY, fmtNum, newQuestion } from "./engine.js";
 import { preloadModule } from "../ui.js";
 import { rich, loadMath } from "./math.js";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date().toLocaleDateString("en-CA");
 
 export async function examSection({ base, me, admin = false }) {
   const root = h("div");
@@ -44,7 +44,7 @@ export async function examSection({ base, me, admin = false }) {
     const title = input({ placeholder: "مثل: اختبار الفصل الأول" });
     const pair = pairSelect();
     const type = typeSelect();
-    const date = input({ type: "date" });
+    const date = input({ type: "date", value: today() });
     const duration = input({ type: "number", min: 1, placeholder: "60" });
     const total = input({ type: "number", min: 0.25, step: 0.25, placeholder: "20" });
     const def = ctx.presets?.find((p) => p.is_default)?.body || ctx.settings.default_instructions || "";

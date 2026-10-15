@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../shared/js/dom.js";
-import { btn } from "../shared/js/ui.js";
+import { btn, promptInstall } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { beep, startCamera } from "../shared/js/gate-scanner.js";
 
@@ -45,6 +45,10 @@ async function call(path, body, timeout = 6000) {
 }
 
 const brand = () => h("img", { class: "gt-logo", src: "/brand/logo.svg", alt: "مدار" });
+// Installed as an app it opens straight to the scanner, full screen, and works without internet.
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const installRow = () => (standalone() ? null
+  : h("button", { type: "button", class: "gt-install", onclick: () => promptInstall() }, icons.install({ size: 18 }), "ثبّت البوابة كتطبيق على هذا الجوال"));
 function screen(icon, title, text, ...extra) {
   ui = null;
   mount(app, h("main", { class: "gt-screen" }, brand(),
@@ -92,7 +96,8 @@ function joinScreen(note = null, prefill = "") {
     h("label", { class: "gt-lbl" }, "رمز الربط", code),
     h("label", { class: "gt-lbl" }, "اسم هذا الجوال", name),
     msg, go,
-    h("p", { class: "gt-muted" }, "بعد الربط يبقى الجوال جاهزًا للمسح دائمًا، حتى لو أُغلق التطبيق.")));
+    h("p", { class: "gt-muted" }, "بعد الربط يبقى الجوال جاهزًا للمسح دائمًا، حتى لو أُغلق التطبيق."),
+    installRow()));
   (prefill ? name : code).focus();
 }
 
@@ -334,19 +339,33 @@ function scanner() {
     }, "ghost sm gt-nfc");
   }
   const startBtn = btn("ابدأ المسح", () => start(), "gt-start");
-  const cam = h("div", { class: "gt-cam" }, video, h("span", { class: "gt-frame", "aria-hidden": "true" }), startBtn, ui.result);
-  let lock = null;
-  async function start() {
-    beep("again");
+  const torchBtn = h("button", { type: "button", class: "gt-torch", hidden: true, "aria-pressed": "false", title: "الإضاءة" }, "الإضاءة");
+  torchBtn.addEventListener("click", async () => {
+    const on = await ui?.stop?.torch?.();
+    torchBtn.classList.toggle("on", Boolean(on)); torchBtn.setAttribute("aria-pressed", String(Boolean(on)));
+  });
+  const cam = h("div", { class: "gt-cam" }, video, h("span", { class: "gt-frame", "aria-hidden": "true" }), startBtn, torchBtn, ui.result);
+  let lock = null, wanted = false;
+  async function start(quiet = false) {
+    if (ui?.stop) return;
+    if (!quiet) beep("again");
     try {
       ui.stop = await startCamera(video, scan);
+      wanted = true;
       startBtn.hidden = true;
+      torchBtn.hidden = !ui.stop.torch;
       cam.classList.add("on");
       lock = await navigator.wakeLock?.request("screen").catch(() => null);
-    } catch (e) { show({ result: "rejected", message: e.message }); }
+    } catch (e) { if (!quiet) show({ result: "rejected", message: e.message }); }
   }
-  const stop = () => { ui?.stop?.(); if (ui) ui.stop = null; lock?.release?.().catch(() => {}); lock = null; startBtn.hidden = false; cam.classList.remove("on"); };
-  document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); else heartbeat(); });
+  const stop = () => { ui?.stop?.(); if (ui) ui.stop = null; lock?.release?.().catch(() => {}); lock = null; startBtn.hidden = false; torchBtn.hidden = true; cam.classList.remove("on"); };
+  // The camera stops while the screen is off and comes back by itself when the guard returns.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stop();
+    else { heartbeat(); if (wanted) start(true); }
+  });
+  // If the camera was already allowed on this phone, start scanning without a tap.
+  navigator.permissions?.query({ name: "camera" }).then((p) => { if (p.state === "granted") start(true); }).catch(() => {});
   mount(app, h("div", { class: "gt-app" },
     h("header", { class: "gt-bar" },
       h("div", { class: "gt-who" }, ui.school, ui.gate),
@@ -355,7 +374,7 @@ function scanner() {
     cam,
     ui.nfc,
     h("div", { class: "gt-stats" }, h("div", {}, ui.count, h("small", {}, "سجّلوا من هذه البوابة اليوم"))),
-    h("h2", { class: "gt-h" }, "آخر من مُسح"), ui.log));
+    h("h2", { class: "gt-h" }, "آخر من مُسح"), ui.log, installRow()));
   renderLog();
 }
 function updateBar() {

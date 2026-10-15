@@ -5,7 +5,7 @@
  */
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { topbar, footer, tabs, loginScreen, toast } from "/shared/js/ui.js";
+import { topbar, footer, tabs, loginScreen, toast, chime } from "/shared/js/ui.js";
 import overview from "./views/overview.js";
 import schools from "./views/schools.js";
 import create from "./views/create.js";
@@ -53,12 +53,14 @@ async function start() {
       if (lastUnseen !== null && b.unseen > lastUnseen && b.latest) {
         const kinds = { trial: "طلبت تجربة مجانية", subscription: "طلبت اشتراكًا", feature: "طلبت ميزة", contact: "أرسلت رسالة تواصل", upgrade: "طلبت ترقية", renewal: "طلبت تجديدًا" };
         toast(`طلب جديد: ${b.latest.school} ${kinds[b.latest.kind] || ""}`);
+        chime();
       }
       lastUnseen = b.unseen;
     } catch { /* ignore */ }
   };
   badgeTick();
-  setInterval(badgeTick, 60000);
+  setInterval(badgeTick, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) badgeTick(); });
   document.addEventListener("owner-badge", badgeTick);
   mount(app,
     topbar({ subtitle: "لوحة مالك المنصة", onLogout: async () => { await api(`${API}/logout`, {}); location.reload(); } }),

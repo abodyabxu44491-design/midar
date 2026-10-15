@@ -44,14 +44,14 @@ const signup = async (c, email, setup, password = "Manager-Pass-2026") => {
 
 test("رابط المدرسة: إنشاء حساب بالبريد، توثيقه، ربطه بالمدرسة، ثم الدخول للوحة", async () => {
   const s = await newSchool("مدرسة الفجر");
-  assert.equal((await state(s.id)).activation_state, "link_ready");
+  assert.equal((await state(s.id)).activation_state, "no_email", "بلا بريد مدير مسجل");
   const c = client(srv.base);
   assert.equal((await c.get("/api/admin/me")).status, 401);
   const info = await c.post("/api/account/setup", { token: s.token });
   assert.equal(info.status, 200);
   assert.equal(info.data.school, "مدرسة الفجر");
   assert.equal((await c.get("/api/admin/me")).status, 401, "فتح الرابط لا يمنح أي صلاحية");
-  assert.equal((await state(s.id)).activation_state, "started");
+  assert.equal((await state(s.id)).activation_state, "no_email");
 
   const email = randomEmail();
   const s1 = await c.post("/api/account/signup", { email, password: "Manager-Pass-2026", name: "منى الشامي", setup: s.token });
@@ -63,7 +63,7 @@ test("رابط المدرسة: إنشاء حساب بالبريد، توثيقه
   assert.match(wrong.data.error, /متبقٍ/);
   assert.equal((await c.post("/api/account/setup/link", { token: s.token })).status, 401, "لا ربط قبل توثيق البريد");
   assert.equal((await c.post("/api/account/signup/verify", { email, code })).status, 200);
-  assert.equal((await state(s.id)).activation_state, "account_created");
+  assert.equal((await state(s.id)).activation_state, "no_email");
 
   const link = await c.post("/api/account/setup/link", { token: s.token, via: "email" });
   assert.equal(link.status, 200, JSON.stringify(link.data));
@@ -89,7 +89,7 @@ test("إغلاق الصفحة قبل الإكمال ثم العودة: لا حس
   const phone1 = client(srv.base);
   assert.equal((await signup(phone1, email, s.token)).status, 200);
   // closed the page here (not linked yet)
-  assert.equal((await state(s.id)).activation_state, "account_created");
+  assert.equal((await state(s.id)).activation_state, "no_email");
   const again = client(srv.base);
   assert.equal((await again.post("/api/account/signup", { email, password: "Manager-Pass-2026", name: "منى", setup: s.token })).data.code, "exists");
   assert.equal((await again.post("/api/account/login", { email, password: "wrong-pass-123" })).status, 401);
@@ -361,4 +361,76 @@ test("مدرسة قائمة قبل التحديث: المدير يدخل ببي�
   const d = client(srv.base);
   assert.equal((await d.post("/api/staff/login", { school: s.id, username, password: pw })).status, 200);
   assert.equal((await d.get("/api/admin/me")).data.account, null);
+});
+
+// ---- First entry from the school's own login link (no activation link) ----
+async function schoolWithManager(name, email) {
+  const id = `fe-${uid()}`;
+  const r = await owner.post("/api/owner/tenants", { id, name, manager_email: email });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.ok(r.data.login_url.endsWith(`/${id}/idara?role=admin`));
+  assert.equal(r.data.manager_email, email);
+  return id;
+}
+async function emailAccount(email) {
+  const c = client(srv.base);
+  assert.equal((await c.post("/api/account/signup", { email, password: "Manager-Pass-2026", name: "مدير المدرسة" })).status, 200);
+  assert.equal((await c.post("/api/account/signup/verify", { email, code: lastCode(email) })).status, 200);
+  return c;
+}
+
+test("أول دخول من رابط المدرسة: يقبل بريد المدير المسجل فقط، ثم تُغلق المدرسة على حسابه", async () => {
+  const mail = randomEmail("fe");
+  const id = await schoolWithManager("مدرسة أول دخول", mail);
+  const anon = client(srv.base);
+  const info = (await anon.get(`/api/account/claim?school=${id}`)).data;
+  assert.equal(info.first_entry, true);
+  assert.equal(info.ready, true);
+  assert.ok(!info.email_hint.includes(mail.split("@")[0]), "البريد يظهر مخفيًا جزئيًا");
+  assert.equal((await anon.post("/api/account/claim", { school: id })).status, 401, "بلا حساب");
+  const stranger = await emailAccount(randomEmail("x"));
+  const bad = await stranger.post("/api/account/claim", { school: id });
+  assert.equal(bad.status, 403);
+  assert.equal(bad.data.code, "email_mismatch", "معرفة رابط المدرسة لا تكفي للاستيلاء عليها");
+  assert.equal((await stranger.get("/api/admin/me")).status, 401);
+
+  const manager = await emailAccount(mail);
+  const ok = await manager.post("/api/account/claim", { school: id, via: "email" });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.equal(ok.data.redirect, `/${id}/idara?role=admin`);
+  assert.equal((await manager.get("/api/admin/me")).status, 200);
+  const file = (await owner.get(`/api/owner/files/${id}`)).data;
+  assert.equal(file.account.email, mail);
+  assert.equal(file.activation_state, "activated");
+  assert.equal(file.activation, null, "رابط الإعداد الداخلي أُغلق");
+  assert.equal((await anon.get(`/api/account/claim?school=${id}`)).data.first_entry, false);
+  const again = await emailAccount(randomEmail("y"));
+  assert.equal((await again.post("/api/account/claim", { school: id })).status, 409, "لا يُربط مدير ثانٍ");
+  assert.equal((await manager.post("/api/account/claim", { school: id })).status, 200, "المدير نفسه يدخل عاديًا");
+});
+
+test("أول دخول: مدرسة بلا بريد مدير لا تُربط، وGoogle بنفس البريد يربطها ويدخلها", async () => {
+  const noMail = `fe-${uid()}`;
+  assert.equal((await owner.post("/api/owner/tenants", { id: noMail, name: "مدرسة بلا بريد" })).status, 201);
+  const st0 = (await owner.get(`/api/owner/files/${noMail}`)).data;
+  assert.equal(st0.activation_state, "no_email");
+  assert.equal((await client(srv.base).get(`/api/account/claim?school=${noMail}`)).data.ready, false);
+  const someone = await emailAccount(randomEmail("z"));
+  assert.equal((await someone.post("/api/account/claim", { school: noMail })).status, 403);
+
+  await providersOn();
+  const gmail = randomEmail("g");
+  const id = await schoolWithManager("مدرسة جوجل الأولى", gmail);
+  const wrong = client(srv.base);
+  const s1 = await startOAuth(wrong, "google", { purpose: "claim", school: id });
+  const to1 = await googleBack(wrong, s1, { sub: `g-${uid()}${uid()}`, email: randomEmail("other"), email_verified: true, name: "غريب" });
+  assert.equal(to1, `/activate?school=${id}&oauth=claim_email`);
+  assert.equal((await wrong.get("/api/admin/me")).status, 401);
+  const c = client(srv.base);
+  const s2 = await startOAuth(c, "google", { purpose: "claim", school: id });
+  const to2 = await googleBack(c, s2, { sub: `g-${uid()}${uid()}`, email: gmail, email_verified: true, name: "سالم" });
+  assert.equal(to2, `/${id}/idara?role=admin`);
+  assert.equal((await c.get("/api/admin/me")).status, 200);
+  assert.equal((await owner.get(`/api/owner/files/${id}`)).data.account.linked_via, "google");
+  assert.equal((await fetch(`${srv.base}/api/account/oauth/google/start?purpose=claim`, { redirect: "manual" })).status, 401, "الرابط يحتاج المدرسة");
 });
