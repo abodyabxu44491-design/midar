@@ -5,6 +5,7 @@
  */
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
+import { notify } from "./notify.service.js";
 
 export const yearSchema = z.object({
   name: t.shortText("اسم السنة", 40),
@@ -295,6 +296,31 @@ export async function deleteHoliday(q, id) {
   const rows = await q("DELETE FROM holidays WHERE id = $1 RETURNING id", [id]);
   if (!rows.length) throw notFound("الإجازة غير موجودة");
 }
+// Keeps attendance in line with the holidays that affect it: records inside a holiday are set aside (the day
+// counts as a holiday), and records set aside for days no longer in any holiday come back unchanged.
+export async function syncHolidayAttendance(q) {
+  const [r] = await q("SELECT set_aside, restored FROM apply_holidays_to_attendance()");
+  return { set_aside: r.set_aside, restored: r.restored };
+}
+// Tells parents and staff about a holiday (used for a sudden one).
+export async function announceHoliday(q, b) {
+  const fmt = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long", day: "numeric", month: "long" });
+  const when = b.start_date === b.end_date ? `يوم ${fmt(b.start_date)}` : `من ${fmt(b.start_date)} إلى ${fmt(b.end_date)}`;
+  const body = `${when}${b.notes ? ` — ${b.notes}` : ""}`;
+  const students = (await q("SELECT id FROM students WHERE status = 'active' AND archived_at IS NULL")).map((r) => r.id);
+  const users = (await q("SELECT id FROM users WHERE is_active AND role IN ('teacher', 'admin', 'accountant')")).map((r) => r.id);
+  await notify(q, { event: "holiday", students, users, title: b.name, body, link: "calendar", dedupKey: `holiday-${b.start_date}-${b.end_date}`, dedupMinutes: 60 });
+}
+
+// What a holiday would do before it is saved: how many recorded days fall inside it.
+export async function holidayImpact(q, start, end) {
+  const [r] = await q(
+    `SELECT count(*)::int AS records, count(DISTINCT day)::int AS days,
+            count(*) FILTER (WHERE status = 'absent')::int AS absent
+       FROM attendance WHERE day BETWEEN $1 AND $2`, [start, end]);
+  return r;
+}
+
 export async function holidayOn(q, date) {
   const [row] = await q(
     "SELECT id, name FROM holidays WHERE affects_attendance AND $1::date BETWEEN start_date AND end_date LIMIT 1", [date]);
