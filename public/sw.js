@@ -91,8 +91,11 @@ self.addEventListener("push", (e) => {
   try { d = e.data ? e.data.json() : {}; } catch { d = { title: e.data?.text() || "مدار" }; }
   const urgent = d.priority === 1 || Boolean(d.urgent);
   e.waitUntil(Promise.all([
+    // Open pages play the sound and refresh their bell right away.
+    self.clients.matchAll({ type: "window", includeUncontrolled: true })
+      .then((wins) => wins.forEach((w) => w.postMessage({ type: "midar:push", title: d.title || "", url: d.url || null }))),
     self.registration.showNotification(d.title || "مدار", {
-      body: d.body || "", tag: d.tag || undefined, renotify: Boolean(d.tag), lang: "ar", dir: "rtl",
+      body: d.body || "", tag: d.tag || undefined, renotify: true, silent: false, lang: "ar", dir: "rtl",
       icon: "/brand/icon-192.png", badge: "/brand/favicon-32.png", data: { url: d.url || "/", nid: d.nid || null },
       requireInteraction: urgent, vibrate: urgent ? [200, 100, 200, 100, 200] : [150], timestamp: Date.now(),
     }),

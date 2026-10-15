@@ -9,6 +9,7 @@ import { startAnalytics } from "./analytics.js";
 import { icons } from "./icons.js";
 
 export const DEV = "مدار MIDAR";
+export { chime, soundOn, setSound } from "./chime.js";
 
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; refreshInstall(); });
