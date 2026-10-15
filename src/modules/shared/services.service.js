@@ -110,22 +110,97 @@ export async function transportOf(q, studentId) {
   return { ...x, events: events.map((e) => ({ ...e, text: EVENT_TEXT[e.kind] })) };
 }
 
-export const bookSchema = z.object({ title: z.string().trim().min(1).max(200), author: opt(120), isbn: opt(20), category: opt(60), shelf: opt(30),
-  copies: z.coerce.number().int().min(0).max(10000).default(1), notes: opt(300) });
-export const books = (q, search = null) => q(
-  `SELECT b.*, (SELECT count(*) FROM library_loans l WHERE l.book_id = b.id AND l.returned_on IS NULL)::int AS out
-     FROM library_books b WHERE ($1::text IS NULL OR b.title ILIKE '%' || $1 || '%' OR b.author ILIKE '%' || $1 || '%' OR b.isbn = $1)
-    ORDER BY b.title LIMIT 500`, [search]);
+// Textbooks: a grade, a subject and a part (first, second, or a combined volume); government or private print.
+export const PARTS = { first: "الجزء الأول", second: "الجزء الثاني", combined: "جزء مشترك (مجلد واحد)" };
+export const SOURCES = { government: "طبعة حكومية", private: "طباعة خاصة" };
+export const bookSchema = z.object({ title: z.string().trim().min(1, "اكتب عنوان الكتاب").max(200), author: opt(120), isbn: opt(20), category: opt(60), shelf: opt(30),
+  copies: z.coerce.number().int().min(0).max(10000).default(1), notes: opt(300),
+  grade_id: t.optId, subject_id: t.optId, part: z.enum(Object.keys(PARTS)).nullable().optional().transform((v) => v || null),
+  source: z.enum(Object.keys(SOURCES)).nullable().optional().transform((v) => v || null) });
+export const bulkSchema = z.object({
+  grade_id: t.id, source: z.enum(Object.keys(SOURCES)).nullable().optional().transform((v) => v || null), shelf: opt(30),
+  items: z.array(z.object({ subject_id: t.id, part: z.enum(Object.keys(PARTS)), copies: z.coerce.number().int().min(1).max(10000) })).min(1).max(200),
+});
+export const coverSchema = z.object({ mime: z.enum(["image/png", "image/jpeg", "image/webp"], { errorMap: () => ({ message: "صورة الغلاف PNG أو JPG أو WEBP" }) }),
+  data: z.string().min(16).max(Math.ceil(1.5 * 1024 * 1024 * 1.37)) });
+
+export const books = (q, { search = null, grade_id = null } = {}) => q(
+  `SELECT b.id, b.title, b.author, b.isbn, b.category, b.shelf, b.copies, b.notes, b.grade_id, b.subject_id, b.part, b.source, b.has_cover,
+          g.name AS grade, sj.name AS subject,
+          (SELECT count(*) FROM library_loans l WHERE l.book_id = b.id AND l.returned_on IS NULL)::int AS out
+     FROM library_books b LEFT JOIN grades g ON g.id = b.grade_id LEFT JOIN subjects sj ON sj.id = b.subject_id
+    WHERE ($1::text IS NULL OR b.title ILIKE '%' || $1 || '%' OR b.author ILIKE '%' || $1 || '%' OR b.isbn = $1 OR b.shelf = $1)
+      AND ($2::bigint IS NULL OR b.grade_id = $2)
+    ORDER BY g.sort_order NULLS LAST, g.name NULLS LAST, sj.name NULLS LAST, b.part NULLS LAST, b.title LIMIT 1000`, [search, grade_id]);
+
+// The grades with their subjects, for choosing a textbook's grade, then subject.
+export async function libraryMeta(q) {
+  const grades = await q(`SELECT g.id, g.name, st.name AS stage FROM grades g JOIN stages st ON st.id = g.stage_id ORDER BY st.sort_order, g.sort_order, g.id`);
+  const links = await q(`SELECT sg.grade_id, s.id, s.name FROM subject_grades sg JOIN subjects s ON s.id = sg.subject_id WHERE s.is_active ORDER BY s.name`);
+  const subjects = await q("SELECT id, name FROM subjects WHERE is_active ORDER BY name");
+  return { grades: grades.map((g) => ({ ...g, subjects: links.filter((l) => Number(l.grade_id) === Number(g.id)).map(({ id, name }) => ({ id, name })) })),
+    subjects, parts: PARTS, sources: SOURCES };
+}
+
 export async function saveBook(q, b, id = null) {
-  const vals = [b.title, b.author, b.isbn, b.category, b.shelf, b.copies, b.notes];
-  if (id) {
-    const [{ out } = { out: 0 }] = await q("SELECT count(*)::int AS out FROM library_loans WHERE book_id = $1 AND returned_on IS NULL", [id]);
-    if (b.copies < out) throw badRequest(`لا يمكن أن تقل النسخ عن المعار حاليًا (${out})`);
-    const r = await q(`UPDATE library_books SET title = $2, author = $3, isbn = $4, category = $5, shelf = $6, copies = $7, notes = $8 WHERE id = $1 RETURNING id`, [id, ...vals]);
-    if (!r.length) throw notFound("الكتاب غير موجود");
-    return r[0];
+  if (b.part && !(b.grade_id && b.subject_id)) throw badRequest("حدد الصف والمادة قبل الجزء");
+  const vals = [b.title, b.author, b.isbn, b.category, b.shelf, b.copies, b.notes, b.grade_id ?? null, b.subject_id ?? null, b.part, b.source];
+  try {
+    if (id) {
+      const [{ out } = { out: 0 }] = await q("SELECT count(*)::int AS out FROM library_loans WHERE book_id = $1 AND returned_on IS NULL", [id]);
+      if (b.copies < out) throw badRequest(`لا يمكن أن تقل النسخ عن المعار حاليًا (${out})`);
+      const r = await q(`UPDATE library_books SET title = $2, author = $3, isbn = $4, category = $5, shelf = $6, copies = $7, notes = $8,
+                                grade_id = $9, subject_id = $10, part = $11, source = $12 WHERE id = $1 RETURNING id`, [id, ...vals]);
+      if (!r.length) throw notFound("الكتاب غير موجود");
+      return r[0];
+    }
+    return (await q(`INSERT INTO library_books (tenant_id, title, author, isbn, category, shelf, copies, notes, grade_id, subject_id, part, source)
+                     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`, vals))[0];
+  } catch (e) {
+    if (e.code === "23505" && String(e.constraint || "").includes("textbook")) throw conflict("هذا الكتاب (الصف والمادة والجزء) موجود مسبقًا. عدّل عدد نسخه بدل إضافته مرة ثانية.");
+    throw e;
   }
-  return (await q(`INSERT INTO library_books (tenant_id, title, author, isbn, category, shelf, copies, notes) VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`, vals))[0];
+}
+
+// Adds a grade's textbooks in one go; a book already in stock gets the new copies added to it.
+export async function addGradeBooks(q, b) {
+  const [grade] = await q("SELECT id, name FROM grades WHERE id = $1", [b.grade_id]);
+  if (!grade) throw notFound("الصف غير موجود");
+  const subjects = new Map((await q("SELECT id, name FROM subjects WHERE id = ANY($1)", [b.items.map((i) => i.subject_id)])).map((s) => [Number(s.id), s.name]));
+  let added = 0, increased = 0;
+  for (const it of b.items) {
+    const name = subjects.get(Number(it.subject_id));
+    if (!name) throw notFound("مادة غير موجودة");
+    const [had] = await q("SELECT id FROM library_books WHERE grade_id = $1 AND subject_id = $2 AND part = $3", [grade.id, it.subject_id, it.part]);
+    if (had) { await q("UPDATE library_books SET copies = copies + $2 WHERE id = $1", [had.id, it.copies]); increased++; continue; }
+    await q(`INSERT INTO library_books (tenant_id, title, category, shelf, copies, grade_id, subject_id, part, source)
+             VALUES (app_tenant(), $1, 'كتاب مدرسي', $2, $3, $4, $5, $6, $7)`,
+    [textbookTitle(name, it.part, grade.name), b.shelf, it.copies, grade.id, it.subject_id, it.part, b.source]);
+    added++;
+  }
+  return { added, increased };
+}
+export const textbookTitle = (subject, part, grade) => `${subject} — ${PARTS[part] || ""} — ${grade}`.replace(" —  — ", " — ");
+
+export async function setCover(q, id, f, matchesMime) {
+  const buffer = Buffer.from(f.data, "base64");
+  if (!buffer.length || buffer.length > 1.5 * 1024 * 1024) throw badRequest("صورة الغلاف أكبر من 1.5 ميجابايت. صغّرها ثم أعد المحاولة");
+  if (!matchesMime(buffer, f.mime)) throw badRequest("محتوى الملف لا يطابق نوعه. ارفع صورة سليمة");
+  const [book] = await q("SELECT id FROM library_books WHERE id = $1", [id]);
+  if (!book) throw notFound("الكتاب غير موجود");
+  await q(`INSERT INTO library_book_covers (tenant_id, book_id, mime, size_bytes, data) VALUES (app_tenant(), $1, $2, $3, $4)
+           ON CONFLICT (tenant_id, book_id) DO UPDATE SET mime = EXCLUDED.mime, size_bytes = EXCLUDED.size_bytes, data = EXCLUDED.data, updated_at = now()`,
+  [id, f.mime, buffer.length, buffer]);
+  await q("UPDATE library_books SET has_cover = true WHERE id = $1", [id]);
+}
+export async function removeCover(q, id) {
+  await q("DELETE FROM library_book_covers WHERE book_id = $1", [id]);
+  await q("UPDATE library_books SET has_cover = false WHERE id = $1", [id]);
+}
+export async function readCover(q, id) {
+  const [c] = await q("SELECT mime, data FROM library_book_covers WHERE book_id = $1", [id]);
+  if (!c) throw notFound("لا توجد صورة غلاف");
+  return c;
 }
 export async function removeBook(q, id) {
   const [out] = await q("SELECT 1 FROM library_loans WHERE book_id = $1 AND returned_on IS NULL LIMIT 1", [id]);

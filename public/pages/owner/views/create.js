@@ -12,6 +12,7 @@ import { runJob } from "/shared/js/job.js";
 export default async function create({ refresh }) {
   const refs = await loadRefs();
   const f = { name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }),
+    email: input({ type: "email", class: "ltr", placeholder: "manager@example.com" }),
     org: select([["school", "مدرسة"], ["institute", "معهد تدريبي"]]) };
   const form = subForm(refs, { kind: "trial" });
   return [panel("إضافة مدرسة جديدة", null,
@@ -19,9 +20,11 @@ export default async function create({ refresh }) {
     field("اسم المدرسة", f.name),
     field("رمز المدرسة", f.id, "حروف إنجليزية صغيرة وأرقام. يظهر في رابط صفحة الطلاب ولا يمكن تغييره."),
     field("اسم مدير المدرسة", f.admin),
+    field("بريد مدير المدرسة", f.email, "يدخل المدير أول مرة من رابط المدرسة بهذا البريد (أو بحساب Google بنفس البريد). لا يوجد رابط تفعيل ولا كلمة مرور."),
     h("h3", {}, "الاشتراك"), form.el,
     btn("إنشاء المدرسة", async () => {
-      const r = await api("/api/owner/tenants", { name: f.name.value, id: f.id.value, admin_name: f.admin.value, subscription: form.value(), org_type: f.org.value });
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.value.trim())) return toast("اكتب بريد مدير المدرسة", true);
+      const r = await api("/api/owner/tenants", { name: f.name.value, id: f.id.value, admin_name: f.admin.value, manager_email: f.email.value.trim(), subscription: form.value(), org_type: f.org.value });
       handoverCard(r);
       refresh();
     })), showcasePanel(refresh)];
@@ -37,7 +40,7 @@ function showcasePanel(refresh) {
     btn("إنشاء مدرسة العرض", async () => {
       const { secret: r } = await runJob("/api/owner/tenants/showcase", { name: f.name.value, id: f.id.value },
         { title: "إنشاء مدرسة العرض", jobsBase: "/api/owner/jobs" });
-      if (!r) { toast("اكتملت المدرسة. رابط إعداد حساب المدير متاح في ملف المدرسة.", true); refresh(); return; }
+      if (!r) { toast("اكتملت المدرسة. افتح ملفها لإرسال رابطها للمدير.", true); refresh(); return; }
       const s = r.summary;
       handoverCard(r, [
         ["الطلاب", s.students], ["المعلمون", s.teachers], ["الشعب", s.structure.sections], ["العام الدراسي", s.year.name], ["أيام الدوام المسجلة", s.school_days],
@@ -54,15 +57,15 @@ export function handoverCard(r, extra = []) {
   const staffLink = `${publicLink}/idara`;
   const rows = [
     ["اسم المدرسة", r.school.name],
+    ["رابط دخول المدرسة", staffLink],
+    r.manager_email ? ["بريد المدير لأول دخول", r.manager_email] : null,
     ["رابط الطلاب وأولياء الأمور", publicLink],
-    ["رابط دخول المدير والمعلمين", staffLink],
-    ["رابط إعداد حساب المدير", r.setup?.url || "يصدر من ملف المدرسة"],
     ...extra.map(([k, v]) => [k, String(v)]),
-  ];
+  ].filter(Boolean);
   const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
   dialog("بطاقة تسليم المدرسة", h("div", { class: "handover" },
     h("div", { class: "print-only" }, brandLogo("print-logo", false)),
-    notice("أرسل رابط الإعداد لمدير المدرسة. يفتحه ويُنشئ حسابه بالبريد الإلكتروني أو Google أو Apple، ثم يدخل لوحة المدرسة مباشرة. الرابط صالح 7 أيام ويُستخدم مرة واحدة، ويعود في أي وقت من ملف المدرسة.", "warn"),
+    notice("أرسل لمدير المدرسة رابط دخول المدرسة فقط. في أول دخول يختار «إنشاء حساب المدير» ويسجّل ببريده المسجل (أو Google بنفس البريد)، ثم يدخل لوحة المدرسة مباشرة. رسالة الترحيب الجاهزة في ملف المدرسة ← «تسليم».", ""),
     rows.map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v))),
     sub("لا تُسلَّم كلمة مرور للمدير: هو يختار طريقة دخوله بنفسه.")),
   [

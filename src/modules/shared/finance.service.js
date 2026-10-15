@@ -20,12 +20,14 @@ export const invoiceSchema = z.object({
 export const paymentSchema = z.object({
   amount: t.money,
   method: z.enum(["cash", "transfer", "card"]),
+  account_id: t.optId,
   note: t.optText(300),
   idempotency_key: t.idemKey,
 });
 export const refundSchema = z.object({
   amount: t.money,
   note: t.shortText("سبب الاسترداد", 300),
+  account_id: t.optId,
   idempotency_key: t.idemKey,
 });
 export const voidSchema = z.object({ reason: t.shortText("سبب الإلغاء", 300) });
@@ -98,7 +100,7 @@ async function nextReceipt(q) {
   return `R-${String(r.n).padStart(6, "0")}`;
 }
 
-export async function recordPayment(q, { invoiceId, kind = "payment", amount, method, note, idempotencyKey, actor, providerRef = null, paidOn = null }) {
+export async function recordPayment(q, { invoiceId, kind = "payment", amount, method, note, idempotencyKey, actor, providerRef = null, paidOn = null, accountId = null }) {
   const [dup] = await q("SELECT receipt_no, amount, invoice_id FROM payments WHERE idempotency_key = $1", [idempotencyKey]);
   if (dup) {
     if (Number(dup.invoice_id) !== Number(invoiceId)) throw badRequest("مفتاح العملية مستخدم لفاتورة أخرى");
@@ -124,7 +126,7 @@ export async function recordPayment(q, { invoiceId, kind = "payment", amount, me
     reference: receipt,
     categoryCode: kind === "refund" ? "other_expense" : "tuition",
     sourceType: kind === "refund" ? "refund" : "fee",
-    sourceId: payment.id, actor,
+    sourceId: payment.id, actor, accountId,
   });
   if (kind === "payment" && !paidOn) {
     const [st] = await q("SELECT student_id FROM invoices WHERE id = $1", [invoiceId]);

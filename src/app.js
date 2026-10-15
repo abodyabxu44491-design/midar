@@ -73,6 +73,7 @@ export function createApp() {
       || req.path === "/admin/setup/logo"
       || /^\/admin\/(certificates|institute)\/designs\/assets$/.test(req.path)
       || /^\/admin\/students\/\d+\/photo$/.test(req.path)
+      || /^\/admin\/services\/library\/books\/\d+\/cover$/.test(req.path)
       || /^\/admin\/teachers\/\d+\/photo$/.test(req.path)
       || /^\/(admin|teacher)\/papers\/import$/.test(req.path)))
     || (req.method === "PUT" && /^\/(admin|teacher)\/papers\/\d+$/.test(req.path));

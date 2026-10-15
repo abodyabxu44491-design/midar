@@ -40,7 +40,7 @@ r.get("/accounts", handle(async (req, res) => {
 }));
 r.post("/accounts", canAccounts, handle(async (req, res) => {
   const b = parse(ledger.accountSchema, req.body);
-  res.status(201).json(await inTenant(req, (q) => ledger.addAccount(q, b)));
+  res.status(201).json(await inTenant(req, async (q) => { await ledger.ensureDefaults(q); return ledger.addAccount(q, b); }));
 }));
 r.patch("/accounts/:id", canAccounts, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
@@ -52,6 +52,13 @@ r.patch("/accounts/:id/active", canAccounts, handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const { active } = parse(z.object({ active: z.boolean() }), req.body);
   await inTenant(req, (q) => ledger.setAccountActive(q, id, active));
+  res.json({ ok: true });
+}));
+
+r.get("/funds", handle(async (req, res) => res.json(await inTenant(req, (q) => ledger.fundChoices(q)))));
+r.put("/defaults", canAccounts, handle(async (req, res) => {
+  const b = parse(ledger.defaultsSchema, req.body);
+  await inTenant(req, (q) => ledger.setDefaults(q, b));
   res.json({ ok: true });
 }));
 

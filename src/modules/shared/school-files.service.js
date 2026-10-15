@@ -14,7 +14,7 @@ import { logEvent } from "../../core/audit.js";
 export const LINK_DAYS = 7;
 export const STAGES = [
   ["received", "استلام الطلب"], ["review", "المراجعة"], ["approved", "الاعتماد"],
-  ["account", "إنشاء الحساب"], ["delivered", "إرسال رابط التفعيل"], ["first_login", "تفعيل الحساب"],
+  ["account", "إنشاء الحساب"], ["delivered", "إرسال رابط المدرسة"], ["first_login", "أول دخول للمدير"],
 ];
 export const CHANNELS = { email: "البريد الإلكتروني", whatsapp: "واتساب", copy: "نسخ الرسالة", pdf: "ملف PDF", manual: "تسليم يدوي" };
 export const DELIVERY = { sent: "تم التسليم", failed: "فشل", pending: "بانتظار التأكيد" };
@@ -119,17 +119,18 @@ export async function getFile(q, id, baseUrl) {
   const stage = stageOf({ ...t, admin_id: admin?.id, delivery });
   const links = { login: `${baseUrl}/${id}/idara?role=admin`, parents: `${baseUrl}/${id}` };
   const activation = admin ? await currentLink(q, id, baseUrl) : null;
-  const [lastLink] = await q("SELECT expires_at, used_at, revoked_at FROM school_activations WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1", [id]);
   // The manager's Midar account linked to this school (who, how, since when) — never any secret.
   const [account] = await q(
     `SELECT a.email, a.full_name, s.linked_via, s.linked_at, a.last_login_at FROM account_schools s JOIN accounts a ON a.id = s.account_id
       WHERE s.tenant_id = $1 AND s.revoked_at IS NULL ORDER BY s.linked_at DESC LIMIT 1`, [id]);
   // An open link shows its own progress (a recovery link first); otherwise the account's final state.
-  const activationState = activation
-    ? (activation.recovery ? "recovery" : activation.account_created ? "account_created" : activation.started_at ? "started"
-      : events.some((e) => e.kind === "delivery" && new Date(e.created_at) >= new Date(activation.created_at)) ? "link_sent" : "link_ready")
+  // The manager enters first from the school's login link with the email recorded here; a recovery link exists
+  // only to move an already linked school to another account.
+  const sent = events.some((e) => e.kind === "delivery");
+  const activationState = activation?.recovery ? "recovery"
     : account ? "activated"
-      : lastLink && !lastLink.used_at && !lastLink.revoked_at && new Date(lastLink.expires_at) < new Date() ? "expired" : "pending";
+      : !t.profile?.email ? "no_email"
+        : sent ? "link_sent" : "waiting";
   return {
     school: { id: t.id, name: t.name, status: t.status, created_at: t.created_at, updated_at: t.updated_at, approved_at: t.approved_at,
       approved_by: t.approved_by, activated_at: t.activated_at, is_demo: t.is_demo, directory_code: t.directory_code, currency: t.currency,

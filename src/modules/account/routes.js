@@ -46,6 +46,16 @@ export function accountRouter() {
     res.json(await acct.linkSetup(b.token, await requireAccount(req), b.via, req, res));
   }));
 
+  // First entry from the school's own login link: whether the school still needs its manager, then linking.
+  r.get("/claim", handle(async (req, res) => {
+    const { school } = parse(z.object({ school: acct.schemas.enter.shape.school }), req.query);
+    res.json(await acct.claimInfo(school));
+  }));
+  r.post("/claim", limits.login, handle(async (req, res) => {
+    const b = parse(acct.schemas.enter.extend({ via: z.enum(["email", "google", "apple", "password"]).default("email") }), req.body);
+    res.json(await acct.claimSchool(await requireAccount(req), b.school, b.via, req, res));
+  }));
+
   // Email accounts.
   r.post("/signup", limits.login, handle(async (req, res) => res.json(await acct.signupStart(parse(acct.schemas.signup, req.body), req.ip))));
   r.post("/signup/verify", limits.login, handle(async (req, res) => res.json(await acct.signupVerify(parse(acct.schemas.verify, req.body), req, res))));
@@ -68,12 +78,13 @@ export function accountRouter() {
   r.get("/oauth/:provider/start", limits.login, handle(async (req, res) => {
     const p = parse(provider, req.params.provider);
     const q = parse(z.object({
-      purpose: z.enum(["login", "setup", "link"]).default("login"),
+      purpose: z.enum(["login", "setup", "link", "claim"]).default("login"),
       school: acct.schemas.enter.shape.school.optional(),
       setup: acct.schemas.setup.shape.token.optional(),
     }), req.query);
     const accountId = q.purpose === "link" ? await requireAccount(req) : null;
     if (q.purpose === "setup" && !q.setup) throw unauthorized("رابط الإعداد مطلوب.");
+    if (q.purpose === "claim" && !q.school) throw unauthorized("رابط المدرسة مطلوب.");
     res.redirect(303, await oauth.begin(p, { purpose: q.purpose, school: q.school || null, setup: q.setup || null, accountId }, oauth.publicBase(req)));
   }));
   r.get("/oauth/google/callback", limits.login, handle(async (req, res) => {
