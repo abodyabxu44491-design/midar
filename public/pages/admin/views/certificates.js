@@ -13,7 +13,7 @@ import { resultsApproval } from "../../shared/js/results-approval.js";
 import { designsView, designPicker } from "../../shared/js/cert-designer.js";
 import { A } from "./common.js";
 
-const KIND = { term: "نتيجة فصل", year: "إتمام عام", custom: "مخصصة" };
+const KIND = { term: "نتيجة فصل", year: "إتمام عام", custom: "مخصصة", transcript: "كشف درجات" };
 const STATE = { issued: ["سارية", "green"], revoked: ["ملغاة", "red"], replaced: ["مستبدلة", "gray"] };
 
 export default async function certificates(ctx = {}) {
@@ -126,7 +126,7 @@ export default async function certificates(ctx = {}) {
         h("div", { class: "row", style: "flex:none;gap:6px;flex-wrap:wrap" },
           btn("طباعة", () => printIds([r.id], out), "ghost sm"),
           btn("السجل", () => historyOf(r), "ghost sm"),
-          r.status === "issued" && canApprove ? btn("استبدال", async () => {
+          r.status === "issued" && canApprove && r.kind !== "transcript" ? btn("استبدال", async () => {
             const reason = await askReason({ title: `شهادة بديلة لـ ${r.student}`, action: "إصدار البديلة",
               explain: "تصدر شهادة جديدة برقم جديد، وتبقى الحالية في السجل بحالة «مستبدلة» ويظهر ذلك عند التحقق منها.", label: "سبب الاستبدال" });
             if (!reason) return;

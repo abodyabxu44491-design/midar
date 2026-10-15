@@ -146,6 +146,7 @@ export async function replace(q, id, b, actor) {
       actor, { replaces: c.id, reason: b.reason });
     return { issued: 1, ids: [row.id] };
   }
+  if (c.kind === "transcript") throw badRequest("نسخة جديدة من كشف الدرجات تصدر من صفحة «كشف الدرجات»، وتبقى السابقة في السجل.");
   if (!["term", "year"].includes(c.kind)) throw badRequest("استبدال هذه الشهادة يكون من صفحة الدورة");
   const [batch] = c.batch_id ? await q("SELECT class_id FROM result_batches WHERE id = $1", [c.batch_id]) : [];
   const classId = batch?.class_id ?? c.class_id;

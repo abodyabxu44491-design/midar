@@ -12,6 +12,7 @@ import { logEvent } from "../../core/audit.js";
 import * as certs from "../shared/certificates.service.js";
 import * as results from "../shared/results.service.js";
 import { designRouter } from "../shared/cert-design.routes.js";
+import * as transcripts from "../shared/transcripts.service.js";
 
 const r = Router();
 export const originOf = (req) => env.PUBLIC_URL?.replace(/\/$/, "") || `${req.protocol}://${req.get("host")}`;
@@ -67,6 +68,39 @@ r.post("/results/reopen", requireApprover, handle(async (req, res) => {
     await audit(q, req, `إعادة فتح نتائج ${sc.cls.name} (${sc.label}): ${reason}`);
     return out;
   }));
+}));
+
+// ---------- Transcripts (كشف الدرجات) ----------
+// Anyone in the administration views them live and exports them; official copies are issued by management.
+r.post("/transcripts/preview", handle(async (req, res) => {
+  const b = parse(transcripts.transcriptSchema, req.body);
+  res.json(await inTenant(req, async (q) => ({ ...(await transcripts.preview(q, b)), can_issue: approver(req) })));
+}));
+r.post("/transcripts/issue", requireApprover, handle(async (req, res) => {
+  const b = parse(transcripts.transcriptSchema, req.body);
+  const out = await inTenant(req, async (q) => {
+    const o = await transcripts.issue(q, b, req.actor);
+    if (o.issued) await audit(q, req, `إصدار ${o.issued} كشف درجات رسمي${o.new_versions ? ` (${o.new_versions} نسخة جديدة)` : ""}`);
+    return o;
+  });
+  if (out.stale) throw conflict(results.STALE);
+  res.status(201).json(out);
+}));
+r.get("/transcripts/issued", handle(async (req, res) => {
+  const f = parse(z.object({ grade_id: t.optId, class_id: t.optId, scope: z.enum(["term", "year"]), term_id: t.optId })
+    .refine((x) => x.grade_id || x.class_id, "حدد الصف أو الشعبة"), req.query);
+  res.json(await inTenant(req, (q) => transcripts.issuedIds(q, f)));
+}));
+r.get("/transcripts/export.xlsx", handle(async (req, res) => {
+  const k = parse(results.classKeySchema, req.query);
+  const x = await inTenant(req, async (q) => {
+    const w = await transcripts.workbook(q, k);
+    await audit(q, req, `تصدير نتائج إلى Excel: ${w.filename}`);
+    return w;
+  });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(x.filename)}`);
+  res.send(x.buffer);
 }));
 
 // ---------- Designs ----------

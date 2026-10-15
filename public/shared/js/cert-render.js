@@ -9,6 +9,7 @@ import { h } from "./dom.js";
 import { docLogo } from "./ui.js";
 import { fmtDate } from "./format.js";
 import { PAGE, FONTS, presetLayout, presetFor } from "./cert-presets.js";
+import { transcriptPage, fitTranscripts } from "./transcript-render.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const svg = (tag, attrs = {}, ...kids) => {
@@ -210,6 +211,7 @@ export async function fitText(root) {
       size -= 0.5; t.style.fontSize = `${size}pt`;
     }
   }
+  fitTranscripts(root);
   // A grades table with many subjects shrinks to stay inside its box instead of running into what follows.
   for (const t of root.querySelectorAll(".cp-el.cp-table > table")) {
     const box = t.parentElement;
@@ -221,7 +223,9 @@ export async function fitText(root) {
 }
 
 // A printed or previewed certificate: its stored design, or the standard design for its kind (older certificates).
+// Transcripts have their own fixed official layout.
 export function certificatePage(c, assets = {}) {
+  if (c.kind === "transcript") return transcriptPage(c);
   const layout = c.data?.layout || presetLayout(presetFor(c.kind));
   const voidText = c.status === "replaced" ? "مستبدلة" : c.revoked_at ? "ملغاة" : null;
   return renderPage(layout, { values: valuesOf(c), data: c.data, qr: c.qr, assetSrc: (id) => assets[id], voidText });

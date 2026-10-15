@@ -26,9 +26,11 @@ export const SECTIONS = {
       reminder_days: z.coerce.number().int().min(0).max(30) }),
   },
   certificates: {
-    defaults: { pass_mark: 50, signer_title: "مدير المدرسة", signer_name: "", show_rank: false, footer_note: "" },
+    defaults: { pass_mark: 50, signer_title: "مدير المدرسة", signer_name: "", show_rank: false, footer_note: "",
+      tr_components: true, tr_percent: true, tr_grade: true, tr_subject_result: true, tr_absence: true, tr_guardian_sign: true },
     schema: z.object({ pass_mark: pct, signer_title: z.string().trim().max(60), signer_name: z.string().trim().max(80),
-      show_rank: z.boolean(), footer_note: z.string().trim().max(200) }),
+      show_rank: z.boolean(), footer_note: z.string().trim().max(200),
+      tr_components: z.boolean(), tr_percent: z.boolean(), tr_grade: z.boolean(), tr_subject_result: z.boolean(), tr_absence: z.boolean(), tr_guardian_sign: z.boolean() }),
   },
   library: {
     defaults: { loan_days: 14, max_loans: 2 },

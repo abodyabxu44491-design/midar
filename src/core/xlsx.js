@@ -69,6 +69,7 @@ export function buildXlsx(sheets) {
     const cell = (v, c, r, style) => {
       if (v === null || v === undefined || v === "") return "";
       const ref = `${colName(c)}${r}`;
+      if (typeof v === "number" && Number.isFinite(v) && style !== 2) return `<c r="${ref}"${style ? ` s="${style}"` : ""}><v>${v}</v></c>`;
       return `<c r="${ref}" t="inlineStr"${style ? ` s="${style}"` : ""}><is><t xml:space="preserve">${esc(v)}</t></is></c>`;
     };
     const head = `<row r="1">${s.headers.map((v, c) => cell(v, c, 1, 1)).join("")}</row>`;
