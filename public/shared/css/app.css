@@ -2683,3 +2683,7 @@ body.cd-open { overflow: hidden; }
   .ge-of { display: none; }
   .ge-bar { bottom: 64px; }
 }
+.quick-act .qa-ic { position: relative; }
+.qa-badge { position: absolute; top: -6px; inset-inline-start: -8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.t-acts .quick-act { font-size: 14px; padding: 16px 6px; }
+@media (max-width: 719px) { .t-acts .quick-act { font-size: 12.5px; padding: 12px 2px; } }

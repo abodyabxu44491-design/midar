@@ -49,7 +49,7 @@ export async function startTeacher(offlineMe = null) {
     behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat" };
   const list = [["home", "الرئيسية"], ["attendance", "الحضور"], ["exams", "رصد الدرجات"], ["chat", "الرسائل"],
     [null, "طلابي وفصولي"], ["students", "طلابي"], ["behavior", "السلوك"], ["homework", "الواجبات"], ["timetable", "جدولي"],
-    [null, "الاختبارات والدروس"], ["papers", "الاختبارات والامتحانات"], ["lessons", "تحضير الدروس"],
+    [null, "الاختبارات والدروس"], ["papers", "أوراق الاختبارات"], ["lessons", "تحضير الدروس"],
     [null, "المدرسة"], ["announcements", "التعاميم"], ["calendar", "التقويم"], ["meetings", "المواعيد"], ["surveys", "الاستبيانات"],
     [null, "حسابي"], ["me", "حضوري وإجازاتي"], ["account", "حسابي"]]
     .filter(([key]) => !MODULE_OF[key] || me.modules?.[MODULE_OF[key]]);
