@@ -56,8 +56,7 @@ export async function readySchool(base, { prefix = "t", name = "مدرسة ال�
   const id = `${prefix}-${uid()}`.slice(0, 28);
   const r = await owner.post("/api/owner/tenants", { id, name });
   if (r.status !== 201) throw new Error(`tenant ${r.status} ${JSON.stringify(r.data)}`);
-  const admin = client(base);
-  await admin.post("/api/staff/login", { school: id, username: "admin", password: r.data.credentials.password });
+  const admin = await activateSchool(base, id, r.data.setup.url);
   await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false WHERE username = 'admin'"));
   await admin.post("/api/admin/setup/template", { template: "primary", sections_per_grade: 2, grade_set: "yemen" });
   const classes = (await admin.get("/api/admin/structure/classes")).data;
@@ -76,31 +75,37 @@ export async function readySchool(base, { prefix = "t", name = "مدرسة ال�
     list.push(s.data);
   }
   const teacherId = (await admin.get("/api/admin/teachers/")).data[0].id;
-  return { id, owner, admin, teacher, teacherId, c1, c2, math, students: list, code: r.data.credentials.directory_code,
+  return { id, owner, admin, teacher, teacherId, c1, c2, math, students: list, code: r.data.directory_code,
     parent: (s) => ({ student_id: s.id, key: s.access_key }) };
 }
 
 export const randomPhone = () => `05${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
 
-// Runs the manager's activation: SMS code to the typed number (captured by a stub gateway), then the password.
-export async function activateSchool(base, schoolId, url, password, phone = randomPhone()) {
-  const token = new URL(url).searchParams.get("token");
-  const pub = client(base);
-  const sent = [];
-  const [was] = await transaction({ platform: true }, (q) => q("SELECT enabled, url FROM sms_gateway WHERE id = 1"));
-  setTransport({ sms: async (g, m) => { sent.push(m); } });
-  await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = true, url = CASE WHEN url = '' THEN 'https://sms.example/send' ELSE url END WHERE id = 1"));
-  try {
-    const s = await pub.post("/api/public/activation/send-code", { token, phone });
-    if (s.status !== 200) throw new Error(`send ${s.status} ${JSON.stringify(s.data)}`);
-  } finally {
-    setTransport(null);
-    await transaction({ platform: true }, (q) => q("UPDATE sms_gateway SET enabled = $1, url = $2 WHERE id = 1", [was.enabled, was.url]));
-  }
-  const code = sent.at(-1).message.match(/(\d{6})/)[1];
-  const v = await pub.post("/api/public/activation/verify", { token, code });
+// Email for tests: every message lands in `mails` instead of an SMTP server.
+export const mails = [];
+export async function mailOn() {
+  const { setMailTransport } = await import("../src/modules/shared/mail.service.js");
+  setMailTransport({ send: async (g, m) => { mails.push(m); } });
+  await transaction({ platform: true }, (q) => q(
+    "UPDATE mail_gateway SET enabled = true, host = 'smtp.test', from_email = 'no-reply@midar.test' WHERE id = 1"));
+}
+export const lastCode = (to) => [...mails].reverse().find((m) => !to || m.to === to)?.text.match(/(\d{6})/)?.[1];
+export const randomEmail = (tag = "m") => `${tag}.${uid()}${uid()}@school.test`;
+
+// Runs the manager's first setup from the school's setup link: a new email account, its code, then the link.
+export async function activateSchool(base, schoolId, url, password = "School-Pass-2026", email = randomEmail()) {
+  return setupAdmin(client(base), url, { password, email });
+}
+// The same, on a client the test already holds (its cookies receive the account and school sessions).
+export async function setupAdmin(pub, url, { password = "School-Pass-2026", email = randomEmail() } = {}) {
+  await mailOn();
+  const setup = new URL(url).searchParams.get("token");
+  const s = await pub.post("/api/account/signup", { email, password, name: "مدير المدرسة", setup });
+  if (s.status !== 200) throw new Error(`signup ${s.status} ${JSON.stringify(s.data)}`);
+  const v = await pub.post("/api/account/signup/verify", { email, code: lastCode(email) });
   if (v.status !== 200) throw new Error(`verify ${v.status} ${JSON.stringify(v.data)}`);
-  const done = await pub.post("/api/public/activation", { token, password });
-  if (done.status !== 200) throw new Error(`activate ${done.status} ${JSON.stringify(done.data)}`);
+  const done = await pub.post("/api/account/setup/link", { token: setup, via: "email" });
+  if (done.status !== 200) throw new Error(`link ${done.status} ${JSON.stringify(done.data)}`);
+  pub.email = email; pub.password = password;
   return pub;
 }

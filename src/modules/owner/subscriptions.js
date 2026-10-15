@@ -185,7 +185,7 @@ requests.post("/:id/convert", handle(async (req, res) => {
       id: b.id, name: b.name, admin_name: b.admin_name, currency: b.currency, max_students: b.subscription.max_students || 200,
       org_type: b.org_type || (lead.details?.org_type === "institute" ? "institute" : "school"),
       subscription: { ...b.subscription, lead_id: id },
-    });
+    }, { link: false });
   } catch (e) {
     await platform(req, (q) => q("UPDATE leads SET converting_at = NULL, last_error = $2 WHERE id = $1", [id, String(e.message).slice(0, 500)]));
     throw e;

@@ -171,9 +171,11 @@ function infoTab(d) {
 }
 
 export const ACT_STATE = {
-  pending: ["بانتظار رابط التفعيل", "gray"], link_ready: ["رابط التفعيل جاهز", "blue"], link_sent: ["تم إرسال رابط التفعيل", "blue"],
-  phone_verified: ["تم التحقق من الجوال", "amber"], activated: ["تم تفعيل الحساب", "green"], expired: ["انتهت صلاحية الرابط", "red"],
+  pending: ["بانتظار التفعيل", "gray"], link_ready: ["رابط الإعداد جاهز", "blue"], link_sent: ["أُرسل رابط الإعداد", "blue"],
+  started: ["بدأ إعداد الحساب", "amber"], account_created: ["أنشأ حسابه ووثّق بريده", "amber"],
+  activated: ["اكتمل التفعيل", "green"], recovery: ["يحتاج إلى استعادة الوصول", "red"], expired: ["انتهت صلاحية الرابط", "red"],
 };
+const VIA = { email: "البريد الإلكتروني", password: "البريد وكلمة المرور", google: "Google", apple: "Apple" };
 function activationTab(d, reload) {
   const s = d.school, a = d.admin, st = ACT_STATE[d.activation_state];
   const open = d.activation && d.activation_state !== "activated";
@@ -182,15 +184,17 @@ function activationTab(d, reload) {
       ["تاريخ الاعتماد", s.approved_at ? fmtDateTime(s.approved_at) : "—"], ["المسؤول عن الاعتماد", s.approved_by]])),
     panel("التفعيل والدخول", st ? badge(...st) : null, a ? [
       dl([["مدير المدرسة", d.profile.contact_name || a.full_name],
-        ["جوال الدخول", a.phone ? h("bdi", { dir: "ltr" }, a.phone) : "يُحدد عند التفعيل"],
+        ["حساب المدير في مدار", d.account ? h("bdi", { dir: "ltr" }, d.account.email) : "يُنشئه المدير من رابط الإعداد"],
+        ["طريقة الربط", d.account ? `${VIA[d.account.linked_via] || d.account.linked_via} — ${fmtDateTime(d.account.linked_at)}` : "—"],
         ["رابط التفعيل", d.activation ? `صالح حتى ${fmtDateTime(d.activation.expires_at)}` : "لا يوجد رابط صالح"],
-        ["التحقق من الجوال", a.phone_verified_at ? fmtDateTime(a.phone_verified_at) : d.activation?.phone_verified_at ? fmtDateTime(d.activation.phone_verified_at) : "لم يتم بعد"],
+        ["فتح رابط الإعداد", d.activation?.started_at ? fmtDateTime(d.activation.started_at) : d.account ? "تم" : "لم يُفتح بعد"],
         ["تفعيل الحساب", s.activated_at ? fmtDateTime(s.activated_at) : "لم يتم بعد"],
         ["حالة الحساب", a.is_active ? "فعّال" : "موقوف"],
         ["آخر دخول", a.last_login_at ? fmtDateTime(a.last_login_at) : "—"]]),
       h("div", { class: "row act-tools", style: "justify-content:flex-start;gap:8px;flex-wrap:wrap;margin-top:10px" },
         btn(open ? "إعادة إصدار الرابط" : "إصدار رابط تفعيل", async () => {
-          if (!confirmAction(open ? "إصدار رابط جديد؟ يتوقف الرابط الحالي فورًا." : "إصدار رابط تفعيل؟ يتحقق المدير من جواله ثم يختار كلمة مرور جديدة.")) return;
+          if (!confirmAction(open ? "إصدار رابط جديد؟ يتوقف الرابط الحالي فورًا."
+            : d.account ? "إصدار رابط استعادة وصول؟ الحساب الذي يربطه المدير به يحل محل الحساب الحالي، ويخرج الحساب الحالي من المدرسة." : "إصدار رابط إعداد حساب المدير؟")) return;
           try { await api(`${F}/${s.id}/link`, {}); toast("صدر رابط تفعيل جديد"); reload(); } catch (e) { toast(e.message, true); }
         }, "sm"),
         open ? btn("إلغاء الرابط", async () => {
@@ -224,7 +228,8 @@ async function confirmDelivery(d, e, status, reload) {
 }
 
 const EVENT_LABEL = { note: "ملاحظة", change: "تعديل البيانات", approved: "الاعتماد", account: "إنشاء الحساب", activation_link: "رابط تفعيل", delivery: "تسليم",
-  password: "كلمة مرور مؤقتة", status: "حالة الحساب", activated: "تفعيل المدرسة", error: "خطأ" };
+  password: "كلمة مرور مؤقتة", status: "حالة الحساب", activated: "تفعيل المدرسة", error: "خطأ",
+  setup_started: "إعداد حساب المدير", account_linked: "ربط حساب المدير", access_reset: "استعادة الوصول" };
 function notesTab(d, reload) {
   const t = textarea({ rows: 3, placeholder: "مثال: تواصلنا مع المدير وطلب تأجيل التفعيل لبداية الفصل" });
   const fmtChange = (c) => `${c.label}: ${Array.isArray(c.from) ? c.from.join("، ") : c.from ?? "—"} ← ${Array.isArray(c.to) ? c.to.join("، ") : c.to ?? "—"}`;
@@ -293,10 +298,10 @@ function welcome(d, link) {
   return ["أهلًا بكم في مدار | MIDAR", "",
     `نرحب بكم في منصة مدار لإدارة المدارس، ونسعد بانضمام ${d.school.name} إلى المنصة.`, "",
     "تم تجهيز حساب مدرستكم. لتفعيله:",
-    `1. افتحوا رابط التفعيل:\n${link || "(سيصلكم رابط التفعيل)"}`,
-    "2. اكتبوا رقم جوال المدير، ثم الرمز الذي يصلكم برسالة نصية.",
-    "3. اختاروا كلمة المرور.",
-    `رابط الدخول بعد التفعيل:\n${d.links.login}`, "",
+    `1. افتحوا رابط الإعداد:\n${link || "(سيصلكم رابط الإعداد)"}`,
+    "2. أنشئوا حسابكم بالبريد الإلكتروني أو تابعوا بحساب Google أو Apple.",
+    "3. يرتبط الحساب بمدرستكم وتدخلون لوحة المدرسة مباشرة.",
+    `بعدها تدخلون من أي جهاز عبر:\n${d.links.login}`, "",
     "نتمنى لكم تجربة موفقة مع مدار.", "مدار | كل إدارة مدرستك في مكان واحد."].join("\n");
 }
 
@@ -309,10 +314,10 @@ async function handover(d, reload) {
     text.value = welcome(d, link);
     mount(linkBox, d.school.activated_at && !link
       ? notice("المدرسة فعّلت حسابها.", "")
-      : link ? h("div", { class: "ho-link" }, h("span", {}, "رابط التفعيل (يُستخدم مرة واحدة)"), h("code", { class: "ltr" }, link),
+      : link ? h("div", { class: "ho-link" }, h("span", {}, "رابط الإعداد (يُستخدم مرة واحدة)"), h("code", { class: "ltr" }, link),
         h("small", {}, `صالح حتى ${fmtDateTime(d.activation?.expires_at || Date.now() + 7 * 864e5)}`))
-        : h("div", { class: "row", style: "justify-content:flex-start" }, notice("لا يوجد رابط تفعيل صالح.", "warn"),
-          btn("إصدار رابط تفعيل", async () => {
+        : h("div", { class: "row", style: "justify-content:flex-start" }, notice("لا يوجد رابط إعداد صالح.", "warn"),
+          btn("إصدار رابط إعداد", async () => {
             try { const r = await api(`${F}/${id}/link`, {}); link = r.url; d.activation = r; drawLink(); toast("صدر الرابط"); } catch (e) { toast(e.message, true); }
           }, "sm")));
   };
@@ -339,7 +344,7 @@ async function handover(d, reload) {
     h("button", { type: "button", class: "ho-way", onclick: () => pdfDialog(d, link) }, icons.print({ size: 20 }), h("b", {}, "ملف PDF"), h("small", {}, "ملف تفعيل المدرسة للطباعة أو الحفظ")),
     h("button", { type: "button", class: "ho-way off", disabled: true, title: "خدمة البريد غير مهيأة" }, icons.send ? icons.send({ size: 20 }) : icons.message({ size: 20 }),
       h("b", {}, "البريد الإلكتروني"), h("small", {}, "غير مهيأ بعد في المنصة")));
-  const dd = dialog("تسليم رابط التفعيل", h("div", { class: "handover-x" },
+  const dd = dialog("تسليم رابط الإعداد", h("div", { class: "handover-x" },
     h("header", { class: "ho-hero" }, brandLogo("ho-logo", true, "row"),
       h("h2", {}, "تم اعتماد مدرستكم بنجاح"), h("p", {}, `أهلًا بـ ${d.school.name} في منصة مدار. حساب المدرسة جاهز للبدء.`)),
     h("div", { class: "ho-cards" },
@@ -347,8 +352,8 @@ async function handover(d, reload) {
         dl([["اسم المدرسة", d.school.name], ["مدير المدرسة", p.contact_name],
           ["رابط تسجيل الدخول", h("a", { href: d.links.login, target: "_blank", rel: "noopener", class: "ltr" }, d.links.login)]])),
       h("section", { class: "ho-card" }, h("h3", {}, icons.key({ size: 18 }), "التفعيل"),
-        h("ol", { class: "ho-steps" }, h("li", {}, "يفتح المدير رابط التفعيل."), h("li", {}, "يكتب رقم جواله والرمز الذي يصله."),
-          h("li", {}, "يختار كلمة المرور ويدخل لوحة المدرسة.")),
+        h("ol", { class: "ho-steps" }, h("li", {}, "يفتح المدير رابط الإعداد."), h("li", {}, "ينشئ حسابه بالبريد الإلكتروني أو Google أو Apple."),
+          h("li", {}, "يرتبط الحساب بالمدرسة ويدخل لوحتها مباشرة.")),
         linkBox)),
     h("section", { class: "ho-card" }, h("h3", {}, icons.message({ size: 18 }), "رسالة الترحيب الجاهزة"), text),
     h("h3", { class: "ho-sub" }, "طريقة التسليم"), ways,), []);
@@ -381,8 +386,8 @@ function printActivation(d, link) {
       link ? h("p", { class: "act-warn" }, "رابط التفعيل سري ويُستخدم مرة واحدة. احفظوا هذا الملف في مكان آمن.") : null),
     h("section", {}, h("h2", {}, "خطوات البدء"), h("ol", {},
       h("li", {}, link ? "افتحوا رابط التفعيل أعلاه." : "افتحوا رابط التفعيل الذي يصلكم."),
-      h("li", {}, "اكتبوا رقم جوال المدير، ثم الرمز الذي يصلكم برسالة نصية."),
-      h("li", {}, "اختاروا كلمة المرور، ثم سجّلوا الدخول برقم الجوال وكلمة المرور."),
+      h("li", {}, "أنشئوا حسابكم بالبريد الإلكتروني أو تابعوا بحساب Google أو Apple."),
+      h("li", {}, "يرتبط الحساب بالمدرسة، وبعدها تدخلون من أي جهاز بالحساب نفسه."),
       h("li", {}, "أكملوا معالج الإعداد: المراحل والفصول والمعلمون والطلاب."),
       h("li", {}, "شاركوا رابط صفحة المدرسة مع أولياء الأمور."))),
     h("section", {}, h("h2", {}, "الدعم"), dl([["الموقع", "midarschool.com"], ["الجوال وواتساب", "0510235422"], ["إنستغرام", "@midar.school"]])),

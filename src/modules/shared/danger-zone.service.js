@@ -163,7 +163,7 @@ const TABLE_LABEL = {
   sync_changes: "تغييرات المزامنة", sync_devices: "أجهزة المزامنة", sync_operations: "عمليات المزامنة",
   notifications: "الإشعارات", push_subscriptions: "اشتراكات الإشعار الفوري", school_notify: "إعدادات الإشعارات",
   notification_prefs: "اختيارات الإشعارات", notification_deliveries: "سجل تسليم الإشعارات",
-  attendance_credentials: "بطاقات الحضور", gates: "البوابات", gate_devices: "أجهزة البوابة", gate_join_codes: "رموز ربط جوالات البوابة", chat_threads: "محادثات أولياء الأمور والمعلمين", chat_messages: "رسائل المحادثات", testimonials: "آراء المدارس المنشورة", school_groups: "مجموعات المدارس", finance_requests: "الطلبات المالية", book_deposits: "تأمين الكتب", school_activations: "روابط تفعيل المدرسة", staff_recovery: "رموز استعادة كلمة مرور المدير", school_events: "سجل ملف المدرسة", attendance_events: "سجل مسح البوابة",
+  attendance_credentials: "بطاقات الحضور", gates: "البوابات", gate_devices: "أجهزة البوابة", gate_join_codes: "رموز ربط جوالات البوابة", chat_threads: "محادثات أولياء الأمور والمعلمين", chat_messages: "رسائل المحادثات", testimonials: "آراء المدارس المنشورة", school_groups: "مجموعات المدارس", finance_requests: "الطلبات المالية", book_deposits: "تأمين الكتب", school_activations: "روابط تفعيل المدرسة", staff_recovery: "رموز استعادة كلمة مرور المدير", account_schools: "ربط حساب المدير بالمدرسة", school_events: "سجل ملف المدرسة", attendance_events: "سجل مسح البوابة",
   attendance_days: "حالة أيام الحضور", attendance_audit: "سجل تعديلات الحضور", attendance_stage_hours: "أوقات الحضور للمراحل",
   parents: "حسابات أولياء الأمور", parent_students: "ربط أولياء الأمور بالأبناء", parent_link_requests: "طلبات ربط الأبناء",
   school_feature_settings: "إعدادات الأقسام", behavior_categories: "تصنيفات السلوك", behavior_records: "سجلات السلوك",
@@ -331,6 +331,15 @@ async function reauth(ctx, tid, b) {
     const codeOk = !env.OWNER_TOTP_SECRET || verifyTotp(env.OWNER_TOTP_SECRET, b.code);
     if (!ok || !codeOk) return fail(env.OWNER_TOTP_SECRET ? "كلمة المرور أو رمز التحقق غير صحيح" : "كلمة المرور غير صحيحة");
   } else {
+    // A manager signed in with a Midar account confirms with that account's password.
+    const [acct] = await transaction({ platform: true }, (q) => q(
+      `SELECT a.password_hash FROM account_schools s JOIN accounts a ON a.id = s.account_id
+        WHERE s.user_id = $1 AND s.tenant_id = $2 AND s.revoked_at IS NULL`, [ctx.userId, tid]));
+    if (acct) {
+      if (!acct.password_hash) return fail("أضف كلمة مرور لحسابك من «الدخول والأمان» لتأكيد هذه العمليات");
+      if (!(await verifyPassword(b.password, acct.password_hash))) return fail("كلمة المرور غير صحيحة");
+      return;
+    }
     const [u] = await transaction({ tenantId: tid }, (q) => q("SELECT password_hash FROM users WHERE id = $1", [ctx.userId]));
     if (!u || !(await verifyPassword(b.password, u.password_hash))) return fail("كلمة المرور غير صحيحة");
   }

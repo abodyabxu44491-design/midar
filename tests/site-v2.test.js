@@ -19,7 +19,7 @@ before(async () => {
   const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
   assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
   await owner.put("/api/owner/settings", { landing_mode: "marketing", trial_enabled: true });
-  await transaction({ platform: true }, (q) => q("DELETE FROM leads WHERE ip = '127.0.0.1' AND created_at > now() - interval '1 day'"));
+  await transaction({ platform: true }, (q) => q("DELETE FROM leads WHERE (ip << inet '127.0.0.0/8' OR host(ip) IN ('::1', '::ffff:127.0.0.1')) AND created_at > now() - interval '1 day'"));
 });
 after(async () => { await owner.put("/api/owner/settings", { landing_mode: "blank" }); await srv.close(); await endPool(); });
 

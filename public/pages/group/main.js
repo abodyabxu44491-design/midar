@@ -38,11 +38,11 @@ async function start() {
 }
 
 function handover(r, title) {
-  const rows = [["اسم المدرسة", r.school?.name || r.credentials.school], ["رمز المدرسة", r.credentials.school],
-    ["رابط دخول الإدارة", r.links.staff.admin], ["اسم المستخدم", r.credentials.username], ["كلمة المرور المؤقتة", r.credentials.password]];
+  const rows = [["اسم المدرسة", r.school?.name || r.school?.id], ["رمز المدرسة", r.school?.id],
+    ["رابط إعداد حساب المدير", r.setup?.url], ["رابط دخول الإدارة", r.links.staff.admin]];
   const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
   dialog(title, h("div", { class: "handover" },
-    notice("سلّم هذه البيانات لمدير المدرسة. كلمة المرور لن تظهر مرة أخرى، ويغيّرها المدير بعد أول دخول.", "warn"),
+    notice("أرسل رابط الإعداد لمدير المدرسة. يفتحه ويُنشئ حسابه في مدار بالبريد الإلكتروني أو Google أو Apple، ثم يدخل لوحة مدرسته مباشرة. الرابط صالح 7 أيام ويُستخدم مرة واحدة.", "warn"),
     rows.map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v)))),
   [btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }), btn("طباعة", () => window.print(), "ghost")]);
 }
@@ -70,7 +70,7 @@ function schoolCard(s, refresh) {
         copyRow("رمز المدرسة", s.id))), "ghost sm"),
       btn("كلمة مرور جديدة للمدير", async () => {
         if (!(await confirmAction(`إصدار كلمة مرور مؤقتة جديدة لمدير ${s.name}؟ ستنتهي جلساته الحالية.`))) return;
-        try { handover(await api(`${API}/schools/${s.id}/reset-admin`, {}), "بيانات دخول المدير الجديدة"); refresh(); }
+        try { handover(await api(`${API}/schools/${s.id}/reset-admin`, {}), "رابط إعداد حساب المدير"); refresh(); }
         catch (e) { toast(e.message, true); }
       }, "ghost sm")));
 }

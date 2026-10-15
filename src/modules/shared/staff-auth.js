@@ -11,8 +11,8 @@ import { verifyPassword, hashPassword, canonPassword } from "../../core/auth/pas
 import { createSession, destroySession, currentSessionHash } from "../../core/auth/sessions.js";
 import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
-import { normalizePhone } from "./students.service.js";
-import * as recovery from "./staff-recovery.service.js";
+import { env } from "../../config/env.js";
+import { selfSetupLink } from "./school-files.service.js";
 
 const MAX_FAILS = 5, MAX_FAILS_ACCOUNT = 30, LOCK_MIN = 5;
 const FAIL_IP = "staff_login_failed", FAIL_ACCOUNT = "staff_login_failed_all";
@@ -44,17 +44,10 @@ export const staffLoginRouter = () => {
     const outcome = await transaction({ tenantId: b.school, actor: b.username, ip: req.ip }, async (q) => {
       const denied = { error: "بيانات الدخول غير صحيحة" };
       const [tenant] = await q("SELECT id, status, emergency_locked_at FROM tenants WHERE id = $1", [b.school]);
-      // School administrators sign in with their verified mobile number; other staff keep their usernames.
-      const phone = /^[+0-9٠-٩\s-]{7,20}$/.test(b.username) && /\d{6,}|[٠-٩]{6,}/.test(b.username.replace(/[\s-]/g, "")) ? normalizePhone(b.username) : null;
-      // A number typed without its country code still matches on its local digits, when only one administrator has them.
-      const local = phone ? b.username.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/\D/g, "").replace(/^0+/, "") : "";
-      const found = tenant ? await q(
-        `SELECT id, full_name, role, phone, password_hash, is_active, must_change_password, locked_until, locked_until > now() AS locked FROM users
-          WHERE ${phone ? `role = 'admin' AND phone_verified_at IS NOT NULL
-                   AND (phone = $1 OR (length($2) >= 8 AND regexp_replace(phone, '\\D', '', 'g') LIKE '%' || $2))
-                 ORDER BY phone = $1 DESC LIMIT 2` : "username = $1"}`,
-        phone ? [phone, local] : [b.username]) : [];
-      const user = !phone ? found[0] : found.find((u) => u.phone === phone) || (found.length === 1 ? found[0] : undefined);
+      const [user] = tenant ? await q(
+        `SELECT id, full_name, role, password_hash, is_active, must_change_password, locked_until, locked_until > now() AS locked,
+                role = 'admin' AND id = (SELECT min(id) FROM users WHERE role = 'admin') AS primary_admin
+           FROM users WHERE username = $1`, [b.username]) : [];
       const ok = await verifyPassword(b.password, user?.password_hash, { temporary: Boolean(user?.must_change_password) });
       if (!tenant) return denied;
 
@@ -79,32 +72,37 @@ export const staffLoginRouter = () => {
       if (tenant.status !== "active") return { error: "حساب المدرسة موقوف. تواصل مع إدارة المنصة.", status: 403 };
       if (tenant.emergency_locked_at) return { error: "الدخول للمدرسة موقوف مؤقتًا من إدارة المنصة. تواصل معها.", status: 403 };
       await q("DELETE FROM security_events WHERE kind = $1 AND subject = $2", [FAIL_IP, ipKey]);
+      // The school's manager signs in with a Midar account (email, Google or Apple), not a username.
+      // A school not linked to an account yet: these credentials open account creation, once.
+      if (user.primary_admin && !env.ADMIN_LEGACY_LOGIN) {
+        await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: "تحقق المدير ببياناته السابقة (الانتقال إلى حساب مدار)" });
+        return { manager: { tenantId: tenant.id, userId: user.id } };
+      }
       await q("UPDATE users SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1", [user.id]);
       if (user.role === "admin") await q("UPDATE tenants SET activated_at = now() WHERE id = $1 AND activated_at IS NULL", [tenant.id]);
       await createSession(res, user.role, { userId: user.id, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: b.remember }, q);
       await logEvent(q, { tenantId: tenant.id, actor: user.full_name, action: `تسجيل دخول (${label[user.role] || "موظف"})${b.remember ? " - تذكرني" : ""}` });
       return { role: user.role, name: user.full_name };
     });
+    if (outcome.manager) {
+      const setup = await selfSetupLink(outcome.manager.tenantId, outcome.manager.userId, req.ip);
+      if (!setup) throw new AppError(403, "يدخل مدير المدرسة بحساب مدار: البريد الإلكتروني أو Google أو Apple. اختر «الإدارة» في صفحة الدخول.", "use_account");
+      return res.json({ role: "admin", setup: setup.url });
+    }
     if (outcome.locked) throw new AppError(429, outcome.error, "locked", { retry_after: outcome.retry_after });
+    if (outcome.code) throw new AppError(403, outcome.error, outcome.code);
     if (outcome.error) throw outcome.status === 403 ? forbidden(outcome.error) : unauthorized(outcome.error);
     res.json({ role: outcome.role, name: outcome.name });
   }));
 
-  // Forgotten password (administrators): SMS code to the registered mobile, then a new password.
-  const school = loginSchema.shape.school;
-  const phone = z.string().trim().min(6, "أدخل رقم الجوال").max(25);
-  r.post("/recover/start", limits.login, handle(async (req, res) => {
-    const b = parse(z.object({ school, phone }), req.body);
-    res.json(await recovery.start(b.school, b.phone, req.ip));
+  // Whether this school's manager already has a Midar account (decides what the manager tab asks for).
+  r.get("/manager", limits.site, handle(async (req, res) => {
+    const school = parse(loginSchema.shape.school, req.query.school);
+    const [row] = await transaction({ platform: true, actor: "زائر", ip: req.ip }, (q) => q(
+      "SELECT EXISTS (SELECT 1 FROM account_schools WHERE tenant_id = $1 AND revoked_at IS NULL) AS linked", [school]));
+    res.json({ account: Boolean(row?.linked) || env.ADMIN_LEGACY_LOGIN });
   }));
-  r.post("/recover/verify", limits.login, handle(async (req, res) => {
-    const b = parse(z.object({ school, phone, code: z.string().trim().max(10) }), req.body);
-    res.json(await recovery.verify(b.school, b.phone, b.code, req.ip));
-  }));
-  r.post("/recover/reset", limits.login, handle(async (req, res) => {
-    const b = parse(z.object({ school, ticket: z.string().max(80), password: t.password }), req.body);
-    res.json(await recovery.reset(b.school, b.ticket, b.password, req, res));
-  }));
+
   return r;
 };
 

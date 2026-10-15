@@ -33,6 +33,8 @@ const schema = z.object({
   AI_MODEL: z.string().regex(/^claude-[a-z0-9.-]+$/).optional().or(z.literal("")),
   COOKIE_SECURE: bool.default("true"),
   SESSION_COOKIE_MODE: z.enum(["separate", "single"]).default("separate"),
+  // Rollback switch: lets school managers sign in with username and password again (the old way).
+  ADMIN_LEGACY_LOGIN: bool.default("false"),
   FIREBASE_ANALYTICS: bool.default("false"),
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(1),
 });

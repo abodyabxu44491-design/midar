@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
@@ -20,9 +20,9 @@ before(async () => {
   const otp = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
   assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code: otp })).status, 200);
   const r = await owner.post("/api/owner/tenants", { id, name: "مدرسة الترابط" });
-  code = r.data.credentials.directory_code;
+  code = r.data.directory_code;
   admin = client(srv.base);
-  assert.equal((await admin.post("/api/staff/login", { school: id, username: "admin", password: r.data.credentials.password })).status, 200);
+  await setupAdmin(admin, r.data.setup.url);
   await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false WHERE username = 'admin'"));
   assert.ok([200, 201].includes((await admin.post("/api/admin/setup/template", { template: "primary", sections_per_grade: 2, grade_set: "yemen" })).status));
   const classes = (await admin.get("/api/admin/structure/classes")).data;

@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
@@ -17,7 +17,7 @@ async function school(o) {
   const r = await owner.post("/api/owner/tenants", { id: o.id, name: `مدرسة ${o.id}`, max_students: 50 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   o.admin = client(srv.base);
-  assert.equal((await o.admin.post("/api/staff/login", { school: o.id, username: "admin", password: r.data.credentials.password })).status, 200);
+  await setupAdmin(o.admin, r.data.setup.url);
   await transaction({ tenantId: o.id }, (q) => q("UPDATE users SET must_change_password = false WHERE username = 'admin'"));
 }
 async function waitJob(c, url) {

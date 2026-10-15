@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { tableLabel } from "../src/modules/shared/danger-zone.service.js";
@@ -14,13 +14,21 @@ let srv, owner;
 const A = {}, B = {};
 const D = "/api/owner/danger";
 
+// The manager signs in again with their Midar account and opens the school (expecting the given answer).
+async function relogin(o, expected) {
+  const c = client(srv.base);
+  assert.equal((await c.post("/api/account/login", { email: o.email, password: o.pw })).status, 200);
+  assert.equal((await c.post("/api/account/enter", { school: o.id })).status, expected);
+  return c;
+}
+
 async function school(o, name) {
   o.id = `dz-${uid()}`.slice(0, 28);
   const r = await owner.post("/api/owner/tenants", { id: o.id, name, max_students: 50 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
-  o.pw = r.data.credentials.password; o.code = r.data.credentials.directory_code;
-  o.admin = client(srv.base);
-  assert.equal((await o.admin.post("/api/staff/login", { school: o.id, username: "admin", password: o.pw })).status, 200);
+  o.code = r.data.directory_code;
+  o.admin = await setupAdmin(client(srv.base), r.data.setup.url);
+  o.pw = o.admin.password; o.email = o.admin.email;
   o.cls = (await o.admin.post("/api/admin/structure/classes", { name: "الأول - أ" })).data.id;
   for (const n of ["طالب أول", "طالب ثان"]) {
     const s = await o.admin.post("/api/admin/students", { name: n, class_id: o.cls });
@@ -98,8 +106,7 @@ test("الاستعادة ترجع البيانات كما كانت (مع نسخ�
   const [row] = await transaction({ tenantId: A.id }, (q) => q("SELECT excuse FROM attendance WHERE student_id = $1", [A.student]));
   assert.equal(row.excuse, "مرض", "بالتفاصيل نفسها");
   assert.equal(await count(A, "sessions"), 0, "الجلسات انتهت");
-  A.admin = client(srv.base);
-  assert.equal((await A.admin.post("/api/staff/login", { school: A.id, username: "admin", password: A.pw })).status, 200);
+  A.admin = await relogin(A, 200);
   const p = await client(srv.base).post(`/api/public/${A.id}/student`, { access: A.code, student_id: A.student, key: A.key });
   assert.equal(p.status, 200, "ولي الأمر بالمعرّف نفسه");
 });
@@ -138,11 +145,10 @@ test("إعادة ضبط الحسابات: كلمات جديدة تُعرض مر�
 test("القفل الطارئ يوقف الدخول والصفحة العامة فورًا، ورفعه يعيدها", async () => {
   assert.equal((await run(A, "emergency_lock", { reason: "اشتباه" })).res.status, 200);
   assert.equal((await A.admin.get("/api/admin/me")).status, 401, "الجلسات انتهت");
-  assert.equal((await client(srv.base).post("/api/staff/login", { school: A.id, username: "admin", password: A.pw })).status, 403);
+  await relogin(A, 403);
   assert.equal((await client(srv.base).post(`/api/public/${A.id}/student`, { access: A.code, student_id: A.student, key: A.key })).status, 404);
   assert.equal((await run(A, "emergency_unlock")).res.status, 200);
-  A.admin = client(srv.base);
-  assert.equal((await A.admin.post("/api/staff/login", { school: A.id, username: "admin", password: A.pw })).status, 200);
+  A.admin = await relogin(A, 200);
 });
 
 test("إعادة المدرسة لوضع البداية: يبقى المدير ويُفتح معالج الإعداد", async () => {
@@ -154,15 +160,14 @@ test("إعادة المدرسة لوضع البداية: يبقى المدير �
   const users = await transaction({ tenantId: A.id }, (q) => q("SELECT role FROM users"));
   assert.deepEqual(users.map((u) => u.role), ["admin"]);
   assert.equal(await count(A, "academic_years"), 1, "سنة دراسية جديدة كما عند الإنشاء");
-  A.admin = client(srv.base);
-  assert.equal((await A.admin.post("/api/staff/login", { school: A.id, username: "admin", password: A.pw })).status, 200);
+  A.admin = await relogin(A, 200);
   assert.equal(await count(B, "students"), 2, "المدرسة الأخرى سليمة");
 });
 
 test("حذف المدرسة نهائيًا: يُشترط الأرشفة، وتبقى نسخة أخيرة وسجل العمليات", async () => {
   assert.equal((await owner.post(`${D}/plan`, { tenant: B.id, op: "school_delete" })).status, 409, "أرشف أولًا");
   assert.equal((await run(B, "archive")).res.status, 200);
-  assert.equal((await client(srv.base).post("/api/staff/login", { school: B.id, username: "admin", password: B.pw })).status, 403);
+  await relogin(B, 403);
   const { res } = await run(B, "school_delete");
   assert.equal(res.status, 200, JSON.stringify(res.data));
   const [t] = await transaction({ platform: true }, (q) => q("SELECT 1 FROM tenants WHERE id = $1", [B.id]));

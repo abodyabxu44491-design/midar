@@ -97,13 +97,13 @@ async function adminOf(q, tenantId) {
 
 // The current activation link, if one is still valid, decrypted so it can be shown again.
 async function currentLink(q, tenantId, baseUrl) {
-  const [a] = await q(`SELECT id, token_enc, expires_at, created_at, created_by, phone, phone_verified_at, otp_sends FROM school_activations
-                        WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
-                        ORDER BY id DESC LIMIT 1`, [tenantId]);
+  const [a] = await q(`SELECT id, token_enc, expires_at, created_at, created_by, started_at, account_id, recovery FROM school_activations
+                        WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now() AND created_by <> $2
+                        ORDER BY id DESC LIMIT 1`, [tenantId, SELF_SETUP]);
   if (!a) return null;
   const token = a.token_enc ? openSecret(a.token_enc, `activation:${tenantId}`) : null;
-  return { expires_at: a.expires_at, created_at: a.created_at, created_by: a.created_by, phone: a.phone, phone_verified_at: a.phone_verified_at,
-    otp_sends: a.otp_sends, url: token ? `${baseUrl}/activate?token=${token}` : null };
+  return { expires_at: a.expires_at, created_at: a.created_at, created_by: a.created_by, started_at: a.started_at,
+    account_created: Boolean(a.account_id), recovery: a.recovery, url: token ? `${baseUrl}/activate?token=${token}` : null };
 }
 
 export async function getFile(q, id, baseUrl) {
@@ -120,17 +120,23 @@ export async function getFile(q, id, baseUrl) {
   const links = { login: `${baseUrl}/${id}/idara?role=admin`, parents: `${baseUrl}/${id}` };
   const activation = admin ? await currentLink(q, id, baseUrl) : null;
   const [lastLink] = await q("SELECT expires_at, used_at, revoked_at FROM school_activations WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1", [id]);
-  // An open link (first activation or a reset) shows its own progress; otherwise the account's final state.
-  const activationState = activation?.phone_verified_at ? "phone_verified"
-    : activation ? (events.some((e) => e.kind === "delivery" && new Date(e.created_at) >= new Date(activation.created_at)) ? "link_sent" : "link_ready")
-      : t.activated_at ? "activated" : lastLink && !lastLink.used_at && !lastLink.revoked_at && new Date(lastLink.expires_at) < new Date() ? "expired" : "pending";
+  // The manager's Midar account linked to this school (who, how, since when) — never any secret.
+  const [account] = await q(
+    `SELECT a.email, a.full_name, s.linked_via, s.linked_at, a.last_login_at FROM account_schools s JOIN accounts a ON a.id = s.account_id
+      WHERE s.tenant_id = $1 AND s.revoked_at IS NULL ORDER BY s.linked_at DESC LIMIT 1`, [id]);
+  // An open link shows its own progress (a recovery link first); otherwise the account's final state.
+  const activationState = activation
+    ? (activation.recovery ? "recovery" : activation.account_created ? "account_created" : activation.started_at ? "started"
+      : events.some((e) => e.kind === "delivery" && new Date(e.created_at) >= new Date(activation.created_at)) ? "link_sent" : "link_ready")
+    : account ? "activated"
+      : lastLink && !lastLink.used_at && !lastLink.revoked_at && new Date(lastLink.expires_at) < new Date() ? "expired" : "pending";
   return {
     school: { id: t.id, name: t.name, status: t.status, created_at: t.created_at, updated_at: t.updated_at, approved_at: t.approved_at,
       approved_by: t.approved_by, activated_at: t.activated_at, is_demo: t.is_demo, directory_code: t.directory_code, currency: t.currency,
       lead_id: t.lead_id, requested_at: t.requested_at || t.created_at, lead_status: t.lead_status, lead_kind: t.lead_kind, handled_by: t.handled_by },
     profile: { ...(t.lead_details || {}), ...t.profile },
     subscription: t.plan_name ? { plan_name: t.plan_name, kind: t.sub_kind, status: t.sub_status, starts_on: t.starts_on, ends_on: t.ends_on } : null,
-    admin, activation, activation_state: activationState,
+    admin, activation, activation_state: activationState, account: account || null,
     links, stage, stages: STAGES, delivery, events,
   };
 }
@@ -164,13 +170,38 @@ export async function issueLink(q, id, actor, baseUrl) {
   const m = p.manager || {};
   const manager = p.contact_name || [m.first, m.second, m.third, m.family].filter(Boolean).join(" ") || admin.full_name;
   await q("UPDATE school_activations SET revoked_at = now(), token_enc = NULL WHERE tenant_id = $1 AND used_at IS NULL AND revoked_at IS NULL", [id]);
+  // A school already linked to a manager's account gets a recovery link: completing it moves the school to the new account.
+  const [{ linked }] = await q("SELECT EXISTS (SELECT 1 FROM account_schools WHERE tenant_id = $1 AND revoked_at IS NULL) AS linked", [id]);
   const token = crypto.randomBytes(32).toString("hex");
   const [a] = await q(
-    `INSERT INTO school_activations (tenant_id, user_id, token_hash, token_enc, expires_at, created_by, phone, manager_name)
-     VALUES ($1, $2, $3, $4, now() + make_interval(days => $5), $6, $7, $8) RETURNING expires_at`,
-    [id, admin.id, sha(token), sealSecret(token, `activation:${id}`), LINK_DAYS, actor, null, manager]);
-  await addEvent(q, id, { kind: "activation_link", body: `رابط تفعيل صالح ${LINK_DAYS} أيام (الرابط السابق أُلغي)` }, actor);
+    `INSERT INTO school_activations (tenant_id, user_id, token_hash, token_enc, expires_at, created_by, phone, manager_name, recovery)
+     VALUES ($1, $2, $3, $4, now() + make_interval(days => $5), $6, $7, $8, $9) RETURNING expires_at`,
+    [id, admin.id, sha(token), sealSecret(token, `activation:${id}`), LINK_DAYS, actor, null, manager, linked]);
+  await addEvent(q, id, linked
+    ? { kind: "access_reset", body: `رابط استعادة وصول المدير صالح ${LINK_DAYS} أيام (الرابط السابق أُلغي)` }
+    : { kind: "activation_link", body: `رابط إعداد حساب المدير صالح ${LINK_DAYS} أيام (الرابط السابق أُلغي)` }, actor);
   return { url: `${baseUrl}/activate?token=${token}`, expires_at: a.expires_at };
+}
+
+// An existing school's manager proved who they are with the school's current username and password:
+// a short setup link (never shown to the owner) takes them straight to creating their Midar account.
+// Returns null when the school is already linked to an account.
+export const SELF_SETUP = "المدير — أول دخول";
+const SELF_MINUTES = 30;
+export async function selfSetupLink(tenantId, userId, ip) {
+  return transaction({ platform: true, actor: SELF_SETUP, ip }, async (q) => {
+    const [{ linked }] = await q("SELECT EXISTS (SELECT 1 FROM account_schools WHERE tenant_id = $1 AND revoked_at IS NULL) AS linked", [tenantId]);
+    if (linked) return null;
+    const [u] = await transaction({ tenantId, actor: "النظام" }, (tq) => tq("SELECT full_name FROM users WHERE id = $1", [userId]));
+    await q("UPDATE school_activations SET revoked_at = now() WHERE tenant_id = $1 AND created_by = $2 AND used_at IS NULL AND revoked_at IS NULL", [tenantId, SELF_SETUP]);
+    const token = crypto.randomBytes(32).toString("hex");
+    await q(
+      `INSERT INTO school_activations (tenant_id, user_id, token_hash, expires_at, created_by, manager_name, recovery)
+       VALUES ($1, $2, $3, now() + make_interval(mins => $4), $5, $6, false)`,
+      [tenantId, userId, sha(token), SELF_MINUTES, SELF_SETUP, u?.full_name || null]);
+    await addEvent(q, tenantId, { kind: "activation_link", body: "دخل المدير ببياناته السابقة وبدأ إنشاء حساب مدار" }, SELF_SETUP);
+    return { url: `/activate?token=${token}` };
+  });
 }
 
 // Stops any open activation link (lost phone, wrong recipient). A new link can be issued afterwards.

@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 
 let srv, owner, A, B;
@@ -18,8 +18,8 @@ async function makeSchool(name) {
   const r = await owner.post("/api/owner/tenants", { id, name, max_students: 50 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   const admin = client(srv.base);
-  assert.equal((await admin.post("/api/staff/login", { school: id, username: "admin", password: r.data.credentials.password })).status, 200);
-  return { id, admin, code: r.data.credentials.directory_code };
+  await setupAdmin(admin, r.data.setup.url);
+  return { id, admin, code: r.data.directory_code };
 }
 
 before(async () => {

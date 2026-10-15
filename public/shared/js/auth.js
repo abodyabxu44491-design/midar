@@ -7,7 +7,6 @@
 import { h, mount } from "./dom.js";
 import { brandLogo, toAsciiDigits } from "./ui.js";
 import { icons } from "./icons.js";
-import { ARAB_DIALS, guessDial, withDial, detectPhone } from "./phone.js";
 
 const NS = "http://www.w3.org/2000/svg";
 function orbitArt() {
@@ -62,89 +61,44 @@ export const authField = (label, control, { hint, aside, id } = {}) => h("div", 
   h("div", { class: "au-f-top" }, h("label", { for: id || undefined }, label), aside || null),
   control, hint ? h("small", { class: "au-hint" }, hint) : null);
 
-// Phone number with a country-code picker inside the same box.
-export function phoneField({ id = "au-phone", autofocus = false } = {}) {
-  let dial = guessDial();
-  const num = h("input", { id, type: "tel", inputmode: "tel", autocomplete: "tel-national", dir: "ltr", class: "pf-num",
-    placeholder: "رقم الجوال", autofocus: autofocus || null });
-  const code = h("b", { dir: "ltr" });
-  const trigger = h("button", { type: "button", class: "pf-cc", "aria-haspopup": "listbox", "aria-expanded": "false" }, code, icons.chevronDown({ size: 14 }));
-  const search = h("input", { type: "search", class: "pf-search", placeholder: "ابحث عن الدولة", "aria-label": "ابحث عن الدولة", autocomplete: "off" });
-  const list = h("div", { class: "pf-list", role: "listbox", "aria-label": "رمز الدولة" });
-  const pop = h("div", { class: "pf-pop", hidden: true }, h("div", { class: "pf-search-row" }, icons.search({ size: 16 }), search), list);
-  const box = h("div", { class: "pf-box", dir: "ltr" }, trigger, h("i", { class: "pf-sep" }), num);
-  const el = h("div", { class: "pf" }, box, pop);
+const SVGNS = "http://www.w3.org/2000/svg";
+const svgMark = (viewBox, paths) => {
+  const el = document.createElementNS(SVGNS, "svg");
+  el.setAttribute("viewBox", viewBox); el.setAttribute("width", "20"); el.setAttribute("height", "20"); el.setAttribute("aria-hidden", "true");
+  for (const [d, fill] of paths) { const p = document.createElementNS(SVGNS, "path"); p.setAttribute("d", d); p.setAttribute("fill", fill); el.append(p); }
+  return el;
+};
+const googleMark = () => svgMark("0 0 48 48", [
+  ["M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z", "#FFC107"],
+  ["M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z", "#FF3D00"],
+  ["M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z", "#4CAF50"],
+  ["M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z", "#1976D2"],
+]);
+const appleMark = () => svgMark("0 0 24 24", [["M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.47.83-.72 0-1.82-.81-3-.79-1.54.02-2.96.9-3.76 2.27-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74s1.78.74 2.99.72c1.24-.02 2.02-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.4-.92-2.4-3.68zM14.09 5.84c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.61-2.66 1.37-.58.67-1.09 1.75-.96 2.79 1.02.08 2.05-.52 2.68-1.27z", "currentColor"]]);
 
-  const paint = () => {
-    const c = ARAB_DIALS.find((x) => x.dial === dial);
-    code.textContent = c ? `+${c.dial}` : "+ دولي";
-    trigger.title = c ? c.name : "رقم دولي";
-    trigger.setAttribute("aria-label", `رمز الدولة: ${c ? c.name : "رقم دولي"}`);
-    num.placeholder = c ? "رقم الجوال" : "+ رمز الدولة ثم الرقم";
-  };
-  const options = () => [...ARAB_DIALS.map((c) => ({ dial: c.dial, name: c.name })), { dial: null, name: "دولة أخرى" }];
-  const drawList = () => {
-    const q = search.value.trim().replace(/^\+/, "");
-    const rows = options().filter((c) => !q || c.name.includes(q) || (c.dial && c.dial.startsWith(q)));
-    mount(list, rows.length ? rows.map((c) => h("button", {
-      type: "button", class: `pf-opt${c.dial === dial ? " on" : ""}`, role: "option", "aria-selected": String(c.dial === dial),
-      onclick: () => { dial = c.dial; paint(); close(); num.focus(); },
-    }, h("span", { class: "pf-name" }, c.name), h("span", { class: "pf-dial", dir: "ltr" }, c.dial ? `+${c.dial}` : ""),
-      c.dial === dial ? icons.check({ size: 15 }) : h("i", { class: "pf-tick" }))) : h("p", { class: "pf-none" }, "لا توجد دولة بهذا الاسم"));
-  };
-  const onDoc = (e) => { if (!el.contains(e.target)) close(); };
-  function open() {
-    pop.hidden = false; trigger.setAttribute("aria-expanded", "true"); el.classList.add("open");
-    search.value = ""; drawList();
-    document.addEventListener("pointerdown", onDoc, true);
-    requestAnimationFrame(() => { search.focus({ preventScroll: true }); list.querySelector(".on")?.scrollIntoView({ block: "nearest" }); });
-  }
-  function close() {
-    pop.hidden = true; trigger.setAttribute("aria-expanded", "false"); el.classList.remove("open");
-    document.removeEventListener("pointerdown", onDoc, true);
-  }
-  trigger.addEventListener("click", () => (pop.hidden ? open() : close()));
-  search.addEventListener("input", drawList);
-  const moveFocus = (step) => {
-    const opts = [...list.querySelectorAll(".pf-opt")];
-    const at = opts.indexOf(document.activeElement);
-    opts[Math.max(0, Math.min(opts.length - 1, at + step))]?.focus();
-  };
-  pop.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { e.preventDefault(); close(); trigger.focus(); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); moveFocus(1); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); moveFocus(-1); }
-    else if (e.key === "Enter" && document.activeElement === search) { e.preventDefault(); list.querySelector(".pf-opt")?.click(); }
-  });
-  // Digits only; a full international number pasted in the box moves the picker to its country.
-  num.addEventListener("input", () => {
-    const v = toAsciiDigits(num.value).replace(/[^\d+]/g, "");
-    if (/^(\+|00)/.test(v)) {
-      const d = v.replace(/\D/g, "").replace(/^00/, "");
-      const hit = ARAB_DIALS.find((c) => d.startsWith(c.dial) && detectPhone(`+${d}`)?.ok);
-      if (hit) { dial = hit.dial; paint(); num.value = d.slice(hit.dial.length); return; }
-    }
-    if (num.value !== v) num.value = v;
-  });
-  box.addEventListener("click", (e) => { if (e.target === box) num.focus(); });
-  paint();
-
-  return {
-    el, input: num,
-    get value() { return withDial(dial, num.value); },
-    get empty() { return !num.value.replace(/\D/g, ""); },
-    get valid() { return Boolean(detectPhone(withDial(dial, num.value))?.ok); },
-    focus: () => num.focus(),
-    invalid: (on) => box.classList.toggle("bad", on),
-    // Fills a stored international number back in, with its country selected.
-    set(full) {
-      const d = toAsciiDigits(String(full || "")).replace(/\D/g, "");
-      const hit = ARAB_DIALS.find((c) => d.startsWith(c.dial) && detectPhone(`+${d}`)?.ok);
-      if (hit) { dial = hit.dial; num.value = d.slice(hit.dial.length); } else { num.value = String(full || ""); }
-      paint();
-    },
-  };
+// "Continue with Google / Apple" buttons (each shown only when the owner has set it up).
+export function providerButtons(enabled, hrefOf) {
+  const out = [];
+  if (enabled?.google) out.push(h("a", { class: "au-prov google", href: hrefOf("google") }, googleMark(), h("span", {}, "المتابعة باستخدام Google")));
+  if (enabled?.apple) out.push(h("a", { class: "au-prov apple", href: hrefOf("apple") }, appleMark(), h("span", {}, "المتابعة باستخدام Apple")));
+  return out.length ? h("div", { class: "au-provs" }, out) : null;
 }
+export const orDivider = (text = "أو") => h("div", { class: "au-or", role: "separator" }, h("span", {}, text));
+
+// Messages for a provider round-trip that came back without signing in (?oauth=…).
+export const OAUTH_MESSAGES = {
+  cancelled: "أُلغيت العملية قبل اكتمالها.",
+  expired: "انتهت مهلة العملية. حاول مرة أخرى.",
+  failed: "تعذر التحقق من الحساب لدى المزوّد. حاول مرة أخرى.",
+  off: "هذه الطريقة غير مفعّلة حاليًا.",
+  not_linked: "هذا الحساب غير مرتبط بأي مدرسة في مدار. ادخل بالطريقة التي ربطت بها حسابك، أو اطلب رابط استعادة من إدارة مدار.",
+  email_exists: "بريد هذا الحساب مسجّل في مدار بكلمة مرور. ادخل بالبريد وكلمة المرور، ثم اربط الحساب من «الدخول والأمان».",
+  no_email: "لم يشارك المزوّد بريدًا موثّقًا. استخدم طريقة أخرى.",
+  taken: "هذا الحساب مرتبط بحساب مدار آخر.",
+  linked: "تم الربط بنجاح.",
+  linked_other: "هذه المدرسة مرتبطة بحساب آخر. اطلب من إدارة مدار رابط استعادة الوصول.",
+  link_failed: "تعذر ربط المدرسة. افتح رابط الإعداد مرة أخرى أو اطلب رابطًا جديدًا.",
+};
 
 // Six-digit code: one real input (so SMS autofill keeps working) drawn as six boxes.
 export function codeField({ onComplete } = {}) {

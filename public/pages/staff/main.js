@@ -7,7 +7,7 @@ import { h, $, mount } from "../shared/js/dom.js";
 import { offlineProfile } from "../shared/js/offline/sync.js";
 import { api } from "../shared/js/api.js";
 import { field, input, select, textarea, btn, notice, dialog, showInstallBar, passwordInput, preloadModule, schoolLogoUrl } from "../shared/js/ui.js";
-import { authShell, authHead, authField, phoneField, codeField, strengthMeter } from "../shared/js/auth.js";
+import { authShell, authHead, authField, providerButtons, orDivider, OAUTH_MESSAGES } from "../shared/js/auth.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 
@@ -54,25 +54,38 @@ async function start() {
     if (!role && !pinned) role = await Promise.any(roles.filter((r) => r !== last).map(probe)).catch(() => null);
   }
   if (role) { sessionStorage.setItem("midar_role", role); localStorage.setItem("midar_last_role", role); return enter(role); }
+  // The manager's account is still signed in on this device: open the school without asking again.
+  if (navigator.onLine && (!pinned || pinned === "admin")) {
+    const me = await api("/api/account/me").catch(() => null);
+    if (me?.schools?.some((x) => x.id === school)) {
+      const opened = await api("/api/account/enter", { school }).then(() => true, () => false);
+      if (opened) { sessionStorage.setItem("midar_role", "admin"); localStorage.setItem("midar_last_role", "admin"); return enter("admin"); }
+    }
+  }
   const profile = offlineProfile();
   if (netDown && (!pinned || pinned === "teacher") && profile?.role === "teacher" && profile.me?.school?.id === school && Date.now() - profile.savedAt < 7 * 86400000) {
     return enter("teacher", profile.me);
   }
-  if (!netDown) await Promise.race([loadSchool(), new Promise((r) => setTimeout(r, 1500))]);
+  if (!netDown) await Promise.race([Promise.all([loadSchool(), loadConfig(), loadManager()]), new Promise((r) => setTimeout(r, 1500))]);
   showLogin(netDown ? "لا يوجد اتصال بالإنترنت. سجّل الدخول مرة واحدة متصلًا لتجهيز العمل بدون اتصال." : undefined);
 }
 
 // The account last used on this device; the next sign-in only asks for the password.
 const ACCT_KEY = `midar_acct_${school}`;
 const savedAccount = () => {
-  try { const a = JSON.parse(localStorage.getItem(ACCT_KEY) || "null"); return a?.id && a?.role ? a : null; } catch { return null; }
+  // Accounts remembered before managers moved to Midar accounts (phone sign-in) are dropped.
+  try { const a = JSON.parse(localStorage.getItem(ACCT_KEY) || "null"); return a?.id && a?.role && a.by !== "phone" ? a : null; } catch { return null; }
 };
 const saveAccount = (a) => { try { localStorage.setItem(ACCT_KEY, JSON.stringify(a)); } catch { /* storage unavailable */ } };
 const forgetAccount = () => { try { localStorage.removeItem(ACCT_KEY); } catch { /* storage unavailable */ } };
 const ROLE_NAMES = { admin: "الإدارة", teacher: "المعلم", accountant: "المحاسب" };
-const maskId = (a) => (a.by === "phone" ? `•••• ${String(a.id).replace(/\D/g, "").slice(-4)}` : a.id);
 
 let schoolInfo = null;
+let cfg = { google: false, apple: false };
+const loadConfig = () => api("/api/account/config").then((c) => { cfg = c; }).catch(() => {});
+// false while this school's manager has not created a Midar account yet (first sign-in after the move).
+let managerLinked = true;
+const loadManager = () => api(`/api/staff/manager?school=${encodeURIComponent(school)}`).then((r) => { managerLinked = r.account !== false; }).catch(() => {});
 const BRAND = () => ({
   title: "إدارة مدرستك بوضوح وسهولة",
   text: "الطلاب والحضور والدرجات والرسوم والتقارير، في منصة واحدة آمنة.",
@@ -87,42 +100,57 @@ const loadSchool = () => (schoolInfo ? Promise.resolve(schoolInfo) : api(`/api/p
 
 function showLogin(error) {
   let account = savedAccount();
-  const fromLink = new URLSearchParams(location.search).get("role");
+  const q = new URLSearchParams(location.search);
+  const fromLink = q.get("role");
   let chosen = account?.role || (ROLE_NAMES[fromLink] ? fromLink : (localStorage.getItem("midar_last_role") || "admin"));
   if (!ROLE_NAMES[chosen]) chosen = "admin";
-  // Managers sign in with their verified mobile number; teachers and accountants keep their usernames.
-  let byPhone = localStorage.getItem("midar_admin_by") !== "username";
-  const phone = phoneField({ id: "login-phone" });
+  // The school's manager signs in with a Midar account (email, Google or Apple); deputies, teachers and
+  // accountants keep their usernames.
+  let deputy = localStorage.getItem("midar_admin_by") === "username";
+  const email = input({ id: "login-email", type: "email", class: "ltr", autocomplete: "email", inputMode: "email", placeholder: "name@example.com" });
   const user = input({ id: "login-user", class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
   const pass = passwordInput({ id: "login-pass", autocomplete: "current-password", placeholder: "كلمة المرور" });
   const remember = h("input", { type: "checkbox", checked: true });
   const who = h("div");
-  const msg = h("div", { "aria-live": "polite" }, error ? notice(error, "err") : null);
-  const usePhone = () => !account && chosen === "admin" && byPhone;
-  const identity = () => (account ? account.id : usePhone() ? phone.value : user.value.trim());
-  const firstField = () => (account ? pass : usePhone() ? phone : user);
+  const oauthNote = q.get("oauth") && OAUTH_MESSAGES[q.get("oauth")];
+  if (q.has("oauth")) history.replaceState(null, "", location.pathname + (fromLink ? `?role=${fromLink}` : ""));
+  const msg = h("div", { "aria-live": "polite" }, error ? notice(error, "err") : oauthNote ? notice(oauthNote, "err") : null);
+  const managerMode = () => !account && chosen === "admin" && !deputy;
+  // An existing school whose manager has no Midar account yet: the current username and password, once.
+  const firstTime = () => managerMode() && !managerLinked;
+  const usesAccount = () => (account ? account.by === "email" : managerMode() && !firstTime());
+  const identity = () => (account ? account.id : usesAccount() ? email.value.trim() : user.value.trim());
+  const firstField = () => (account ? pass : usesAccount() ? email : user);
 
   const drawWho = () => {
     if (account) {
-      const initial = String(account.name || ROLE_NAMES[account.role]).replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0);
+      const initial = String(account.name || account.id).replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0).toUpperCase();
       return mount(who, h("div", { class: "au-me" },
         h("span", { class: "av", "aria-hidden": "true" }, initial),
         h("div", { class: "au-me-t" }, h("b", {}, account.name ? `مرحبًا، ${account.name.split(" ")[0]}` : "مرحبًا بعودتك"),
-          h("small", {}, ROLE_NAMES[account.role], " · ", h("bdi", { dir: "ltr" }, maskId(account)))),
+          h("small", {}, ROLE_NAMES[account.role], " · ", h("bdi", { dir: "ltr" }, account.id))),
         h("button", { type: "button", class: "au-link", onclick: () => { forgetAccount(); account = null; drawWho(); checkLock(); firstField().focus(); } }, "حساب آخر")));
     }
-    const swap = chosen === "admin" ? h("button", { type: "button", class: "au-link", onclick: () => {
-      byPhone = !byPhone;
-      try { localStorage.setItem("midar_admin_by", byPhone ? "phone" : "username"); } catch { /* storage unavailable */ }
-      drawWho(); firstField().focus(); checkLock();
-    } }, byPhone ? "الدخول باسم المستخدم" : "الدخول برقم الجوال") : null;
     const seg = h("div", { class: "au-seg", role: "radiogroup", "aria-label": "نوع الحساب" }, Object.entries(ROLE_NAMES).map(([k, name]) => h("button", {
       type: "button", class: chosen === k ? "on" : "", role: "radio", "aria-checked": String(chosen === k),
       onclick: () => { chosen = k; drawWho(); checkLock(); firstField().focus(); },
     }, name)));
-    mount(who, seg, usePhone()
-      ? authField("رقم الجوال", phone.el, { id: "login-phone", aside: swap })
-      : authField("اسم المستخدم", user, { id: "login-user", aside: swap }));
+    if (firstTime()) {
+      return mount(who, seg, h("div", { class: "au-first" },
+        h("b", {}, "أهلًا بك في دخول مدار الجديد"),
+        h("p", {}, "أصبح دخول مدير المدرسة بحساب مدار الشخصي. أدخل اسم المستخدم وكلمة المرور الحاليين مرة واحدة، ثم أنشئ حسابك بالبريد الإلكتروني أو Google.")),
+      authField("اسم المستخدم", user, { id: "login-user" }));
+    }
+    if (managerMode()) {
+      const providers = providerButtons(cfg, (p) => `/api/account/oauth/${p}/start?purpose=login&school=${encodeURIComponent(school)}`);
+      return mount(who, seg, providers, providers ? orDivider("أو بالبريد الإلكتروني") : null, authField("البريد الإلكتروني", email, { id: "login-email" }));
+    }
+    const swap = chosen === "admin" ? h("button", { type: "button", class: "au-link", onclick: () => {
+      deputy = false;
+      try { localStorage.setItem("midar_admin_by", "account"); } catch { /* storage unavailable */ }
+      drawWho(); firstField().focus(); checkLock();
+    } }, "مدير المدرسة؟ ادخل بحسابك") : null;
+    mount(who, seg, authField("اسم المستخدم", user, { id: "login-user", aside: swap }));
   };
 
   const lockKey = () => `midar_lock_${school}_${identity().toLowerCase()}`;
@@ -159,20 +187,30 @@ function showLogin(error) {
   }
   const submit = go("تسجيل الدخول", async () => {
     if (lockTimer) return;
-    mount(msg); phone.invalid(false);
-    if (!account && (usePhone() ? phone.empty : !user.value.trim())) {
-      firstField().focus();
-      return mount(msg, notice(usePhone() ? "أدخل رقم الجوال." : "أدخل اسم المستخدم.", "err"));
-    }
-    if (usePhone() && !phone.valid) { phone.invalid(true); phone.focus(); return mount(msg, notice("رقم الجوال غير صحيح. تأكد من الدولة والرقم.", "err")); }
+    mount(msg);
+    if (!account && !identity()) { firstField().focus(); return mount(msg, notice(usesAccount() ? "أدخل بريدك الإلكتروني." : "أدخل اسم المستخدم.", "err")); }
     if (!pass.value) { pass.focus(); return mount(msg, notice("أدخل كلمة المرور.", "err")); }
     submit.disabled = true;
     const id = identity();
-    const by = account ? account.by : usePhone() ? "phone" : "username";
     try {
+      if (usesAccount()) {
+        // The manager's Midar account, then this school (the server checks the link).
+        const a = await api("/api/account/login", { email: id, password: pass.value });
+        pass.value = "";
+        if (remember.checked) saveAccount({ id, by: "email", role: "admin", name: a.name || "" }); else forgetAccount();
+        return await openManagedSchool();
+      }
       const r = await api("/api/staff/login", { school, username: id, password: pass.value, remember: remember.checked });
       pass.value = "";
-      if (remember.checked) saveAccount({ id, by, role: r.role, name: r.name || "" }); else forgetAccount();
+      if (r.setup) {
+        // The manager confirmed the school's current credentials: on to creating the Midar account.
+        forgetAccount();
+        try { localStorage.setItem("midar_admin_by", "account"); } catch { /* storage unavailable */ }
+        mount(app, h("p", { class: "empty loading" }, "جارٍ تجهيز حسابك…"));
+        location.href = r.setup;
+        return;
+      }
+      if (remember.checked) saveAccount({ id, by: "username", role: r.role, name: r.name || "" }); else forgetAccount();
       sessionStorage.setItem("midar_role", r.role);
       localStorage.setItem("midar_last_role", r.role);
       localStorage.setItem("midar_school", school);
@@ -185,16 +223,18 @@ function showLogin(error) {
         sessionStorage.setItem(lockKey(), String(until));
         return runLock(until);
       }
+      if (e.code === "use_account") { deputy = false; chosen = "admin"; managerLinked = true; drawWho(); }
       mount(msg, notice(e.message, "err"));
       pass.inputEl.select();
     }
   });
-  for (const el of [user, phone.input, pass.inputEl]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
+  for (const el of [user, email, pass.inputEl]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());
   user.addEventListener("input", checkLock);
-  phone.input.addEventListener("input", checkLock);
-  // Administrators recover by SMS to their registered number; other staff ask the school administration.
-  const forgot = () => ((account ? account.role : chosen) === "admin"
-    ? showRecover(account?.by === "phone" ? account.id : usePhone() ? phone.value : "")
+  // Managers recover their account by email; other staff ask the school administration.
+  const forgot = () => (firstTime()
+    ? mount(msg, notice("لاستعادة الدخول، تواصل مع إدارة مدار لترسل لك رابط إعداد حسابك.", "warn"))
+    : usesAccount()
+    ? (location.href = `/account?forgot=1&school=${encodeURIComponent(school)}${identity() ? `&email=${encodeURIComponent(identity())}` : ""}`)
     : requestDialog(school));
   drawWho();
 
@@ -204,101 +244,35 @@ function showLogin(error) {
     h("div", { class: "au-row" },
       h("label", { class: "au-check" }, remember, h("span", {}, "تذكرني")),
       h("button", { class: "au-link", type: "button", onclick: forgot }, "نسيت كلمة المرور؟")),
-    msg, submit);
+    msg, submit,
+    !account && chosen === "admin" && !deputy && managerLinked ? h("p", { class: "au-tabs-note" }, h("button", { type: "button", class: "au-link", onclick: () => {
+      deputy = true;
+      try { localStorage.setItem("midar_admin_by", "username"); } catch { /* storage unavailable */ }
+      showLogin();
+    } }, "مستخدم إداري باسم مستخدم؟ ادخل من هنا")) : null);
   setTimeout(checkLock, 0);
   firstField().focus();
   startAnalytics("staff-login");
 }
 
-// Forgotten password for administrators: registered number, SMS code, new password, then straight in.
-function showRecover(prefill = "") {
-  const back = h("button", { type: "button", class: "au-back", onclick: () => showLogin() }, icons.chevronLeft({ size: 16 }), "العودة لتسجيل الدخول");
-  const phone = phoneField({ id: "rc-phone" });
-  if (prefill) phone.set(prefill);
-  const msg = h("div", { "aria-live": "polite" });
-  const send = go("إرسال رمز التحقق", async () => {
-    mount(msg); phone.invalid(false);
-    if (phone.empty) { phone.invalid(true); phone.focus(); return mount(msg, notice("أدخل رقم الجوال.", "err")); }
-    if (!phone.valid) { phone.invalid(true); phone.focus(); return mount(msg, notice("رقم الجوال غير صحيح. تأكد من الدولة والرقم.", "err")); }
-    send.disabled = true;
-    try { const r = await api("/api/staff/recover/start", { school, phone: phone.value }); codeStep(phone.value, r.resend_in || 60); }
-    catch (e) { send.disabled = false; mount(msg, notice(e.message, "err")); }
-  });
-  phone.input.addEventListener("keydown", (e) => e.key === "Enter" && send.click());
-  page(back, authHead("استعادة كلمة المرور", "أدخل رقم الجوال المسجّل لحسابك، وسيصلك رمز تحقق برسالة نصية."),
-    authField("رقم الجوال", phone.el, { id: "rc-phone" }), msg, send);
-  phone.focus();
-
-  function codeStep(full, wait) {
-    const m = h("div", { "aria-live": "polite" });
-    let timer, busy = false, otpAbort = null;
-    const resend = h("button", { type: "button", class: "au-link" });
-    const verify = async () => {
-      if (busy) return;
-      mount(m);
-      if (!/^\d{6}$/.test(code.value)) { code.invalid(); return mount(m, notice("أدخل رمز التحقق المكوّن من 6 أرقام.", "err")); }
-      busy = true; next.disabled = true;
-      try {
-        const r = await api("/api/staff/recover/verify", { school, phone: full, code: code.value });
-        clearInterval(timer); otpAbort?.abort();
-        passwordStep(r.ticket, full);
-      } catch (e) { mount(m, notice(e.message, "err")); code.invalid(); code.clear(); }
-      finally { busy = false; next.disabled = false; }
-    };
-    const code = codeField({ onComplete: verify });
-    const next = go("متابعة", verify);
-    const tick = () => {
-      clearInterval(timer);
-      const paint = () => { resend.disabled = wait > 0; resend.textContent = wait > 0 ? `إعادة الإرسال بعد ${wait} ث` : "إعادة إرسال الرمز"; };
-      paint();
-      timer = setInterval(() => { wait = Math.max(0, wait - 1); paint(); if (!wait) clearInterval(timer); }, 1000);
-    };
-    const autoFill = () => {
-      if (!("OTPCredential" in window)) return;
-      otpAbort?.abort(); otpAbort = new AbortController();
-      navigator.credentials.get({ otp: { transport: ["sms"] }, signal: otpAbort.signal })
-        .then((c) => { if (c?.code) { code.value = c.code; verify(); } }).catch(() => {});
-    };
-    resend.addEventListener("click", async () => {
-      mount(m); resend.disabled = true;
-      try { await api("/api/staff/recover/start", { school, phone: full }); wait = 60; tick(); code.clear(); autoFill(); mount(m, notice("أرسلنا رمزًا جديدًا.", "")); }
-      catch (e) { mount(m, notice(e.message, "err")); resend.disabled = false; }
-    });
-    page(back, authHead("أدخل رمز التحقق", h("span", {}, "إذا كان الرقم ", h("bdi", { dir: "ltr" }, `•••• ${full.replace(/\D/g, "").slice(-4)}`), " مسجّلًا لحسابك فسيصلك رمز من 6 أرقام.")),
-      code.el,
-      h("div", { class: "au-sent" }, resend, h("button", { type: "button", class: "au-link", onclick: () => { clearInterval(timer); otpAbort?.abort(); showRecover(full); } }, "تغيير الرقم")),
-      m, next);
-    tick(); autoFill(); code.focus();
-  }
-
-  function passwordStep(ticket, full) {
-    const pass = passwordInput({ id: "rc-pass", autocomplete: "new-password", placeholder: "كلمة المرور الجديدة" });
-    const again = passwordInput({ id: "rc-again", autocomplete: "new-password", placeholder: "أعد كتابة كلمة المرور" });
-    const meter = strengthMeter(pass);
-    const m = h("div", { "aria-live": "polite" });
-    const save = go("حفظ والدخول", async () => {
-      mount(m);
-      if (!pass.value) { pass.focus(); return mount(m, notice("أدخل كلمة المرور الجديدة.", "err")); }
-      if (pass.value !== again.value) { again.focus(); return mount(m, notice("كلمتا المرور غير متطابقتين.", "err")); }
-      save.disabled = true;
-      try {
-        const r = await api("/api/staff/recover/reset", { school, ticket, password: pass.value });
-        saveAccount({ id: full, by: "phone", role: "admin", name: r.name || "" });
-        sessionStorage.setItem("midar_role", "admin");
-        localStorage.setItem("midar_last_role", "admin");
-        mount(app, h("p", { class: "empty loading" }, "جارٍ فتح لوحتك…"));
-        await enter("admin");
-      } catch (e) {
-        save.disabled = false; mount(m, notice(e.message, "err"));
-        if (e.status === 410) setTimeout(() => showRecover(full), 1800);
-      }
-    });
-    for (const el of [pass, again]) el.addEventListener("keydown", (e) => e.key === "Enter" && save.click());
-    page(back, authHead("كلمة مرور جديدة", "اختر كلمة مرور جديدة لحسابك. ستُنهى الجلسات المفتوحة على الأجهزة الأخرى."),
-      authField("كلمة المرور الجديدة", h("div", {}, pass, meter.el), { id: "rc-pass", hint: h("span", {}, "10 أحرف على الأقل، وتحتوي حرفًا إنجليزيًا ورقمًا. ", meter.label) }),
-      authField("تأكيد كلمة المرور", again, { id: "rc-again" }),
-      m, save);
-    pass.focus();
+// After the manager's account is signed in: open this school, or say which schools the account manages.
+async function openManagedSchool() {
+  try {
+    await api("/api/account/enter", { school });
+    sessionStorage.setItem("midar_role", "admin");
+    localStorage.setItem("midar_last_role", "admin");
+    localStorage.setItem("midar_school", school);
+    mount(app, h("p", { class: "empty loading" }, "جارٍ فتح لوحتك…"));
+    return enter("admin");
+  } catch (e) {
+    if (e.status !== 403) throw e;
+    const me = await api("/api/account/me").catch(() => null);
+    page(authHead("حسابك غير مرتبط بهذه المدرسة", "اختر مدرسة من مدارسك، أو ادخل بحساب آخر.", schoolInfo),
+      me?.schools?.length ? h("div", { class: "au-schools" }, me.schools.map((s) => h("a", { class: "au-school-row", href: `/${encodeURIComponent(s.id)}/idara?role=admin` },
+        h("span", { class: "au-school-ic" }, icons.building({ size: 18 })), h("span", { class: "au-school-t" }, h("b", {}, s.name), h("small", { dir: "ltr" }, s.id)), icons.chevronLeft({ size: 16 }))))
+        : notice("حسابك غير مرتبط بأي مدرسة بعد. افتح رابط الإعداد الذي وصلك من إدارة مدار.", "warn"),
+      h("button", { type: "button", class: "au-alt-btn", onclick: async () => { await api("/api/account/logout", {}).catch(() => {}); forgetAccount(); showLogin(); } }, "الدخول بحساب آخر"));
+    return null;
   }
 }
 

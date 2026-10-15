@@ -6,7 +6,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { startServer, client, uid, ownerPassword, endPool } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
@@ -21,7 +21,7 @@ async function school(name) {
   const id = `sync-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id, name, max_students: 100 });
   const admin = client(srv.base);
-  assert.equal((await admin.post("/api/staff/login", { school: id, username: "admin", password: r.data.credentials.password })).status, 200);
+  await setupAdmin(admin, r.data.setup.url);
   return { id, admin };
 }
 async function teacher(sc, load) {

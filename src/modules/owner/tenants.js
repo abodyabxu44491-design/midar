@@ -18,7 +18,8 @@ import { buildShowcase } from "../shared/showcase-school.service.js";
 import { startJob } from "../../core/jobs.js";
 import { forgetDemoCache } from "../shared/demo.service.js";
 import { groupQuota } from "../shared/groups.service.js";
-import { addEvent as addSchoolEvent } from "../shared/school-files.service.js";
+import { addEvent as addSchoolEvent, issueLink } from "../shared/school-files.service.js";
+import { env } from "../../config/env.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -69,7 +70,7 @@ r.get("/stats", handle(async (req, res) => {
   res.json(s);
 }));
 
-export async function createTenant(req, b) {
+export async function createTenant(req, b, { link = true } = {}) {
   if (b.org_type === "institute" && (!b.admin_name || b.admin_name === "مدير المدرسة")) b = { ...b, admin_name: "مدير المعهد" };
   const password = newTempPassword();
   const hash = await hashPassword(password);
@@ -99,8 +100,11 @@ export async function createTenant(req, b) {
     await q("UPDATE tenants SET approved_at = COALESCE(approved_at, now()), approved_by = COALESCE(approved_by, $2) WHERE id = $1", [b.id, req.actor]);
     await addSchoolEvent(q, b.id, { kind: "account", body: b.org_type === "institute" ? "أُنشئ المعهد وحساب مديره" : "أُنشئت المدرسة وحساب مديرها" }, req.actor);
   });
-  return { school: { id: b.id, name: b.name }, credentials: { school: b.id, username: "admin", password, directory_code: directory } };
+  // The manager's sign-in comes from the setup link (their own Midar account); no password is handed out.
+  const setup = link ? await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, b.id, req.actor, linkBase(req))) : null;
+  return { school: { id: b.id, name: b.name }, setup, directory_code: directory };
 }
+const linkBase = (req) => env.PUBLIC_URL || (req.protocol ? `${req.protocol}://${req.get("host")}` : "");
 
 r.post("/", handle(async (req, res) => {
   const b = parse(createSchema, req.body);
@@ -190,19 +194,17 @@ r.get("/:id/overview", handle(async (req, res) => {
   res.json({ school: data.t, staff: data.staff, subscription: sub, links: schoolLinks(req, id) });
 }));
 
+// Restoring the manager's access: a new setup link (the manager links their own account again).
 r.post("/:id/reset-admin", handle(async (req, res) => {
   const id = parse(codeSchema, req.params.id);
-  const password = newTempPassword();
-  const hash = await hashPassword(password);
-  const username = await inSchool(req, id, async (q) => {
-    const [u] = await q(`UPDATE users SET password_hash = $1, must_change_password = true, failed_logins = 0, locked_until = NULL, is_active = true, password_changed_at = now()
-      WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) RETURNING id, username`, [hash]);
+  await inSchool(req, id, async (q) => {
+    const [u] = await q(`UPDATE users SET failed_logins = 0, locked_until = NULL, is_active = true
+      WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) RETURNING id, username`);
     if (!u) throw notFound("لا يوجد مدير لهذه المدرسة");
-    await q("DELETE FROM sessions WHERE user_id = $1", [u.id]);
     await clearLoginFailures(q, id, u.username);
-    return u.username;
   });
-  res.json({ credentials: { school: id, username, password } });
+  const setup = await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, id, req.actor, linkBase(req)));
+  res.json({ setup });
 }));
 
 export default r;

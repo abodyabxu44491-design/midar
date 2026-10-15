@@ -7,7 +7,7 @@ import { Router } from "express";
 import { logoId } from "../shared/school-logo.service.js";
 import { accessSummary } from "../shared/subscription.service.js";
 import { schoolLinks } from "../../core/links.js";
-import { inTenant } from "../../core/db/pool.js";
+import { inTenant, transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
 import { schoolTotals } from "../shared/finance.service.js";
 import { current } from "../shared/academic.service.js";
@@ -18,6 +18,12 @@ const r = Router();
 r.get("/me", handle(async (req, res) => {
   const t = req.tenant;
   const [p] = await inTenant(req, (q) => q("SELECT setup_completed_at FROM school_profile WHERE tenant_id = app_tenant()"));
+  // The Midar account linked to this administrator (the school's manager); deputies have none.
+  const [account] = await transaction({ platform: true, actor: req.user.full_name, ip: req.ip }, (q) => q(
+    `SELECT a.email, a.full_name AS name, a.email_verified_at AS verified_at, a.created_at, a.last_login_at,
+            s.linked_at, s.linked_via, a.password_hash IS NOT NULL AS has_password
+       FROM account_schools s JOIN accounts a ON a.id = s.account_id
+      WHERE s.tenant_id = $1 AND s.user_id = $2 AND s.revoked_at IS NULL AND a.disabled_at IS NULL`, [req.tenant.id, req.user.id]));
   res.json({
     modules: req.modules,
     setup_completed: req.tenant.org_type === "institute" || Boolean(p?.setup_completed_at),
@@ -26,6 +32,7 @@ r.get("/me", handle(async (req, res) => {
     org_type: req.tenant.org_type || "school",
     staff_role: req.tenant.org_type === "institute" ? req.user.staff_role || "director" : null,
     must_change_password: req.user.must_change_password,
+    account: account || null,
     access: accessSummary(req),
     links: schoolLinks(req, req.tenant.id),
     school: { id: t.id, name: t.name, max_students: t.max_students, subscription_end: t.subscription_end, directory_code: t.directory_code, currency: t.currency,
