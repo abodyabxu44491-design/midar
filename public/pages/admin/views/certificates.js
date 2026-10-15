@@ -8,8 +8,9 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, badge, line, sub, toast, notice, switchBtn, confirmAction, dialog } from "../../shared/js/ui.js";
 import { fmtDate, fmtDateTime } from "../../shared/js/format.js";
 import { partsView } from "../../shared/js/parts.js";
-import { certificatesSheet } from "../../shared/js/certificate.js";
+import { certificateSheet, printCertificateSheet } from "../../shared/js/cert-render.js";
 import { resultsApproval } from "../../shared/js/results-approval.js";
+import { designsView, designPicker } from "../../shared/js/cert-designer.js";
 import { A } from "./common.js";
 
 const KIND = { term: "نتيجة فصل", year: "إتمام عام", custom: "مخصصة" };
@@ -45,8 +46,9 @@ export default async function certificates(ctx = {}) {
   const keyQ = () => `class_id=${classId}&scope=${kind}${kind === "term" && termId ? `&term_id=${termId}` : ""}`;
   const keyB = () => ({ class_id: classId, scope: kind, ...(kind === "term" && termId ? { term_id: termId } : {}) });
 
-  return partsView([["results", "اعتماد النتائج"], ["issue", "إصدار"], ["issued", "الشهادات الصادرة"], ["custom", "شهادة مخصصة"], ["settings", "الإعدادات"]], async (part, nav) => {
+  return partsView([["results", "اعتماد النتائج"], ["issue", "إصدار"], ["issued", "الشهادات الصادرة"], ["custom", "شهادة مخصصة"], ["designs", "التصاميم"], ["settings", "الإعدادات"]], async (part, nav) => {
     if (part === "results") return resultsView(nav);
+    if (part === "designs") return panel("تصاميم الشهادات", null, await designsView({ base: `${A}/certificates` }));
     if (part === "issue") return issueView(nav);
     if (part === "issued") return issuedView(nav);
     if (part === "custom") return customView(nav);
@@ -71,7 +73,8 @@ export default async function certificates(ctx = {}) {
 
   async function issueView(nav) {
     const out = h("div");
-    const body = () => ({ class_id: classId, kind, term_id: kind === "term" ? termId : null });
+    const picker = await designPicker(`${A}/certificates`, kind);
+    const body = () => ({ class_id: classId, kind, term_id: kind === "term" ? termId : null, template_id: picker.value() });
     const p = await api(`${A}/certificates/issue`, { ...body(), dry_run: true });
     const ready = p.students.filter((s) => s.subjects);
     const approved = p.status === "approved";
@@ -93,12 +96,13 @@ export default async function certificates(ctx = {}) {
           await printIds(r.ids, out);
         } catch (err) { toast(err.message, true); nav.show(); }
       }) : approved && !canApprove ? notice("إصدار الشهادات لإدارة المدرسة العامة.", "") : null);
-    return panel("إصدار شهادات لشعبة", null, scopePick(() => nav.show()), out);
+    return panel("إصدار شهادات لشعبة", null, scopePick(() => nav.show()),
+      field("تصميم الشهادة", picker.el, "يُطبَّق على كل شهادات هذا الإصدار. عدّل التصاميم من «التصاميم»."), out);
   }
 
   async function printIds(ids, box) {
     const list = await api(`${A}/certificates/print`, { ids });
-    mount(box, h("div", { class: "toolbar" }, btn("طباعة", () => window.print()), sub(`${list.length} شهادة — صفحة لكل شهادة`)), certificatesSheet(list));
+    mount(box, h("div", { class: "toolbar" }, btn("طباعة / حفظ PDF", () => printCertificateSheet(list)), sub(`${list.length} شهادة — صفحة A4 لكل شهادة`)), certificateSheet(list));
   }
 
   async function historyOf(r) {
@@ -139,17 +143,18 @@ export default async function certificates(ctx = {}) {
 
   async function customView(nav) {
     const students = await api(`${A}/students?class_id=${classId}`);
+    const picker = await designPicker(`${A}/certificates`, "custom");
     const st = select(students.map((s) => [s.id, s.full_name || s.name]));
     const title = input({ value: "شهادة تقدير", maxLength: 120 });
     const text = textarea({ rows: 3, maxLength: 600, value: "تقديرًا لتفوقه وحسن سيرته وسلوكه، متمنين له دوام التوفيق والنجاح." });
     const out = h("div");
     return [panel("شهادة مخصصة لطالب", null,
       h("div", { class: "row" }, classPick(() => nav.show()), field("الطالب", st)),
-      field("عنوان الشهادة", title), field("نص الشهادة", text, "يأتي بعد «تشهد إدارة المدرسة بأن الطالب … من …»"),
+      field("عنوان الشهادة", title), field("نص الشهادة", text, "يظهر مكان الحقل {{body}} في التصميم"), field("تصميم الشهادة", picker.el),
       canApprove ? null : notice("إصدار الشهادات لإدارة المدرسة العامة.", ""),
       canApprove && btn("إصدار وطباعة", async () => {
         if (!st.value) return toast("اختر الطالب", true);
-        const r = await api(`${A}/certificates/custom`, { student_id: Number(st.value), title: title.value.trim(), body: text.value.trim() });
+        const r = await api(`${A}/certificates/custom`, { student_id: Number(st.value), title: title.value.trim(), body: text.value.trim(), template_id: picker.value() });
         toast("صدرت الشهادة"); await printIds([r.id], out);
       })), out];
   }

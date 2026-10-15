@@ -71,6 +71,7 @@ export function createApp() {
       || /^\/(admin|teacher)\/papers\/images$/.test(req.path)
       || req.path === "/admin/papers-settings/logo"
       || req.path === "/admin/setup/logo"
+      || /^\/admin\/(certificates|institute)\/designs\/assets$/.test(req.path)
       || /^\/admin\/students\/\d+\/photo$/.test(req.path)
       || /^\/admin\/teachers\/\d+\/photo$/.test(req.path)
       || /^\/(admin|teacher)\/papers\/import$/.test(req.path)))

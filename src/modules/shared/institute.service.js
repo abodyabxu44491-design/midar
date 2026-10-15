@@ -11,6 +11,7 @@ import { newStudentKey } from "../../core/auth/codes.js";
 import { normalizePhone, cleanName } from "./students.service.js";
 import { writeCertificate } from "./certificates.service.js";
 import * as results from "./results.service.js";
+import * as design from "./cert-design.service.js";
 
 // ---------- Terms, settings and permissions ----------
 export const DEFAULT_TERMS = {
@@ -675,7 +676,7 @@ async function programsCompleted(q, studentId) {
 }
 
 // ---------- Certificates ----------
-export const certificateSchema = z.object({ kind: z.enum(["course", "attendance"]).default("course"), title: t.optText(120) });
+export const certificateSchema = z.object({ kind: z.enum(["course", "attendance"]).default("course"), title: t.optText(120), template_id: t.optId });
 // A completion certificate comes only from the course's approved results; an attendance statement is not a
 // result and needs no approval. Re-issuing replaces the earlier certificate (kept, marked «مستبدلة»).
 export async function issueCertificate(q, enrollmentId, b, actor, school, { reason = null } = {}) {
@@ -707,6 +708,8 @@ export async function issueCertificate(q, enrollmentId, b, actor, school, { reas
     signer: { title: settings.signer_title, name: settings.signer_name }, footer_note: settings.certificate_note || null,
     approval: batch ? { by: batch.approved_by, at: batch.approved_at, version: batch.version } : null,
   };
+  const look = await design.layoutFor(q, b.kind, b.template_id ?? null);
+  data.layout = look.layout; data.template = look.template;
   const row = await writeCertificate(q, { studentId: e.student_id, kind: b.kind, title, data, actor, batchId: batch?.id ?? null,
     enrollmentId, replaces: prev?.id ?? null, reason: prev ? reason || "أُعيد إصدارها" : null });
   if (batch) await results.issuedEvent(q, batch.id, actor, 1);

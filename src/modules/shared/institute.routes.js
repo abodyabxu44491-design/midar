@@ -11,6 +11,7 @@ import { logEvent } from "../../core/audit.js";
 import * as svc from "./institute.service.js";
 import { forPrint, revoke } from "./certificates.service.js";
 import * as results from "./results.service.js";
+import { designRouter } from "./cert-design.routes.js";
 import { logoId } from "./school-logo.service.js";
 import { newTempPassword } from "../../core/auth/codes.js";
 import { hashPassword } from "../../core/auth/password.js";
@@ -203,6 +204,8 @@ export function instituteRouter() {
   r.get("/certificates/:id/history", requireCap("view"), handle(async (req, res) => {
     res.json(await inTenant(req, (q) => q("SELECT action, actor, reason, created_at FROM certificate_events WHERE certificate_id = $1 ORDER BY id", [id(req)])));
   }));
+
+  r.use("/designs", requireCap("view"), designRouter({ canEdit: (req) => svc.can(req.user, "settings") }));
 
   // Course results: the academic office prepares and sends them for review; the director approves them.
   const courseSc = (q, req) => results.courseScope(q, id(req));

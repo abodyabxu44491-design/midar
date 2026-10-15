@@ -10,6 +10,7 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, sub, toast, dialog, notice, kpiCard, kpiGrid, skeleton, confirmAction, copyRow, passwordInput } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { resultsApproval } from "../../shared/js/results-approval.js";
+import { designsView } from "../../shared/js/cert-designer.js";
 import { money, fmtDate, fmtDateTime, today, METHODS } from "../../shared/js/format.js";
 import { inst, T, L, has, courseBadge, enrollBadge, num, pct, bar, progressBlock, attendanceDialog, scoresDialog, printCertificates,
   reportTable, printReport, textareaField } from "../../shared/js/institute-ui.js";
@@ -647,12 +648,12 @@ export async function sessions({ refresh }) {
 // ---------- Certificates ----------
 export async function certificates() {
   const r = await api(`${I()}/reports/certificates`);
-  return panel("الشهادات والإفادات", btn([icons.print({ size: 15 }), "طباعة القائمة"], () => printReport(r, inst.school), "ghost sm"),
+  return [panel("تصاميم الشهادات", null, await designsView({ base: I() })), panel("الشهادات والإفادات", btn([icons.print({ size: 15 }), "طباعة القائمة"], () => printReport(r, inst.school), "ghost sm"),
     sub(`تصدر الشهادة من ملف ${T("trainee")} بعد اعتماد اجتيازه، وإفادة الحضور متاحة لأي ساعات محضورة. يتحقق أي شخص من الشهادة برقمها أو برمز QR.`),
     r.rows.length ? h("div", { class: "in-list" }, r.rows.map((x) => h("div", { class: "in-item" },
       h("div", {}, h("b", {}, `${x.name} — ${x.course}`), sub(`${x.kind} · ${x.date} · ${x.hours !== "—" ? `${x.hours} ساعة · ` : ""}أصدرها ${x.by}`)),
       h("div", { class: "row", style: "flex:none;gap:6px" }, x.state === "ملغاة" ? badge("ملغاة", "red") : badge("سارية"),
-        h("a", { class: "btn ghost sm", href: `/verify/${x.code}`, target: "_blank", rel: "noopener", dir: "ltr" }, x.code))))) : empty("لا توجد شهادات صادرة بعد."));
+        h("a", { class: "btn ghost sm", href: `/verify/${x.code}`, target: "_blank", rel: "noopener", dir: "ltr" }, x.code))))) : empty("لا توجد شهادات صادرة بعد."))];
 }
 
 // ---------- Fees ----------

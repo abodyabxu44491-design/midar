@@ -11,6 +11,7 @@ import { parse, t, z } from "../../core/http/validate.js";
 import { logEvent } from "../../core/audit.js";
 import * as certs from "../shared/certificates.service.js";
 import * as results from "../shared/results.service.js";
+import { designRouter } from "../shared/cert-design.routes.js";
 
 const r = Router();
 export const originOf = (req) => env.PUBLIC_URL?.replace(/\/$/, "") || `${req.protocol}://${req.get("host")}`;
@@ -67,6 +68,9 @@ r.post("/results/reopen", requireApprover, handle(async (req, res) => {
     return out;
   }));
 }));
+
+// ---------- Designs ----------
+r.use("/designs", designRouter({ canEdit: approver }));
 
 // ---------- Certificates ----------
 r.get("/", handle(async (req, res) => {

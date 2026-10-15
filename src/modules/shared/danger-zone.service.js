@@ -168,7 +168,7 @@ const TABLE_LABEL = {
   parents: "حسابات أولياء الأمور", parent_students: "ربط أولياء الأمور بالأبناء", parent_link_requests: "طلبات ربط الأبناء",
   school_feature_settings: "إعدادات الأقسام", behavior_categories: "تصنيفات السلوك", behavior_records: "سجلات السلوك",
   certificates: "الشهادات الصادرة", certificate_events: "سجل الشهادات", certificate_serials: "تسلسل أرقام الشهادات",
-  result_batches: "اعتماد النتائج", result_events: "سجل اعتماد النتائج", online_exams: "الاختبارات الإلكترونية", online_attempts: "محاولات الاختبارات الإلكترونية",
+  result_batches: "اعتماد النتائج", certificate_templates: "تصاميم الشهادات", certificate_assets: "صور تصاميم الشهادات", result_events: "سجل اعتماد النتائج", online_exams: "الاختبارات الإلكترونية", online_attempts: "محاولات الاختبارات الإلكترونية",
   staff_attendance: "دوام الموظفين", leave_requests: "طلبات الإجازة", substitutions: "حصص الانتظار", lesson_plans: "خطط الدروس",
   calendar_events: "فعاليات التقويم", buses: "الحافلات", bus_students: "ركاب الحافلات", bus_events: "سجل صعود ونزول الحافلات",
   library_books: "كتب المكتبة", library_loans: "إعارات المكتبة", inventory_items: "أصناف المخزون", inventory_moves: "حركات المخزون",

@@ -225,6 +225,15 @@ test("المعهد: من إنشاء البرنامج حتى الشهادة وا�
   assert.equal((await ak.post(`${CR2}/approve`, { allow_incomplete: true, reason: "تجربة الصلاحية" })).status, 403);
   assert.equal((await ak.post(`${I}/certificates/${cert.data.id}/revoke`, { reason: "تجربة الصلاحية" })).status, 403);
   assert.equal((await rc.post(`${CR2}/submit`, {})).status, 403, "مسؤول التسجيل لا يرسل النتائج");
+  // Certificate designs: everyone with certificate access views them; editing needs the settings capability.
+  const dl = await ak.get(`${I}/designs`);
+  assert.equal(dl.status, 200);
+  assert.equal(dl.data.can_edit, false);
+  assert.equal((await ak.post(`${I}/designs`, { name: "تصميم ممنوع", kind: "course" })).status, 403);
+  const tpl = await admin.post(`${I}/designs`, { name: "شهادة الدورات", kind: "course", from: { preset: "gold" } });
+  assert.equal(tpl.status, 201, JSON.stringify(tpl.data));
+  assert.equal((await ak.put(`${I}/designs/${tpl.data.id}`, { name: "تعديل ممنوع", kind: "course", layout: tpl.data.layout })).status, 403);
+  assert.equal((await admin.post(`${I}/designs/${tpl.data.id}/default`, {})).status, 200);
   const acc = await admin.post("/api/admin/users", { name: "محاسب المعهد", username: `acc${uid()}` });
   assert.equal(acc.status, 201, JSON.stringify(acc.data));
   await transaction({ tenantId: inst }, (q) => q("UPDATE users SET must_change_password = false WHERE role = 'accountant'"));

@@ -9,6 +9,7 @@ import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { buildReportCard } from "./reports.service.js";
 import * as results from "./results.service.js";
+import * as design from "./cert-design.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 import { notify } from "./notify.service.js";
 
@@ -22,6 +23,7 @@ export const issueSchema = z.object({
   term_id: t.optId,
   student_ids: z.array(t.id).max(500).optional(),
   title: z.string().trim().min(2).max(120).optional(),
+  template_id: t.optId,
   dry_run: z.boolean().default(false),
 });
 
@@ -71,6 +73,7 @@ export async function issue(q, b, actor, { reason = null } = {}) {
   let rows = ok.rows;
   if (b.student_ids?.length) rows = rows.filter((r) => b.student_ids.includes(Number(r.card.student.id)));
   const settings = ok.settings;
+  const look = await design.layoutFor(q, b.kind, b.template_id ?? null);
   const issued = [];
   for (const r of rows) {
     if (!r.card.subjects.length) continue;
@@ -86,6 +89,7 @@ export async function issue(q, b, actor, { reason = null } = {}) {
       result: r.result, passed: r.passed, pass_mark: settings.pass_mark,
       signer: { title: settings.signer_title, name: settings.signer_name }, footer_note: settings.footer_note || null,
       approval: { by: ok.batch.approved_by, at: ok.batch.approved_at, version: ok.batch.version },
+      layout: look.layout, template: look.template,
     };
     const row = await writeCertificate(q, { studentId: r.card.student.id, kind: b.kind, title, data, actor, termId: sc.term_id, yearId: sc.year_id,
       batchId: ok.batch.id, replaces: prev?.id ?? null, reason: prev ? reason || "أُعيد إصدارها من النتائج المعتمدة" : null });
@@ -100,13 +104,15 @@ export async function issue(q, b, actor, { reason = null } = {}) {
 }
 
 // A certificate not tied to grades (appreciation, attendance...). Only approvers issue it (checked by the route).
-export const customSchema = z.object({ student_id: t.id, title: t.shortText("عنوان الشهادة", 120), body: t.shortText("نص الشهادة", 600) });
+export const customSchema = z.object({ student_id: t.id, title: t.shortText("عنوان الشهادة", 120), body: t.shortText("نص الشهادة", 600), template_id: t.optId });
 export async function issueCustom(q, b, actor, { replaces = null, reason = null } = {}) {
   const card = await buildReportCard(q, b.student_id);
   if (!card) throw notFound("الطالب غير موجود");
   const settings = await featureSettings(q, "certificates");
+  const look = await design.layoutFor(q, "custom", b.template_id ?? null);
   const data = { school: card.school, scope: null, student: { name: card.student.name, class_name: card.student.class_name }, body: b.body,
-    signer: { title: settings.signer_title, name: settings.signer_name }, footer_note: settings.footer_note || null };
+    signer: { title: settings.signer_title, name: settings.signer_name }, footer_note: settings.footer_note || null,
+    layout: look.layout, template: look.template };
   const row = await writeCertificate(q, { studentId: b.student_id, kind: "custom", title: b.title, data, actor, replaces, reason });
   await notify(q, { event: "certificate", students: [b.student_id], title: `صدرت ${b.title}`, body: "يمكنك عرضها من ملف الطالب.", link: "certificates" });
   return row;
@@ -131,19 +137,20 @@ export async function revoke(q, id, reason, actor = "النظام", { kinds = nu
 
 // Revoke and issue a replacement: grade certificates come again from the approved results; a custom one takes
 // the corrected title and text.
-export const replaceSchema = z.object({ reason: t.shortText("سبب الاستبدال", 200), title: t.optText(120), body: t.optText(600) });
+export const replaceSchema = z.object({ reason: t.shortText("سبب الاستبدال", 200), title: t.optText(120), body: t.optText(600), template_id: t.optId });
 export async function replace(q, id, b, actor) {
   const [c] = await q("SELECT x.*, s.class_id FROM certificates x JOIN students s ON s.id = x.student_id WHERE x.id = $1", [id]);
   if (!c || c.status !== "issued") throw notFound("الشهادة غير موجودة أو ملغاة");
   if (c.kind === "custom") {
-    const row = await issueCustom(q, { student_id: c.student_id, title: b.title || c.title, body: b.body || c.data.body }, actor, { replaces: c.id, reason: b.reason });
+    const row = await issueCustom(q, { student_id: c.student_id, title: b.title || c.title, body: b.body || c.data.body, template_id: b.template_id },
+      actor, { replaces: c.id, reason: b.reason });
     return { issued: 1, ids: [row.id] };
   }
   if (!["term", "year"].includes(c.kind)) throw badRequest("استبدال هذه الشهادة يكون من صفحة الدورة");
   const [batch] = c.batch_id ? await q("SELECT class_id FROM result_batches WHERE id = $1", [c.batch_id]) : [];
   const classId = batch?.class_id ?? c.class_id;
   if (!classId) throw badRequest("الطالب ليس في شعبة حاليًا");
-  const out = await issue(q, { class_id: classId, kind: c.kind, term_id: c.term_id, year_id: c.year_id, student_ids: [c.student_id], title: c.title, dry_run: false },
+  const out = await issue(q, { class_id: classId, kind: c.kind, term_id: c.term_id, year_id: c.year_id, student_ids: [c.student_id], title: c.title, template_id: b.template_id, dry_run: false },
     actor, { reason: b.reason });
   if (!out.stale && !out.issued) throw badRequest("لا توجد نتيجة معتمدة لهذا الطالب لإصدار شهادة بديلة");
   return out;
@@ -161,9 +168,16 @@ export async function forPrint(q, ids, origin, { studentId = null, actor = null 
     `SELECT id, code, serial, status, kind, title, data, issued_at, revoked_at FROM certificates
       WHERE id = ANY($1) AND ($2::bigint IS NULL OR student_id = $2) ORDER BY id`, [ids, studentId]);
   if (actor) for (const r of rows) await certEvent(q, r.id, "printed", actor);
+  // Each design image travels once, with the first certificate that uses it; the page merges them.
+  const all = await design.assetsFor(q, rows.map((r) => r.data?.layout));
+  const sent = new Set();
   return rows.map((r) => {
     const url = `${origin}/verify/${r.code}`;
-    return { ...r, verify_url: url, qr: qrDataUrl(url) };
+    const mine = {};
+    for (const id of r.data?.layout ? [r.data.layout.page?.bgAsset, ...r.data.layout.els.map((e) => e.asset)] : []) {
+      if (id && all[id] && !sent.has(id)) { mine[id] = all[id]; sent.add(id); }
+    }
+    return { ...r, verify_url: url, qr: qrDataUrl(url), assets: mine };
   });
 }
 
