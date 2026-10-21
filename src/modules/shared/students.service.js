@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { nextStudentNo } from "../../core/auto-ids.js";
 import { z, t, asciiDigits } from "../../core/http/validate.js";
 import { badRequest, conflict, notFound } from "../../core/http/errors.js";
 import { newStudentKey } from "../../core/auth/codes.js";
@@ -79,6 +80,8 @@ async function insertOne(q, s) {
   }
   if (!guardian) guardian = guardianFromStudent(name);
 
+  // A student added without a number gets the school's next one (year + sequence), so every student has a number.
+  const studentNo = s.student_no ?? await nextStudentNo(q);
   for (let attempt = 0; attempt < 5; attempt++) {
     const key = newStudentKey();
     const rows = await q(
@@ -87,7 +90,7 @@ async function insertOne(q, s) {
        VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (tenant_id, access_key) DO NOTHING
        RETURNING id, full_name AS name, guardian_name, guardian_phone, access_key, student_no, family_name`,
-      [classId, name, guardian, phone, key, s.fees_enabled ?? false, s.student_no ?? null, s.birth_date ?? null,
+      [classId, name, guardian, phone, key, s.fees_enabled ?? false, studentNo, s.birth_date ?? null,
        s.gender ?? null, normalizePhone(s.student_phone), cleanName(s.family_name) || null, cleanName(s.area) || null]);
     if (rows.length) return rows[0];
   }

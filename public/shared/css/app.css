@@ -2948,3 +2948,25 @@ html.unsupported #app, html.unsupported .install-ic, html.unsupported .push-floa
 .fees-line small { color: var(--muted); font-size: 12.5px; }
 dialog .student-form.tidy { background: var(--bg); margin: 0 -18px; padding: 12px 18px; }
 @media (max-width: 560px) { .fcard { padding: 12px; } .fcard.fold > summary, .fcard-in { padding: 12px; } }
+
+/* Students and teachers pages: a compact head (title, small figures in one row, actions), tidy filters and cards. */
+.s-head .stats { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; }
+.s-head .stats::-webkit-scrollbar { display: none; }
+.s-head .stat { flex: 1 0 auto; min-width: 104px; padding: 10px 12px; border-radius: 12px; background: var(--bg); border-color: transparent; }
+.s-head .stat b { font-size: 20px; }
+.s-head .stat .stat-l { font-size: 12.5px; }
+.s-head .stat .sub { font-size: 11.5px; }
+.s-head .more-stats { margin: 0 0 4px; }
+.s-actions-top { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.s-actions-top .btn { min-height: 44px; }
+@media (max-width: 640px) {
+  .s-actions-top { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .s-actions-top .btn:first-child { grid-column: 1 / -1; }
+  .s-actions-top .btn { padding-inline: 8px; font-size: 14px; }
+}
+.filters { gap: 8px; }
+.filters > *, .filters .picker-btn { min-height: 44px; width: 100%; }
+.filters .picker-btn { justify-content: flex-start; padding: 9px 12px; border-radius: 12px; border-color: var(--line-2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 640px) { .filters { grid-template-columns: 1fr 1fr; } .filters > :first-child { grid-column: 1 / -1; } }
+.s-guardian { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.s-guardian .s-phone { margin: 0; }

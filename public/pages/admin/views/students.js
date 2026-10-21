@@ -136,9 +136,9 @@ export default async function students({ me, refresh }) {
         h("b", { class: "s-title" }, s.name),
         h("span", { class: "sub" }, s.student_no ? `رقم الطالب: ${s.student_no}` : "بدون رقم طالب"),
         h("span", { class: "s-meta" }, [loc?.stage, loc?.grade, loc?.section ? `شعبة ${loc.section}` : null].filter(Boolean).join(" • ") || (s.class_name || "بدون فصل")),
-        h("span", { class: "s-guardian" }, "ولي الأمر: ", s.guardian_name || "—",
+        h("span", { class: "s-guardian" }, h("span", {}, `ولي الأمر: ${s.guardian_name || "—"}`),
           s.guardian_phone ? h("a", { class: "s-phone", href: `tel:${s.guardian_phone}`, dir: "ltr", onclick: (e) => e.stopPropagation() }, s.guardian_phone)
-            : h("span", { class: "muted" }, " · لا يوجد جوال"))),
+            : h("span", { class: "muted" }, "لا يوجد جوال"))),
       s.status !== "active" ? statusBadge(s.status) : badge("نشط"));
     return el;
   }
@@ -259,7 +259,7 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   const s = student, editing = Boolean(s);
   const f = {
     name: input({ value: s?.name || "" }), family: input({ value: s?.family_name || "", placeholder: "اسم العائلة أو اللقب" }),
-    area: input({ value: s?.area || "", list: "area-options", placeholder: "الحي أو المنطقة السكنية" }), no: input({ class: "ltr", value: s?.student_no || "", placeholder: "اختياري — يُستخدم للتحديث عبر الاستيراد" }),
+    area: input({ value: s?.area || "", list: "area-options", placeholder: "الحي أو المنطقة السكنية" }), no: input({ class: "ltr", value: s?.student_no || "", placeholder: "يُنشأ تلقائيًا إن تُرك فارغًا" }),
     birth: input({ type: "date", value: s?.birth_date ? String(s.birth_date).slice(0, 10) : "" }),
     gender: select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]], { value: s?.gender || "" }),
     status: select(Object.entries(STATUS_LABEL), { value: s?.status || "active" }),

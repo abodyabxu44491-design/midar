@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { usernameFromName } from "../../core/auto-ids.js";
 import { badRequest } from "../../core/http/errors.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword } from "../../core/auth/codes.js";
@@ -93,6 +94,14 @@ export async function analyze(q, rawRows, { gradeMap = {}, maxTeachers = null } 
   const byUser = new Map(existing.map((t) => [t.username, t]));
   const takenUsers = names.length ? new Set((await q("SELECT username FROM users WHERE username = ANY($1::text[])", [names])).map((x) => x.username)) : new Set();
   const [{ n: teacherCount }] = await q("SELECT count(*)::int AS n FROM teachers");
+  // Every username in the school, so names generated for new teachers never collide (with each other either).
+  const usedNames = new Set((await q("SELECT username FROM users")).map((x) => x.username));
+  const fromName = (name) => {
+    const base = usernameFromName(name);
+    let u = base;
+    for (let n = 2; usedNames.has(u) || seenUser.has(u); n++) u = `${base}${n}`;
+    return u;
+  };
 
   const seenNo = new Map(), seenUser = new Map(), ambiguities = new Map(), out = [];
 
@@ -179,8 +188,8 @@ export async function analyze(q, rawRows, { gradeMap = {}, maxTeachers = null } 
       res.changes = changes;
       if (!Object.keys(changes).length && !res.load.length && !res.errors.length) res.action = "unchanged";
     } else if (!res.errors.length) {
-      if (!username && res.employee_no) { const gen = `t${res.employee_no}`.toLowerCase().replace(/[^a-z0-9._-]/g, ""); if (USERNAME.test(gen)) { username = gen; res.notes.push(`اسم المستخدم المُنشأ: ${gen}`); } }
-      if (!username) fail("اسم المستخدم مطلوب لمعلم جديد (أو رقم وظيفي ليُنشأ منه)");
+      if (!username && res.name) { username = fromName(res.name); seenUser.set(username, res.row); res.notes.push(`اسم المستخدم المُنشأ من الاسم: ${username}`); }
+      if (!username) fail("اسم المعلم مطلوب");
       else if (takenUsers.has(username) || (byUser.get(username))) fail(`اسم المستخدم «${username}» مستخدم مسبقًا`);
     }
     if (!ex && username) res.username = username;

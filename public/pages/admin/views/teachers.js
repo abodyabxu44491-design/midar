@@ -320,6 +320,21 @@ export default async function teachers({ me, refresh }) {
       employment_type: select([["", "—"], ...Object.entries(EMPLOYMENT)]),
       specialty: input({ placeholder: "مثل: رياضيات" }), department: input(),
     };
+    // The username and employee number fill in by themselves from the name (editable). A field the manager typed
+    // in stays as typed.
+    f.user.placeholder = "يُنشأ تلقائيًا من الاسم";
+    f.employee_no.placeholder = "يُنشأ تلقائيًا";
+    let userEdited = false, suggestTimer;
+    f.user.addEventListener("input", () => { userEdited = f.user.value.trim() !== ""; });
+    const suggest = async () => {
+      try {
+        const r = await api(`${A}/teachers/suggest?name=${encodeURIComponent(f.name.value.trim())}`);
+        if (!userEdited) f.user.value = r.username || "";
+        if (!f.employee_no.value) f.employee_no.placeholder = r.employee_no ? `${r.employee_no} (تلقائي)` : "يُنشأ تلقائيًا";
+      } catch { /* the server fills them in on save anyway */ }
+    };
+    f.name.addEventListener("input", () => { clearTimeout(suggestTimer); suggestTimer = setTimeout(suggest, 400); });
+    suggest();
     let photoData = null;
     const preview = h("div", { class: "photo-prev" }, h("span", { class: "s-photo lg ph" }, "؟"));
     const file = input({ type: "file", accept: "image/*", hidden: true });
@@ -347,8 +362,8 @@ export default async function teachers({ me, refresh }) {
         grid(field("الاسم الكامل *", f.name), field("الاسم المختصر", f.short_name), field("الجنس", f.gender), field("تاريخ الميلاد", f.birth_date),
           field("رقم الهوية", f.national_id))),
       formCard("key", "حساب الدخول",
-        grid(field("اسم المستخدم *", f.user)),
-        sub("يُنشأ الحساب بكلمة مرور مؤقتة تظهر لك بعد الحفظ فقط، ويغيّرها المعلم عند أول دخول.")),
+        grid(field("اسم المستخدم", f.user, "يُنشأ من اسم المعلم بحروف إنجليزية، ويمكنك تعديله.")),
+        sub("كلمة المرور المؤقتة تُنشأ تلقائيًا وتظهر لك بعد الحفظ فقط، ويغيّرها المعلم عند أول دخول.")),
       formFold("phone", "بيانات التواصل", "اختياري",
         grid(field("رقم الجوال", f.phone), field("البريد الإلكتروني", f.email), field("العنوان", f.address),
           field("جهة اتصال الطوارئ", f.emergency_name), field("جوال الطوارئ", f.emergency_phone))),
@@ -358,7 +373,7 @@ export default async function teachers({ me, refresh }) {
         hint),
       assignFold),
     [btn("حفظ المعلم", async () => {
-      if (!f.name.value.trim() || !f.user.value.trim()) return toast("الاسم واسم المستخدم مطلوبان", true);
+      if (!f.name.value.trim()) return toast("اسم المعلم مطلوب", true);
       try {
         const r = await api(`${A}/teachers`, {
           name: f.name.value, username: f.user.value.trim().toLowerCase(), phone: f.phone.value || null, email: f.email.value || "",
