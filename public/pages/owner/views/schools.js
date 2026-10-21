@@ -418,10 +418,14 @@ function handoverDoc(d) {
 }
 
 function printActivation(d) {
+  document.querySelectorAll("body > .act-sheet").forEach((x) => x.remove());
   const sheet = h("div", { class: "act-sheet" }, handoverDoc(d));
   document.body.append(sheet);
   document.body.classList.add("act-printing");
   const done = () => { sheet.remove(); document.body.classList.remove("act-printing"); window.removeEventListener("afterprint", done); };
+  // On phones the print window opens without waiting, so nothing is removed on a timer (the preview would then show
+  // the panel behind instead of the card). The card is invisible on screen anyway; it goes after printing or on the
+  // next print.
   window.addEventListener("afterprint", done);
-  setTimeout(() => { window.print(); setTimeout(() => { if (!matchMedia("print").matches) done(); }, 1500); }, 150);
+  setTimeout(() => window.print(), 150);
 }

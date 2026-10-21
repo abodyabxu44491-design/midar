@@ -11,6 +11,7 @@ export function schoolLinks(req, schoolId) {
   const b = `${baseUrl(req)}/${encodeURIComponent(schoolId)}`;
   return {
     public: { home: b, students: `${b}#/students` },
-    staff: { admin: `${b}/idara?role=admin`, teacher: `${b}/idara?role=teacher`, accountant: `${b}/idara?role=accountant` },
+    // The link sent to a school is its code only: the login page opens on the manager's tab by default.
+    staff: { admin: `${b}/idara`, teacher: `${b}/idara?role=teacher`, accountant: `${b}/idara?role=accountant` },
   };
 }

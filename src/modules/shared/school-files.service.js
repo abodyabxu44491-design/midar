@@ -118,7 +118,7 @@ export async function getFile(q, id, baseUrl) {
   const events = await q("SELECT * FROM school_events WHERE tenant_id = $1 ORDER BY id DESC LIMIT 300", [id]);
   const delivery = events.find((e) => e.kind === "delivery" && e.status === "sent")?.status || events.find((e) => e.kind === "delivery")?.status || null;
   const stage = stageOf({ ...t, admin_id: admin?.id, delivery });
-  const links = { login: `${baseUrl}/${id}/idara?role=admin`, parents: `${baseUrl}/${id}` };
+  const links = { login: `${baseUrl}/${id}/idara`, parents: `${baseUrl}/${id}` };
   links.login_qr = qrDataUrl(links.login);
   const activation = admin ? await currentLink(q, id, baseUrl) : null;
   // The manager's Midar account linked to this school (who, how, since when) — never any secret.

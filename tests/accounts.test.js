@@ -369,7 +369,7 @@ async function schoolWithManager(name, email) {
   const id = `fe-${uid()}`;
   const r = await owner.post("/api/owner/tenants", { id, name, manager_email: email });
   assert.equal(r.status, 201, JSON.stringify(r.data));
-  assert.ok(r.data.login_url.endsWith(`/${id}/idara?role=admin`));
+  assert.ok(r.data.login_url.endsWith(`/${id}/idara`));
   assert.equal(r.data.manager_email, email);
   return id;
 }

@@ -9,7 +9,7 @@ import { h } from "/shared/js/dom.js";
 import { loadRefs, subForm } from "./sub-form.js";
 import { runJob } from "/shared/js/job.js";
 
-export default async function create({ refresh }) {
+export default async function create({ refresh, go }) {
   const refs = await loadRefs();
   const f = { name: input(), id: input({ class: "ltr", placeholder: "حروف إنجليزية صغيرة" }), admin: input({ value: "مدير المدرسة" }),
     email: input({ type: "email", class: "ltr", placeholder: "manager@example.com" }),
@@ -25,8 +25,9 @@ export default async function create({ refresh }) {
     btn("إنشاء المدرسة", async () => {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.value.trim())) return toast("اكتب بريد مدير المدرسة", true);
       const r = await api("/api/owner/tenants", { name: f.name.value, id: f.id.value, admin_name: f.admin.value, manager_email: f.email.value.trim(), subscription: form.value(), org_type: f.org.value });
-      handoverCard(r);
-      refresh();
+      // One handover screen for every school: the new school's file opens directly on it.
+      history.pushState(null, "", `#/schools?school=${encodeURIComponent(r.school.id)}&handover=1`);
+      if (go) go("schools"); else dispatchEvent(new PopStateEvent("popstate"));
     })), showcasePanel(refresh)];
 }
 
