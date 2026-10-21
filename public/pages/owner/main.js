@@ -26,28 +26,46 @@ import security from "./views/security.js";
 const app = $("#app");
 export const API = "/api/owner";
 
-// Two-step verification is required for the owner panel. Until it is set up, a correct password leads here: scan the
-// code in an authenticator app (Google Authenticator, Microsoft Authenticator...) and enter the six digits it shows.
+// Two-step verification is required for the owner panel. Until it is set up, a correct password leads here. On a
+// phone, one tap adds the account to the authenticator app (no scanning needed); on a computer, scan the code.
 function enrollMfa(r, { remember } = {}) {
   const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 6, placeholder: "000000" });
   const msg = h("div");
   const go = btn("تفعيل والدخول", async () => {
     mount(msg);
-    try { await api(`${API}/enroll`, { ticket: r.ticket, code: code.value.trim(), remember: Boolean(remember) }); start(); }
-    catch (e) { mount(msg, notice(e.message, "err")); }
+    try {
+      const done = await api(`${API}/enroll`, { ticket: r.ticket, code: code.value.trim(), remember: Boolean(remember) });
+      showRecoveryCodes(done.recovery_codes, start);
+    } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "wide");
   code.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
+  const grouped = r.secret.replace(/(.{4})/g, "$1 ").trim();
   mount(app, h("main", { class: "mfa-enroll" }, panel("تفعيل التحقق الثنائي للوحة المالك", null,
     notice("لحماية المنصة، لا يُفتح حساب المالك بكلمة المرور وحدها. فعّل التحقق الثنائي مرة واحدة الآن، وبعدها يُطلب الرمز مع كل دخول.", "warn"),
-    h("ol", { class: "mfa-steps" },
-      h("li", {}, "ثبّت تطبيق Google Authenticator أو Microsoft Authenticator على جوالك."),
-      h("li", {}, "اضغط «+» في التطبيق وامسح هذا الرمز."),
-      h("li", {}, "اكتب الرقم المكوّن من 6 أرقام الظاهر في التطبيق.")),
+    h("h3", { class: "mfa-h" }, "1. ثبّت تطبيق Google Authenticator على جوالك"),
+    h("h3", { class: "mfa-h" }, "2. أضف حساب مدار إلى التطبيق"),
+    h("a", { class: "btn wide mfa-open", href: r.uri }, "إضافة إلى تطبيق المصادقة (من نفس الجوال)"),
+    sub("إذا كنت تفتح هذه الصفحة من الكمبيوتر، امسح الرمز بكاميرا التطبيق بدلًا من ذلك:"),
     h("div", { class: "mfa-qr" }, h("img", { src: r.qr, alt: "رمز التفعيل" })),
-    sub("لا تستطيع المسح؟ أدخل هذا المفتاح يدويًا في التطبيق:"), keyText(r.secret),
+    sub("أو أدخل هذا المفتاح يدويًا في التطبيق (نوعه: مبني على الوقت):"),
+    h("div", { class: "mfa-key" }, keyText(grouped),
+      btn("نسخ المفتاح", async () => { await navigator.clipboard.writeText(r.secret); toast("نُسخ المفتاح"); }, "ghost sm")),
+    h("h3", { class: "mfa-h" }, "3. اكتب الأرقام الستة الظاهرة في التطبيق"),
     field("الرمز من التطبيق", code), msg, go,
-    sub(`المهلة ${r.minutes} دقائق. احتفظ بالجوال في مكان آمن؛ فقدانه يتطلب إعادة ضبط التحقق من الخادم.`))));
-  code.focus();
+    sub(`المهلة ${r.minutes} دقائق. بعد التفعيل تحصل على رموز احتياطية للدخول عندما لا يكون الجوال معك.`))));
+}
+
+// Shown once, right after enrollment or when a new set is made: ten one-time codes for signing in without the phone.
+export function showRecoveryCodes(codes, onDone) {
+  const text = ["رموز الدخول الاحتياطية — لوحة مالك مدار", "كل رمز يُستخدم مرة واحدة فقط، بدل الرقم من تطبيق المصادقة.", "", ...codes].join("\n");
+  mount(app, h("main", { class: "mfa-enroll" }, panel("رموزك الاحتياطية", null,
+    notice("احفظ هذه الرموز الآن في مكان آمن (اطبعها، أو احفظها في ملاحظات محمية). لن تظهر مرة أخرى.", "warn"),
+    sub("إذا دخلت والجوال ليس معك، اكتب أي رمز منها في خانة «رمز التحقق». كل رمز يعمل مرة واحدة، وتستطيع إنشاء رموز جديدة من «الأمان»."),
+    h("ol", { class: "mfa-codes ltr" }, codes.map((c) => h("li", {}, h("code", {}, c)))),
+    h("div", { class: "row" },
+      btn("نسخ الرموز", async () => { await navigator.clipboard.writeText(text); toast("نُسخت الرموز"); }, "ghost"),
+      btn("طباعة", () => window.print(), "ghost")),
+    btn("حفظتها، ادخل اللوحة", () => onDone(), "wide"))));
 }
 
 async function start() {

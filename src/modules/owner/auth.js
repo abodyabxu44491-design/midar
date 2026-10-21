@@ -17,13 +17,13 @@ import { createSession, destroySession, readSession } from "../../core/auth/sess
 import { logEvent, securityEvent, recentFailures, raiseAlert } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
 import { qrDataUrl } from "../shared/certificates.service.js";
-import { ownerTotp, TOTP_AAD } from "../../core/auth/owner-mfa.js";
+import { ownerTotp, TOTP_AAD, checkOwnerFactor, newRecoveryCodes } from "../../core/auth/owner-mfa.js";
 
 const r = Router();
 const schema = z.object({
   username: z.string().max(100),
   password: z.string().max(200),
-  code: z.string().max(10).optional(),
+  code: z.string().max(20).optional(),
   remember: z.boolean().optional().default(false),
 });
 const ENROLL_MINUTES = 10;
@@ -72,7 +72,8 @@ r.post("/login", limits.login, handle(async (req, res) => {
   const passOk = await verifyPassword(b.password, env.OWNER_PASSWORD_HASH);
   const userOk = safeEqual(b.username, env.OWNER_USERNAME);
   const mfa = await transaction(ctx, (q) => ownerTotp(q));
-  const codeOk = !mfa || verifyTotp(mfa.secret, b.code);
+  // The code is checked only after the password, so a wrong password never spends a backup code.
+  const codeOk = passOk && userOk ? await transaction(ctx, (q) => checkOwnerFactor(q, mfa, b.code, req.ip)) : false;
 
   if (!(passOk && userOk && codeOk)) {
     await transaction(ctx, async (q) => {
@@ -103,6 +104,7 @@ r.post("/login", limits.login, handle(async (req, res) => {
 // Finishing enrollment: the code from the authenticator app proves the secret was saved; only then a session opens.
 r.post("/enroll", limits.login, handle(async (req, res) => {
   const b = parse(z.object({ ticket: z.string().regex(/^[0-9a-f]{64}$/), code: z.string().max(10), remember: z.boolean().optional().default(false) }), req.body);
+  let codes = [];
   await transaction(platform(req), async (q) => {
     if (await ownerTotp(q)) throw badRequest("التحقق الثنائي مفعّل بالفعل. سجّل الدخول بالرمز.");
     const [row] = await q("SELECT pending_enc FROM owner_security WHERE id = 1 AND pending_hash = $1 AND pending_expires > now() FOR UPDATE", [sha(b.ticket)]);
@@ -112,11 +114,12 @@ r.post("/enroll", limits.login, handle(async (req, res) => {
     await q(`UPDATE owner_security SET totp_enc = pending_enc, enrolled_at = now(), pending_enc = NULL, pending_hash = NULL, pending_expires = NULL
               WHERE id = 1`);
     await logEvent(q, { actor: "مالك المنصة", action: "تفعيل التحقق الثنائي للوحة المالك" });
+    codes = await newRecoveryCodes(q);
     await raiseAlert(q, { kind: "owner_mfa_enrolled", severity: "info", title: "فُعّل التحقق الثنائي للوحة المالك",
       detail: `من العنوان ${req.ip || "غير معروف"}` });
     await openOwnerSession(req, res, q, b.remember);
   });
-  res.json({ ok: true });
+  res.json({ ok: true, recovery_codes: codes });
 }));
 
 r.post("/logout", handle(async (req, res) => {

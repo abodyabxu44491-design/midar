@@ -11,8 +11,7 @@ import { transaction } from "../../core/db/pool.js";
 import { badRequest, notFound, forbidden, unauthorized, conflict } from "../../core/http/errors.js";
 import { z } from "../../core/http/validate.js";
 import { hashPassword, verifyPassword } from "../../core/auth/password.js";
-import { verifyTotp } from "../../core/auth/totp.js";
-import { ownerTotp } from "../../core/auth/owner-mfa.js";
+import { ownerTotp, checkOwnerFactor } from "../../core/auth/owner-mfa.js";
 import { newTempPassword, newToken } from "../../core/auth/codes.js";
 import { sealCredential } from "../../core/auth/secret-box.js";
 import { logEvent, securityEvent, recentFailures, clearLoginFailures } from "../../core/audit.js";
@@ -133,7 +132,7 @@ export const stepSchema = z.object({ token: z.string().min(20).max(100) });
 export const executeSchema = stepSchema.extend({
   confirm: z.string().trim().max(60),
   password: z.string().max(200).optional(),
-  code: z.string().max(10).optional(),
+  code: z.string().max(20).optional(),
 });
 
 export function catalog(scope) {
@@ -332,7 +331,7 @@ async function reauth(ctx, tid, b) {
   if (ctx.scope === "owner") {
     const ok = await verifyPassword(b.password, env.OWNER_PASSWORD_HASH);
     const mfa = await transaction({ platform: true }, (q) => ownerTotp(q));
-    const codeOk = !mfa || verifyTotp(mfa.secret, b.code);
+    const codeOk = ok && await transaction({ platform: true }, (q) => checkOwnerFactor(q, mfa, b.code, ctx.ip));
     if (!ok || !codeOk) return fail(mfa ? "كلمة المرور أو رمز التحقق غير صحيح" : "كلمة المرور غير صحيحة");
   } else {
     // A manager signed in with a Midar account confirms with that account's password.

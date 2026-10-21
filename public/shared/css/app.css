@@ -2833,3 +2833,10 @@ button.sf-kpi.go:hover { border-color: var(--line-2); }
 .mfa-steps { margin: 12px 0; padding-inline-start: 20px; display: grid; gap: 4px; }
 .mfa-qr { display: grid; place-items: center; margin: 10px 0; }
 .mfa-qr img { width: 200px; height: 200px; border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: #fff; }
+.mfa-h { font-size: 15px; margin: 16px 0 8px; color: var(--navy); }
+.mfa-open { display: flex; justify-content: center; text-decoration: none; margin-bottom: 8px; }
+.mfa-key { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0 4px; }
+.mfa-key .key-text, .mfa-key code { letter-spacing: .06em; }
+.mfa-codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 16px; margin: 12px 0; padding-inline-start: 22px; font-size: 16px; }
+.mfa-codes code { font-weight: 700; letter-spacing: .08em; }
+@media print { .mfa-codes { font-size: 14pt; } }

@@ -7,7 +7,7 @@
 // session in one step), and the security alerts raised across the platform.
 import { h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, btn, empty, badge, sub, toast, notice, confirmAction } from "/shared/js/ui.js";
+import { panel, btn, empty, badge, sub, toast, notice, confirmAction, dialog, field, input } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
 
 const API = "/api/owner/security";
@@ -31,6 +31,12 @@ export default async function security({ refresh }) {
         h("li", {}, d.ip_allowlist ? "الدخول مقصور على عناوين محددة (OWNER_ALLOWED_IPS)." : "الدخول متاح من أي عنوان. لتقييده أضف OWNER_ALLOWED_IPS في إعدادات الخادم."),
         h("li", {}, d.alert_email ? "التنبيهات المهمة تُرسل إلى بريدك أيضًا." : "لإرسال التنبيهات المهمة إلى بريدك أضف OWNER_ALERT_EMAIL في إعدادات الخادم."),
         h("li", {}, "أي دخول من جهاز جديد يظهر هنا كتنبيه مهم."))),
+    panel("الرموز الاحتياطية", null,
+      sub("للدخول عندما لا يكون جوال تطبيق المصادقة معك: اكتب رمزًا منها بدل الأرقام الستة. كل رمز يعمل مرة واحدة."),
+      d.recovery_left
+        ? notice(`باقي ${d.recovery_left} من 10 رموز.${d.recovery_left <= 3 ? " أنشئ رموزًا جديدة قريبًا." : ""}`, d.recovery_left <= 3 ? "warn" : "")
+        : notice("لا توجد رموز احتياطية. أنشئها الآن واحفظها في مكان آمن.", "warn"),
+      btn("إنشاء رموز احتياطية جديدة", () => newCodes(refresh), "sm")),
     panel(`الجلسات المفتوحة (${d.sessions.length})`,
       others ? btn("إنهاء كل الجلسات الأخرى", async () => {
         if (!(await confirmAction(`إنهاء ${others} جلسة أخرى للوحة المالك؟ تبقى هذه الجلسة فقط.`))) return;
@@ -52,4 +58,23 @@ export default async function security({ refresh }) {
           h("small", {}, [fmtDateTime(a.created_at), a.school || a.tenant_id ? `المدرسة: ${a.school || a.tenant_id}` : null].filter(Boolean).join(" · "))))))
         : empty("لا توجد تنبيهات أمنية.")),
   ];
+}
+
+// A new set replaces the old one; confirmed with the current code from the authenticator app.
+function newCodes(refresh) {
+  const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 9, placeholder: "000000" });
+  const d = dialog("رموز احتياطية جديدة", h("div", {},
+    sub("الرموز القديمة تتوقف عن العمل. للتأكيد اكتب الأرقام الستة الظاهرة الآن في تطبيق المصادقة."), field("الرمز من التطبيق", code)), [
+    btn("إنشاء", async () => {
+      try {
+        const r = await api(`${API}/recovery-codes`, { code: code.value.trim() });
+        d.close(); refresh();
+        const text = ["رموز الدخول الاحتياطية — لوحة مالك مدار", ...r.recovery_codes].join("\n");
+        dialog("رموزك الاحتياطية", h("div", {},
+          notice("احفظها الآن في مكان آمن (اطبعها أو احفظها في ملاحظات محمية). لن تظهر مرة أخرى.", "warn"),
+          h("ol", { class: "mfa-codes ltr" }, r.recovery_codes.map((c) => h("li", {}, h("code", {}, c))))), [
+          btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("نُسخت الرموز"); }, "ghost"),
+          btn("طباعة", () => window.print(), "ghost")]);
+      } catch (e) { toast(e.message, true); }
+    })]);
 }
