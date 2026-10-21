@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 30
     services:
       db:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: restore-test
           POSTGRES_DB: restore
@@ -43,19 +43,19 @@ jobs:
           run-id: ${{ steps.last.outputs.run }}
           github-token: ${{ github.token }}
           path: backup
-      - name: تثبيت أدوات PostgreSQL 17
+      - name: تثبيت أدوات PostgreSQL 18
         if: steps.last.outputs.run != ''
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-18
       - name: فك التشفير والاسترجاع والتحقق
         if: steps.last.outputs.run != ''
         run: |
           set -euo pipefail
           umask 077
-          BIN=/usr/lib/postgresql/17/bin
+          BIN=/usr/lib/postgresql/18/bin
           FILE=$(find backup -name '*.dump.gpg' | head -1)
           echo "النسخة: $FILE"
           SUM=$(find backup -name '*.dump.gpg.sha256' | head -1)
