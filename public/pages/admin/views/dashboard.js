@@ -10,8 +10,9 @@ import { icons } from "../../shared/js/icons.js";
 import { money, fmtDate } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";
 import { A, directoryLink, staffLink, optional } from "./common.js";
+import { shortcuts } from "../../shared/js/shortcuts.js";
 
-export default async function dashboard({ me, goTo }) {
+export default async function dashboard({ me, goTo, sections = [] }) {
   const [d, alerts, notifications, templates] = await Promise.all([
     api(`${A}/dashboard`),
     optional(api(`${A}/analytics/alerts`), { counts: {}, absentees: [], overdue: [] }),
@@ -63,6 +64,9 @@ export default async function dashboard({ me, goTo }) {
           d.academic ? `${d.academic.year_name} — ${d.academic.term_name || "لم يُحدد الفصل"}` : null,
           todayText,
         ].filter(Boolean).join(" · ")))),
+
+    // Optional shortcuts: none until the manager adds some (up to six), removable at any time.
+    shortcuts({ storeKey: `midar_admin_shortcuts_${me.school.id}_${me.account?.id || me.name || ""}`, sections, go: (k) => go(k), max: 6 }),
 
     d.recent_announcements?.length ? h("button", { type: "button", class: "ann-strip", onclick: () => go("announcements") },
       h("span", { class: "ann-ic" }, icons.megaphone({ size: 18 })),

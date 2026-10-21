@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { personAvatar } from "../../shared/js/ui.js";
+import { personAvatar, formCard, formFold } from "../../shared/js/ui.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
   showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
@@ -321,34 +321,33 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   Promise.all([api(`${A}/custom-fields?entity=student`), editing ? api(`${A}/custom-fields/values/student/${s.id}`) : {}]).then(([fields, values]) => {
     custom.fields = fields.filter((x) => x.is_active && x.show_admin);
     if (!custom.fields.length) return;
-    mount(extra, h("h3", { class: "sec-title" }, "معلومات إضافية"), h("div", { class: "form-grid" }, custom.fields.map((x) => {
+    mount(extra, formCard("list", "معلومات إضافية", h("div", { class: "form-grid" }, custom.fields.map((x) => {
       const el = x.type === "select" ? select([["", "—"], ...x.options.map((o) => [o, o])], { value: values[x.key] ?? "" })
         : x.type === "boolean" ? select([["", "—"], ["نعم", "نعم"], ["لا", "لا"]], { value: values[x.key] ?? "" })
         : input({ type: x.type === "number" ? "number" : x.type === "date" ? "date" : "text", value: values[x.key] ?? "" });
       custom.inputs.set(x.key, el);
       return field(`${x.label}${x.required ? " *" : ""}`, el);
-    })));
+    }))));
   }).catch((e) => mount(extra, notice(`تعذر تحميل المعلومات الإضافية: ${e.message}. أعد فتح النافذة قبل الحفظ.`, "warn")));
 
   const grid = (...k) => h("div", { class: "form-grid" }, ...k);
   const areaOptions = h("datalist", { id: "area-options" });
   api(`${A}/students/areas`).then((list) => mount(areaOptions, list.map((x) => h("option", { value: x.area })))).catch(() => {});
-  const body = h("div", { class: "student-form" },
-    h("h3", { class: "sec-title first" }, "المعلومات الأساسية"),
-    h("div", { class: "photo-row" }, preview, h("div", {},
-      btn(s?.has_photo || photoData ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
-      (s?.has_photo && !photoRemoved) || photoData ? btn("حذف الصورة", () => { photoData = null; photoRemoved = true; drawPhoto(); }, "ghost sm") : null)),
-    grid(field("الاسم الكامل *", f.name), field("اللقب", f.family, "يميّز المتشابهين في الأسماء ويساعد ربط الإخوة"), field("رقم الطالب", f.no),
-      field("تاريخ الميلاد", f.birth), field("الجنس", f.gender),
-      editing ? field("الحالة", f.status) : null),
-    h("h3", { class: "sec-title" }, "المعلومات الأكاديمية"),
-    grid(field("المرحلة", f.stage), field("الصف", f.grade), sectionsOn ? field("الشعبة", f.section) : null,
-      field("السنة الدراسية", input({ value: structure.year_name || "غير محددة", disabled: true }))),
-    h("h3", { class: "sec-title" }, "معلومات التواصل"),
-    grid(field("جوال الطالب (إن وجد)", f.sphone), field("اسم ولي الأمر", f.gname), field("جوال ولي الأمر", f.gphone), field("المنطقة", f.area)),
-    areaOptions,
-    hint,
-    h("label", { class: "f pill" }, f.fees, "تفعيل الرسوم لهذا الطالب"),
+  const body = h("div", { class: "student-form tidy" },
+    formCard("user", "المعلومات الأساسية",
+      h("div", { class: "photo-row" }, preview, h("div", {},
+        btn(s?.has_photo || photoData ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
+        (s?.has_photo && !photoRemoved) || photoData ? btn("حذف الصورة", () => { photoData = null; photoRemoved = true; drawPhoto(); }, "ghost sm") : null)),
+      grid(field("الاسم الكامل *", f.name), field("اللقب", f.family, "يميّز المتشابهين في الأسماء ويساعد ربط الإخوة"), field("رقم الطالب", f.no),
+        field("تاريخ الميلاد", f.birth), field("الجنس", f.gender),
+        editing ? field("الحالة", f.status) : null)),
+    formCard("building", "الصف والشعبة",
+      grid(field("المرحلة", f.stage), field("الصف", f.grade), sectionsOn ? field("الشعبة", f.section) : null,
+        field("السنة الدراسية", input({ value: structure.year_name || "غير محددة", disabled: true })))),
+    formCard("users", "ولي الأمر والتواصل",
+      grid(field("اسم ولي الأمر", f.gname), field("جوال ولي الأمر", f.gphone), field("جوال الطالب (إن وجد)", f.sphone), field("المنطقة", f.area)),
+      areaOptions, hint),
+    h("label", { class: "fcard fees-line" }, f.fees, h("span", {}, h("b", {}, "تفعيل الرسوم لهذا الطالب"), h("small", {}, "تصدر له فواتير الرسوم حسب خطة صفه"))),
     extra);
 
   const d = bigDialog(editing ? `تعديل: ${s.name}` : "إضافة طالب", body, [btn(editing ? "حفظ التعديلات" : "حفظ الطالب", async () => {

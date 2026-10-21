@@ -6,7 +6,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction, skeleton,
-  stats as statCards } from "../../shared/js/ui.js";
+  stats as statCards, formCard, formFold } from "../../shared/js/ui.js";
 import { fmtDate, fmtDateTime, csv, EXAM, money } from "../../shared/js/format.js";
 import { timetableGrid } from "../../shared/js/timetable.js";
 import { A, loadClasses, loadSubjects, staffLink, rememberField } from "./common.js";
@@ -339,23 +339,24 @@ export default async function teachers({ me, refresh }) {
           btn("تخطي", () => mount(hint), "ghost sm")));
     });
     const grid = (...k) => h("div", { class: "form-grid" }, ...k);
-    const d = bigDialog("إضافة معلم", h("div", { class: "student-form" },
-      h("h3", { class: "sec-title first" }, "البيانات الأساسية"),
-      h("div", { class: "photo-row" }, preview, h("div", {}, btn("إضافة صورة", () => file.click(), "ghost sm"), file)),
-      grid(field("الاسم الكامل *", f.name), field("الاسم المختصر", f.short_name), field("الجنس", f.gender), field("تاريخ الميلاد", f.birth_date),
-        field("رقم الهوية", f.national_id)),
-      h("h3", { class: "sec-title" }, "بيانات التواصل"),
-      grid(field("رقم الجوال", f.phone), field("البريد الإلكتروني", f.email), field("العنوان", f.address),
-        field("جهة اتصال الطوارئ", f.emergency_name), field("جوال الطوارئ", f.emergency_phone)),
-      h("h3", { class: "sec-title" }, "البيانات الوظيفية"),
-      grid(field("الرقم الوظيفي", f.employee_no), field("المسمى الوظيفي", f.job_title), field("التخصص", f.specialty), field("المؤهل", f.qualification),
-        field("القسم", f.department), field("تاريخ التعيين", f.hire_date), field("نوع التوظيف", f.employment_type)),
-      hint,
-      h("h3", { class: "sec-title" }, "حساب الدخول"),
-      grid(field("اسم المستخدم *", f.user)),
-      sub("يُنشأ الحساب تلقائيًا بكلمة مرور مؤقتة تظهر لك الآن فقط، ويُطلب من المعلم تغييرها عند أول دخول."),
-      h("h3", { class: "sec-title" }, "المواد والصفوف (اختياري)"),
-      sub("من الهيكل الأكاديمي المركزي — يمكن تعديلها لاحقًا."), picker.el),
+    const assignFold = formFold("clipboard", "المواد والفصول", "اختياري — يمكن تعديلها لاحقًا",
+      sub("اختر الفصل ثم المواد التي يدرّسها فيه. تُدار لاحقًا من «توزيع المعلمين»."), picker.el);
+    const d = bigDialog("إضافة معلم", h("div", { class: "student-form tidy" },
+      formCard("user", "البيانات الأساسية",
+        h("div", { class: "photo-row" }, preview, h("div", {}, btn("إضافة صورة", () => file.click(), "ghost sm"), file)),
+        grid(field("الاسم الكامل *", f.name), field("الاسم المختصر", f.short_name), field("الجنس", f.gender), field("تاريخ الميلاد", f.birth_date),
+          field("رقم الهوية", f.national_id))),
+      formCard("key", "حساب الدخول",
+        grid(field("اسم المستخدم *", f.user)),
+        sub("يُنشأ الحساب بكلمة مرور مؤقتة تظهر لك بعد الحفظ فقط، ويغيّرها المعلم عند أول دخول.")),
+      formFold("phone", "بيانات التواصل", "اختياري",
+        grid(field("رقم الجوال", f.phone), field("البريد الإلكتروني", f.email), field("العنوان", f.address),
+          field("جهة اتصال الطوارئ", f.emergency_name), field("جوال الطوارئ", f.emergency_phone))),
+      formFold("briefcase", "البيانات الوظيفية", "اختياري",
+        grid(field("الرقم الوظيفي", f.employee_no), field("المسمى الوظيفي", f.job_title), field("التخصص", f.specialty), field("المؤهل", f.qualification),
+          field("القسم", f.department), field("تاريخ التعيين", f.hire_date), field("نوع التوظيف", f.employment_type)),
+        hint),
+      assignFold),
     [btn("حفظ المعلم", async () => {
       if (!f.name.value.trim() || !f.user.value.trim()) return toast("الاسم واسم المستخدم مطلوبان", true);
       try {

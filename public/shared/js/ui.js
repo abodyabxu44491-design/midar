@@ -133,7 +133,9 @@ export function topbar({ subtitle, school, onLogout, logo }) {
         h("div", { class: "school-text" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle)))),
     h("div", { class: "top-acts" }, installButton("on-dark"), onLogout && btn("خروج", onLogout, "ghost sm"))));
 }
-export const footer = () => h("footer", { class: "dev" }, h("small", { class: "app-version", title: "رقم إصدار المنصة" }, "الإصدار ", h("bdi", { dir: "ltr" }, APP_VERSION)));
+// The bottom of every page: spacing only. The platform version is not shown to anyone (it stays in the page's
+// meta tag, where the update check reads it).
+export const footer = () => h("footer", { class: "dev", "aria-hidden": "true" });
 
 export const field = (label, control, hint) => h("label", { class: "f" }, h("span", {}, label), control, hint && h("small", { class: "sub" }, hint));
 const NUMERIC_MODES = new Set(["tel", "numeric", "decimal"]);
@@ -607,5 +609,19 @@ export function scoreConflict(changed, { keepTheirs, keepMine }) {
     h("b", {}, "عدّل شخص آخر هذه الدرجات بعد فتحك للصفحة:"),
     h("ul", {}, changed.map((c) => h("li", {}, `${c.name}: درجته الآن ${v(c.theirs)}${c.by ? ` (${c.by})` : ""}، ودرجتك ${v(c.yours)}`))),
     h("div", { class: "row" }, btn("إبقاء درجاتهم وإعادة التحميل", keepTheirs, "ghost sm"), btn("حفظ درجاتي فوقها", keepMine, "danger sm")));
+}
+
+// A form section as a card with an icon and a title; formFold is the same card folded (optional details), with a
+// short note beside the title (for example "اختياري" or a count) so it stays clear what is inside.
+export function formCard(icon, title, ...children) {
+  return h("section", { class: "fcard" }, h("h3", { class: "fcard-h" }, icons[icon] ? icons[icon]({ size: 18 }) : null, h("span", {}, title)), ...children);
+}
+export function formFold(icon, title, note, ...children) {
+  const tag = h("small", { class: "fcard-note" }, note || "");
+  const el = h("details", { class: "fcard fold" },
+    h("summary", { class: "fcard-h" }, icons[icon] ? icons[icon]({ size: 18 }) : null, h("span", {}, title), tag, icons.chevronDown({ size: 16 })),
+    h("div", { class: "fcard-in" }, ...children));
+  el.setNote = (t) => { tag.textContent = t || ""; };
+  return el;
 }
 
