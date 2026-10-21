@@ -10,6 +10,10 @@ import { parse, t, z } from "../../core/http/validate.js";
 
 const r = Router();
 
+// School-scope administrators (no finance) get the same reports without fees, invoices and fund balances.
+const seesFinance = (req) => (req.user.admin_scope || "full") === "full";
+const withoutFinance = (d) => ({ ...d, fees: null, fees_by_month: [] });
+
 const OVERDUE = `SELECT d.id, d.amount - COALESCE(p.net, 0) AS remaining
    FROM (SELECT id, amount FROM invoices WHERE status = 'open' AND due_date < CURRENT_DATE) d
    LEFT JOIN (SELECT invoice_id, SUM(CASE WHEN kind = 'payment' THEN amount ELSE -amount END) AS net
@@ -52,6 +56,10 @@ r.get("/alerts", handle(async (req, res) => {
          FROM (${OVERDUE}) o JOIN invoices i ON i.id = o.id JOIN students s ON s.id = i.student_id LEFT JOIN classes c ON c.id = s.class_id
         ORDER BY i.due_date LIMIT 20`);
 
+    if (!seesFinance(req)) {
+      Object.assign(a, { pending_claims: 0, overdue_invoices: 0, pending_finance: 0, low_balance_accounts: 0, payroll_due: 0 });
+      return { counts: a, absentees, overdue: [] };
+    }
     return { counts: a, absentees, overdue };
   }));
 }));
@@ -60,13 +68,13 @@ const analyticsCache = new Map();
 const ANALYTICS_TTL = 5 * 60 * 1000;
 
 r.get("/", handle(async (req, res) => {
-  const months = parse(z.coerce.number().int().min(1).max(24).default(6), req.query.months || undefined);
+  const months = req.query.months ? parse(z.coerce.number().int().min(1).max(24), req.query.months) : 6;
   const termId = req.query.term_id === "current"
     ? (await inTenant(req, (q) => q("SELECT id FROM terms WHERE is_current ORDER BY id DESC LIMIT 1")))[0]?.id ?? null
     : req.query.term_id ? parse(t.id, req.query.term_id) : null;
   const key = `${req.tenantId}:${months}:${termId ?? ""}`;
   const hit = analyticsCache.get(key);
-  if (hit && hit.until > Date.now() && req.query.fresh !== "1") return res.json(hit.data);
+  if (hit && hit.until > Date.now() && req.query.fresh !== "1") return res.json(seesFinance(req) ? hit.data : withoutFinance(hit.data));
 
   const data = await inTenant(req, async (q) => {
     const att = await q(
@@ -141,7 +149,7 @@ r.get("/", handle(async (req, res) => {
   });
   analyticsCache.set(key, { data, until: Date.now() + ANALYTICS_TTL });
   if (analyticsCache.size > 500) analyticsCache.delete(analyticsCache.keys().next().value);
-  res.json(data);
+  res.json(seesFinance(req) ? data : withoutFinance(data));
 }));
 
 r.get("/search", handle(async (req, res) => {
@@ -156,7 +164,7 @@ r.get("/search", handle(async (req, res) => {
     teachers: await q(
       `SELECT t.id, t.full_name AS name, u.username FROM teachers t LEFT JOIN users u ON u.teacher_id = t.id
         WHERE t.full_name ILIKE '%' || $1 || '%' OR u.username ILIKE '%' || $1 || '%' ORDER BY t.full_name LIMIT 10`, [q2]),
-    invoices: await q(
+    invoices: !seesFinance(req) ? [] : await q(
       `SELECT i.id, i.title, i.amount, invoice_net_paid(i.id) AS paid, s.full_name AS student_name
          FROM invoices i JOIN students s ON s.id = i.student_id
         WHERE i.title ILIKE '%' || $1 || '%' OR s.full_name ILIKE '%' || $1 || '%'
@@ -205,6 +213,7 @@ r.get("/notifications", handle(async (req, res) => {
          SELECT teacher_id, day, period FROM timetable_slots WHERE teacher_id IS NOT NULL
           GROUP BY teacher_id, day, period HAVING count(*) > 1) x`);
 
+    if (!seesFinance(req)) Object.assign(c, { overdue_invoices: 0, low_balance: 0, pending_claims: 0, pending_finance: 0, payroll_due: 0 });
     const item = (level, count, text, tab, hint) => (count ? { level, count, text, tab, hint } : null);
     const items = [
       item("urgent", conflicts[0].n, "تعارض في جدول الحصص", "timetable", "معلم لديه حصتان في وقت واحد"),

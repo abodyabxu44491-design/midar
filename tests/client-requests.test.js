@@ -120,3 +120,32 @@ test("حسابات الإدارة: يبقى حساب إدارة عامة واح�
   assert.ok(other);
   assert.equal((await sc.admin.patch(`/api/admin/users/admins/${other.id}`, { admin_scope: "full" })).status, 200);
 });
+
+test("إدارة المدرسة لا ترى أرقام المالية في الرئيسية والتنبيهات والتحليلات والبحث", async () => {
+  const school = await staff("school", { admin_scope: "school" });
+  const st = await sc.admin.post("/api/admin/students", { name: "طالب الفاتورة المتأخرة", class_id: sc.c1.id });
+  assert.equal((await sc.admin.post("/api/admin/finance/invoices", { target: "student", target_id: st.data.id, title: "رسوم متأخرة للاختبار", amount: 100, due_date: "2020-01-01" })).status, 201);
+
+  const full = (await sc.admin.get("/api/admin/dashboard")).data;
+  assert.ok("fees_paid" in full, "الإدارة العامة ترى الرسوم");
+  const dash = (await school.get("/api/admin/dashboard")).data;
+  assert.ok(!("fees_paid" in dash) && !("fees_remaining" in dash), "لا أرقام رسوم لإدارة المدرسة");
+  assert.equal(dash.students, full.students, "وتبقى بقية الأرقام كما هي");
+
+  const alerts = (await school.get("/api/admin/analytics/alerts")).data;
+  assert.deepEqual(alerts.overdue, []);
+  assert.equal(alerts.counts.overdue_invoices, 0);
+  assert.ok((await sc.admin.get("/api/admin/analytics/alerts")).data.overdue.length > 0);
+
+  const anr = await school.get("/api/admin/analytics");
+  assert.equal(anr.status, 200, JSON.stringify(anr.data));
+  const an = anr.data;
+  assert.equal(an.fees, null);
+  assert.deepEqual(an.fees_by_month, []);
+  assert.ok((await sc.admin.get("/api/admin/analytics")).data.fees, "النسخة المخزنة للإدارة العامة كاملة");
+
+  const found = (await school.get(`/api/admin/analytics/search?q=${encodeURIComponent("الفاتورة المتأخرة")}`)).data;
+  assert.deepEqual(found.invoices, []);
+  const notes = (await school.get("/api/admin/analytics/notifications")).data;
+  assert.ok(!JSON.stringify(notes).includes("فواتير تجاوزت"), "لا تنبيه فواتير لإدارة المدرسة");
+});

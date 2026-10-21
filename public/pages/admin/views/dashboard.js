@@ -79,7 +79,7 @@ export default async function dashboard({ me, goTo, sections = [] }) {
       me.modules?.attendance === false ? null : kpiCard({ icon: "check", tone: "teal", label: "حضور اليوم", value: rate === null ? "—" : `${rate}%`, ratio: rate === null ? null : rate / 100,
         note: d.recorded_today ? `${d.absent_today} غائبًا من ${d.recorded_today}` : todayText || "لم يُسجل الحضور بعد", onClick: () => go("attendance") }),
       kpiCard({ icon: "user", tone: "violet", label: "المعلمون", value: String(d.teachers), note: d.pending_exams ? `${d.pending_exams} اختبار بانتظار الاعتماد` : "فريق المدرسة", onClick: () => go("teachers") }),
-      me.modules?.fees === false ? null : kpiCard({ icon: "wallet", tone: "amber", label: "الرسوم المحصّلة", value: money(d.fees_paid), ratio: feesTotal ? Number(d.fees_paid || 0) / feesTotal : null,
+      me.modules?.fees === false || me.admin_scope === "school" ? null : kpiCard({ icon: "wallet", tone: "amber", label: "الرسوم المحصّلة", value: money(d.fees_paid), ratio: feesTotal ? Number(d.fees_paid || 0) / feesTotal : null,
         note: `المتبقي ${money(d.fees_remaining)}`, onClick: () => go(me.modules?.finance ? "ledger" : "finance") })),
 
     // Everything that happened or needs action, in one panel with tabs.
