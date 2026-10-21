@@ -317,6 +317,19 @@ const TAB_ICONS = {
   ai: "sparkle", chat: "message", testimonials: "star", groups: "building", lessons: "clipboard", meetings: "clock", surveys: "poll", me: "briefcase", sms: "message", "online-exams": "monitor",
 };
 
+// A section that needs the internet, opened without it: a clear card, a retry button, and it reloads by itself as soon
+// as the connection returns. Attendance and grade entry keep working offline from their own pages.
+function offlineCard(retry) {
+  const card = h("div", { class: "offline-card" },
+    h("span", { class: "oc-ic" }, icons.refresh({ size: 26 })),
+    h("b", {}, "هذا القسم يحتاج اتصالًا بالإنترنت"),
+    h("p", {}, "سيُحدَّث تلقائيًا عند عودة الاتصال. الحضور ورصد الدرجات يعملان بدون إنترنت ويُرسلان عند عودته."),
+    h("button", { type: "button", class: "btn soft sm", onclick: () => retry() }, "إعادة المحاولة"));
+  const back = () => { if (card.isConnected) retry(); };
+  window.addEventListener("online", back, { once: true });
+  return card;
+}
+
 export function tabs(list, views, ctx, { primary = [], top = false } = {}) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
   const body = h("div", { role: "tabpanel" });
@@ -362,7 +375,7 @@ export function tabs(list, views, ctx, { primary = [], top = false } = {}) {
       const out = await views[key]({ ...ctx, refresh });
       if (current === key) mount(body, out);
     } catch (e) {
-      if (current === key) mount(body, notice(e.message, "err"));
+      if (current === key) mount(body, e.status === 0 && e.code !== "timeout" ? offlineCard(refresh) : notice(e.message, "err"));
       if (e.status === 401) setTimeout(() => location.reload(), 1500);
     }
   };
@@ -585,3 +598,14 @@ export function copyRow(label, value, { secret = false, note } = {}) {
   } }, "إظهار"));
   return h("div", { class: "link-row" }, h("div", { class: "lr-text" }, h("b", {}, label), note ? h("small", {}, note) : null, shown), h("div", { class: "lr-acts" }, acts));
 }
+
+// A grade list saved after someone else changed some of its grades: the list of who changed what, and the choice
+// to keep the other person's grades (reload) or save these over them.
+export function scoreConflict(changed, { keepTheirs, keepMine }) {
+  const v = (x) => (x === null || x === undefined ? "بلا درجة" : String(x));
+  return h("div", { class: "notice warn score-clash" },
+    h("b", {}, "عدّل شخص آخر هذه الدرجات بعد فتحك للصفحة:"),
+    h("ul", {}, changed.map((c) => h("li", {}, `${c.name}: درجته الآن ${v(c.theirs)}${c.by ? ` (${c.by})` : ""}، ودرجتك ${v(c.yours)}`))),
+    h("div", { class: "row" }, btn("إبقاء درجاتهم وإعادة التحميل", keepTheirs, "ghost sm"), btn("حفظ درجاتي فوقها", keepMine, "danger sm")));
+}
+

@@ -234,8 +234,13 @@ export async function familyPage(shell) {
   const local = rememberedChildren(school).filter((c) => !known.has(c.id));
   const localBox = local.length && d.can.link_by_key ? notice(h("span", {}, `على هذا الجهاز ${local.length} من الأبناء محفوظون بمعرّفاتهم. `,
     h("button", { type: "button", class: "link", onclick: async () => {
-      for (const c of local) await api(`${P}/parent/children/add`, { key: c.key }).catch(() => {});
-      toast("أُضيفوا إلى حسابك"); familyPage(shell);
+      let ok = 0, lastError = null;
+      for (const c of local) {
+        try { await api(`${P}/parent/children/add`, { key: c.key }); ok++; } catch (e) { lastError = e.message; }
+      }
+      if (!lastError) toast(ok === 1 ? "أُضيف إلى حسابك" : "أُضيفوا إلى حسابك");
+      else toast(ok ? `أُضيف ${ok} من ${local.length}. تعذر الباقي: ${lastError}` : `تعذرت الإضافة: ${lastError}`, true);
+      familyPage(shell);
     } }, "أضفهم إلى حسابي")), "") : null;
 
   shell([

@@ -30,7 +30,7 @@ const classTeachers = (q) => q(
      FROM teacher_assignments a JOIN teachers t ON t.id = a.teacher_id JOIN subjects sub ON sub.id = a.subject_id
     ORDER BY sub.name`);
 
-r.post("/page", limits.api, handle(async (req, res) => {
+r.post("/page", limits.publicApi, handle(async (req, res) => {
   const b = parse(openSchema, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);

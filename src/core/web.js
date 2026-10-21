@@ -100,6 +100,7 @@ export function pageGraph(entries, isProd) {
 }
 
 const pageCache = new Map();
+const NOSCRIPT = "<h1>يلزم تفعيل JavaScript</h1><p>تعمل مدار داخل المتصفح، ولا تفتح والجافاسكربت موقوفة. فعّلها من إعدادات المتصفح ثم أعد تحميل الصفحة.</p>";
 export function renderPage(file, { isProd }) {
   if (isProd && pageCache.has(file)) return pageCache.get(file);
   let html = fs.readFileSync(file, "utf8");
@@ -113,7 +114,11 @@ export function renderPage(file, { isProd }) {
     `<link rel="preload" href="${v}/shared/css/fonts.css" as="style">`,
     ...["400", "700"].map((w) => `<link rel="preload" href="${v}/shared/fonts/ibm-plex-sans-arabic-arabic-${w}-normal.woff2" as="font" type="font/woff2" crossorigin>`),
   ].join("\n  ") : "";
-  html = html.replace("</head>", `  <meta name="app-version" content="${APP_VERSION}">\n  ${fonts}\n  ${preload}\n  <script type="application/json" id="module-graph">${graph}</script>\n</head>`);
+  html = html.replace("</head>", `  <meta name="app-version" content="${APP_VERSION}">\n  ${fonts}\n  ${preload}\n  <script type="application/json" id="module-graph">${graph}</script>\n  <script src="${v}/shared/js/compat.js"></script>\n</head>`);
+  // With JavaScript turned off, a clear message instead of a page that never finishes loading.
+  if (!html.includes("<noscript>")) {
+    html = html.replace(/<body([^>]*)>/, `<body$1>\n  <noscript><div class="noscript-box">${NOSCRIPT}</div></noscript>`);
+  }
   if (isProd) pageCache.set(file, html);
   return html;
 }

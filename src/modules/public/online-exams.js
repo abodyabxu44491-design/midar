@@ -21,7 +21,7 @@ const idOf = (req) => parse(t.id, req.params.id);
 
 r.post("/student/online-exams", limits.studentKey, handle(async (req, res) => res.json(await run(req, (q, s) => oe.forStudent(q, s)))));
 r.post("/student/online-exams/:id/start", limits.studentKey, handle(async (req, res) => res.json(await run(req, (q, s) => oe.start(q, s, idOf(req), req.ip)))));
-r.post("/student/online-exams/:id/save", limits.api, handle(async (req, res) => {
+r.post("/student/online-exams/:id/save", limits.publicApi, handle(async (req, res) => {
   const { answers } = parse(oe.saveSchema, req.body);
   res.json(await run(req, (q, s) => oe.save(q, s, idOf(req), answers)));
 }));
@@ -30,7 +30,7 @@ r.post("/student/online-exams/:id/submit", limits.studentKey, handle(async (req,
   res.json(await run(req, (q, s) => oe.save(q, s, idOf(req), answers, { submit: true })));
 }));
 r.post("/student/online-exams/:id/review", limits.studentKey, handle(async (req, res) => res.json(await run(req, (q, s) => oe.review(q, s, idOf(req))))));
-r.post("/student/online-exams/:id/image", limits.api, handle(async (req, res) => {
+r.post("/student/online-exams/:id/image", limits.publicApi, handle(async (req, res) => {
   const { image_id } = parse(z.object({ image_id: t.id }), req.body);
   res.json(await run(req, (q, s) => oe.imageFor(q, s, idOf(req), image_id)));
 }));

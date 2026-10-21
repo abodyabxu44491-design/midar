@@ -8,7 +8,7 @@
 // correct them), or sent to the administration when the school approves grades itself.
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { input, btn, empty, badge, sub, toast, notice, confirmAction } from "../../shared/js/ui.js";
+import { input, btn, empty, badge, sub, toast, notice, confirmAction, scoreConflict } from "../../shared/js/ui.js";
 import { EXAM, fmtDate, today } from "../../shared/js/format.js";
 import { getSync } from "../../shared/js/offline/sync.js";
 import { localExam, localScoreRows, saveScoresLocal, examSynced } from "../offline.js";
@@ -115,6 +115,10 @@ export default async function exams({ me, refresh }) {
     const state = h("small", { class: "ge-state" });
     const progress = h("b", {});
     let timer = null, saving = Promise.resolve();
+    // What the grades were on the server when this sheet opened (then after each save), so a grade the
+    // administration corrected in the meantime is not overwritten without asking.
+    let base = local ? null : Object.fromEntries(rows.map((r) => [r.id, r.score ?? null]));
+    const clashBox = h("div");
     const inputs = rows.map((r) => {
       const el = input({ type: "number", min: 0, max, step: "0.25", value: r.score ?? "", inputMode: "decimal", class: "ltr ge-score",
         disabled: locked, "aria-label": `درجة ${r.name}` });
@@ -147,11 +151,17 @@ export default async function exams({ me, refresh }) {
       state.textContent = "جارٍ الحفظ…"; state.className = "ge-state";
       try {
         if (local) await saveScoresLocal(local, scores);
-        else await api(`${T}/${e.id}/scores`, { scores }, "PUT");
+        else { await api(`${T}/${e.id}/scores`, { scores, ...(base ? { base } : {}) }, "PUT"); base = { ...scores }; mount(clashBox); }
         state.textContent = local && !navigator.onLine ? "محفوظ على جهازك — يُرسل عند عودة الاتصال" : "محفوظ تلقائيًا";
         state.className = "ge-state ok";
         return true;
-      } catch (err) { state.textContent = `لم يُحفظ: ${err.message}`; state.className = "ge-state err"; return false; }
+      } catch (err) {
+        if (err.changed?.length) {
+          mount(clashBox, scoreConflict(err.changed, { keepTheirs: () => openSheet(e), keepMine: () => { base = null; saving = save(); } }));
+          state.textContent = "لم يُحفظ: توجد درجات عدّلها غيرك"; state.className = "ge-state err"; return false;
+        }
+        state.textContent = `لم يُحفظ: ${err.message}`; state.className = "ge-state err"; return false;
+      }
     };
     const schedule = () => { clearTimeout(timer); state.textContent = "تعديلات جديدة…"; state.className = "ge-state"; timer = setTimeout(() => { saving = save(); }, 900); };
     const back = async () => { clearTimeout(timer); if (!locked) await save(); try { list = await api(T); } catch { /* offline: keep the list */ } draw(); };
@@ -184,6 +194,7 @@ export default async function exams({ me, refresh }) {
       locked ? notice(e.status === "published" ? "الدرجات منشورة لأولياء الأمور، واعتمدتها الإدارة. لتصحيح درجة تواصل مع الإدارة." : "أُرسلت الدرجات للإدارة، ولا تُعدَّل حتى تُرجعها الإدارة.", "") : h("div", { class: "ge-tools" },
         sub(published ? "الدرجات منشورة لأولياء الأمور. صحّح أي درجة وتُحفظ وتظهر لهم مباشرة." : "اكتب الدرجة واضغط Enter للانتقال للطالب التالي. يُحفظ كل شيء تلقائيًا، واترك خانة الغائب فارغة."),
         btn(`تعبئة الفارغ بـ ${max}`, fillFull, "ghost sm")),
+      clashBox,
       rows.length ? h("ol", { class: "ge-sheet" }, rows.map((r, i) => h("li", {},
         h("span", { class: "ge-n" }, String(i + 1)), h("span", { class: "ge-name" }, r.name, r.pending ? h("span", { class: "pending-dot" }, "بانتظار المزامنة") : null),
         inputs[i][1], h("span", { class: "ge-of" }, `/ ${max}`)))) : empty("لا يوجد طلاب في الفصل."),

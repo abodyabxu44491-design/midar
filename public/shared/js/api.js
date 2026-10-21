@@ -8,6 +8,7 @@ export class ApiError extends Error {
     super(message); this.status = status; this.code = code;
     if (details?.errors) this.errors = details.errors;
     if (details?.invalid) this.invalid = details.invalid;
+    if (details?.changed) this.changed = details.changed;
     if (details?.retry_after) this.retryAfter = Number(details.retry_after);
     if (details?.tenant_id) this.data = { tenant_id: details.tenant_id };
   }

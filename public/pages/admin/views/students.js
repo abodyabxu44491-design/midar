@@ -328,7 +328,7 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
       custom.inputs.set(x.key, el);
       return field(`${x.label}${x.required ? " *" : ""}`, el);
     })));
-  }).catch(() => {});
+  }).catch((e) => mount(extra, notice(`تعذر تحميل المعلومات الإضافية: ${e.message}. أعد فتح النافذة قبل الحفظ.`, "warn")));
 
   const grid = (...k) => h("div", { class: "form-grid" }, ...k);
   const areaOptions = h("datalist", { id: "area-options" });

@@ -77,7 +77,7 @@ export async function create(q, b, user, actor) {
      VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, request_no`,
     [no, b.kind, b.title, b.details ?? null, b.amount, b.beneficiary ?? null, b.teacher_id ?? null, actor, user.id]);
   await notify(q, { event: "request", users: (await financeUsers(q)).filter((x) => Number(x) !== Number(user.id)),
-    title: `طلب مالي جديد ${no}`, body: `${KINDS[b.kind]}: ${b.title} — ${b.amount}`, link: "finance-requests", dedupKey: `freq:${row.id}` }).catch(() => {});
+    title: `طلب مالي جديد ${no}`, body: `${KINDS[b.kind]}: ${b.title} — ${b.amount}`, link: "finance-requests", dedupKey: `freq:${row.id}` }).catch((e) => console.error("[الطلبات المالية] تعذر إرسال التنبيه:", e.message));
   return row;
 }
 
@@ -96,7 +96,7 @@ export async function decide(q, id, b, actor) {
     [id, b.decision === "approve" ? "approved" : "rejected", actor, b.note ?? null, b.decision === "approve" ? (b.approved_amount ?? r.amount) : null]);
   if (r.requested_by_id) {
     await notify(q, { event: "request", users: [r.requested_by_id], title: `${b.decision === "approve" ? "اعتُمد" : "رُفض"} الطلب ${r.request_no}`,
-      body: b.decision === "approve" ? `${r.title} — بانتظار الصرف` : `${r.title}: ${b.note}`, link: "finance-requests", dedupKey: `freqd:${id}` }).catch(() => {});
+      body: b.decision === "approve" ? `${r.title} — بانتظار الصرف` : `${r.title}: ${b.note}`, link: "finance-requests", dedupKey: `freqd:${id}` }).catch((e) => console.error("[الطلبات المالية] تعذر إرسال التنبيه:", e.message));
   }
 }
 
@@ -119,7 +119,7 @@ export async function pay(q, id, b, actor) {
   await q("UPDATE finance_requests SET status = 'paid', paid_by = $2, paid_at = now(), entry_id = $3 WHERE id = $1", [id, actor, entry.id]);
   if (r.requested_by_id) {
     await notify(q, { event: "request", users: [r.requested_by_id], title: `صُرف الطلب ${r.request_no}`, body: `${r.title} — سند ${entry.entry_no}`,
-      link: "finance-requests", dedupKey: `freqp:${id}` }).catch(() => {});
+      link: "finance-requests", dedupKey: `freqp:${id}` }).catch((e) => console.error("[الطلبات المالية] تعذر إرسال التنبيه:", e.message));
   }
   return { entry_no: entry.entry_no };
 }

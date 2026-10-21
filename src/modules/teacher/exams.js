@@ -5,7 +5,7 @@
  */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle, forbidden, badRequest } from "../../core/http/errors.js";
+import { handle, forbidden, badRequest, conflict } from "../../core/http/errors.js";
 import { parse, t } from "../../core/http/validate.js";
 import * as exams from "../shared/exams.service.js";
 import { teachesPair } from "./access.js";
@@ -48,6 +48,8 @@ r.put("/:id/scores", handle(async (req, res) => {
   const saved = await inTenant(req, async (q) => {
     const e = await myExam(q, req);
     if (!(await exams.teacherCanEdit(q, e))) throw badRequest("الدرجات عند الإدارة للاعتماد، ولا تُعدَّل حتى تُرجعها");
+    const clash = await exams.changedSince(q, e, b.scores, b.base);
+    if (clash.length) throw Object.assign(conflict("عدّل شخص آخر بعض هذه الدرجات بعد فتحك للصفحة."), { details: { changed: clash } });
     return exams.saveScores(q, e, b.scores, req.actor);
   });
   res.json({ saved });

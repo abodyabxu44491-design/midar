@@ -28,7 +28,7 @@ async function cards(q, rows, settings) {
   });
 }
 
-r.post("/home", limits.api, handle(async (req, res) => {
+r.post("/home", limits.publicApi, handle(async (req, res) => {
   const b = parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
@@ -48,7 +48,7 @@ r.post("/home", limits.api, handle(async (req, res) => {
   }));
 }));
 
-r.post("/structure", limits.api, handle(async (req, res) => {
+r.post("/structure", limits.publicApi, handle(async (req, res) => {
   const b = parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
@@ -73,7 +73,7 @@ r.post("/structure", limits.api, handle(async (req, res) => {
   }));
 }));
 
-r.post("/grade", limits.api, handle(async (req, res) => {
+r.post("/grade", limits.publicApi, handle(async (req, res) => {
   const b = parse(base.extend({ grade_id: z.coerce.number().int().min(0) }), req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
@@ -92,7 +92,7 @@ r.post("/grade", limits.api, handle(async (req, res) => {
   }));
 }));
 
-r.post("/section", limits.api, handle(async (req, res) => {
+r.post("/section", limits.publicApi, handle(async (req, res) => {
   const b = parse(base.extend({
     class_id: t.id, offset: z.coerce.number().int().min(0).max(100000).default(0),
     limit: z.coerce.number().int().min(1).max(60).default(30), q: z.string().trim().max(60).optional(),
