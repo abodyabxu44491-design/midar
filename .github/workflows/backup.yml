@@ -41,12 +41,12 @@ jobs:
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-18
       - name: النسخ والتحقق والتشفير
         run: |
           set -euo pipefail
           umask 077
-          BIN=/usr/lib/postgresql/17/bin
+          BIN=/usr/lib/postgresql/18/bin
           # Retention tier: the 1st of the month is kept about a year, Fridays about four months, other days five weeks.
           if [ "$(date -u +%d)" = "01" ]; then TIER=monthly; DAYS=400
           elif [ "$(date -u +%u)" = "5" ]; then TIER=weekly; DAYS=120

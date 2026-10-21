@@ -64,7 +64,7 @@
 1. GitHub ← Actions ← «نسخة احتياطية» ← آخر تشغيل ناجح ← Artifacts ← نزّل الملف. أو نزّله من التخزين الخارجي.
 2. تحقق من البصمة: `sha256sum -c midar-….dump.gpg.sha256`
 3. فك التشفير: `gpg --decrypt midar-….dump.gpg > midar.dump` (كلمة السر `BACKUP_PASSPHRASE` من مدير كلمات المرور).
-4. أنشئ قاعدة جديدة (Neon جديد أو أي PostgreSQL 17)، وأنشئ الدورين `midar_owner` و`midar_app` كما في [DEPLOY-FREE.md](DEPLOY-FREE.md).
+4. أنشئ قاعدة جديدة (Neon جديد أو أي PostgreSQL 18، نفس نسخة القاعدة الأصلية أو أحدث)، وأنشئ الدورين `midar_owner` و`midar_app` كما في [DEPLOY-FREE.md](DEPLOY-FREE.md).
 5. استرجع النسخة: `pg_restore --no-owner --dbname "رابط midar_owner" midar.dump`
 6. اضبط `DATABASE_URL` (بالدور `midar_app`) و`MIGRATION_DATABASE_URL` (بالدور `midar_owner`) و`CREDENTIAL_KEY` نفسه في Render، ثم انشر.
 7. نفّذ التحقق كما في القسم 4 (الخطوة 6)، وتأكد أن المدارس لا ترى إلا بياناتها.
