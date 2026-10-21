@@ -1702,7 +1702,7 @@ test("كلمة المرور المؤقتة: لا يعمل شيء قبل تغيي
   }
 });
 
-test("الإنتاج يعمل بدون تحقق ثنائي لكنه ينبّه، ويعمل بصمت مع ضبطه", async () => {
+test("الإنتاج بدون OWNER_TOTP_SECRET يعمل ويخبر أن التحقق الثنائي سيُفعّل من شاشة الدخول، ويعمل بصمت مع ضبطه", async () => {
   const { spawnSync } = await import("node:child_process");
   const base = {
     PATH: process.env.PATH, NODE_ENV: "production", COOKIE_SECURE: "true",
@@ -1713,10 +1713,10 @@ test("الإنتاج يعمل بدون تحقق ثنائي لكنه ينبّه،
     { env: { ...base, ...extra }, cwd: new URL("..", import.meta.url), encoding: "utf8" });
 
   const without = run({});
-  assert.equal(without.status, 0, "يعمل بدون تحقق ثنائي");
-  assert.match(without.stderr, /تحقق ثنائي/, "لكنه ينبّه بوضوح");
+  assert.equal(without.status, 0, "يعمل بدون المتغير");
+  assert.match(without.stderr, /التحقق الثنائي/, "ويخبر بأن المالك سيفعّله من شاشة الدخول");
 
   const withSecret = run({ OWNER_TOTP_SECRET: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" });
   assert.equal(withSecret.status, 0);
-  assert.doesNotMatch(withSecret.stderr, /تحقق ثنائي/, "لا تنبيه عند ضبطه");
+  assert.doesNotMatch(withSecret.stderr, /التحقق الثنائي/, "لا تنبيه عند ضبطه");
 });

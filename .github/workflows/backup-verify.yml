@@ -32,9 +32,10 @@ jobs:
       - name: آخر نسخة ناجحة
         id: last
         run: |
-          if [ -z "$PASSPHRASE" ]; then echo "::warning::أضف BACKUP_PASSPHRASE في أسرار المستودع لتفعيل اختبار الاسترجاع."; echo "run=" >> "$GITHUB_OUTPUT"; exit 0; fi
-          RUN=$(gh run list -R "$GITHUB_REPOSITORY" --workflow backup.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
-          if [ -z "$RUN" ]; then echo "::error::لا توجد نسخة احتياطية ناجحة بعد"; exit 1; fi
+          # No passphrase or no recent backup is a failure, never a skipped success.
+          if [ -z "$PASSPHRASE" ]; then echo "::error::اختبار الاسترجاع غير مفعّل: أضف BACKUP_PASSPHRASE في أسرار المستودع."; exit 1; fi
+          RUN=$(gh run list -R "$GITHUB_REPOSITORY" --workflow backup.yml --status success --limit 1 --json databaseId,createdAt --jq '.[0] | select(.createdAt > (now - 172800 | todate)) | .databaseId // empty')
+          if [ -z "$RUN" ]; then echo "::error::لا توجد نسخة احتياطية ناجحة خلال آخر 48 ساعة"; exit 1; fi
           echo "run=$RUN" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         if: steps.last.outputs.run != ''
@@ -57,6 +58,8 @@ jobs:
           BIN=/usr/lib/postgresql/17/bin
           FILE=$(find backup -name '*.dump.gpg' | head -1)
           echo "النسخة: $FILE"
+          SUM=$(find backup -name '*.dump.gpg.sha256' | head -1)
+          if [ -n "$SUM" ]; then (cd "$(dirname "$FILE")" && sha256sum -c "$(basename "$SUM")"); fi
           printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --decrypt --output restore.dump "$FILE"
           $BIN/pg_restore --no-owner --no-privileges --exit-on-error --dbname "$TARGET" restore.dump
           q() { $BIN/psql "$TARGET" -Atqc "$1"; }
@@ -65,6 +68,10 @@ jobs:
           TENANTS=$(q "SELECT count(*) FROM tenants")
           STUDENTS=$(q "SELECT count(*) FROM students")
           LAST=$(q "SELECT max(filename) FROM schema_migrations" 2>/dev/null || echo "?")
+          POLICIES=$(q "SELECT count(*) FROM pg_policies WHERE schemaname='public'")
+          USERS=$(q "SELECT count(*) FROM users")
+          echo "سياسات العزل (RLS)=$POLICIES المستخدمون=$USERS"
+          [ "$POLICIES" -gt 20 ] || { echo "::error::سياسات عزل المدارس لم تُسترجع ($POLICIES)"; exit 1; }
           echo "| الجداول | التحديثات | المدارس | الطلاب | آخر تحديث |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| $TABLES | $MIGR | $TENANTS | $STUDENTS | $LAST |" >> "$GITHUB_STEP_SUMMARY"

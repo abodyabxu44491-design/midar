@@ -29,6 +29,8 @@ const schema = z.object({
   OWNER_PASSWORD_HASH: z.string().startsWith("scrypt$", "أنشئ OWNER_PASSWORD_HASH بالأمر: npm run owner:password"),
   OWNER_TOTP_SECRET: z.string().regex(/^[A-Z2-7]{16,64}$/).optional().or(z.literal("")),
   OWNER_ALLOWED_IPS: z.string().default(""),
+  // Where high-severity security alerts are emailed (through the platform mail gateway). Optional.
+  OWNER_ALERT_EMAIL: z.string().trim().email().optional().or(z.literal("")),
   CREDENTIAL_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "CREDENTIAL_KEY يجب أن يكون 64 خانة hex (npm run credential:key)").optional().or(z.literal("")),
   VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/).optional().or(z.literal("")),
   VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/).optional().or(z.literal("")),
@@ -56,7 +58,7 @@ export const env = Object.freeze({
 });
 
 if (env.isProd && !env.OWNER_TOTP_SECRET) {
-  console.warn("⚠ لوحة المالك تعمل بدون تحقق ثنائي. لتفعيله: npm run owner:totp ثم ضع الناتج في OWNER_TOTP_SECRET.");
+  console.warn("ℹ OWNER_TOTP_SECRET غير مضبوط: سيُطلب من المالك تفعيل التحقق الثنائي من شاشة الدخول قبل أي جلسة.");
 }
 
 if (env.isProd && !env.COOKIE_SECURE) {

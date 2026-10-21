@@ -12,6 +12,7 @@ import { badRequest, notFound, forbidden, unauthorized, conflict } from "../../c
 import { z } from "../../core/http/validate.js";
 import { hashPassword, verifyPassword } from "../../core/auth/password.js";
 import { verifyTotp } from "../../core/auth/totp.js";
+import { ownerTotp } from "../../core/auth/owner-mfa.js";
 import { newTempPassword, newToken } from "../../core/auth/codes.js";
 import { sealCredential } from "../../core/auth/secret-box.js";
 import { logEvent, securityEvent, recentFailures, clearLoginFailures } from "../../core/audit.js";
@@ -141,12 +142,13 @@ export function catalog(scope) {
       .map(([key, o]) => ({ key, label: o.label, group: o.group, severity: o.severity, description: o.description, backup: o.backup, reauth: o.reauth })),
     categories: Object.entries(CATEGORIES).filter(([, c]) => scope === "owner" || c.admin)
       .map(([key, c]) => ({ key, label: c.label, note: c.note || null })),
-    totp: scope === "owner" && Boolean(env.OWNER_TOTP_SECRET),
+    // The owner is never signed in without a second factor, so the owner always confirms with the code too.
+    totp: scope === "owner",
   };
 }
 
 const TABLE_LABEL = {
-  students: "الطلاب", attendance: "سجلات الحضور", attendance_set_aside: "حضور أيام الإجازات المؤجل", scores: "الدرجات المرصودة", exams: "الاختبارات", invoices: "الفواتير", payments: "الدفعات",
+  security_alerts: "التنبيهات الأمنية", students: "الطلاب", attendance: "سجلات الحضور", attendance_set_aside: "حضور أيام الإجازات المؤجل", scores: "الدرجات المرصودة", exams: "الاختبارات", invoices: "الفواتير", payments: "الدفعات",
   payment_claims: "إشعارات التحويل", fee_adjustments: "تعديلات الرسوم", student_alerts: "تنبيهات الطلاب", student_years: "السجل الأكاديمي السنوي",
   assignment_submissions: "تسليمات الواجبات", assignments: "الواجبات", announcements: "التعاميم", timetable_slots: "حصص الجدول",
   admissions: "طلبات التسجيل", exam_papers: "أوراق الاختبارات", grade_components: "توزيع الدرجات", exam_instruction_presets: "التعليمات المحفوظة", question_bank: "أسئلة البنك",
@@ -329,8 +331,9 @@ async function reauth(ctx, tid, b) {
   if (!b.password) return fail("أدخل كلمة المرور للتحقق من هويتك");
   if (ctx.scope === "owner") {
     const ok = await verifyPassword(b.password, env.OWNER_PASSWORD_HASH);
-    const codeOk = !env.OWNER_TOTP_SECRET || verifyTotp(env.OWNER_TOTP_SECRET, b.code);
-    if (!ok || !codeOk) return fail(env.OWNER_TOTP_SECRET ? "كلمة المرور أو رمز التحقق غير صحيح" : "كلمة المرور غير صحيحة");
+    const mfa = await transaction({ platform: true }, (q) => ownerTotp(q));
+    const codeOk = !mfa || verifyTotp(mfa.secret, b.code);
+    if (!ok || !codeOk) return fail(mfa ? "كلمة المرور أو رمز التحقق غير صحيح" : "كلمة المرور غير صحيحة");
   } else {
     // A manager signed in with a Midar account confirms with that account's password.
     const [acct] = await transaction({ platform: true }, (q) => q(

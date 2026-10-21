@@ -11,7 +11,7 @@ import { transaction } from "../../core/db/pool.js";
 import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from "../../core/http/errors.js";
 import { hashPassword, verifyPassword } from "../../core/auth/password.js";
 import { createSession } from "../../core/auth/sessions.js";
-import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
+import { logEvent, securityEvent, recentFailures, raiseAlert } from "../../core/audit.js";
 import { z, t } from "../../core/http/validate.js";
 import { sendMail, codeMail, noticeMail, mailReady } from "../shared/mail.service.js";
 import { env } from "../../config/env.js";
@@ -320,6 +320,10 @@ export async function login(b, req, res) {
     if (!a || !ok || a.disabled_at || !a.email_verified_at) {
       await securityEvent(q, { kind: "account_login_failed", subject, ip: req.ip });
       await securityEvent(q, { kind: "account_login_failed_all", subject: mail, ip: req.ip });
+      if (a && await recentFailures(q, "account_login_failed_all", mail, LOGIN_WINDOW_MIN) >= LOGIN_FAILS * 2) {
+        await raiseAlert(q, { kind: "account_login_failed", severity: "high", title: "محاولات دخول فاشلة متكررة على حساب مدير",
+          detail: `الحساب ${mail} — آخر محاولة من العنوان ${req.ip || "غير معروف"}` });
+      }
       return { denied: true };
     }
     await q("DELETE FROM security_events WHERE kind = 'account_login_failed' AND subject = $1", [subject]);

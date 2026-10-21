@@ -47,7 +47,7 @@ const count = (o, table) => transaction({ tenantId: o.id, platform: true }, asyn
 const run = async (o, op, params = {}, extra = {}) => {
   const p = await owner.post(`${D}/plan`, { tenant: o.id, op, params });
   assert.equal(p.status, 201, JSON.stringify(p.data));
-  const x = await owner.post(`${D}/${p.data.id}/execute`, { tenant: o.id, token: p.data.token, confirm: o.id, password: ownerPassword, ...extra });
+  const x = await owner.post(`${D}/${p.data.id}/execute`, { tenant: o.id, token: p.data.token, confirm: o.id, password: ownerPassword, code: currentTotp(process.env.OWNER_TOTP_SECRET), ...extra });
   return { plan: p.data, res: x };
 };
 
@@ -56,7 +56,7 @@ before(async () => {
   srv = await startServer();
   owner = client(srv.base);
   const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
-  assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
+  assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code: currentTotp(process.env.OWNER_TOTP_SECRET), code })).status, 200);
   await school(A, "مدرسة الحذر أ");
   await school(B, "مدرسة الحذر ب");
 });
@@ -78,17 +78,17 @@ test("لا تنفيذ دون تأكيد وتحقق، والنسخة تلقائي
   assert.ok(p.unaffected.length && p.backup_required && p.reauth);
   assert.equal(p.confirm_text, A.id);
   const go = (b) => owner.post(`${D}/${p.id}/execute`, { tenant: A.id, token: p.token, ...b });
-  assert.equal((await go({ confirm: "خطأ", password: ownerPassword })).status, 400, "رمز التأكيد خاطئ");
+  assert.equal((await go({ confirm: "خطأ", password: ownerPassword, code: currentTotp(process.env.OWNER_TOTP_SECRET) })).status, 400, "رمز التأكيد خاطئ");
   assert.equal((await go({ confirm: A.id, password: "wrong-password" })).status, 401, "إعادة التحقق");
   assert.equal(await count(A, "attendance"), 1, "لم يتغير شيء");
-  assert.equal((await owner.post(`${D}/${p.id}/execute`, { tenant: A.id, token: "x".repeat(40), confirm: A.id, password: ownerPassword })).status, 404, "رمز العملية");
-  const ok = await go({ confirm: A.id, password: ownerPassword });
+  assert.equal((await owner.post(`${D}/${p.id}/execute`, { tenant: A.id, token: "x".repeat(40), confirm: A.id, password: ownerPassword, code: currentTotp(process.env.OWNER_TOTP_SECRET) })).status, 404, "رمز العملية");
+  const ok = await go({ confirm: A.id, password: ownerPassword, code: currentTotp(process.env.OWNER_TOTP_SECRET) });
   assert.equal(ok.status, 200, JSON.stringify(ok.data));
   assert.ok(ok.data.backup_id, "نسخة احتياطية قبل الحذف");
   assert.equal(await count(A, "attendance"), 0);
   assert.equal(await count(A, "students"), 2, "الفئات غير المختارة باقية");
   assert.equal(await count(B, "attendance"), 1, "المدرسة الأخرى لم تتأثر");
-  assert.equal((await go({ confirm: A.id, password: ownerPassword })).status, 409, "لا تنفيذ مرتين");
+  assert.equal((await go({ confirm: A.id, password: ownerPassword, code: currentTotp(process.env.OWNER_TOTP_SECRET) })).status, 409, "لا تنفيذ مرتين");
   A.backup = ok.data.backup_id;
   const text = JSON.stringify((await owner.get("/api/owner/audit")).data);
   assert.ok(text.includes("منطقة الحذر") && text.includes(A.id), "مسجلة في سجل عمليات المنصة");

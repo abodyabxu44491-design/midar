@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { getPool, closePool, healthCheck } from "./core/db/pool.js";
 import { runMaintenance } from "./core/auth/sessions.js";
+import { dispatchAlertEmails } from "./modules/shared/alerts.service.js";
 import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
 import { runReminders } from "./modules/shared/reminders.service.js";
 import { runGateTick } from "./modules/shared/gate.service.js";
@@ -40,7 +41,10 @@ const timer = setInterval(() => {
   runReminders().catch((e) => console.error("[تذكيرات]", e.message));
 }, 60 * 60 * 1000);
 timer.unref();
-const gateTimer = setInterval(() => runGateTick().catch((e) => console.error("[البوابة]", e.message)), 5 * 60 * 1000);
+const gateTimer = setInterval(() => {
+  runGateTick().catch((e) => console.error("[البوابة]", e.message));
+  dispatchAlertEmails().catch((e) => console.error("[تنبيه أمني]", e.message));
+}, 5 * 60 * 1000);
 gateTimer.unref();
 
 let closing = false;

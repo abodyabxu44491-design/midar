@@ -4,6 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import express from "express";
+import { probeWatch } from "./core/http/probe-watch.js";
 import compression from "compression";
 import { staticRoutes, sendPage, renderPage, serviceWorker } from "./core/web.js";
 import { ownerManifest, schoolManifest, withManifest, appKind } from "./core/manifest.js";
@@ -80,6 +81,7 @@ export function createApp() {
   app.post("/api/account/oauth/apple/callback", limits.login, express.urlencoded({ extended: false, limit: "16kb" }), cookieParser(), noStore, appleCallback);
   api.use((req, res, next) => { res.set("X-App-Version", APP_VERSION); next(); });
   api.use(limits.api, noStore, (req, res, next) => (isUpload(req) ? uploadJson : smallJson)(req, res, next), cookieParser(), sameOrigin);
+  api.use(probeWatch);
   api.use("/owner", ownerApi);
   api.use("/admin", adminApi);
   api.use("/teacher", teacherApi);
