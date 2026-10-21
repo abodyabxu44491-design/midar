@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { personAvatar } from "../../shared/js/ui.js";
+import { personAvatar, formCard, formFold } from "../../shared/js/ui.js";
 import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
   showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards } from "../../shared/js/ui.js";
 import { csv, fmtDate, money } from "../../shared/js/format.js";
@@ -136,9 +136,9 @@ export default async function students({ me, refresh }) {
         h("b", { class: "s-title" }, s.name),
         h("span", { class: "sub" }, s.student_no ? `رقم الطالب: ${s.student_no}` : "بدون رقم طالب"),
         h("span", { class: "s-meta" }, [loc?.stage, loc?.grade, loc?.section ? `شعبة ${loc.section}` : null].filter(Boolean).join(" • ") || (s.class_name || "بدون فصل")),
-        h("span", { class: "s-guardian" }, "ولي الأمر: ", s.guardian_name || "—",
+        h("span", { class: "s-guardian" }, h("span", {}, `ولي الأمر: ${s.guardian_name || "—"}`),
           s.guardian_phone ? h("a", { class: "s-phone", href: `tel:${s.guardian_phone}`, dir: "ltr", onclick: (e) => e.stopPropagation() }, s.guardian_phone)
-            : h("span", { class: "muted" }, " · لا يوجد جوال"))),
+            : h("span", { class: "muted" }, "لا يوجد جوال"))),
       s.status !== "active" ? statusBadge(s.status) : badge("نشط"));
     return el;
   }
@@ -259,7 +259,7 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   const s = student, editing = Boolean(s);
   const f = {
     name: input({ value: s?.name || "" }), family: input({ value: s?.family_name || "", placeholder: "اسم العائلة أو اللقب" }),
-    area: input({ value: s?.area || "", list: "area-options", placeholder: "الحي أو المنطقة السكنية" }), no: input({ class: "ltr", value: s?.student_no || "", placeholder: "اختياري — يُستخدم للتحديث عبر الاستيراد" }),
+    area: input({ value: s?.area || "", list: "area-options", placeholder: "الحي أو المنطقة السكنية" }), no: input({ class: "ltr", value: s?.student_no || "", placeholder: "يُنشأ تلقائيًا إن تُرك فارغًا" }),
     birth: input({ type: "date", value: s?.birth_date ? String(s.birth_date).slice(0, 10) : "" }),
     gender: select([["", "—"], ["male", "ذكر"], ["female", "أنثى"]], { value: s?.gender || "" }),
     status: select(Object.entries(STATUS_LABEL), { value: s?.status || "active" }),
@@ -321,34 +321,33 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
   Promise.all([api(`${A}/custom-fields?entity=student`), editing ? api(`${A}/custom-fields/values/student/${s.id}`) : {}]).then(([fields, values]) => {
     custom.fields = fields.filter((x) => x.is_active && x.show_admin);
     if (!custom.fields.length) return;
-    mount(extra, h("h3", { class: "sec-title" }, "معلومات إضافية"), h("div", { class: "form-grid" }, custom.fields.map((x) => {
+    mount(extra, formCard("list", "معلومات إضافية", h("div", { class: "form-grid" }, custom.fields.map((x) => {
       const el = x.type === "select" ? select([["", "—"], ...x.options.map((o) => [o, o])], { value: values[x.key] ?? "" })
         : x.type === "boolean" ? select([["", "—"], ["نعم", "نعم"], ["لا", "لا"]], { value: values[x.key] ?? "" })
         : input({ type: x.type === "number" ? "number" : x.type === "date" ? "date" : "text", value: values[x.key] ?? "" });
       custom.inputs.set(x.key, el);
       return field(`${x.label}${x.required ? " *" : ""}`, el);
-    })));
-  }).catch(() => {});
+    }))));
+  }).catch((e) => mount(extra, notice(`تعذر تحميل المعلومات الإضافية: ${e.message}. أعد فتح النافذة قبل الحفظ.`, "warn")));
 
   const grid = (...k) => h("div", { class: "form-grid" }, ...k);
   const areaOptions = h("datalist", { id: "area-options" });
   api(`${A}/students/areas`).then((list) => mount(areaOptions, list.map((x) => h("option", { value: x.area })))).catch(() => {});
-  const body = h("div", { class: "student-form" },
-    h("h3", { class: "sec-title first" }, "المعلومات الأساسية"),
-    h("div", { class: "photo-row" }, preview, h("div", {},
-      btn(s?.has_photo || photoData ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
-      (s?.has_photo && !photoRemoved) || photoData ? btn("حذف الصورة", () => { photoData = null; photoRemoved = true; drawPhoto(); }, "ghost sm") : null)),
-    grid(field("الاسم الكامل *", f.name), field("اللقب", f.family, "يميّز المتشابهين في الأسماء ويساعد ربط الإخوة"), field("رقم الطالب", f.no),
-      field("تاريخ الميلاد", f.birth), field("الجنس", f.gender),
-      editing ? field("الحالة", f.status) : null),
-    h("h3", { class: "sec-title" }, "المعلومات الأكاديمية"),
-    grid(field("المرحلة", f.stage), field("الصف", f.grade), sectionsOn ? field("الشعبة", f.section) : null,
-      field("السنة الدراسية", input({ value: structure.year_name || "غير محددة", disabled: true }))),
-    h("h3", { class: "sec-title" }, "معلومات التواصل"),
-    grid(field("جوال الطالب (إن وجد)", f.sphone), field("اسم ولي الأمر", f.gname), field("جوال ولي الأمر", f.gphone), field("المنطقة", f.area)),
-    areaOptions,
-    hint,
-    h("label", { class: "f pill" }, f.fees, "تفعيل الرسوم لهذا الطالب"),
+  const body = h("div", { class: "student-form tidy" },
+    formCard("user", "المعلومات الأساسية",
+      h("div", { class: "photo-row" }, preview, h("div", {},
+        btn(s?.has_photo || photoData ? "تغيير الصورة" : "إضافة صورة", () => file.click(), "ghost sm"), file,
+        (s?.has_photo && !photoRemoved) || photoData ? btn("حذف الصورة", () => { photoData = null; photoRemoved = true; drawPhoto(); }, "ghost sm") : null)),
+      grid(field("الاسم الكامل *", f.name), field("اللقب", f.family, "يميّز المتشابهين في الأسماء ويساعد ربط الإخوة"), field("رقم الطالب", f.no),
+        field("تاريخ الميلاد", f.birth), field("الجنس", f.gender),
+        editing ? field("الحالة", f.status) : null)),
+    formCard("building", "الصف والشعبة",
+      grid(field("المرحلة", f.stage), field("الصف", f.grade), sectionsOn ? field("الشعبة", f.section) : null,
+        field("السنة الدراسية", input({ value: structure.year_name || "غير محددة", disabled: true })))),
+    formCard("users", "ولي الأمر والتواصل",
+      grid(field("اسم ولي الأمر", f.gname), field("جوال ولي الأمر", f.gphone), field("جوال الطالب (إن وجد)", f.sphone), field("المنطقة", f.area)),
+      areaOptions, hint),
+    h("label", { class: "fcard fees-line" }, f.fees, h("span", {}, h("b", {}, "تفعيل الرسوم لهذا الطالب"), h("small", {}, "تصدر له فواتير الرسوم حسب خطة صفه"))),
     extra);
 
   const d = bigDialog(editing ? `تعديل: ${s.name}` : "إضافة طالب", body, [btn(editing ? "حفظ التعديلات" : "حفظ الطالب", async () => {

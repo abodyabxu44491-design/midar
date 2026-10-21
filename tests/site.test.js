@@ -99,7 +99,7 @@ test("الروابط تُولَّد من الخادم، ولكل دور رابط
   const me = await admin.get("/api/admin/me");
   const L = me.data.links;
   assert.ok(L.public.home.endsWith(`/${s.id}`));
-  assert.ok(L.staff.admin.endsWith(`/${s.id}/idara?role=admin`));
+  assert.ok(L.staff.admin.endsWith(`/${s.id}/idara`), "رابط الإدارة برمز المدرسة فقط");
   assert.ok(L.staff.teacher.endsWith("role=teacher") && L.staff.accountant.endsWith("role=accountant"));
   const page = await fetch(L.staff.teacher);
   assert.equal(page.status, 200, "رابط الدور يعمل");
@@ -111,7 +111,7 @@ test("صفحة المدرسة عند المالك: الروابط والاشتر
   assert.equal(o.data.school.students, 35);
   assert.deepEqual(o.data.staff.map((u) => u.username), ["admin"]);
   assert.ok(o.data.subscription.plan_name);
-  assert.ok(o.data.links.staff.admin.includes("role=admin"));
+  assert.ok(o.data.links.staff.admin.endsWith("/idara"));
   assert.ok(!/password_hash|\$scrypt|\$2[aby]\$/.test(JSON.stringify(o.data)), "لا بصمات كلمات مرور");
   // Restoring the manager's access issues a setup link, never a password.
   const reset = await owner.post(`/api/owner/tenants/${s.id}/reset-admin`, {});

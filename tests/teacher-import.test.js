@@ -55,17 +55,18 @@ const rows = [
 test("analyze: تصنيف الأسطر بلا كتابة", async () => {
   const { q, writes } = fakeDb();
   const a = await analyze(q, rows);
-  assert.deepEqual([a.summary.total, a.summary.valid, a.summary.review, a.summary.errors], [8, 2, 1, 5]);
+  assert.deepEqual([a.summary.total, a.summary.valid, a.summary.review, a.summary.errors], [8, 3, 1, 4]);
   assert.equal(a.rows[0].action, "update");
   assert.equal(a.rows[0].load.length, 1);
   assert.equal(a.rows[1].action, "create");
-  assert.equal(a.rows[1].username, "t200");
+  assert.equal(a.rows[1].username, "mona.nasser", "اسم المستخدم يُنشأ من اسم المعلم");
   assert.equal(a.rows[1].load.length, 4);
   assert.ok(a.rows[1].notes.some((n) => /كل شعب/.test(n)));
   assert.equal(a.rows[2].review, "grade");
   assert.equal(a.ambiguities.length, 1);
   assert.match(a.rows[3].errors[0], /مستخدم مسبقًا/);
-  assert.match(a.rows[4].errors[0], /اسم المستخدم مطلوب/);
+  assert.equal(a.rows[4].status, "ok", "معلم بلا اسم مستخدم ولا رقم وظيفي يُنشأ له اسم مستخدم");
+  assert.match(a.rows[4].username, /^[a-z.]{3,}$/);
   assert.match(a.rows[5].errors[0], /مكرر/);
   assert.match(a.rows[6].errors[0], /المادة «فيزياء»/);
   assert.equal(writes.length, 0);
@@ -88,14 +89,14 @@ test("حد الباقة", async () => {
 test("commit: ينشئ الحسابات بكلمات مؤقتة مُجزّأة ويضيف الإسناد على الموجود", async () => {
   const { q, writes } = fakeDb();
   const r = await commit(q, "school1", rows, { gradeMap: {} });
-  assert.equal(r.created, 1);
+  assert.equal(r.created, 2, "including the teacher whose username was made from the name");
   assert.equal(r.updated, 1);
-  assert.equal(r.skipped, 6);
-  assert.equal(r.credentials.length, 1);
+  assert.equal(r.skipped, 5);
+  assert.equal(r.credentials.length, 2);
   assert.match(r.credentials[0].password, /^[A-Z0-9]{4}-[A-Z0-9]{4}-\d{2}$/);
   const user = writes.find((w) => w.sql.includes("INSERT INTO users"));
   assert.match(user.p[2], /^scrypt\$/);
-  assert.ok(!JSON.stringify(writes).includes(r.credentials[0].password));
+  assert.ok(r.credentials.every((c) => !JSON.stringify(writes).includes(c.password)));
   assert.equal(writes.filter((w) => w.sql.includes("INSERT INTO teacher_assignments")).length, 5);
   assert.ok(!writes.some((w) => w.sql.startsWith("UPDATE teachers") && w.sql.includes("full_name")));
   assert.ok(!writes.some((w) => w.sql.startsWith("DELETE")));

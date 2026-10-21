@@ -429,7 +429,12 @@ export async function heartbeat(q, device, b, { ip }) {
   const [{ all }] = await q("SELECT count(*)::int AS all FROM attendance WHERE day = $1 AND first_in_at IS NOT NULL", [day]);
   const s = win.settings;
   const place = await placeCheck(q, device, s, { ip, offline: false });
-  return { ...out, window: { open_at: win.open_at, late_after: win.late_after, close_at: win.close_at },
+  // Per-stage hours for today travel with every heartbeat (a day with its own hours overrides them), so a change in
+  // the admin's time settings reaches the gate phone within one heartbeat instead of waiting for a roster reload.
+  const stageHours = win.mode === "custom_hours" ? [] : await q(
+    `SELECT stage_id, to_char(open_at, 'HH24:MI') AS open_at, to_char(late_after, 'HH24:MI') AS late_after,
+            to_char(close_at, 'HH24:MI') AS close_at FROM attendance_stage_hours`);
+  return { ...out, window: { open_at: win.open_at, late_after: win.late_after, close_at: win.close_at }, stage_hours: stageHours,
     phase: noSchool(ds, win) ? "no_school" : phaseOf(win, hm, true, false), no_school_reason: noSchool(ds, win), count_gate: n, count_all: all,
     direction: device.direction, roster_version: await rosterVersion(q),
     want_location: s.location_mode !== "off" && device.gate_lat !== null && device.gate_lat !== undefined,

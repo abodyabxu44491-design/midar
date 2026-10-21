@@ -90,7 +90,7 @@ export async function startAdmin() {
     .filter(([key]) => !(key === "finance" && me.modules?.finance))
     .filter(([key]) => !(schoolScope && FULL_ONLY.has(key)));
 
-  const ctx = { me };
+  const ctx = { me, sections: allTabs.filter(([key]) => key && key !== "dashboard") };
   const t = tabs(allTabs,
     { dashboard, setup: setupWizard, students, parents, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
       communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant, "money-requests": financeRequests, deposits: bookDeposits }, ctx,

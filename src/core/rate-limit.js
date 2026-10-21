@@ -4,6 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 //
+import crypto from "node:crypto";
 import rateLimit from "express-rate-limit";
 import { transaction } from "./db/pool.js";
 import { isDemoSchool } from "../modules/shared/demo.service.js";
@@ -44,15 +45,27 @@ const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSucces
   ...(skip ? { skip } : {}),
   skipSuccessfulRequests,
   windowMs: windowMin * 60_000,
-  limit: limit * factor,
+  limit: typeof limit === "function" ? (req) => limit(req) * factor : limit * factor,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.", code: "rate_limited" },
   ...(shared && !isTest ? { store: new PgStore(name) } : {}),
 });
 
+// A signed-in user is counted on their own session, not on the address: a whole school (a computer lab, a staff
+// room) often reaches the internet through one address, and must not share one allowance. Requests without a session
+// are counted per address with an allowance that fits a school network.
+const SESSION_COOKIE = /(?:^|;\s*)(?:__Secure-)?(midar_[a-z]+|__session)=([^;]{16,})/;
+export const sessionOrIp = (req) => {
+  const m = SESSION_COOKIE.exec(req.headers.cookie || "");
+  return m ? `s:${crypto.createHash("sha256").update(m[2]).digest("base64url").slice(0, 22)}` : `ip:${req.ip}`;
+};
+// Public pages and online exams: per student (or visitor) within the school, after the body is read.
+const perStudent = (req) => `${req.ip}|${String(req.params?.school || "").toLowerCase()}|${Number(req.body?.student_id) || "-"}`.slice(0, 200);
+
 export const limits = {
-  api: make("api", 1, 180),
+  api: make("api", 1, (req) => (sessionOrIp(req).startsWith("s:") ? 180 : 600), { keyGenerator: sessionOrIp }),
+  publicApi: make("publicApi", 1, 120, { keyGenerator: perStudent }),
   site: make("site", 1, 120),
   health: make("health", 1, 20),                         // /healthz/db
   login: make("login", 15, 10, { shared: true }),

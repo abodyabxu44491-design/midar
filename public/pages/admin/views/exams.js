@@ -7,7 +7,7 @@
 // administration opens any of them, corrects a score, and publishes or hides it.
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, btn, empty, badge, sub, toast, dialog, confirmAction, select, field, input, notice } from "../../shared/js/ui.js";
+import { panel, btn, empty, badge, sub, toast, dialog, confirmAction, select, field, input, notice, scoreConflict } from "../../shared/js/ui.js";
 import { EXAM, csv, fmtDate } from "../../shared/js/format.js";
 import { A } from "./common.js";
 
@@ -55,6 +55,7 @@ export default async function exams({ refresh }) {
 // One grade list: every student with an editable score, saved together.
 async function sheet(e, refresh) {
   const rows = await api(`${A}/exams/${e.id}/scores`);
+  const base = Object.fromEntries(rows.map((r) => [r.id, r.score ?? null]));
   const max = Number(e.max_score);
   const inputs = rows.map((r) => {
     const el = input({ type: "number", min: 0, max, step: "0.25", value: r.score ?? "", class: "ltr ge-score", inputMode: "decimal", "aria-label": `درجة ${r.name}` });
@@ -78,8 +79,14 @@ async function sheet(e, refresh) {
         if (v !== "" && (Number.isNaN(Number(v)) || Number(v) < 0 || Number(v) > max)) { el.focus(); return mount(msg, notice(`درجة غير صحيحة: ${v} (الدرجة القصوى ${max})`, "err")); }
         scores[id] = v === "" ? null : Number(v);
       }
-      try { await api(`${A}/exams/${e.id}/scores`, { scores }, "PUT"); toast("حُفظت الدرجات"); d.close(); refresh(); }
-      catch (err) { mount(msg, notice(err.message, "err")); }
+      const save = async (base) => {
+        try { await api(`${A}/exams/${e.id}/scores`, { scores, ...(base ? { base } : {}) }, "PUT"); toast("حُفظت الدرجات"); d.close(); refresh(); }
+        catch (err) {
+          if (err.changed?.length) mount(msg, scoreConflict(err.changed, { keepTheirs: () => { d.close(); sheet(e, refresh); }, keepMine: () => save(null) }));
+          else mount(msg, notice(err.message, "err"));
+        }
+      };
+      await save(base);
     }),
     btn("تصدير", () => csv(`${e.title}.csv`, [["الطالب", "الدرجة", "من"], ...rows.map((r, i) => [r.name, inputs[i][1].value, max])]), "ghost"),
   ]);

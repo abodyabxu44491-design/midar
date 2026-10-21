@@ -34,9 +34,12 @@ export const createSchema = z.object({
   max_score: z.coerce.number().positive("الدرجة القصوى غير صحيحة").max(1000).multipleOf(0.25),
   component_id: t.id.nullable().optional(),
 });
+const scoreValue = z.union([z.coerce.number().min(0, "الدرجة لا تكون سالبة").max(1000).multipleOf(0.25), z.literal(""), z.null()]);
 export const scoresSchema = z.object({
-  scores: z.record(z.string().regex(/^\d+$/),
-    z.union([z.coerce.number().min(0, "الدرجة لا تكون سالبة").max(1000).multipleOf(0.25), z.literal(""), z.null()])),
+  scores: z.record(z.string().regex(/^\d+$/), scoreValue),
+  // The grades as they were on screen when the page opened; a grade someone else changed since then is not
+  // overwritten silently (the save answers 409 with the list, and the user decides).
+  base: z.record(z.string().regex(/^\d+$/), scoreValue).optional(),
 });
 
 const SELECT = `SELECT e.id, e.title, e.exam_date, e.max_score, e.status, e.published_at, e.created_by,
@@ -79,6 +82,21 @@ export async function saveScores(q, exam, scores, actor, { admin = false } = {})
   const n = await writeScores(q, exam, scores, actor);
   if (unlock) await q("SELECT set_config('app.scores_unlock', '', true)");
   return n;
+}
+const same = (a, b) => (a === null || a === undefined || a === "" ? b === null || b === undefined || b === "" : b !== null && b !== undefined && b !== "" && Number(a) === Number(b));
+// Grades changed by someone else after this page loaded, where this save would replace them with a different value.
+export async function changedSince(q, exam, scores, base) {
+  if (!base) return [];
+  const ids = Object.keys(scores).filter((k) => k in base).map(Number);
+  if (!ids.length) return [];
+  const rows = await q(`SELECT sc.student_id, sc.score, sc.updated_by, st.full_name AS name FROM scores sc JOIN students st ON st.id = sc.student_id
+                         WHERE sc.exam_id = $1 AND sc.student_id = ANY($2::bigint[])`, [exam.id, ids]);
+  const now = new Map(rows.map((r) => [String(r.student_id), r]));
+  return ids.map(String).filter((k) => {
+    const cur = now.get(k)?.score ?? null;
+    return !same(cur, base[k]) && !same(cur, scores[k]);
+  }).map((k) => ({ student_id: Number(k), name: now.get(k)?.name || "", theirs: now.get(k)?.score === null || now.get(k)?.score === undefined ? null : Number(now.get(k).score),
+    yours: scores[k] === "" ? null : scores[k], by: now.get(k)?.updated_by || null }));
 }
 async function writeScores(q, exam, scores, actor) {
   const ids = Object.keys(scores).map(Number);

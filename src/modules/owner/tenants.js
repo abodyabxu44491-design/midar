@@ -107,7 +107,7 @@ export async function createTenant(req, b, { link = true } = {}) {
   });
   // The manager's sign-in comes from the setup link (their own Midar account); no password is handed out.
   const setup = link ? await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, b.id, req.actor, linkBase(req))) : null;
-  return { school: { id: b.id, name: b.name }, setup, login_url: `${linkBase(req)}/${b.id}/idara?role=admin`, manager_email: b.manager_email || null, directory_code: directory };
+  return { school: { id: b.id, name: b.name }, setup, login_url: `${linkBase(req)}/${b.id}/idara`, manager_email: b.manager_email || null, directory_code: directory };
 }
 const linkBase = (req) => env.PUBLIC_URL || (req.protocol ? `${req.protocol}://${req.get("host")}` : "");
 

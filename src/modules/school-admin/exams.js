@@ -5,7 +5,7 @@
  */
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
-import { handle, badRequest } from "../../core/http/errors.js";
+import { handle, badRequest, conflict } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as exams from "../shared/exams.service.js";
 
@@ -25,6 +25,8 @@ r.put("/:id/scores", handle(async (req, res) => {
   const saved = await inTenant(req, async (q) => {
     const e = await exams.get(q, id);
     for (const v of Object.values(b.scores)) if (v !== "" && v !== null && Number(v) > Number(e.max_score)) throw badRequest(`الدرجة ${v} أكبر من الدرجة القصوى ${Number(e.max_score)}`);
+    const clash = await exams.changedSince(q, e, b.scores, b.base);
+    if (clash.length) throw Object.assign(conflict("عدّل شخص آخر بعض هذه الدرجات بعد فتحك للصفحة."), { details: { changed: clash } });
     return exams.saveScores(q, e, b.scores, req.actor, { admin: true });
   });
   res.json({ saved });

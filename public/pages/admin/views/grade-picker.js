@@ -5,6 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { dialog, btn } from "../../shared/js/ui.js";
+import { icons } from "../../shared/js/icons.js";
 
 export function gradePicker(structure, { sectionsOn = true, onChange } = {}) {
   const state = { stageId: "", gradeId: "", classId: "" };
@@ -26,7 +27,7 @@ export function gradePicker(structure, { sectionsOn = true, onChange } = {}) {
     if (state.stageId) return stageOf()?.name || "";
     return "كل المراحل والصفوف";
   };
-  const paint = () => { btnEl.textContent = `📚 ${label()}`; btnEl.classList.toggle("has-value", Boolean(state.stageId)); };
+  const paint = () => { mount(btnEl, icons.book({ size: 16 }), h("span", {}, label())); btnEl.classList.toggle("has-value", Boolean(state.stageId)); };
   paint();
 
   const choose = (patch) => { Object.assign(state, { stageId: "", gradeId: "", classId: "", ...patch }); paint(); onChange?.(state); };

@@ -44,7 +44,7 @@ r.post("/parent/login", limits.parentLogin, handle(async (req, res) => {
 const signIn = (req, res, tenant, parentId, q) => createSession(res, "parent",
   { parentId, tenantId: tenant.id, ip: req.ip, userAgent: req.get("user-agent"), remember: true }, q);
 
-r.post("/parent/register", limits.login, handle(async (req, res) => {
+r.post("/parent/register", limits.parentLogin, handle(async (req, res) => {
   const b = parse(parents.registerSchema, req.body);
   const out = await inSchool(req, ACTOR, async (q, tenant) => {
     const o = await parents.register(q, b, { ip: req.ip });
@@ -55,7 +55,7 @@ r.post("/parent/register", limits.login, handle(async (req, res) => {
   res.json({ ok: true, linked: out.linked, requested: out.requested, already: out.already, siblings: out.siblings });
 }));
 
-r.post("/parent/activate", limits.login, handle(async (req, res) => {
+r.post("/parent/activate", limits.parentLogin, handle(async (req, res) => {
   const b = parse(parents.activateSchema, req.body);
   const out = await inSchool(req, ACTOR, async (q, tenant) => {
     const o = await parents.activate(q, b, { ip: req.ip });

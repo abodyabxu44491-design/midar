@@ -27,6 +27,7 @@ function svg(paths, { size = 18, stroke = 2, fill = "none" } = {}) {
 }
 
 export const icons = {
+  scan: (o) => svg(["M4 8V5a1 1 0 0 1 1-1h3", "M16 4h3a1 1 0 0 1 1 1v3", "M20 16v3a1 1 0 0 1-1 1h-3", "M8 20H5a1 1 0 0 1-1-1v-3", "M7 12h10"], o),
   chevronDown: (o) => svg("M6 9l6 6 6-6", o),
   chevronLeft: (o) => svg("M15 6l-6 6 6 6", o),
   install: (o) => svg(["M12 3v12", "M7 10l5 5 5-5", "M4 21h16"], o),

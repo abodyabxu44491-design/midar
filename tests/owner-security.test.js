@@ -74,8 +74,14 @@ test("التنبيهات: حذف كبير، وطلبات مرفوضة متكرر
   for (let i = 0; i < 32; i++) await s.admin.get(`/api/admin/students/${900000000 + i}`);
   assert.equal((await s.admin.get("/api/admin/export")).status, 200);
 
-  const list = await transaction({ platform: true }, (q) => q("SELECT kind, severity FROM security_alerts WHERE tenant_id = $1", [s.id]));
-  const kinds = list.map((x) => x.kind);
+  // The repeated-refusals alert is written right after the last response finishes, so give it a moment.
+  let kinds = [];
+  for (let i = 0; i < 20; i++) {
+    const list = await transaction({ platform: true }, (q) => q("SELECT kind, severity FROM security_alerts WHERE tenant_id = $1", [s.id]));
+    kinds = list.map((x) => x.kind);
+    if (kinds.includes("access_probe")) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
   assert.ok(kinds.includes("mass_delete:attendance"), `حذف كبير: ${kinds}`);
   assert.ok(kinds.includes("access_probe"), `طلبات مرفوضة متكررة: ${kinds}`);
   assert.ok(kinds.includes("full_export"), `تصدير كامل: ${kinds}`);
@@ -157,5 +163,39 @@ test("بوابة الرسائل الخاصة بالمدرسة لا تصل إلى
   for (const ip of ["8.8.8.8", "1.1.1.1", "2606:4700::1111"]) assert.equal(_isPrivate(ip), false, ip);
   for (const u of ["https://127.0.0.1/send", "https://[::1]/send", "https://169.254.169.254/latest", "http://sms.example.com", "https://u:p@sms.example.com", "notaurl"]) {
     await assert.rejects(assertPublicHttps(u), u);
+  }
+});
+
+test("إشعارات المالك على الجوال: التنبيه المهم والطلب الجديد يصلان مرة واحدة، والجهاز المحذوف يُزال", async () => {
+  const { dispatchOwnerPush } = await import("../src/modules/shared/alerts.service.js");
+  const { setTransport } = await import("../src/modules/shared/notify.service.js");
+  const a = client(srv.base);
+  assert.equal((await a.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code: currentTotp(SECRET) }, ua("Windows NT 10.0; Win64"))).status, 200);
+  assert.equal((await client(srv.base).post("/api/owner/security/push", {})).status, 401, "للمالك فقط");
+  assert.ok((await a.get("/api/owner/security/push")).data.key, "مفتاح الإشعارات متاح");
+  const endpoint = `https://push.example.test/owner-${Date.now()}`;
+  const keys = { p256dh: "B".repeat(87), auth: "A".repeat(22) };
+  assert.equal((await a.post("/api/owner/security/push", { endpoint, keys })).status, 200);
+  assert.equal((await a.get("/api/owner/security")).data.push.devices >= 1, true);
+
+  const sent = [];
+  setTransport({ push: async () => {} });
+  try {
+    await dispatchOwnerPush();  // anything already pending before this test
+    setTransport({ push: async (sub, payload) => { if (sub.endpoint === endpoint) sent.push(payload); } });
+    await transaction({ platform: true }, (q) => q("SELECT raise_security_alert($1, 'high', 'اختبار إشعار المالك', 'تفصيل', NULL)", [`owner_push_test:${Date.now()}`]));
+    await dispatchOwnerPush();
+    assert.equal(sent.filter((p) => p.title.includes("اختبار إشعار المالك")).length, 1, "التنبيه المهم وصل");
+    assert.ok(sent.every((p) => p.url.startsWith(process.env.OWNER_PATH)), "الرابط يفتح لوحة المالك");
+    await dispatchOwnerPush();
+    assert.equal(sent.filter((p) => p.title.includes("اختبار إشعار المالك")).length, 1, "لا يتكرر");
+
+    setTransport({ push: async (sub) => { if (sub.endpoint === endpoint) throw Object.assign(new Error("gone"), { statusCode: 410 }); } });
+    await transaction({ platform: true }, (q) => q("SELECT raise_security_alert($1, 'high', 'جهاز محذوف', NULL, NULL)", [`owner_push_gone:${Date.now()}`]));
+    await dispatchOwnerPush();
+    const [{ n }] = await transaction({ platform: true }, (q) => q("SELECT count(*)::int AS n FROM owner_push_subscriptions WHERE endpoint = $1", [endpoint]));
+    assert.equal(n, 0, "الجهاز الذي ألغى الاشتراك يُزال");
+  } finally {
+    setTransport(null);
   }
 });

@@ -133,7 +133,9 @@ export function topbar({ subtitle, school, onLogout, logo }) {
         h("div", { class: "school-text" }, school && h("b", {}, school), subtitle && h("small", {}, subtitle)))),
     h("div", { class: "top-acts" }, installButton("on-dark"), onLogout && btn("خروج", onLogout, "ghost sm"))));
 }
-export const footer = () => h("footer", { class: "dev" }, h("small", { class: "app-version", title: "رقم إصدار المنصة" }, "الإصدار ", h("bdi", { dir: "ltr" }, APP_VERSION)));
+// The bottom of every page: spacing only. The platform version is not shown to anyone (it stays in the page's
+// meta tag, where the update check reads it).
+export const footer = () => h("footer", { class: "dev", "aria-hidden": "true" });
 
 export const field = (label, control, hint) => h("label", { class: "f" }, h("span", {}, label), control, hint && h("small", { class: "sub" }, hint));
 const NUMERIC_MODES = new Set(["tel", "numeric", "decimal"]);
@@ -291,7 +293,11 @@ let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();
   const el = h("div", { class: `toast${isError ? " err" : ""}`, role: isError ? "alert" : "status" }, message);
-  document.body.append(el);
+  // An open modal dialog sits in the browser's top layer, above anything in the page whatever its z-index, so the
+  // message goes inside the topmost open dialog (and back to the page if that dialog closes while it is showing).
+  const top = [...document.querySelectorAll("dialog[open]")].at(-1);
+  (top || document.body).append(el);
+  top?.addEventListener("close", () => { if (el.parentNode === top) document.body.append(el); }, { once: true });
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.remove(), isError ? 6000 : 3500);
 }
@@ -312,6 +318,19 @@ const TAB_ICONS = {
   communication: "message", staff: "briefcase", behavior: "star", calendar: "calendar", certificates: "award", services: "box",
   ai: "sparkle", chat: "message", testimonials: "star", groups: "building", lessons: "clipboard", meetings: "clock", surveys: "poll", me: "briefcase", sms: "message", "online-exams": "monitor",
 };
+
+// A section that needs the internet, opened without it: a clear card, a retry button, and it reloads by itself as soon
+// as the connection returns. Attendance and grade entry keep working offline from their own pages.
+function offlineCard(retry) {
+  const card = h("div", { class: "offline-card" },
+    h("span", { class: "oc-ic" }, icons.refresh({ size: 26 })),
+    h("b", {}, "هذا القسم يحتاج اتصالًا بالإنترنت"),
+    h("p", {}, "سيُحدَّث تلقائيًا عند عودة الاتصال. الحضور ورصد الدرجات يعملان بدون إنترنت ويُرسلان عند عودته."),
+    h("button", { type: "button", class: "btn soft sm", onclick: () => retry() }, "إعادة المحاولة"));
+  const back = () => { if (card.isConnected) retry(); };
+  window.addEventListener("online", back, { once: true });
+  return card;
+}
 
 export function tabs(list, views, ctx, { primary = [], top = false } = {}) {
   const bar = h("nav", { class: "tabs", role: "tablist", "aria-label": "أقسام اللوحة" });
@@ -358,7 +377,7 @@ export function tabs(list, views, ctx, { primary = [], top = false } = {}) {
       const out = await views[key]({ ...ctx, refresh });
       if (current === key) mount(body, out);
     } catch (e) {
-      if (current === key) mount(body, notice(e.message, "err"));
+      if (current === key) mount(body, e.status === 0 && e.code !== "timeout" ? offlineCard(refresh) : notice(e.message, "err"));
       if (e.status === 401) setTimeout(() => location.reload(), 1500);
     }
   };
@@ -581,3 +600,28 @@ export function copyRow(label, value, { secret = false, note } = {}) {
   } }, "إظهار"));
   return h("div", { class: "link-row" }, h("div", { class: "lr-text" }, h("b", {}, label), note ? h("small", {}, note) : null, shown), h("div", { class: "lr-acts" }, acts));
 }
+
+// A grade list saved after someone else changed some of its grades: the list of who changed what, and the choice
+// to keep the other person's grades (reload) or save these over them.
+export function scoreConflict(changed, { keepTheirs, keepMine }) {
+  const v = (x) => (x === null || x === undefined ? "بلا درجة" : String(x));
+  return h("div", { class: "notice warn score-clash" },
+    h("b", {}, "عدّل شخص آخر هذه الدرجات بعد فتحك للصفحة:"),
+    h("ul", {}, changed.map((c) => h("li", {}, `${c.name}: درجته الآن ${v(c.theirs)}${c.by ? ` (${c.by})` : ""}، ودرجتك ${v(c.yours)}`))),
+    h("div", { class: "row" }, btn("إبقاء درجاتهم وإعادة التحميل", keepTheirs, "ghost sm"), btn("حفظ درجاتي فوقها", keepMine, "danger sm")));
+}
+
+// A form section as a card with an icon and a title; formFold is the same card folded (optional details), with a
+// short note beside the title (for example "اختياري" or a count) so it stays clear what is inside.
+export function formCard(icon, title, ...children) {
+  return h("section", { class: "fcard" }, h("h3", { class: "fcard-h" }, icons[icon] ? icons[icon]({ size: 18 }) : null, h("span", {}, title)), ...children);
+}
+export function formFold(icon, title, note, ...children) {
+  const tag = h("small", { class: "fcard-note" }, note || "");
+  const el = h("details", { class: "fcard fold" },
+    h("summary", { class: "fcard-h" }, icons[icon] ? icons[icon]({ size: 18 }) : null, h("span", {}, title), tag, icons.chevronDown({ size: 16 })),
+    h("div", { class: "fcard-in" }, ...children));
+  el.setNote = (t) => { tag.textContent = t || ""; };
+  return el;
+}
+

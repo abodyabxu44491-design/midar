@@ -12,6 +12,7 @@ import { newTempPassword } from "../../core/auth/codes.js";
 import { clearLoginFailures, logEvent } from "../../core/audit.js";
 import { sealCredential } from "../../core/auth/secret-box.js";
 import * as file from "../shared/teacher-file.service.js";
+import { usernameFromName, uniqueUsername, nextEmployeeNo } from "../../core/auto-ids.js";
 import { featureSettings, TEACHER_SECTIONS } from "../shared/feature-settings.service.js";
 
 const r = Router();
@@ -35,7 +36,7 @@ const profileFields = {
 };
 const EXTRA = ["short_name", "gender", "birth_date", "job_title", "qualification", "hire_date", "employment_type", "address", "emergency_name", "emergency_phone"];
 const photoSchema = z.object({ data_url: z.string().max(220_000, "الصورة كبيرة").regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "صيغة الصورة غير مدعومة") });
-const createSchema = z.object({ name: t.name("اسم المعلم"), username: t.username, phone: t.phone, load: loadSchema, ...profileFields });
+const createSchema = z.object({ name: t.name("اسم المعلم"), username: t.username.optional().or(z.literal("").transform(() => undefined)), phone: t.phone, load: loadSchema, ...profileFields });
 const updateSchema = z.object({ name: t.name("اسم المعلم").optional(), phone: t.phone, load: loadSchema.optional(), ...profileFields });
 
 async function setLoad(q, teacherId, load) {
@@ -66,11 +67,21 @@ r.get("/", handle(async (req, res) => {
   }));
 }));
 
+// What the add form shows while the name is typed: the username and employee number that would be used.
+r.get("/suggest", handle(async (req, res) => {
+  const name = String(req.query.name || "").slice(0, 120);
+  res.json(await inTenant(req, async (q) => ({
+    username: name.trim() ? await uniqueUsername(q, usernameFromName(name)) : null, employee_no: await nextEmployeeNo(q) })));
+}));
+
 r.post("/", handle(async (req, res) => {
   const b = parse(createSchema, req.body);
   const password = newTempPassword();
   const hash = await hashPassword(password);
   const id = await inTenant(req, async (q) => {
+    // Left empty, the username comes from the teacher's name and the employee number continues the school's sequence.
+    b.username ||= await uniqueUsername(q, usernameFromName(b.name));
+    b.employee_no ??= await nextEmployeeNo(q);
     const [taken] = await q("SELECT 1 FROM users WHERE username = $1", [b.username]);
     if (taken) throw conflict("اسم المستخدم مستخدم داخل المدرسة");
     const limit = req.subscription?.max_teachers;

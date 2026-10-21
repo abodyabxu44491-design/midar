@@ -46,8 +46,12 @@ test("لا إصدار قبل الاعتماد، والفحص يحدد الطال
   assert.equal(missing.subject, "الرياضيات");
   assert.match(missing.reason, /لا توجد درجة في «النهائي»/);
   assert.ok(r.errors.some((e) => e.subject && e.subject !== "الرياضيات" && /لا توجد درجات منشورة/.test(e.reason)), "مادة بلا درجات منشورة");
-  assert.ok(r.warnings.some((w) => /رقم تعريفي/.test(w.reason)));
+  assert.ok(!r.warnings.some((w) => /رقم تعريفي/.test(w.reason)), "كل طالب يأخذ رقمًا تلقائيًا عند إضافته");
   assert.equal(r.can_approve, true);
+  // A number cleared by hand still shows as a warning.
+  const [{ version }] = await transaction({ tenantId: A.id }, (q) => q("SELECT version FROM students WHERE id = $1", [A.students[0].id]));
+  assert.equal((await A.admin.patch(`/api/admin/students/${A.students[0].id}`, { version, student_no: null })).status, 200);
+  assert.ok((await results()).data.warnings.some((w) => /رقم تعريفي/.test(w.reason) && w.student === A.students[0].name));
 });
 
 test("دورة الاعتماد: إرسال ← إعادة بسبب ← إرسال ← اعتماد (يرفض الناقص بلا سبب) ← إصدار برقم تسلسلي", async () => {
