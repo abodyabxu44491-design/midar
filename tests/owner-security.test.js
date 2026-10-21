@@ -88,8 +88,10 @@ test("التنبيهات: حذف كبير، وطلبات مرفوضة متكرر
 // Without OWNER_TOTP_SECRET on the server, a correct password only opens enrollment: no session until the code
 // from the authenticator app proves the secret was saved. Runs a separate server process without that variable.
 test("تفعيل التحقق الثنائي من شاشة الدخول عند عدم ضبطه على الخادم", async () => {
-  await transaction({ platform: true }, (q) => q(
-    "UPDATE owner_security SET totp_enc = NULL, enrolled_at = NULL, pending_enc = NULL, pending_hash = NULL, pending_expires = NULL WHERE id = 1"));
+  await transaction({ platform: true }, async (q) => {
+    await q("UPDATE owner_security SET totp_enc = NULL, enrolled_at = NULL, pending_enc = NULL, pending_hash = NULL, pending_expires = NULL WHERE id = 1");
+    await q("DELETE FROM security_events WHERE kind = 'owner_login_failed'"); // this test fails on purpose a few times
+  });
   const port = 3990 + Math.floor(Math.random() * 9);
   const childEnv = { ...process.env, OWNER_TOTP_SECRET: "", PORT: String(port), DEMO_AUTO: "false", NODE_ENV: "test" };
   const child = spawn(process.execPath, ["src/server.js"], { env: childEnv, stdio: "ignore" });
@@ -108,7 +110,12 @@ test("تفعيل التحقق الثنائي من شاشة الدخول عند �
     assert.equal((await c.get("/api/owner/me")).status, 401, "لا جلسة قبل التفعيل");
     assert.equal((await c.post("/api/owner/enroll", { ticket: r.data.ticket, code: "000000" })).status, 400);
     assert.equal((await c.post("/api/owner/enroll", { ticket: "0".repeat(64), code: currentTotp(r.data.secret) })).status, 401, "تذكرة غير صحيحة");
-    assert.equal((await c.post("/api/owner/enroll", { ticket: r.data.ticket, code: currentTotp(r.data.secret) })).status, 200);
+    assert.equal(r.data.secret.length, 32, "مفتاح بطول يقبله الإدخال اليدوي في تطبيقات المصادقة");
+    const enrolled = await c.post("/api/owner/enroll", { ticket: r.data.ticket, code: currentTotp(r.data.secret) });
+    assert.equal(enrolled.status, 200);
+    const codes = enrolled.data.recovery_codes;
+    assert.equal(codes.length, 10, "عشرة رموز احتياطية بعد التفعيل");
+    assert.ok(codes.every((x) => /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(x)));
     assert.equal((await c.get("/api/owner/me")).status, 200);
     assert.equal((await c.get("/api/owner/security")).data.mfa.source, "app");
 
@@ -118,11 +125,27 @@ test("تفعيل التحقق الثنائي من شاشة الدخول عند �
     const ok2 = await login(c2, { code: currentTotp(r.data.secret) });
     assert.equal(ok2.status, 200, JSON.stringify(ok2.data));
     assert.equal((await c2.post("/api/owner/enroll", { ticket: r.data.ticket, code: currentTotp(r.data.secret) })).status, 400, "لا تفعيل ثانٍ");
+
+    // Without the phone: a backup code works once (in any letter case, with or without the dash), then never again.
+    assert.equal((await login(client(base), { code: codes[0].toLowerCase().replace("-", "") })).status, 200, "رمز احتياطي بدل التطبيق");
+    assert.equal((await login(client(base), { code: codes[0] })).status, 401, "الرمز الاحتياطي لا يُستخدم مرتين");
+    assert.equal((await login(client(base), { password: "wrong-password-1", code: codes[1] })).status, 401);
+    assert.equal((await login(client(base), { code: codes[1] })).status, 200, "كلمة مرور خاطئة لا تستهلك الرمز");
+    assert.equal((await c.get("/api/owner/security")).data.recovery_left, 8);
+    assert.equal((await c.post("/api/owner/security/recovery-codes", { code: "000000" })).status, 401, "إنشاء رموز جديدة يحتاج الرمز الحالي");
+    const fresh = await c.post("/api/owner/security/recovery-codes", { code: currentTotp(r.data.secret) });
+    assert.equal(fresh.data.recovery_codes.length, 10);
+    assert.equal((await login(client(base), { code: codes[2] })).status, 401, "المجموعة القديمة تتوقف");
+    assert.equal((await login(client(base), { code: fresh.data.recovery_codes[0] })).status, 200);
     const stored = await transaction({ platform: true }, (q) => q("SELECT totp_enc FROM owner_security WHERE id = 1"));
     assert.ok(!stored[0].totp_enc.includes(r.data.secret), "المفتاح محفوظ مشفّرًا");
   } finally {
     child.kill();
-    await transaction({ platform: true }, (q) => q("UPDATE owner_security SET totp_enc = NULL, enrolled_at = NULL WHERE id = 1"));
+    await transaction({ platform: true }, async (q) => {
+      await q("UPDATE owner_security SET totp_enc = NULL, enrolled_at = NULL WHERE id = 1");
+      await q("DELETE FROM owner_recovery_codes");
+      await q("DELETE FROM security_events WHERE kind = 'owner_login_failed'");
+    });
   }
 });
 

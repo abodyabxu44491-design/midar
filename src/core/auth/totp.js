@@ -7,8 +7,10 @@ import crypto from "node:crypto";
 
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
+// 32 base32 characters = 160 bits, the standard size; authenticator apps reject typed keys whose length does not
+// fill whole bytes (a 20-character key is refused by Google Authenticator's manual entry).
 export function newTotpSecret() {
-  return Array.from(crypto.randomBytes(20), (b) => B32[b % 32]).join("");
+  return Array.from(crypto.randomBytes(32), (b) => B32[b % 32]).join("");
 }
 
 function base32Decode(s) {

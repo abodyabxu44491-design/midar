@@ -7,12 +7,13 @@
 // other session"), and the security alerts raised across the platform.
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
-import { handle } from "../../core/http/errors.js";
+import { handle, unauthorized } from "../../core/http/errors.js";
 import { parse, z } from "../../core/http/validate.js";
 import { sessionHashOf } from "../../core/auth/sessions.js";
 import { logEvent } from "../../core/audit.js";
 import { env } from "../../config/env.js";
 import { ownerMfa } from "./auth.js";
+import { checkOwnerFactor, newRecoveryCodes, recoveryLeft } from "../../core/auth/owner-mfa.js";
 
 const r = Router();
 const platform = (req) => ({ actor: req.actor, ip: req.ip, platform: true });
@@ -29,7 +30,7 @@ r.get("/", handle(async (req, res) => {
       `SELECT a.id, a.created_at, a.severity, a.kind, a.title, a.detail, a.tenant_id, t.name AS school, a.seen_at
          FROM security_alerts a LEFT JOIN tenants t ON t.id = a.tenant_id ORDER BY a.id DESC LIMIT 200`);
     const [{ unseen }] = await q("SELECT count(*)::int AS unseen FROM security_alerts WHERE seen_at IS NULL AND severity <> 'info'");
-    return { mfa: mfa ? { source: mfa.source, enrolled_at: mfa.enrolled_at || null } : null, sessions, devices, alerts, unseen };
+    return { mfa: mfa ? { source: mfa.source, enrolled_at: mfa.enrolled_at || null } : null, recovery_left: await recoveryLeft(q), sessions, devices, alerts, unseen };
   });
   res.json({ ...out, ip_allowlist: env.ownerIps.length > 0, alert_email: Boolean(env.OWNER_ALERT_EMAIL) });
 }));
@@ -47,6 +48,17 @@ r.post("/alerts/seen", handle(async (req, res) => {
     ? await q("UPDATE security_alerts SET seen_at = now() WHERE seen_at IS NULL AND id = ANY($1::bigint[]) RETURNING 1", [ids])
     : await q("UPDATE security_alerts SET seen_at = now() WHERE seen_at IS NULL RETURNING 1")).length);
   res.json({ seen: n });
+}));
+
+// A new set of backup codes; confirmed with the current code from the app (or an unused backup code).
+r.post("/recovery-codes", handle(async (req, res) => {
+  const { code } = parse(z.object({ code: z.string().max(20) }), req.body);
+  const codes = await transaction(platform(req), async (q) => {
+    if (!(await checkOwnerFactor(q, await ownerMfa(q), code, req.ip))) throw unauthorized("الرمز غير صحيح. اكتب الرقم الظاهر الآن في تطبيق المصادقة.");
+    await logEvent(q, { actor: req.actor, action: "إنشاء رموز احتياطية جديدة للوحة المالك" });
+    return newRecoveryCodes(q);
+  });
+  res.json({ recovery_codes: codes });
 }));
 
 // Ends every owner session except this one (a lost phone, a shared computer, a suspicion).

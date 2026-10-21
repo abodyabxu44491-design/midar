@@ -500,7 +500,7 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
   const school = input({ class: "ltr", autocomplete: "organization", value: localStorage.getItem(storeKey) || "", "aria-label": schoolLabel });
   const user = input({ class: "ltr", autocomplete: "username", placeholder: "اسم المستخدم", autocapitalize: "none", autocorrect: "off", spellcheck: false });
   const pass = passwordInput({ autocomplete: "current-password", placeholder: "كلمة المرور" });
-  const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 6, placeholder: "000000" });
+  const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 9, placeholder: "000000" });
   const remember = h("input", { type: "checkbox", id: "remember-me" });
   const msg = h("div");
 
@@ -534,7 +534,9 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
         withSchool ? field(schoolLabel, school) : null,
         field("اسم المستخدم", user),
         field("كلمة المرور", pass),
-        withCode ? field("رمز التحقق (6 أرقام)", code) : null,
+        withCode ? field("رمز التحقق (6 أرقام)", code, h("button", { type: "button", class: "au-link", onclick: (e) => {
+          code.inputMode = "text"; code.placeholder = "XXXX-XXXX"; code.value = ""; code.focus(); e.target.remove();
+        } }, "الجوال ليس معي؟ استخدم رمزًا احتياطيًا")) : null,
 
         h("div", { class: "gate-row" },
           h("label", {}, remember, h("span", {}, "تذكرني على هذا الجهاز")),
