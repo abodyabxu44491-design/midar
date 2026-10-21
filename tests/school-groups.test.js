@@ -5,13 +5,14 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, ownerPassword, endPool, uid, setupAdmin } from "./helpers.js";
+import { startServer, client, ownerPassword, endPool, uid, mailOn, lastCode, randomEmail } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 
 let srv, owner;
 
 before(async () => {
   srv = await startServer();
+  await mailOn();
   owner = client(srv.base);
   const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
   assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
@@ -39,13 +40,16 @@ test("مجموعة المدارس: دخول الإدارة العامة، إنش
   const me = await g.get("/api/group/me");
   assert.equal(me.data.max_schools, 2);
   const a = `${id}-a`, b = `${id}-b`;
-  const s1 = await g.post("/api/group/schools", { id: a, name: "مدرسة النخبة - البنين", admin_name: "علي سالم" });
+  assert.equal((await g.post("/api/group/schools", { id: a, name: "مدرسة النخبة - البنين", admin_name: "علي سالم" })).status, 400, "بريد المدير مطلوب");
+  const wrong = randomEmail("typo"), mail = randomEmail("grp");
+  const s1 = await g.post("/api/group/schools", { id: a, name: "مدرسة النخبة - البنين", admin_name: "علي سالم", manager_email: wrong });
   assert.equal(s1.status, 201, JSON.stringify(s1.data));
-  assert.match(s1.data.setup.url, /\/activate\?token=/, "رابط إعداد حساب مدير المدرسة يُعطى للإدارة العامة");
+  assert.equal(s1.data.setup, null, "لا رابط إعداد منفصل: يكفي رابط المدرسة");
+  assert.equal(s1.data.manager_email, wrong);
   assert.equal(s1.data.credentials, undefined, "لا كلمة مرور");
   assert.match(s1.data.links.staff.admin, new RegExp(`/${a}/idara`));
-  assert.equal((await g.post("/api/group/schools", { id: b, name: "مدرسة النخبة - البنات", admin_name: "فاطمة علي" })).status, 201);
-  const over = await g.post("/api/group/schools", { id: `${id}-c`, name: "مدرسة ثالثة", admin_name: "محمد" });
+  assert.equal((await g.post("/api/group/schools", { id: b, name: "مدرسة النخبة - البنات", admin_name: "فاطمة علي", manager_email: randomEmail("grp") })).status, 201);
+  const over = await g.post("/api/group/schools", { id: `${id}-c`, name: "مدرسة ثالثة", admin_name: "محمد", manager_email: randomEmail("grp") });
   assert.equal(over.status, 409, "لا تتجاوز المجموعة حدها");
 
   const list = await g.get("/api/group/schools");
@@ -54,12 +58,25 @@ test("مجموعة المدارس: دخول الإدارة العامة، إنش
   assert.equal(list.data.totals.schools, 2);
   assert.equal(list.data.schools[0].subscription_end?.slice(0, 10), "2027-12-31", "المدارس على اشتراك المجموعة");
 
-  const admin = await setupAdmin(client(srv.base), s1.data.setup.url);
-  assert.equal((await admin.get("/api/admin/me")).status, 200, "لكل مدرسة إدارتها الخاصة");
+  assert.equal(list.data.schools.find((s) => s.id === a).manager_linked, false);
+
+  const before = await g.post(`/api/group/schools/${a}/reset-admin`);
+  assert.equal(before.status, 200);
+  assert.equal(before.data.setup, null, "قبل أول دخول: التسليم برابط المدرسة نفسه");
+  assert.equal((await g.put(`/api/group/schools/${a}/manager-email`, { email: mail })).data.manager_email, mail, "تصحيح البريد قبل أول دخول");
+
+  // First entry from the school link with the recorded email, exactly as for owner-created schools.
+  const manager = client(srv.base);
+  assert.equal((await manager.post("/api/account/signup", { email: mail, password: "Manager-Pass-2026", name: "علي سالم" })).status, 200);
+  assert.equal((await manager.post("/api/account/signup/verify", { email: mail, code: lastCode(mail) })).status, 200);
+  const claim = await manager.post("/api/account/claim", { school: a, via: "email" });
+  assert.equal(claim.status, 200, JSON.stringify(claim.data));
+  assert.equal((await manager.get("/api/admin/me")).status, 200, "لكل مدرسة إدارتها الخاصة");
+  assert.equal((await g.put(`/api/group/schools/${a}/manager-email`, { email: randomEmail() })).status, 400, "بعد الربط لا يُغيَّر البريد من هنا");
 
   const reset = await g.post(`/api/group/schools/${a}/reset-admin`);
   assert.equal(reset.status, 200);
-  assert.notEqual(reset.data.setup.url, s1.data.setup.url);
+  assert.match(reset.data.setup.url, /\/activate\?token=/, "بعد الربط: رابط استعادة");
 
   const outsider = `iso-${uid()}`;
   assert.equal((await owner.post("/api/owner/tenants", { id: outsider, name: "مدرسة خارج المجموعة" })).status, 201);

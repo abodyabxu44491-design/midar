@@ -131,7 +131,7 @@ test("مدرستان لحساب واحد، وتسجيل الخروج من كل �
   assert.equal((await d2.get("/api/admin/me")).status, 401, "وانتهت جلسة المدرسة المفتوحة منه");
 });
 
-test("نسيت كلمة المرور: رمز على البريد الموثّق، لا رسالة لبريد غير مسجل، والجلسات القديمة تنتهي", async () => {
+test("نسيت كلمة المرور: رمز على البريد الموثّق، بريد غير مسجل يُرفض بوضوح، والجلسات القديمة تنتهي", async () => {
   const s = await newSchool("مدرسة الإشراق");
   const email = randomEmail();
   const c = client(srv.base);
@@ -139,7 +139,8 @@ test("نسيت كلمة المرور: رمز على البريد الموثّق�
   assert.equal((await c.post("/api/account/setup/link", { token: s.token })).status, 200);
   const before = mails.length;
   const unknown = await client(srv.base).post("/api/account/reset", { email: randomEmail("nobody") });
-  assert.equal(unknown.status, 200);
+  assert.equal(unknown.status, 404, "بريد غير مسجل يُرفض برسالة واضحة");
+  assert.match(unknown.data.error, /غير مسجّل/);
   assert.equal(mails.length, before, "لا رسالة لبريد غير مسجل");
   const r = client(srv.base);
   assert.equal((await r.post("/api/account/reset", { email })).status, 200);

@@ -44,8 +44,9 @@ export async function syncGroupSchools(q, g, actor) {
 }
 
 export const groupSchoolRows = (q, groupId) => q(
-  `SELECT id, name, status, currency, subscription_end, created_at FROM tenants
-    WHERE group_id = $1 AND status <> 'archived' ORDER BY created_at, id`, [groupId]);
+  `SELECT t.id, t.name, t.status, t.currency, t.subscription_end, t.created_at, t.profile->>'email' AS manager_email,
+          EXISTS (SELECT 1 FROM account_schools s WHERE s.tenant_id = t.id AND s.revoked_at IS NULL) AS manager_linked
+     FROM tenants t WHERE t.group_id = $1 AND t.status <> 'archived' ORDER BY t.created_at, t.id`, [groupId]);
 
 // Figures read inside each school's own scope, so row-level isolation still applies school by school.
 export async function schoolFigures(ctx, tenantId) {

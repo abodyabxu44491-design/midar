@@ -83,7 +83,7 @@ async function listPage(root, refresh, go) {
         sel("delivery", [["", "كل حالات التسليم"], ["none", "لم تُسلَّم"], ["pending", "بانتظار التأكيد"], ["sent", "تم التسليم"], ["failed", "فشل الإرسال"]]),
         sel("status", [["", "كل الحسابات"], ["active", "فعّال"], ["suspended", "موقوف"], ["archived", "مؤرشف"]]),
         sel("sort", [["newest", "الأحدث تسجيلًا"], ["oldest", "الأقدم تسجيلًا"], ["updated", "آخر تحديث"]])),
-      sub("حدد مدارس لتصديرها فقط، أو صدّر القائمة الظاهرة كلها."),
+      h("p", { class: "sub no-print" }, "حدد مدارس لتصديرها فقط، أو صدّر القائمة الظاهرة كلها."),
       d.items.length ? table : empty("لا توجد مدرسة مطابقة.")));
   let shown = 0;
   const more = h("div", { class: "row", style: "justify-content:center;margin-top:10px" });
@@ -112,7 +112,7 @@ async function filePage(id, root, back, openHandover = false) {
   const act = (icon, label, fn, cls = "") => h("button", { type: "button", class: `sf-act ${cls}`, onclick: fn }, icons[icon] ? icons[icon]({ size: 17 }) : null, h("span", {}, label));
   const actions = h("div", { class: "sf-bar" },
     act("share", "شاشة التسليم", () => handover(d, reload), "pri"),
-    act("print", "ملف PDF", () => pdfDialog(d)),
+    act("print", "بطاقة التسليم", () => pdfDialog(d)),
     act("copy", "رابط الدخول", async () => { await navigator.clipboard.writeText(d.links.login); toast("نُسخ رابط الدخول"); }),
     act("edit", "تعديل", () => editDialog(d, reload)),
     act("grid", "المزيد", () => moreMenu(d, reload)));
@@ -339,7 +339,7 @@ async function handover(d, reload) {
     h("button", { type: "button", class: "ho-way", disabled: !ready, onclick: async () => {
       await navigator.clipboard.writeText(text.value); const r = await record("copy", null); toast("نُسخت الرسالة"); askConfirm(r, "النسخ والإرسال اليدوي");
     } }, icons.copy({ size: 20 }), h("b", {}, "نسخ الرسالة"), h("small", {}, "ترسلها بنفسك من أي تطبيق")),
-    h("button", { type: "button", class: "ho-way", disabled: !ready, onclick: () => pdfDialog(d) }, icons.print({ size: 20 }), h("b", {}, "ملف PDF"), h("small", {}, "ملف ترحيب المدرسة للطباعة أو الحفظ")));
+    h("button", { type: "button", class: "ho-way", disabled: !ready, onclick: () => pdfDialog(d) }, icons.print({ size: 20 }), h("b", {}, "بطاقة التسليم"), h("small", {}, "وثيقة رسمية للطباعة أو الحفظ PDF")));
   const dd = dialog("تسليم رابط المدرسة", h("div", { class: "handover-x" },
     h("header", { class: "ho-hero" }, brandLogo("ho-logo", true, "row"),
       h("h2", {}, "تم اعتماد مدرستكم بنجاح"), h("p", {}, `أهلًا بـ ${d.school.name} في منصة مدار. حساب المدرسة جاهز للبدء.`)),
@@ -354,13 +354,13 @@ async function handover(d, reload) {
         d.account ? notice("المدير أنشأ حسابه ودخل المدرسة.", "") : managerEmailRow(d, reload))),
     ready ? null : notice("أضف بريد المدير أولًا: أول دخول من رابط المدرسة لا يتم إلا به.", "warn"),
     h("section", { class: "ho-card" }, h("h3", {}, icons.message({ size: 18 }), "رسالة الترحيب الجاهزة"), text),
-    h("h3", { class: "ho-sub" }, "طريقة التسليم"), ways), []);
+    h("h3", { class: "ho-sub" }, "طريقة التسليم"), ways, handoverDoc(d)), []);
   dd.classList.add("xb-wide", "ho-dlg");
   dd.addEventListener("close", () => reload());
 }
 
 function pdfDialog(d) {
-  const dd = dialog("ملف ترحيب المدرسة – مدار MIDAR", h("div", {},
+  const dd = dialog("بطاقة تسليم حساب المدرسة", h("div", {},
     sub("يُنشأ ملف أنيق للطباعة أو الحفظ كـ PDF (من نافذة الطباعة اختر «حفظ كـ PDF»). لا يحتوي أي رابط سري أو كلمة مرور.")), [
     btn([icons.print({ size: 15 }), "إنشاء الملف"], async () => {
       dd.close();
@@ -369,22 +369,56 @@ function pdfDialog(d) {
     })]);
 }
 
-function printActivation(d) {
+// The handover document: one printed page that the school keeps. It carries the school's login link (with a QR
+// code), the manager's email for first entry, the first-entry steps and the security rules. Never a password.
+function handoverDoc(d) {
   const p = d.profile;
-  const sheet = h("div", { class: "act-sheet" },
-    h("header", {}, brandLogo("act-logo", false, "row"), h("div", {}, h("h1", {}, "أهلًا بكم في مدار"), h("small", {}, "مدار | MIDAR — كل إدارة مدرستك في مكان واحد"))),
-    h("p", { class: "act-hello" }, `أهلًا بكم في مدار. نسعد بانضمام ${d.school.name} إلى المنصة، وقد أصبح حساب مدرستكم جاهزًا للبدء.`),
-    h("section", {}, h("h2", {}, "بيانات المدرسة"), dl([["اسم المدرسة", d.school.name], ["مدير المدرسة", p.contact_name],
-      ["تاريخ الاعتماد", d.school.approved_at ? fmtDate(d.school.approved_at) : fmtDate(d.school.requested_at)]])),
-    h("section", {}, h("h2", {}, "الدخول إلى المنصة"), dl([["رابط الدخول", d.links.login], ["بريد المدير", p.email || "—"]])),
-    h("section", {}, h("h2", {}, "خطوات البدء"), h("ol", {},
-      h("li", {}, "افتحوا رابط الدخول أعلاه."),
-      h("li", {}, "اختاروا «إنشاء حساب المدير» وسجّلوا بالبريد المذكور، أو بحساب Google بنفس البريد."),
-      h("li", {}, "أدخلوا رمز التحقق الذي يصل بريدكم، فتفتح لوحة المدرسة. بعدها تدخلون من الرابط نفسه بأي جهاز."),
-      h("li", {}, "أكملوا معالج الإعداد: المراحل والفصول والمعلمون والطلاب."),
-      h("li", {}, "شاركوا رابط صفحة المدرسة مع أولياء الأمور."))),
-    h("section", {}, h("h2", {}, "الدعم"), dl([["الموقع", "midarschool.com"], ["الجوال وواتساب", "0510235422"], ["إنستغرام", "@midar.school"]])),
-    h("footer", {}, `أُنشئ ${fmtDateTime(new Date())} · مدار | MIDAR`));
+  const issued = new Date();
+  const ref = `MD-${d.school.id.toUpperCase()}-${issued.toISOString().slice(0, 10).replace(/-/g, "")}`;
+  const row = (k, v, cls = "") => h("div", { class: `hd-row ${cls}` }, h("span", {}, k), h("b", {}, v));
+  return h("article", { class: "ho-doc", "aria-hidden": "true" },
+    h("header", { class: "hd-head" },
+      brandLogo("hd-logo", false, "row"),
+      h("div", { class: "hd-title" }, h("h1", {}, "بطاقة تسليم حساب المدرسة"), h("small", {}, "وثيقة صادرة من منصة مدار لإدارة المدارس")),
+      h("div", { class: "hd-ref" }, h("small", {}, "رقم الوثيقة"), h("b", { class: "ltr" }, ref), h("small", {}, `تاريخ الإصدار ${fmtDate(issued)}`))),
+    h("p", { class: "hd-hello" }, `يسعدنا انضمام ${d.school.name} إلى منصة مدار. حساب المدرسة مفعّل وجاهز، وهذه البطاقة تتضمن كل ما يحتاجه مدير المدرسة للدخول الأول بأمان.`),
+    h("div", { class: "hd-grid" },
+      h("section", { class: "hd-box" }, h("h2", {}, "بيانات المدرسة"),
+        row("اسم المدرسة", d.school.name),
+        row("رمز المدرسة", d.school.id, "ltr-v"),
+        row("مدير المدرسة", p.contact_name || "—"),
+        row("تاريخ الاعتماد", fmtDate(d.school.approved_at || d.school.requested_at)),
+        row("حالة الحساب", "مفعّل")),
+      h("section", { class: "hd-box hd-login" }, h("h2", {}, "الدخول إلى المنصة"),
+        h("div", { class: "hd-qr" },
+          d.links.login_qr ? h("img", { src: d.links.login_qr, alt: "" }) : null,
+          h("div", {},
+            h("small", {}, "رابط دخول المدرسة"), h("b", { class: "ltr hd-link" }, d.links.login),
+            h("small", {}, "بريد المدير المعتمد لأول دخول"), h("b", { class: "ltr" }, p.email || "—"),
+            h("small", { class: "hd-scan" }, "امسح الرمز بكاميرا الجوال لفتح رابط الدخول"))))),
+    h("section", { class: "hd-box" }, h("h2", {}, "خطوات الدخول الأول"),
+      h("ol", { class: "hd-steps" },
+        h("li", {}, h("b", {}, "افتحوا رابط الدخول"), h("span", {}, "من الرابط أعلاه أو بمسح الرمز.")),
+        h("li", {}, h("b", {}, "أنشئوا حساب المدير"), h("span", {}, "بالبريد المعتمد أعلاه، أو بحساب Google بنفس البريد.")),
+        h("li", {}, h("b", {}, "أدخلوا رمز التحقق"), h("span", {}, "يصل إلى البريد نفسه، وتفتح لوحة المدرسة مباشرة.")),
+        h("li", {}, h("b", {}, "أكملوا إعداد المدرسة"), h("span", {}, "المراحل والفصول والمعلمون والطلاب من معالج الإعداد.")))),
+    h("section", { class: "hd-box hd-safe" }, h("h2", {}, "أمان حسابكم"),
+      h("ul", {},
+        h("li", {}, "لا تحتوي هذه البطاقة أي كلمة مرور، ولن يطلب منكم فريق مدار كلمة المرور أو رمز التحقق أبدًا."),
+        h("li", {}, "الدخول الأول لا يتم إلا بالبريد المعتمد أعلاه، فلا يستطيع غيركم إنشاء حساب المدير."),
+        h("li", {}, "أي دخول من جهاز جديد يحتاج رمز تحقق يصل إلى بريد المدير، ويصلكم إشعار بكل دخول جديد."),
+        h("li", {}, "بيانات مدرستكم معزولة تمامًا عن غيرها، وتُحفظ لها نسخ احتياطية يومية."))),
+    h("section", { class: "hd-sign" },
+      h("div", {}, h("small", {}, "اعتماد"), h("b", {}, "إدارة منصة مدار"), h("i", {})),
+      h("div", {}, h("small", {}, "استلام"), h("b", {}, "مدير المدرسة"), h("i", {})),
+      h("div", {}, h("small", {}, "التاريخ"), h("b", {}, fmtDate(issued)), h("i", {}))),
+    h("footer", { class: "hd-foot" },
+      h("div", {}, h("small", {}, "الدعم والتواصل"), h("b", {}, "midarschool.com"), h("b", { class: "ltr" }, "0510235422"), h("b", { class: "ltr" }, "@midar.school")),
+      h("div", { class: "hd-seal" }, h("b", {}, "مدار | MIDAR"), h("small", {}, "كل إدارة مدرستك في مكان واحد"))));
+}
+
+function printActivation(d) {
+  const sheet = h("div", { class: "act-sheet" }, handoverDoc(d));
   document.body.append(sheet);
   document.body.classList.add("act-printing");
   const done = () => { sheet.remove(); document.body.classList.remove("act-printing"); window.removeEventListener("afterprint", done); };

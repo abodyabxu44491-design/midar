@@ -220,7 +220,7 @@ function resetFlow(pre, then, backTo) {
     } catch (e) { send.disabled = false; mount(msg, notice(e.message, "err")); }
   });
   email.addEventListener("keydown", (e) => e.key === "Enter" && send.click());
-  page(back(backTo), authHead("استعادة كلمة المرور", "أدخل البريد المرتبط بحسابك، وسيصلك رمز تحقق إذا كان مسجّلًا.", school()),
+  page(back(backTo), authHead("استعادة كلمة المرور", "أدخل البريد المرتبط بحسابك، وسيصلك عليه رمز تحقق.", school()),
     authField("البريد الإلكتروني", email, { id: "rs-email" }), msg, send);
   email.focus();
 }

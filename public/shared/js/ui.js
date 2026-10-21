@@ -11,6 +11,21 @@ import { icons } from "./icons.js";
 export const DEV = "مدار MIDAR";
 export { chime, soundOn, setSound } from "./chime.js";
 
+// A text box prints only what fits inside it; for printing, its full text is shown in a plain block instead.
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeprint", () => {
+    for (const t of document.querySelectorAll("textarea")) {
+      if (!t.value.trim() || !t.getClientRects().length) continue;
+      t.classList.add("printing-hidden");
+      t.after(Object.assign(document.createElement("div"), { className: "print-text", textContent: t.value }));
+    }
+  });
+  window.addEventListener("afterprint", () => {
+    document.querySelectorAll(".print-text").forEach((el) => el.remove());
+    document.querySelectorAll("textarea.printing-hidden").forEach((t) => t.classList.remove("printing-hidden"));
+  });
+}
+
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; refreshInstall(); });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
