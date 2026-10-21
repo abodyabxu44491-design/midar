@@ -10,6 +10,7 @@ import { t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { sealSecret, openSecret } from "../../core/auth/secret-box.js";
 import { logEvent } from "../../core/audit.js";
+import { qrDataUrl } from "./certificates.service.js";
 
 export const LINK_DAYS = 7;
 export const STAGES = [
@@ -118,6 +119,7 @@ export async function getFile(q, id, baseUrl) {
   const delivery = events.find((e) => e.kind === "delivery" && e.status === "sent")?.status || events.find((e) => e.kind === "delivery")?.status || null;
   const stage = stageOf({ ...t, admin_id: admin?.id, delivery });
   const links = { login: `${baseUrl}/${id}/idara?role=admin`, parents: `${baseUrl}/${id}` };
+  links.login_qr = qrDataUrl(links.login);
   const activation = admin ? await currentLink(q, id, baseUrl) : null;
   // The manager's Midar account linked to this school (who, how, since when) — never any secret.
   const [account] = await q(
