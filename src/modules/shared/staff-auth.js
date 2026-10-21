@@ -9,7 +9,7 @@ import { AppError, handle, unauthorized, forbidden, badRequest } from "../../cor
 import { parse, t, z } from "../../core/http/validate.js";
 import { verifyPassword, hashPassword, canonPassword } from "../../core/auth/password.js";
 import { createSession, destroySession, currentSessionHash } from "../../core/auth/sessions.js";
-import { logEvent, securityEvent, recentFailures } from "../../core/audit.js";
+import { logEvent, securityEvent, recentFailures, raiseAlert } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
 import { env } from "../../config/env.js";
 import { selfSetupLink } from "./school-files.service.js";
@@ -66,7 +66,11 @@ export const staffLoginRouter = () => {
           await logEvent(q, { tenantId: tenant.id, actor: b.username,
             action: ipFails + 1 >= MAX_FAILS ? "قفل الدخول من عنوان بعد محاولات خاطئة" : "محاولة دخول فاشلة" });
         }
-        if (ipFails + 1 >= MAX_FAILS) return locked(await unlockIn(q, user, ipKey, acctKey));
+        if (ipFails + 1 >= MAX_FAILS) {
+          await raiseAlert(q, { kind: "staff_login_locked", severity: "medium", tenantId: tenant.id,
+            title: "قفل دخول حساب بعد محاولات خاطئة متكررة", detail: `اسم المستخدم «${b.username}» — العنوان ${req.ip || "غير معروف"}` });
+          return locked(await unlockIn(q, user, ipKey, acctKey));
+        }
         return denied;
       }
       if (tenant.status !== "active") return { error: "حساب المدرسة موقوف. تواصل مع إدارة المنصة.", status: 403 };

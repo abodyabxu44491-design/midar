@@ -299,6 +299,7 @@ export async function deleteHoliday(q, id) {
 // Keeps attendance in line with the holidays that affect it: records inside a holiday are set aside (the day
 // counts as a holiday), and records set aside for days no longer in any holiday come back unchanged.
 export async function syncHolidayAttendance(q) {
+  await q("SELECT set_config('app.planned_delete', 'on', true)");
   const [r] = await q("SELECT set_aside, restored FROM apply_holidays_to_attendance()");
   return { set_aside: r.set_aside, restored: r.restored };
 }

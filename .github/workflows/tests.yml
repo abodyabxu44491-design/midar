@@ -35,6 +35,8 @@ jobs:
       OWNER_PATH: /control-ci-secret-path
       OWNER_USERNAME: owner
       TEST_OWNER_PASSWORD: Test-Owner-Pass-2026
+      # The owner panel always needs a second factor; tests compute the current code from this test-only secret.
+      OWNER_TOTP_SECRET: JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP
       COOKIE_SECURE: "false"
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +45,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # A known high or critical vulnerability in a production dependency stops the merge.
+      - name: فحص ثغرات المكتبات
+        run: npm audit --omit=dev --audit-level=high
       - name: تجهيز قاعدة البيانات
         run: |
           psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \

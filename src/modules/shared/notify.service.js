@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { assertPublicHttps } from "../../core/http/safe-url.js";
 import webpush from "web-push";
 import crypto from "node:crypto";
 import { env } from "../../config/env.js";
@@ -181,7 +182,8 @@ const realTransport = {
     if (gateway.method === "GET") url = fill(gateway.url, encodeURIComponent);
     else if (gateway.content_type === "json") { body = fill(gateway.body_template, (v) => JSON.stringify(String(v)).slice(1, -1)); headers["Content-Type"] ||= "application/json"; }
     else { body = fill(gateway.body_template, encodeURIComponent); headers["Content-Type"] ||= "application/x-www-form-urlencoded"; }
-    const res = await fetch(url, { method: gateway.method, headers, body, signal: AbortSignal.timeout(15_000) });
+    await assertPublicHttps(url);
+    const res = await fetch(url, { method: gateway.method, headers, body, redirect: "error", signal: AbortSignal.timeout(15_000) });
     const text = (await res.text()).slice(0, 2000);
     if (!res.ok) throw new Error(`رد المزوّد ${res.status}`);
     if (gateway.success_match && !text.includes(gateway.success_match)) throw new Error("رد المزوّد لا يدل على نجاح الإرسال");

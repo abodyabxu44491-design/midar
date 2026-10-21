@@ -2821,3 +2821,15 @@ button.sf-kpi.go:hover { border-color: var(--line-2); }
   .hd-foot small { color: #5A6478; width: 100%; }
   .hd-seal { text-align: center; display: grid; } .hd-seal b { font-size: 12pt; color: #16244A; } .hd-seal small { font-size: 8.5pt; color: #5A6478; }
 }
+
+/* Owner security page and two-step enrollment */
+.sec-list { margin: 10px 0 0; padding-inline-start: 18px; display: grid; gap: 4px; color: var(--muted); font-size: 14px; }
+.sec-rows { display: grid; gap: 8px; }
+.sec-row { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.sec-row.unseen { border-color: var(--amber); background: #FFFBF2; }
+.sec-row small { display: block; color: var(--muted); margin-top: 3px; }
+.sec-row p { margin: 4px 0 0; font-size: 14px; }
+.mfa-enroll { max-width: 560px; margin: 32px auto; padding: 0 16px; }
+.mfa-steps { margin: 12px 0; padding-inline-start: 20px; display: grid; gap: 4px; }
+.mfa-qr { display: grid; place-items: center; margin: 10px 0; }
+.mfa-qr img { width: 200px; height: 200px; border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: #fff; }

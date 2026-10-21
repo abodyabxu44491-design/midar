@@ -23,6 +23,7 @@ import files from "./files.js";
 import { subscriptions, requests } from "./subscriptions.js";
 import danger from "./danger.js";
 import sms from "./sms.js";
+import security from "./security.js";
 
 const r = Router();
 r.use(ownerNetwork);
@@ -49,4 +50,5 @@ r.use("/files", files);
 r.use("/sms", sms);
 r.use("/audit", audit);
 r.use("/danger", danger);
+r.use("/security", security);
 export default r;

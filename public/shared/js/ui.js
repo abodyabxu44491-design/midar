@@ -507,10 +507,10 @@ export function loginScreen({ role, endpoint, withSchool = true, withCode = fals
   const submit = btn("تسجيل الدخول", async () => {
     mount(msg);
     try {
-      await api(endpoint, { school: school.value, username: user.value, password: pass.value, code: code.value, remember: remember.checked });
+      const r = await api(endpoint, { school: school.value, username: user.value, password: pass.value, code: code.value, remember: remember.checked });
       if (withSchool) localStorage.setItem(storeKey, school.value.trim().toLowerCase());
       pass.value = "";
-      onSuccess();
+      onSuccess(r, { remember: remember.checked });
     } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "wide");
   for (const el of [school, user, pass, code]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());

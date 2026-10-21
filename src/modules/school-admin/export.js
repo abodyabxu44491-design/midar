@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
-import { logEvent } from "../../core/audit.js";
+import { logEvent, raiseAlert } from "../../core/audit.js";
 import { FIELDS as PUBLIC_FIELDS } from "../shared/public-settings.service.js";
 
 const r = Router();
@@ -111,6 +111,8 @@ r.get("/", handle(async (req, res) => {
   try {
     await inTenant(req, async (q) => {
       await logEvent(q, { tenantId: req.tenantId, actor: req.actor, action: "تصدير نسخة كاملة من بيانات المدرسة" });
+      await raiseAlert(q, { kind: "full_export", severity: "medium", tenantId: req.tenantId,
+        title: "تصدير نسخة كاملة من بيانات مدرسة", detail: `بواسطة ${req.actor} من العنوان ${req.ip || "غير معروف"}` });
 
       const small = {};
       for (const [name, sql] of Object.entries(SMALL)) small[name] = await q(sql);
