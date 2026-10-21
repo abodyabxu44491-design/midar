@@ -6,7 +6,7 @@
 import { $, h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { topbar, footer, tabs, loginScreen, passwordChangeScreen, panel, field, input, select, btn, notice, sub, badge, dialog, line, keyText,
-  toast, kpiCard, kpiGrid, linkRow, copyRow, passwordInput, empty, confirmAction } from "../shared/js/ui.js";
+  toast, kpiCard, kpiGrid, linkRow, copyRow, passwordInput, empty, confirmAction, brandLogo } from "../shared/js/ui.js";
 import { money, fmtDate, fmtDateTime } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 
@@ -37,14 +37,36 @@ async function start() {
   t.start("schools");
 }
 
+// The manager needs only the school's own link: on first entry they create their account with the email recorded
+// here (or Google with the same email). After that, restoring access is a one-time recovery link.
 function handover(r, title) {
+  const recovery = r.setup?.url;
   const rows = [["اسم المدرسة", r.school?.name || r.school?.id], ["رمز المدرسة", r.school?.id],
-    ["رابط إعداد حساب المدير", r.setup?.url], ["رابط دخول الإدارة", r.links.staff.admin]];
+    ["رابط دخول المدرسة", r.links.staff.admin],
+    recovery ? ["رابط استعادة دخول المدير", recovery] : ["بريد المدير لأول دخول", r.manager_email || "—"],
+    ["رابط الطلاب وأولياء الأمور", r.links.public.home]];
   const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
-  dialog(title, h("div", { class: "handover" },
-    notice("أرسل رابط الإعداد لمدير المدرسة. يفتحه ويُنشئ حسابه في مدار بالبريد الإلكتروني أو Google أو Apple، ثم يدخل لوحة مدرسته مباشرة. الرابط صالح 7 أيام ويُستخدم مرة واحدة.", "warn"),
-    rows.map(([k, v]) => line(h("span", { class: "sub" }, k), keyText(v)))),
+  const d = dialog(title, h("div", { class: "handover" },
+    h("div", { class: "print-only" }, brandLogo("print-logo", false)),
+    recovery
+      ? notice("أرسل رابط الاستعادة لمدير المدرسة. يفتحه ويسجّل بحسابه الجديد (البريد أو Google)، فتنتقل المدرسة لحسابه. الرابط صالح 7 أيام ويُستخدم مرة واحدة.", "warn")
+      : notice("أرسل لمدير المدرسة رابط دخول المدرسة فقط. في أول دخول يختار «إنشاء حساب المدير» ويسجّل بالبريد المذكور (أو Google بنفس البريد)، ثم يدخل لوحة المدرسة مباشرة.", ""),
+    rows.map(([k, v], i) => line(h("span", { class: "sub" }, k), i === 0 ? h("b", {}, v) : keyText(v))),
+    sub("لا تُسلَّم كلمة مرور للمدير: هو يختار طريقة دخوله بنفسه.")),
   [btn("نسخ", async () => { await navigator.clipboard.writeText(text); toast("تم النسخ"); }), btn("طباعة", () => window.print(), "ghost")]);
+  return d;
+}
+
+function editEmail(s, refresh) {
+  const mail = input({ type: "email", class: "ltr", value: s.manager_email || "", placeholder: "manager@example.com" });
+  const msg = h("div");
+  const d = dialog(`بريد مدير ${s.name}`, h("div", {},
+    sub("أول دخول للمدرسة يُقبل بهذا البريد فقط (أو بحساب Google بنفس البريد)."), field("بريد مدير المدرسة", mail), msg), [
+    btn("حفظ", async () => {
+      mount(msg);
+      try { const r = await api(`${API}/schools/${s.id}/manager-email`, { email: mail.value.trim() }, "PUT"); d.close(); refresh(); handover(r, "تسليم المدرسة"); }
+      catch (e) { mount(msg, notice(e.message, "err")); }
+    })]);
 }
 
 function schoolCard(s, refresh) {
@@ -60,7 +82,7 @@ function schoolCard(s, refresh) {
     h("div", { class: "grp-money" },
       h("span", {}, "المحصّل ", h("b", {}, money(s.fees_paid, s.currency))),
       h("span", {}, "المتبقي ", h("b", {}, money(s.fees_remaining, s.currency)))),
-    sub(s.admin ? `مدير المدرسة: ${s.admin.full_name} (${s.admin.username}) — ${s.admin.last_login_at ? `آخر دخول ${fmtDateTime(s.admin.last_login_at)}` : "لم يدخل بعد"}` : "لا يوجد مدير"),
+    sub(s.admin ? `مدير المدرسة: ${s.admin.full_name} — ${s.manager_linked ? (s.admin.last_login_at ? `آخر دخول ${fmtDateTime(s.admin.last_login_at)}` : "ربط حسابه") : `لم يدخل بعد${s.manager_email ? ` (${s.manager_email})` : ""}`}` : "لا يوجد مدير"),
     s.subscription_end ? sub(`الاشتراك حتى ${fmtDate(s.subscription_end)}`) : null,
     h("div", { class: "grp-acts" },
       h("a", { class: "btn sm", href: s.links.staff.admin, target: "_blank", rel: "noopener" }, icons.external({ size: 14 }), "دخول إدارة المدرسة"),
@@ -68,11 +90,15 @@ function schoolCard(s, refresh) {
         linkRow("دخول المدير والمعلمين", s.links.staff.admin),
         linkRow("صفحة أولياء الأمور والطلاب", s.links.public.home),
         copyRow("رمز المدرسة", s.id))), "ghost sm"),
-      btn("كلمة مرور جديدة للمدير", async () => {
-        if (!(await confirmAction(`إصدار كلمة مرور مؤقتة جديدة لمدير ${s.name}؟ ستنتهي جلساته الحالية.`))) return;
-        try { handover(await api(`${API}/schools/${s.id}/reset-admin`, {}), "رابط إعداد حساب المدير"); refresh(); }
-        catch (e) { toast(e.message, true); }
-      }, "ghost sm")));
+      s.manager_linked
+        ? btn("استعادة دخول المدير", async () => {
+          if (!(await confirmAction(`إصدار رابط استعادة لمدير ${s.name}؟ عند استخدامه تنتقل المدرسة لحساب المدير الجديد.`))) return;
+          try { handover(await api(`${API}/schools/${s.id}/reset-admin`, {}), "رابط استعادة دخول المدير"); refresh(); }
+          catch (e) { toast(e.message, true); }
+        }, "ghost sm")
+        : [btn("تسليم المدرسة", async () => {
+          try { handover(await api(`${API}/schools/${s.id}/reset-admin`, {}), "تسليم المدرسة"); } catch (e) { toast(e.message, true); }
+        }, "ghost sm"), btn("تعديل بريد المدير", () => editEmail(s, refresh), "ghost sm")]));
 }
 const fig = (label, value) => h("div", { class: "grp-fig" }, h("b", {}, String(value)), h("span", {}, label));
 
@@ -113,6 +139,7 @@ async function create({ go }) {
   const name = input({ placeholder: "مثل: مدارس النخبة - فرع البنات" });
   const code = input({ class: "ltr", placeholder: `${g.id}-2`, autocapitalize: "none", spellcheck: false });
   const admin = input({ placeholder: "الاسم الكامل لمدير المدرسة" });
+  const mail = input({ type: "email", class: "ltr", placeholder: "manager@example.com" });
   const currency = select([["YER", "ريال يمني"], ["SAR", "ريال سعودي"], ["USD", "دولار أمريكي"]]);
   code.value = `${g.id}-${d.schools.length + 1}`;
   code.addEventListener("input", () => { code.value = slug(code.value); });
@@ -123,13 +150,15 @@ async function create({ go }) {
     h("div", { class: "row" },
       field("رمز المدرسة (يظهر في رابطها)", code, "حروف إنجليزية صغيرة وأرقام وشرطة"),
       field("عملة رسوم المدرسة", currency)),
-    field("اسم مدير المدرسة", admin),
+    h("div", { class: "row" },
+      field("اسم مدير المدرسة", admin),
+      field("بريد مدير المدرسة", mail, "يدخل المدير أول مرة من رابط المدرسة بهذا البريد أو بحساب Google بنفس البريد")),
     msg,
     btn("إنشاء المدرسة", async () => {
       mount(msg);
       try {
-        const r = await api(`${API}/schools`, { id: code.value, name: name.value, admin_name: admin.value, currency: currency.value });
-        handover(r, "تم إنشاء المدرسة");
+        const r = await api(`${API}/schools`, { id: code.value, name: name.value, admin_name: admin.value, manager_email: mail.value.trim(), currency: currency.value });
+        handover(r, "بطاقة تسليم المدرسة");
         go("schools");
       } catch (e) { mount(msg, notice(e.message, "err")); }
     }, "wide"));

@@ -107,18 +107,21 @@ r.get("/schools", handle(async (req, res) => {
   });
 }));
 
+const managerEmail = z.string().trim().toLowerCase().max(160).regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "اكتب بريد مدير المدرسة بشكل صحيح");
 const newSchool = z.object({
   id: codeSchema,
   name: t.shortText("اسم المدرسة", 150),
   admin_name: t.name("اسم مدير المدرسة"),
+  manager_email: managerEmail,
   currency: z.enum(["SAR", "YER", "USD"]).default("YER"),
 });
 
 r.post("/schools", handle(async (req, res) => {
   const b = parse(newSchool, req.body);
   const g = req.group;
+  // Same handover as the owner's: the manager opens the school's own link and creates their account with this email.
   const created = await createTenant(req, { ...b, plan: "enterprise", max_students: 100000, subscription_end: g.ends_on,
-    group_id: g.id, subscription: groupSubscription(g) });
+    group_id: g.id, subscription: groupSubscription(g) }, { link: false });
   await transaction({ tenantId: b.id, actor: req.actor, ip: req.ip }, (q) =>
     logEvent(q, { tenantId: b.id, actor: req.actor, action: `إنشاء المدرسة من إدارة المجموعة: ${g.name}` }));
   res.status(201).json({ ...created, links: schoolLinks(req, b.id) });
@@ -129,10 +132,32 @@ async function member(req, id) {
   if (!t) throw notFound("المدرسة ليست ضمن مجموعتك");
 }
 
-// Restoring a school manager's access: a new setup link; the manager links their own Midar account again.
+const managerState = async (req, id) => (await platform(req, (q) => q(
+  `SELECT t.name, t.profile->>'email' AS manager_email,
+          EXISTS (SELECT 1 FROM account_schools s WHERE s.tenant_id = t.id AND s.revoked_at IS NULL) AS linked
+     FROM tenants t WHERE t.id = $1`, [id])))[0];
+
+// Before the manager's first entry the group can correct the email that first entry accepts.
+r.put("/schools/:id/manager-email", handle(async (req, res) => {
+  const id = parse(codeSchema, req.params.id);
+  const { email } = parse(z.object({ email: managerEmail }), req.body);
+  await member(req, id);
+  const m = await managerState(req, id);
+  if (m.linked) throw badRequest("المدير دخل المدرسة وربط حسابه بالفعل. لنقلها لبريد آخر استخدم «استعادة دخول المدير».");
+  await transaction({ platform: true, actor: req.actor, ip: req.ip }, (q) =>
+    q("UPDATE tenants SET profile = profile || jsonb_build_object('email', $2::text) WHERE id = $1", [id, email]));
+  await transaction({ tenantId: id, actor: req.actor, ip: req.ip }, (q) =>
+    logEvent(q, { tenantId: id, actor: req.actor, action: "تعديل بريد مدير المدرسة من إدارة المجموعة" }));
+  res.json({ school: { id, name: m.name }, manager_email: email, links: schoolLinks(req, id) });
+}));
+
+// Restoring a school manager's access. Before first entry nothing is needed but the school link; after it, a
+// recovery link moves the school to the manager's new account.
 r.post("/schools/:id/reset-admin", handle(async (req, res) => {
   const id = parse(codeSchema, req.params.id);
   await member(req, id);
+  const m = await managerState(req, id);
+  if (!m.linked) return res.json({ school: { id, name: m.name }, manager_email: m.manager_email, setup: null, links: schoolLinks(req, id) });
   const setup = await transaction({ platform: true, actor: req.actor, ip: req.ip }, (q) => issueLink(q, id, req.actor, env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`));
   await transaction({ tenantId: id, actor: req.actor, ip: req.ip }, (q) =>
     logEvent(q, { tenantId: id, actor: req.actor, action: "إصدار رابط إعداد/استعادة لمدير المدرسة من إدارة المجموعة" }));

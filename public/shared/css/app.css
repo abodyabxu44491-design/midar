@@ -445,7 +445,7 @@ img.doc-school-logo { object-fit: contain; width: auto; max-width: 140px; }
   body:has(dialog[open]) > *:not(dialog) { display: none !important; }
   dialog[open] { position: static; display: block; border: none; width: 100%; max-width: none; }
   dialog::backdrop { display: none; }
-  dialog[open] .row, dialog[open] .btn { display: none !important; }
+  dialog[open] .d-in > .row.spaced:last-child, dialog[open] .btn { display: none !important; }
 }
 
 .pw-wrap { position: relative; display: block; }
@@ -2758,3 +2758,26 @@ button.sf-kpi.go:hover { border-color: var(--line-2); }
 .gate-steps { display: grid; gap: 10px; grid-template-columns: 2fr 1fr; margin-top: 10px; }
 .gate-step { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg, #F6F8FA); display: grid; gap: 6px; align-content: start; }
 @media (max-width: 760px) { .gate-steps { grid-template-columns: 1fr; } }
+
+/* Printing any page or dialog: only the content. Navigation, buttons, filters and other controls never reach the paper. */
+@media print {
+  .bnav, .tabs, .topbar, .toast, .update-bar, .install-ic, .seg-tabs, .file-tabs, .no-print, .skel,
+  button:not(.print-keep), .btn, a.btn, input[type=search], .filters, .toolbar, .ho-ways, .ho-sub, .grp-acts, .row.spaced:has(> .btn:only-child) { display: none !important; }
+  body.has-bnav { padding-bottom: 0 !important; }
+  dialog[open] { position: static !important; inset: auto !important; margin: 0 !important; max-height: none !important; max-width: none !important;
+    width: 100% !important; overflow: visible !important; box-shadow: none !important; padding: 0 !important; }
+  dialog[open] .d-in { max-height: none !important; overflow: visible !important; }
+  dialog[open] .d-in > h2 { margin-top: 0; }
+  textarea.printing-hidden { display: none !important; }
+  .print-text { display: block !important; white-space: pre-wrap; font: inherit; line-height: 1.8; border: 1px solid #E3E7EC; border-radius: 10px; padding: 10px 12px; }
+  .ho-card, .grp-card { break-inside: avoid; }
+  .ho-hero { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a[href] { color: inherit; text-decoration: none; }
+  input:not([type=checkbox]):not([type=radio]), select { border: none !important; background: none !important; padding: 0 !important; box-shadow: none !important; appearance: none; -webkit-appearance: none; min-height: 0 !important; }
+  .sf-filters, .sf-cb, span.go[aria-hidden] { display: none !important; }
+  .sf-row { grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr) auto !important; padding: 6px 10px; border-radius: 8px; break-inside: avoid; }
+  .sf-row .sf-stage, .sf-row .sf-meta { grid-column: auto !important; }
+  .sf-row .sf-dates { display: flex !important; flex-direction: column; }
+  .kpi-grid { break-inside: avoid; }
+}
+.print-text { display: none; }

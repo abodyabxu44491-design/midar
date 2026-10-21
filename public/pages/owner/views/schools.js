@@ -83,7 +83,7 @@ async function listPage(root, refresh, go) {
         sel("delivery", [["", "كل حالات التسليم"], ["none", "لم تُسلَّم"], ["pending", "بانتظار التأكيد"], ["sent", "تم التسليم"], ["failed", "فشل الإرسال"]]),
         sel("status", [["", "كل الحسابات"], ["active", "فعّال"], ["suspended", "موقوف"], ["archived", "مؤرشف"]]),
         sel("sort", [["newest", "الأحدث تسجيلًا"], ["oldest", "الأقدم تسجيلًا"], ["updated", "آخر تحديث"]])),
-      sub("حدد مدارس لتصديرها فقط، أو صدّر القائمة الظاهرة كلها."),
+      h("p", { class: "sub no-print" }, "حدد مدارس لتصديرها فقط، أو صدّر القائمة الظاهرة كلها."),
       d.items.length ? table : empty("لا توجد مدرسة مطابقة.")));
   let shown = 0;
   const more = h("div", { class: "row", style: "justify-content:center;margin-top:10px" });
