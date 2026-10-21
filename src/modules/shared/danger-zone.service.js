@@ -29,7 +29,7 @@ const PLAN_TTL_MIN = 20;
 const KEEP_BACKUPS = 15;
 
 export const CATEGORIES = {
-  attendance:    { label: "الحضور والغياب", note: "كل سجلات الحضور وأسباب الغياب وأعذار أولياء الأمور", tables: ["attendance"], admin: true },
+  attendance:    { label: "الحضور والغياب", note: "كل سجلات الحضور وأسباب الغياب وأعذار أولياء الأمور", tables: ["attendance", "attendance_set_aside"], admin: true },
   announcements: { label: "التعاميم", tables: ["announcements"], admin: true },
   homework:      { label: "الواجبات وتسليماتها", tables: ["assignment_submissions", "assignments"], admin: true },
   timetable:     { label: "حصص الجدول الدراسي", note: "إعدادات الجدول تبقى", tables: ["timetable_slots"], admin: true },
@@ -146,7 +146,7 @@ export function catalog(scope) {
 }
 
 const TABLE_LABEL = {
-  students: "الطلاب", attendance: "سجلات الحضور", scores: "الدرجات المرصودة", exams: "الاختبارات", invoices: "الفواتير", payments: "الدفعات",
+  students: "الطلاب", attendance: "سجلات الحضور", attendance_set_aside: "حضور أيام الإجازات المؤجل", scores: "الدرجات المرصودة", exams: "الاختبارات", invoices: "الفواتير", payments: "الدفعات",
   payment_claims: "إشعارات التحويل", fee_adjustments: "تعديلات الرسوم", student_alerts: "تنبيهات الطلاب", student_years: "السجل الأكاديمي السنوي",
   assignment_submissions: "تسليمات الواجبات", assignments: "الواجبات", announcements: "التعاميم", timetable_slots: "حصص الجدول",
   admissions: "طلبات التسجيل", exam_papers: "أوراق الاختبارات", grade_components: "توزيع الدرجات", exam_instruction_presets: "التعليمات المحفوظة", question_bank: "أسئلة البنك",

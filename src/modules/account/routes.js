@@ -59,7 +59,12 @@ export function accountRouter() {
   // Email accounts.
   r.post("/signup", limits.login, handle(async (req, res) => res.json(await acct.signupStart(parse(acct.schemas.signup, req.body), req.ip))));
   r.post("/signup/verify", limits.login, handle(async (req, res) => res.json(await acct.signupVerify(parse(acct.schemas.verify, req.body), req, res))));
-  r.post("/login", limits.staffLoginNet, limits.staffLogin, handle(async (req, res) => res.json(await acct.login(parse(acct.schemas.login, req.body), req, res))));
+  // 200: signed in (a known device). 202: the password was right on a new device; a code went to the email.
+  r.post("/login", limits.staffLoginNet, limits.staffLogin, handle(async (req, res) => {
+    const out = await acct.login(parse(acct.schemas.login, req.body), req, res);
+    res.status(out.code_required ? 202 : 200).json(out);
+  }));
+  r.post("/login/verify", limits.login, handle(async (req, res) => res.json(await acct.loginVerify(parse(acct.schemas.verify, req.body), req, res))));
   r.post("/reset", limits.login, handle(async (req, res) => res.json(await acct.resetStart(parse(acct.schemas.resetStart, req.body), req.ip))));
   r.post("/reset/verify", limits.login, handle(async (req, res) => res.json(await acct.resetVerify(parse(acct.schemas.verify, req.body)))));
   r.post("/reset/finish", limits.login, handle(async (req, res) => res.json(await acct.resetFinish(parse(acct.schemas.resetFinish, req.body), req, res))));

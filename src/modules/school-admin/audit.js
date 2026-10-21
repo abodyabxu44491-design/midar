@@ -44,7 +44,7 @@ r.get("/", handle(async (req, res) => {
   const rows = await inTenant(req, (q) => q(
     `SELECT id, actor, action, table_name, record_id, old_data, new_data, host(ip) AS ip, created_at
        FROM audit_log
-      WHERE ($1::bigint IS NULL OR id < $1)
+      WHERE tenant_id = app_tenant() AND ($1::bigint IS NULL OR id < $1)
         AND ($2::text IS NULL OR table_name = $2)
         AND ($3::text IS NULL OR action = $3)
         AND ($4::text IS NULL OR actor ILIKE '%' || $4 || '%')

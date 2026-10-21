@@ -14,7 +14,10 @@ const bool = z.enum(["true", "false"]).transform((v) => v === "true");
 const schema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("production"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-  PUBLIC_URL: z.union([z.string().url(), z.literal("")]).optional().transform((v) => v || undefined),
+  // Pasted values often carry a space, a line break or a trailing slash; any of them breaks every link built
+  // from it (Google rejects a redirect address that contains a space).
+  PUBLIC_URL: z.preprocess((v) => (typeof v === "string" ? v.replace(/\s+/g, "").replace(/\/+$/, "") : v),
+    z.union([z.string().url(), z.literal("")]).optional()).transform((v) => v || undefined),
   ANDROID_PACKAGE: z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/).optional().or(z.literal("")).transform((v) => v || undefined),
   ANDROID_SHA256: z.string().optional().transform((v) => (v || "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(x))),
   DATABASE_URL: z.string().startsWith("postgres"),

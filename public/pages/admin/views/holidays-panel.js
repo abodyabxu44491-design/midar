@@ -8,6 +8,7 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, sub, badge, line, empty, toast, confirmAction } from "../../shared/js/ui.js";
 import { fmtDate } from "../../shared/js/format.js";
 import { A } from "./common.js";
+import { emergencyHoliday } from "./emergency-holiday.js";
 
 export async function holidaysPanel(refresh) {
   const { holidays, kinds } = await api(`${A}/academic/holidays`);
@@ -22,11 +23,13 @@ export async function holidaysPanel(refresh) {
         sub(`${fmtDate(x.start_date)} إلى ${fmtDate(x.end_date)}${x.affects_attendance ? "" : " — لا تؤثر على الحضور"}`)),
       btn("حذف", async () => {
         if (!confirmAction(`حذف «${x.name}»؟`)) return;
-        await api(`${A}/academic/holidays/${x.id}`, undefined, "DELETE"); toast("حُذفت الإجازة"); refresh();
+        const r = await api(`${A}/academic/holidays/${x.id}`, undefined, "DELETE");
+        toast(r.restored ? `حُذفت الإجازة وعاد ${r.restored} سجل حضور كما كان` : "حُذفت الإجازة"); refresh();
       }, "danger sm"))) : empty("لا توجد إجازات مضافة."),
     field("اسم الإجازة", name), field("النوع", kind),
     h("div", { class: "row" }, field("من", a), field("إلى", b)),
     h("label", { class: "f pill" }, affects, "تؤثر على الحضور"),
+    h("div", { class: "row" }, btn("إجازة طارئة الآن", () => emergencyHoliday(refresh), "danger sm")),
     btn("إضافة إجازة", async () => {
       if (!name.value.trim() || !a.value || !b.value) return toast("أكمل اسم الإجازة وتاريخيها");
       await api(`${A}/academic/holidays`, { name: name.value.trim(), kind: kind.value, start_date: a.value, end_date: b.value,

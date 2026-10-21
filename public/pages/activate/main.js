@@ -179,7 +179,17 @@ function loginForm({ email: pre = "", then, backTo }) {
     mount(msg);
     if (!email.value.trim() || !pass.value) return mount(msg, notice("أدخل البريد الإلكتروني وكلمة المرور.", "err"));
     submit.disabled = true;
-    try { await api("/api/account/login", { email: email.value.trim(), password: pass.value }); await then(); }
+    try {
+      const mail = email.value.trim(), password = pass.value;
+      const r = await api("/api/account/login", { email: mail, password });
+      // A new device: confirm with the code sent to the email, then the device is remembered.
+      if (r.code_required) {
+        return codeStep(r.email, () => api("/api/account/login", { email: mail, password }),
+          async (code) => { await api("/api/account/login/verify", { email: mail, code }); await then(); },
+          () => loginForm({ email: mail, then, backTo }));
+      }
+      await then();
+    }
     catch (e) { submit.disabled = false; mount(msg, notice(e.message, "err")); pass.inputEl.select(); }
   });
   for (const el of [email, pass.inputEl]) el.addEventListener("keydown", (e) => e.key === "Enter" && submit.click());

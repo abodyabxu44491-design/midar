@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, uid, ownerPassword, endPool, setupAdmin } from "./helpers.js";
+import { startServer, client, uid, ownerPassword, endPool, setupAdmin, accountLogin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 import { tableLabel } from "../src/modules/shared/danger-zone.service.js";
@@ -17,7 +17,7 @@ const D = "/api/owner/danger";
 // The manager signs in again with their Midar account and opens the school (expecting the given answer).
 async function relogin(o, expected) {
   const c = client(srv.base);
-  assert.equal((await c.post("/api/account/login", { email: o.email, password: o.pw })).status, 200);
+  assert.equal((await accountLogin(c, o.email, o.pw)).status, 200);
   assert.equal((await c.post("/api/account/enter", { school: o.id })).status, expected);
   return c;
 }

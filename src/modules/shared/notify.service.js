@@ -40,6 +40,7 @@ export const EVENTS = {
   transport:    { name: "صعود ونزول الحافلة", audience: "parent", push: true, sms: false, category: "attendance", topic: "services", priority: 3 },
   survey:       { name: "استبيان جديد", audience: "both", push: true, sms: false, category: "announcements", topic: "announcements", priority: 3, collapse: true },
   meeting:      { name: "مواعيد أولياء الأمور", audience: "both", push: true, sms: false, category: "messages", topic: "messages", priority: 2 },
+  holiday:      { name: "إجازة طارئة أو تعليق الدوام", audience: "both", push: true, sms: false, category: "announcements", topic: "announcements", priority: 1 },
   calendar:     { name: "فعالية في التقويم", audience: "both", push: false, sms: false, category: "announcements", topic: "announcements", priority: 3, collapse: true },
   library:      { name: "تذكير إرجاع كتاب", audience: "parent", push: true, sms: false, category: "messages", topic: "services", priority: 3 },
   leave:        { name: "قرار طلب الإجازة", audience: "staff", push: true, sms: false, category: "tasks", topic: "tasks", priority: 2 },

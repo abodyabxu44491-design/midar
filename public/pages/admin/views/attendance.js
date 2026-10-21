@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { emergencyHoliday } from "./emergency-holiday.js";
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { attendanceBoard } from "../../shared/js/attendance-board.js";
@@ -236,7 +237,8 @@ export default async function attendance({ me }) {
   // Who records attendance in this school (one place only), with a link to change it.
   const by = (await optional(api(`${A}/communication/features`), null))?.teachers?.attendance_by || "teacher";
   const WHO = { teacher: "المعلم في الحصة", admin: "الإدارة من هنا", gate: "بوابة الحضور الذكية" };
-  const source = h("div", { class: "att-source" }, h("span", {}, "يسجل الحضور في مدرستك: ", h("b", {}, WHO[by])),
-    h("a", { href: "#/settings", class: "au-link", onclick: () => { try { sessionStorage.setItem("midar_settings_section", "teachers"); } catch { /* ignore */ } } }, "تغيير"));
+  const source = h("div", { class: "att-source" }, h("span", {}, "يسجل الحضور في مدرستك: ", h("b", {}, WHO[by]), " ",
+    h("a", { href: "#/settings", class: "au-link", onclick: () => { try { sessionStorage.setItem("midar_settings_section", "teachers"); } catch { /* ignore */ } } }, "تغيير")),
+    btn("إجازة طارئة", () => emergencyHoliday(() => show()), "ghost sm"));
   return [source, chips, box];
 }

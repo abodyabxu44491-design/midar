@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
-import { parse, t } from "../../core/http/validate.js";
+import { parse, t, z } from "../../core/http/validate.js";
 import * as academic from "../shared/academic.service.js";
 
 const r = Router();
@@ -25,20 +25,38 @@ r.get("/", handle(async (req, res) => {
 r.get("/holidays", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => ({ holidays: await academic.listHolidays(q), kinds: academic.HOLIDAY_KINDS })));
 }));
+// What declaring a holiday on these days would change (attendance already recorded on them).
+r.get("/holidays/impact", handle(async (req, res) => {
+  const f = parse(z.object({ from: t.date, to: t.date }), req.query);
+  res.json(await inTenant(req, (q) => academic.holidayImpact(q, f.from, f.to)));
+}));
+// Every change to holidays re-applies them to attendance: records inside a holiday are set aside (the days
+// count as a holiday), and records of days no longer in a holiday come back.
+const notifySchema = z.object({ notify: z.boolean().default(false) });
 r.post("/holidays", handle(async (req, res) => {
   const b = parse(academic.holidaySchema, req.body);
-  res.status(201).json(await inTenant(req, (q) => academic.addHoliday(q, b)));
+  const { notify: tell } = parse(notifySchema, req.body);
+  res.status(201).json(await inTenant(req, async (q) => {
+    const row = await academic.addHoliday(q, b);
+    const sync = await academic.syncHolidayAttendance(q);
+    if (tell) await academic.announceHoliday(q, b);
+    return { ...row, ...sync };
+  }));
 }));
 r.put("/holidays/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
   const b = parse(academic.holidaySchema, req.body);
-  await inTenant(req, (q) => academic.updateHoliday(q, id, b));
-  res.json({ ok: true });
+  res.json(await inTenant(req, async (q) => {
+    await academic.updateHoliday(q, id, b);
+    return { ok: true, ...(await academic.syncHolidayAttendance(q)) };
+  }));
 }));
 r.delete("/holidays/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  await inTenant(req, (q) => academic.deleteHoliday(q, id));
-  res.json({ ok: true });
+  res.json(await inTenant(req, async (q) => {
+    await academic.deleteHoliday(q, id);
+    return { ok: true, ...(await academic.syncHolidayAttendance(q)) };
+  }));
 }));
 
 r.put("/year", handle(async (req, res) => {

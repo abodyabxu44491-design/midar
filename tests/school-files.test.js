@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, ownerPassword, endPool, randomPhone, setupAdmin, randomEmail, mailOn } from "./helpers.js";
+import { startServer, client, ownerPassword, endPool, randomPhone, setupAdmin, randomEmail, mailOn, accountLogin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
@@ -80,7 +80,7 @@ test("من الطلب إلى أول دخول: ملف دائم، اعتماد م�
   assert.equal((await school.get("/api/admin/me")).status, 200, "يدخل لوحة المدرسة مباشرة بعد التفعيل");
   assert.equal((await pub.post("/api/account/setup", { token })).status, 410, "يُستخدم مرة واحدة");
   const device = client(srv.base);
-  assert.equal((await device.post("/api/account/login", { email: mgrMail, password: "Riyada-School-2026" })).status, 200, "الدخول بالبريد من جهاز آخر");
+  assert.equal((await accountLogin(device, mgrMail, "Riyada-School-2026")).status, 200, "الدخول بالبريد من جهاز آخر");
   assert.equal((await device.post("/api/account/enter", { school: id })).status, 200);
   file = (await owner.get(`/api/owner/files/${id}`)).data;
   assert.equal(file.stage, "first_login");
