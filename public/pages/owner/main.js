@@ -5,6 +5,7 @@
  */
 import { $, mount, h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
+import { pushInvite } from "/shared/js/inbox.js";
 import { topbar, footer, tabs, loginScreen, toast, chime, panel, sub, field, input, btn, notice, keyText } from "/shared/js/ui.js";
 import overview from "./views/overview.js";
 import schools from "./views/schools.js";
@@ -116,6 +117,15 @@ async function start() {
   setInterval(() => { badgeTick(); securityTick(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) badgeTick(); });
   document.addEventListener("owner-badge", badgeTick);
+  // A one-time card offering phone notifications (security alerts and new requests) on this device.
+  api(`${API}/security/push`).then(({ key }) => {
+    if (!key) return;
+    const card = pushInvite({ key, save: (s) => api(`${API}/security/push`, s), title: "فعّل الإشعارات على جوالك",
+      text: "تصلك التنبيهات الأمنية المهمة والطلبات الجديدة فورًا، حتى ولوحة المالك مغلقة.", onDone: () => wrap.remove() });
+    const wrap = h("div", { class: "push-float" }, card);
+    new MutationObserver(() => { if (card.hidden && card.childElementCount) wrap.remove(); }).observe(card, { attributes: true, attributeFilter: ["hidden"] });
+    document.body.append(wrap);
+  }).catch(() => {});
   mount(app,
     topbar({ subtitle: "لوحة مالك المنصة", onLogout: async () => { await api(`${API}/logout`, {}); location.reload(); } }),
     h("main", {}, t.el), footer());

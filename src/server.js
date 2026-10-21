@@ -7,7 +7,7 @@ import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { getPool, closePool, healthCheck } from "./core/db/pool.js";
 import { runMaintenance } from "./core/auth/sessions.js";
-import { dispatchAlertEmails } from "./modules/shared/alerts.service.js";
+import { dispatchAlertEmails, dispatchOwnerPush } from "./modules/shared/alerts.service.js";
 import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
 import { runReminders } from "./modules/shared/reminders.service.js";
 import { runGateTick } from "./modules/shared/gate.service.js";
@@ -46,6 +46,8 @@ const gateTimer = setInterval(() => {
   dispatchAlertEmails().catch((e) => console.error("[تنبيه أمني]", e.message));
 }, 5 * 60 * 1000);
 gateTimer.unref();
+const ownerPushTimer = setInterval(() => dispatchOwnerPush().catch((e) => console.error("[إشعار المالك]", e.message)), 60 * 1000);
+ownerPushTimer.unref();
 
 let closing = false;
 async function shutdown(signal) {

@@ -192,7 +192,7 @@ async function localLookup(code) {
   return roster.students.find((s) => s.h === h) || null;
 }
 function localGuess(st) {
-  const w = roster?.stage_hours?.find((x) => Number(x.stage_id) === Number(st.stage)) || info?.window;
+  const w = (info?.stage_hours || roster?.stage_hours)?.find((x) => Number(x.stage_id) === Number(st.stage)) || info?.window;
   if (!w) return {};
   const hm = new Intl.DateTimeFormat("en-GB", { timeZone: info?.timezone || undefined, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
     .format(new Date(Date.now() + (skew || 0)));

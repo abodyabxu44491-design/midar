@@ -25,11 +25,37 @@ export default async function homework({ me, refresh }) {
       field("موعد التسليم", due),
       btn("نشر الواجب", async () => {
         const [class_id, subject_id] = pair.value.split(":");
-        await api(T, { class_id, subject_id, title: title.value, details: details.value || null, due_date: due.value || null });
-        toast("نُشر الواجب"); refresh();
+        try {
+          await api(T, { class_id, subject_id, title: title.value, details: details.value || null, due_date: due.value || null });
+          toast("نُشر الواجب"); refresh();
+        } catch (e) { toast(e.message, true); }
       })),
-    panel("واجباتي", null, list.length ? list.map((a) => row(a, refresh)) : empty("لم تنشر واجبات بعد.")),
+    panel("واجباتي", list.length ? String(list.length) : null, list.length ? myList(list, refresh) : empty("لم تنشر واجبات بعد.")),
   ];
+}
+
+// Current homework first, filtered by class in one row, a page at a time instead of the whole year at once.
+function myList(list, refresh) {
+  const PAGE = 15;
+  let cls = "", when = "open", shown = PAGE;
+  const classes = [...new Map(list.map((a) => [a.class_name, a.class_name])).keys()];
+  const nav = h("div", { class: "subnav", role: "tablist" });
+  const whenNav = h("div", { class: "subnav", role: "tablist" });
+  const out = h("div");
+  const paint = () => {
+    const tab = (on, text, fn) => h("button", { type: "button", role: "tab", "aria-selected": String(on), class: `subnav-b${on ? " on" : ""}`, onclick: fn }, text);
+    mount(whenNav, tab(when === "open", "الحالية", () => { when = "open"; shown = PAGE; paint(); }),
+      tab(when === "past", "المنتهية", () => { when = "past"; shown = PAGE; paint(); }), tab(when === "all", "الكل", () => { when = "all"; shown = PAGE; paint(); }));
+    mount(nav, classes.length > 1 ? [tab(!cls, "كل الفصول", () => { cls = ""; shown = PAGE; paint(); }),
+      ...classes.map((c) => tab(cls === c, c, () => { cls = c; shown = PAGE; paint(); }))] : []);
+    const rows = list.filter((a) => (!cls || a.class_name === cls)
+      && (when === "all" || (when === "open") === !(a.due_date && a.due_date < today())));
+    mount(out, rows.length ? [...rows.slice(0, shown).map((a) => row(a, refresh)),
+      rows.length > shown ? btn(`عرض المزيد (${rows.length - shown})`, () => { shown += PAGE; paint(); }, "ghost sm") : null]
+      : empty(when === "open" ? "لا توجد واجبات حالية." : "لا توجد واجبات."));
+  };
+  paint();
+  return [whenNav, nav, out];
 }
 
 function row(a, refresh) {

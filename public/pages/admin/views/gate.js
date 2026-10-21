@@ -22,13 +22,16 @@ const EXCEPTIONS = [["trip", "رحلة"], ["activity", "نشاط خارجي"], [
 let part = "day", date = null, userDate = false, feedTimer = null;
 
 export async function gateView({ me }) {
-  date ??= today();
-  const chips = h("div", { class: "xb-chips" });
+  // Opening the gate section starts on today, and keeps following the date as the days change.
+  date = today(); userDate = false;
+  const chips = h("div", { class: "subnav", role: "tablist" });
   const box = h("div", { class: "gate-admin" });
   const show = async (k = part) => {
     part = k;
     clearInterval(feedTimer);
-    mount(chips, PARTS.map(([key, label]) => h("button", { type: "button", class: `xb-chip${key === k ? " on" : ""}`, onclick: () => show(key) }, label)));
+    mount(chips, PARTS.map(([key, label]) => h("button", { type: "button", role: "tab", "aria-selected": String(key === k),
+      class: `subnav-b${key === k ? " on" : ""}`, onclick: () => show(key) }, label)));
+    chips.querySelector(".on")?.scrollIntoView({ block: "nearest", inline: "center" });
     mount(box, empty("جارٍ التحميل…"));
     try { mount(box, await VIEWS[k]()); } catch (e) { mount(box, notice(e.message, "err")); }
   };
@@ -36,16 +39,15 @@ export async function gateView({ me }) {
   async function dayView() {
     let [s, devices] = await Promise.all([api(`${G()}/summary?date=${date}`), api(`${G()}/devices`)]);
     if (!userDate && s.today !== date) { date = s.today; s = await api(`${G()}/summary?date=${date}`); }
-    const c = s.counts;
     const dateIn = input({ type: "date", value: date, max: s.today });
-    dateIn.addEventListener("change", () => { date = dateIn.value || s.today; userDate = true; show("day"); });
-    const PH = {
+    dateIn.addEventListener("change", () => { date = dateIn.value || s.today; userDate = date !== s.today; show("day"); });
+    const phaseLine = (s) => ({
       before: ["wait", `تفتح البوابة ${s.window.open_at} — يُحسب متأخرًا بعد ${s.window.late_after} — تُغلق ${s.window.close_at}`],
       open: ["open", `الحضور مفتوح الآن — يُحسب متأخرًا بعد ${s.window.late_after} — يُغلق ${s.window.close_at}`],
       closed: ["closed", `انتهى وقت الحضور (${s.window.close_at}). راجع «لم يسجل حضور» ثم اعتمد الغياب.`],
       finalized: ["done", `اعتُمد الغياب بواسطة ${s.finalized_by || ""}${s.absence_notified_at ? " — وصل الإشعار لأولياء الأمور" : ` — يصل الإشعار ${s.absence_notify_at}`}`],
       no_school: ["closed", s.no_school_reason || "لا يوجد دوام"],
-    }[s.phase];
+    }[s.phase]);
     const noDevice = !devices.some((d) => d.status === "active");
     const stat = (n, label, cls = "") => h("div", { class: `gs ${cls}` }, h("b", {}, n ?? "—"), h("small", {}, label));
     const feedBox = h("div", { class: "gate-feed" });
@@ -65,21 +67,46 @@ export async function gateView({ me }) {
         while (feedBox.children.length > 60) feedBox.lastChild.remove();
       } catch { /* ignore */ }
     };
+    // The phase line, the numbers and the per-gate counts follow the day live (every scan, and the clock passing the
+    // opening, late and closing times), without reopening the page.
+    const live = h("div");
+    const paintLive = (s) => {
+      const c = s.counts;
+      const PH = phaseLine(s);
+      mount(live,
+        h("div", { class: `gate-phase ${PH[0]}` }, PH[1]),
+        // The four numbers that matter first; the rest only when they are not zero.
+        h("div", { class: "gate-stats" },
+          stat(c.present, "حاضر", "ok"), stat(c.late, "متأخر", "late"),
+          stat(c.unrecorded, "لم يسجل حضور", c.unrecorded ? "warn" : ""), stat(c.absent, "غائب", "bad"),
+          c.excused + c.permitted ? stat(c.excused + c.permitted, "بعذر / مستأذن") : null, c.out_of_school ? stat(c.out_of_school, "رحلة / نشاط") : null,
+          c.suspicious ? stat(c.suspicious, "مسح مشبوه", "bad") : null, c.departed ? stat(c.departed, "انصرف") : null),
+        h("div", { class: "gate-meta" }, sub(`${c.students} طالب مقيد`), s.rate !== null ? h("span", { class: "gate-rate" }, h("b", {}, `${s.rate}%`), h("small", {}, "نسبة الحضور")) : null),
+        s.gates.length > 1 ? h("div", { class: "row" }, s.gates.map((g) => badge(`${g.name}: ${g.n}`, "gray"))) : null);
+    };
+    paintLive(s);
+    let ticks = 0;
+    const refreshLive = async () => {
+      try {
+        const next = await api(`${G()}/summary?date=${date}`);
+        if (next.phase !== s.phase) { show("day"); return; }  // the review panel appears or disappears with the phase
+        paintLive(next);
+      } catch { /* the next tick retries */ }
+    };
     await loadFeed();
-    if (date === s.today) feedTimer = setInterval(() => { if (box.isConnected && part === "day") loadFeed(); else clearInterval(feedTimer); }, 5000);
+    if (date === s.today) {
+      feedTimer = setInterval(async () => {
+        if (!box.isConnected || part !== "day") { clearInterval(feedTimer); return; }
+        const seen = last;
+        await loadFeed();
+        if (last !== seen || ++ticks % 6 === 0) refreshLive();
+      }, 5000);
+    }
 
     return [
-      h("div", { class: "row spaced" }, field("اليوم", dateIn), s.rate !== null ? h("div", { class: "gate-rate" }, h("b", {}, `${s.rate}%`), h("small", {}, "نسبة الحضور")) : null),
+      h("div", { class: "gate-day-head" }, field("اليوم", dateIn)),
       noDevice ? notice("لا يوجد جوال بوابة مفعّل بعد. من «البوابات والأجهزة» اضغط «ربط جوال» واكتب الرمز على جوال الحارس.", "") : null,
-      h("div", { class: `gate-phase ${PH[0]}` }, PH[1]),
-      // The four numbers that matter first; the rest only when they are not zero.
-      h("div", { class: "gate-stats" },
-        stat(c.present, "حاضر", "ok"), stat(c.late, "متأخر", "late"),
-        stat(c.unrecorded, "لم يسجل حضور", c.unrecorded ? "warn" : ""), stat(c.absent, "غائب", "bad"),
-        c.excused + c.permitted ? stat(c.excused + c.permitted, "بعذر / مستأذن") : null, c.out_of_school ? stat(c.out_of_school, "رحلة / نشاط") : null,
-        c.suspicious ? stat(c.suspicious, "مسح مشبوه", "bad") : null, c.departed ? stat(c.departed, "انصرف") : null),
-      sub(`${c.students} طالب مقيد`),
-      s.gates.length > 1 ? h("div", { class: "row" }, s.gates.map((g) => badge(`${g.name}: ${g.n}`, "gray"))) : null,
+      live,
       ["closed", "finalized"].includes(s.phase) ? await reviewPanel(s) : null,
       panel("المباشر — آخر المسحات", null, feedBox),
     ];

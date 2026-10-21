@@ -15,10 +15,13 @@ import { A, loadClasses, optional } from "./common.js";
 import { icons } from "../../shared/js/icons.js";
 import { gateView } from "./gate.js";
 
-const PARTS = [["today", "متابعة اليوم"], ["record", "تسجيل الحضور"], ["gate", "البوابة الذكية"], ["excuses", "الأعذار"], ["reports", "التقارير"], ["settings", "الإعدادات"]];
+// Two separate sections, each with its own row of sub-pages: attendance (daily follow-up, recording, excuses, reports,
+// settings) and the smart gate (which brings its own sub-pages).
+const PARTS = [["today", "متابعة اليوم"], ["record", "تسجيل الحضور"], ["excuses", "الأعذار"], ["reports", "التقارير"], ["settings", "الإعدادات"]];
+const SECTIONS = [["att", "الحضور والغياب", "متابعة اليوم والتسجيل والتقارير", "check"], ["gate", "البوابة الذكية", "المسح بالبطاقة والأجهزة والأوقات", "scan"]];
 const shift = (d, days) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + days); return x.toISOString().slice(0, 10); };
 const plural = (n, one, few, many) => (n === 1 ? one : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
-let state = { part: "today", date: null, classId: null };
+let state = { section: "att", part: "today", date: null, classId: null };
 
 export default async function attendance({ me }) {
   const [classes, templates] = await Promise.all([loadClasses(), optional(api(`${A}/messaging/templates`), null)]);
@@ -33,12 +36,28 @@ export default async function attendance({ me }) {
   };
   const addAlert = (row, preset) => alertDialog(row.name, (b) => api(`${A}/students/${row.id}/alerts`, b), preset);
 
-  const chips = h("div", { class: "xb-chips att-parts", role: "tablist" });
+  const sections = h("div", { class: "att-sections", role: "tablist", "aria-label": "أقسام الحضور" });
+  const chips = h("div", { class: "subnav", role: "tablist" });
   const box = h("div");
+  const paintSections = () => mount(sections, SECTIONS.map(([k, title, note, ic]) => h("button", { type: "button", role: "tab",
+    "aria-selected": String(k === state.section), class: `att-sec${k === state.section ? " on" : ""}`, onclick: () => openSection(k) },
+    h("span", { class: "att-sec-ic" }, icons[ic]({ size: 22 })), h("span", { class: "att-sec-t" }, h("b", {}, title), h("small", {}, note)))));
+  const openSection = async (k) => {
+    state.section = k;
+    paintSections();
+    if (k === "gate") {
+      mount(chips); mount(box, empty("جارٍ التحميل…"));
+      try { mount(box, await gateView({ me })); } catch (e) { mount(box, notice(e.message, "err")); }
+      return;
+    }
+    await show();
+  };
   const show = async (part = state.part) => {
-    state.part = part;
+    state.section = "att"; state.part = part;
+    paintSections();
     mount(chips, PARTS.map(([k, label]) => h("button", { type: "button", role: "tab", "aria-selected": String(k === part),
-      class: `xb-chip${k === part ? " on" : ""}`, onclick: () => show(k) }, label)));
+      class: `subnav-b${k === part ? " on" : ""}`, onclick: () => show(k) }, label)));
+    chips.querySelector(".on")?.scrollIntoView({ block: "nearest", inline: "center" });
     mount(box, empty("جارٍ التحميل…"));
     try { mount(box, await VIEWS[part]()); } catch (e) { mount(box, notice(e.message, "err")); }
   };
@@ -231,14 +250,13 @@ export default async function attendance({ me }) {
       sub("قوالب رسائل واتساب للغياب والتأخر من «الإعدادات ← الرسائل»."));
   }
 
-  const VIEWS = { today: todayView, record: recordView, gate: () => gateView({ me }),
-    excuses: excusesView, reports: reportsView, settings: settingsView };
-  await show();
+  const VIEWS = { today: todayView, record: recordView, excuses: excusesView, reports: reportsView, settings: settingsView };
+  await openSection(state.section);
   // Who records attendance in this school (one place only), with a link to change it.
   const by = (await optional(api(`${A}/communication/features`), null))?.teachers?.attendance_by || "teacher";
   const WHO = { teacher: "المعلم في الحصة", admin: "الإدارة من هنا", gate: "بوابة الحضور الذكية" };
   const source = h("div", { class: "att-source" }, h("span", {}, "يسجل الحضور في مدرستك: ", h("b", {}, WHO[by]), " ",
     h("a", { href: "#/settings", class: "au-link", onclick: () => { try { sessionStorage.setItem("midar_settings_section", "teachers"); } catch { /* ignore */ } } }, "تغيير")),
-    btn("إجازة طارئة", () => emergencyHoliday(() => show()), "ghost sm"));
-  return [source, chips, box];
+    btn("إجازة طارئة", () => emergencyHoliday(() => openSection(state.section)), "ghost sm"));
+  return [source, sections, chips, box];
 }

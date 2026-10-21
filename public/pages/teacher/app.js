@@ -64,7 +64,7 @@ export async function startTeacher(offlineMe = null) {
     try { await api("/api/teacher/logout", {}); } catch { /* ignore */ }
     location.reload();
   };
-  const ctx = { me };
+  const ctx = { me, sections: list.filter(([key]) => key && key !== "home") };
   const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine, chat }, ctx,
     { primary: ["home", "attendance", "exams", "chat", "students", "homework", "timetable"] });
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };

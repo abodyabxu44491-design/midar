@@ -291,7 +291,11 @@ let toastTimer;
 export function toast(message, isError = false) {
   document.querySelector(".toast")?.remove();
   const el = h("div", { class: `toast${isError ? " err" : ""}`, role: isError ? "alert" : "status" }, message);
-  document.body.append(el);
+  // An open modal dialog sits in the browser's top layer, above anything in the page whatever its z-index, so the
+  // message goes inside the topmost open dialog (and back to the page if that dialog closes while it is showing).
+  const top = [...document.querySelectorAll("dialog[open]")].at(-1);
+  (top || document.body).append(el);
+  top?.addEventListener("close", () => { if (el.parentNode === top) document.body.append(el); }, { once: true });
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.remove(), isError ? 6000 : 3500);
 }

@@ -141,8 +141,10 @@ export function pushInvite({ key, save, title = "فعّل إشعارات مدا�
   (async () => {
     const st = await pushStatus();
     if (st === "on") { refreshPush(save).catch(() => {}); return; }
-    if (!force && safe(() => localStorage.getItem(DISMISS), null)) return;
-    const close = () => { box.hidden = true; safe(() => localStorage.setItem(DISMISS, "1")); };
+    // "Later" hides the invitation for a week, not for good.
+    const until = Number(safe(() => localStorage.getItem(DISMISS), 0)) || 0;
+    if (!force && until > Date.now()) return;
+    const close = () => { box.hidden = true; safe(() => localStorage.setItem(DISMISS, String(Date.now() + 7 * 86400000))); };
     const head = h("div", { class: "pi-head" }, h("span", { class: "pi-ic" }, icons.bell({ size: 22 })), h("b", {}, title));
     let body;
     if (st === "off") {
@@ -220,7 +222,16 @@ export function notificationsBell(base, go) {
     const d = dialog("الإشعارات", h("div", { class: "inbox-dialog" }, pushInvite({ key: data.push.key, save }), view),
       [btn("الإشعارات", showList, "ghost"), btn("الإعدادات", showSettings, "ghost")]);
   };
-  refresh();
+  // After sign-in, a one-time card on the page itself (not hidden inside the bell) offers phone notifications, so they
+  // arrive even with the app closed. It disappears once enabled or dismissed.
+  refresh().then(() => {
+    if (!data?.push?.key || document.querySelector(".push-float")) return;
+    const card = pushInvite({ key: data.push.key, save, title: "فعّل الإشعارات على هذا الجهاز",
+      text: "تصلك التنبيهات المهمة على الجوال أو الكمبيوتر فورًا، حتى والتطبيق مغلق.", onDone: () => wrap.remove() });
+    const wrap = h("div", { class: "push-float" }, card);
+    new MutationObserver(() => { if (card.hidden && card.childElementCount) wrap.remove(); }).observe(card, { attributes: true, attributeFilter: ["hidden"] });
+    document.body.append(wrap);
+  });
   setTimeout(() => { if (data?.push?.key) refreshPush(save).catch(() => {}); }, 3000);
   setInterval(() => { if (!document.hidden) refresh(); }, 45_000);
   document.addEventListener("midar:push", () => refresh());

@@ -14,6 +14,8 @@ import { logEvent } from "../../core/audit.js";
 import { env } from "../../config/env.js";
 import { ownerMfa } from "./auth.js";
 import { checkOwnerFactor, newRecoveryCodes, recoveryLeft } from "../../core/auth/owner-mfa.js";
+import { pushPublicKey } from "../shared/notify.service.js";
+import { subscriptionSchema } from "../shared/notifications.routes.js";
 
 const r = Router();
 const platform = (req) => ({ actor: req.actor, ip: req.ip, platform: true });
@@ -30,7 +32,9 @@ r.get("/", handle(async (req, res) => {
       `SELECT a.id, a.created_at, a.severity, a.kind, a.title, a.detail, a.tenant_id, t.name AS school, a.seen_at
          FROM security_alerts a LEFT JOIN tenants t ON t.id = a.tenant_id ORDER BY a.id DESC LIMIT 200`);
     const [{ unseen }] = await q("SELECT count(*)::int AS unseen FROM security_alerts WHERE seen_at IS NULL AND severity <> 'info'");
-    return { mfa: mfa ? { source: mfa.source, enrolled_at: mfa.enrolled_at || null } : null, recovery_left: await recoveryLeft(q), sessions, devices, alerts, unseen };
+    const [{ n: pushDevices }] = await q("SELECT count(*)::int AS n FROM owner_push_subscriptions");
+    return { mfa: mfa ? { source: mfa.source, enrolled_at: mfa.enrolled_at || null } : null, recovery_left: await recoveryLeft(q), sessions, devices, alerts, unseen,
+      push: { key: pushPublicKey(), devices: pushDevices } };
   });
   res.json({ ...out, ip_allowlist: env.ownerIps.length > 0, alert_email: Boolean(env.OWNER_ALERT_EMAIL) });
 }));
@@ -59,6 +63,22 @@ r.post("/recovery-codes", handle(async (req, res) => {
     return newRecoveryCodes(q);
   });
   res.json({ recovery_codes: codes });
+}));
+
+// Phone notifications on this device for the owner (security alerts and new requests).
+r.get("/push", handle(async (req, res) => res.json({ key: pushPublicKey() })));
+r.post("/push", handle(async (req, res) => {
+  const sub = parse(subscriptionSchema, req.body);
+  await transaction(platform(req), (q) => q(
+    `INSERT INTO owner_push_subscriptions (endpoint, p256dh, auth, user_agent) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, failures = 0`,
+    [sub.endpoint, sub.keys.p256dh, sub.keys.auth, String(req.get("user-agent") || "").slice(0, 300) || null]));
+  res.json({ ok: true });
+}));
+r.post("/push/remove", handle(async (req, res) => {
+  const { endpoint } = parse(z.object({ endpoint: z.string().max(1000) }), req.body);
+  await transaction(platform(req), (q) => q("DELETE FROM owner_push_subscriptions WHERE endpoint = $1", [endpoint]));
+  res.json({ ok: true });
 }));
 
 // Ends every owner session except this one (a lost phone, a shared computer, a suspicion).

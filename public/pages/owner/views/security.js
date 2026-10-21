@@ -9,6 +9,8 @@ import { h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { panel, btn, empty, badge, sub, toast, notice, confirmAction, dialog, field, input } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
+import { pushToggle } from "/shared/js/inbox.js";
+import { needsInstallFirst } from "/shared/js/push.js";
 
 const API = "/api/owner/security";
 const SEV = { high: ["مهم", "red"], medium: ["متوسط", "amber"], info: ["للعلم", "gray"] };
@@ -31,6 +33,11 @@ export default async function security({ refresh }) {
         h("li", {}, d.ip_allowlist ? "الدخول مقصور على عناوين محددة (OWNER_ALLOWED_IPS)." : "الدخول متاح من أي عنوان. لتقييده أضف OWNER_ALLOWED_IPS في إعدادات الخادم."),
         h("li", {}, d.alert_email ? "التنبيهات المهمة تُرسل إلى بريدك أيضًا." : "لإرسال التنبيهات المهمة إلى بريدك أضف OWNER_ALERT_EMAIL في إعدادات الخادم."),
         h("li", {}, "أي دخول من جهاز جديد يظهر هنا كتنبيه مهم."))),
+    panel("الإشعارات على الجوال", null,
+      sub("تصلك التنبيهات الأمنية المهمة والطلبات الجديدة على هذا الجهاز فورًا، حتى ولوحة المالك مغلقة."),
+      d.push.devices ? sub(`مفعّلة على ${d.push.devices === 1 ? "جهاز واحد" : `${d.push.devices} أجهزة`}.`) : null,
+      pushToggle({ key: d.push.key, save: (s) => api(`${API}/push`, s), remove: (endpoint) => api(`${API}/push/remove`, { endpoint }) }),
+      needsInstallFirst() ? notice("على الآيفون: ثبّت لوحة المالك على الشاشة الرئيسية من زر المشاركة، ثم افتحها من الأيقونة وفعّل الإشعارات.", "") : null),
     panel("الرموز الاحتياطية", null,
       sub("للدخول عندما لا يكون جوال تطبيق المصادقة معك: اكتب رمزًا منها بدل الأرقام الستة. كل رمز يعمل مرة واحدة."),
       d.recovery_left

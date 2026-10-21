@@ -5,13 +5,13 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, empty, notice, btn, sub } from "../../shared/js/ui.js";
+import { panel, empty, notice, btn, sub, dialog, toast } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { shows } from "../prefs.js";
 
 export const myClasses = (me) => [...new Map(me.load.map((l) => [l.class_id, { id: l.class_id, name: l.class_name }])).values()];
 
-export default function home({ me, goTo }) {
+export default function home({ me, goTo, sections = [] }) {
   const initial = String(me.name || "؟").replace(/^(أ\.|د\.|م\.)\s*/, "").trim().charAt(0);
   const firstName = String(me.name || "").replace(/^(أ\.|د\.|م\.)\s*/, "").split(" ")[0];
   const classes = myClasses(me);
@@ -53,7 +53,7 @@ export default function home({ me, goTo }) {
       h("div", { class: "dash-hello-text" }, h("h2", {}, `أهلًا، أ. ${firstName}`),
         h("p", {}, [dateLabel, me.academic ? `${me.academic.year_name} — ${me.academic.term_name || "لم يُحدد فصل دراسي"}` : null].filter(Boolean).join(" · ")))),
     hero,
-    quickActs(me, go, unread),
+    quickActs(me, sections, go, unread),
     todayPanel,
     panel("فصولي", null, classes.length
       ? h("div", { class: "class-tiles" }, classes.map((c) => h("div", { class: "class-tile" },
@@ -66,17 +66,52 @@ export default function home({ me, goTo }) {
   ];
 }
 
-// The daily work as four large buttons, so a teacher never has to look for it in the menu.
-function quickActs(me, go, unread) {
-  const act = (icon, text, tone, key, extra = null) => h("button", { type: "button", class: `quick-act ${tone}`, onclick: () => go(key) },
-    h("span", { class: "qa-ic" }, icons[icon]({ size: 20 }), extra), text);
-  const list = [
-    shows(me, "attendance") ? act("check", "تسجيل الحضور", "teal", "attendance") : null,
-    shows(me, "exams") ? act("edit", "رصد الدرجات", "navy", "exams") : null,
-    shows(me, "homework") ? act("book", "الواجبات", "violet", "homework") : null,
-    shows(me, "chat") ? act("message", "الرسائل", "red", "chat", unread) : null,
-    shows(me, "students", null) ? act("users", "طلابي", "teal", "students") : null,
-    shows(me, "timetable") ? act("calendar", "جدولي", "navy", "timetable") : null,
-  ].filter(Boolean).slice(0, 4);
-  return h("div", { class: "quick-acts t-acts" }, list);
+// The daily work as four large buttons, so a teacher never has to look for it in the menu. The teacher picks which
+// four and in what order; the choice is kept on this device.
+const ICON = { attendance: "check", exams: "edit", chat: "message", students: "users", behavior: "star", homework: "book", timetable: "calendar",
+  papers: "file", lessons: "clipboard", announcements: "megaphone", calendar: "calendar", meetings: "clock", surveys: "poll", me: "briefcase", account: "user" };
+const TONES = ["teal", "navy", "violet", "red"];
+const DEFAULT = ["attendance", "exams", "homework", "chat", "students", "timetable"];
+const storeKey = (me) => `midar_teacher_shortcuts_${me.school?.id}_${me.user_id}`;
+const saved = (me) => { try { return JSON.parse(localStorage.getItem(storeKey(me)) || "null"); } catch { return null; } };
+
+function quickActs(me, sections, go, unread) {
+  const label = Object.fromEntries(sections);
+  const pick = () => {
+    const mine = (saved(me) || []).filter((k) => label[k]);
+    const rest = DEFAULT.filter((k) => label[k] && !mine.includes(k));
+    return [...mine, ...rest, ...sections.map(([k]) => k).filter((k) => !mine.includes(k) && !rest.includes(k))].slice(0, 4);
+  };
+  const box = h("div", { class: "quick-acts t-acts" });
+  const paint = () => mount(box, pick().map((key, i) => h("button", { type: "button", class: `quick-act ${TONES[i % 4]}`, onclick: () => go(key) },
+    h("span", { class: "qa-ic" }, icons[ICON[key] || "grid"]({ size: 20 }), key === "chat" ? unread : null), label[key])));
+  paint();
+  const edit = () => {
+    let chosen = pick();
+    const list = h("div", { class: "sc-list" });
+    const draw = () => mount(list, sections.map(([key, text]) => {
+      const n = chosen.indexOf(key);
+      return h("button", { type: "button", class: `sc-item${n >= 0 ? " on" : ""}`, "aria-pressed": String(n >= 0),
+        onclick: () => {
+          if (n >= 0) chosen.splice(n, 1);
+          else if (chosen.length >= 4) { toast("اختر 4 اختصارات فقط. أزل واحدًا أولًا."); return; }
+          else chosen.push(key);
+          draw();
+        } },
+        h("span", { class: "sc-ic" }, icons[ICON[key] || "grid"]({ size: 18 })), h("span", { class: "sc-t" }, text),
+        h("span", { class: "sc-n" }, n >= 0 ? String(n + 1) : ""));
+    }));
+    draw();
+    const d = dialog("اختصارات الرئيسية", h("div", {}, sub("اختر 4 أقسام بالترتيب الذي تريده. الرقم يبين مكان الاختصار."), list), [
+      btn("حفظ", () => {
+        const need = Math.min(4, sections.length);
+        if (chosen.length !== need) { toast(`اختر ${need} اختصارات`, true); return; }
+        try { localStorage.setItem(storeKey(me), JSON.stringify(chosen)); } catch { /* private mode: kept for this visit only */ }
+        d.close(); paint(); toast("حُفظت الاختصارات");
+      }),
+      btn("الافتراضي", () => { chosen = DEFAULT.filter((k) => label[k]).slice(0, 4); draw(); }, "ghost")]);
+  };
+  return h("section", { class: "t-shortcuts" },
+    h("div", { class: "t-sc-head" }, h("b", {}, "اختصاراتي"), h("button", { type: "button", class: "link", onclick: edit }, "تعديل")),
+    box);
 }

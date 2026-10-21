@@ -193,6 +193,7 @@ const realTransport = {
 let transport = realTransport;
 export const setTransport = (t) => { transport = t ? { ...realTransport, ...t } : realTransport; };
 export const sendRaw = (gateway, msg) => transport.sms(gateway, msg);
+export const sendPush = (sub, payload) => transport.push(sub, payload);
 
 const GSM = /^[A-Za-z0-9 \r\n@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/;
 export function smsSegments(text) {
