@@ -380,9 +380,10 @@ export async function resetStart(b, ip) {
   const mail = normEmail(b.email);
   const issued = await platform("زائر", ip, async (q) => {
     const [a] = await q("SELECT id FROM accounts WHERE lower(email) = $1 AND disabled_at IS NULL AND email_verified_at IS NOT NULL", [mail]);
-    return a ? issueCode(q, "reset", mail, { accountId: a.id }) : null;
+    if (!a) throw notFound("هذا البريد غير مسجّل في مدار. تأكد من كتابته، أو استخدم البريد الذي أنشأت به حسابك.");
+    return issueCode(q, "reset", mail, { accountId: a.id });
   });
-  if (issued) await deliver(issued.id, codeMail({ to: mail, title: "استعادة كلمة المرور", intro: "استخدم هذا الرمز لتعيين كلمة مرور جديدة لحسابك في مدار.", code: issued.code, minutes: CODE_MINUTES }));
+  await deliver(issued.id, codeMail({ to: mail, title: "استعادة كلمة المرور", intro: "استخدم هذا الرمز لتعيين كلمة مرور جديدة لحسابك في مدار.", code: issued.code, minutes: CODE_MINUTES }));
   return { sent: true, resend_in: RESEND_SECONDS, expires_minutes: CODE_MINUTES };
 }
 
