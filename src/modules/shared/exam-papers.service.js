@@ -49,12 +49,12 @@ const meta = {
   term_id: t.optId,
   exam_type: t.shortText("نوع الاختبار", 60).default("اختبار قصير"),
   exam_date: t.optDate,
-  duration_min: z.union([z.coerce.number().int().min(1).max(600), z.literal(""), z.null()]).optional()
+  duration_min: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(600)]).optional()
     .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
-  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional()
+  total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional()
     .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
   instructions: t.optText(3000),
-  expected_pages: z.union([z.coerce.number().int().min(1).max(50), z.literal(""), z.null()]).optional()
+  expected_pages: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(50)]).optional()
     .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
   versions: z.coerce.number().int().min(1).max(4).optional(),
   shuffle_questions: z.boolean().optional(),
@@ -354,7 +354,7 @@ export const copySchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
   mode: z.enum(["same", "bank"]).default("same"),
   shuffle: z.boolean().default(false),
-  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional(),
+  total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional(),
   exam_date: t.optDate,
   class_id: t.optId,
 });
@@ -474,7 +474,7 @@ export const fromBankSchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
   subject_id: t.id, class_id: t.optId, grade_id: t.optId,
   exam_type: z.string().trim().min(2).max(60).default("اختبار قصير"),
-  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional(),
+  total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional(),
   exam_date: t.optDate,
   difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
   unit: z.string().trim().max(120).optional().nullable(),

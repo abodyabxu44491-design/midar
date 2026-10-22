@@ -16,12 +16,12 @@ const leadSchema = z.object({
   phone: z.string().trim().regex(/^[0-9+ ]{6,20}$/, "رقم الجوال غير صحيح"),
   email: z.string().trim().email("البريد غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
   city: t.optText(60),
-  students_count: z.union([z.coerce.number().int().min(1).max(100000), z.literal(""), z.null()]).optional().transform((v) => v || null),
+  students_count: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(100000)]).optional().transform((v) => v || null),
   note: t.optText(1000),
   kind: z.enum(["trial", "subscription", "contact"]).default("trial"),
-  plan_id: z.union([z.coerce.number().int().positive(), z.literal(""), z.null()]).optional().transform((v) => v || null),
+  plan_id: z.union([z.literal(""), z.null(), z.coerce.number().int().positive()]).optional().transform((v) => v || null),
   billing_cycle: z.union([z.enum(["monthly", "yearly"]), z.literal(""), z.null()]).optional(),
-  months: z.union([z.coerce.number().int().min(1).max(36), z.literal(""), z.null()]).optional().transform((v) => v || null),
+  months: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(36)]).optional().transform((v) => v || null),
   try_plan: z.boolean().nullable().optional().transform((v) => v ?? true),
   addon_keys: z.array(z.string().max(40)).max(30).nullable().optional().transform((v) => v ?? []),
   details: z.object({
@@ -34,7 +34,7 @@ const leadSchema = z.object({
     website: z.string().trim().url("رابط الموقع غير صحيح").max(200).optional().or(z.literal("")).transform((v) => v || null),
     license_no: t.optText(60),
     stages: z.array(z.enum(["kg", "primary", "middle", "secondary"])).max(4).optional(),
-    classes_count: z.union([z.coerce.number().int().min(1).max(2000), z.literal(""), z.null()]).optional().transform((v) => v || null),
+    classes_count: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(2000)]).optional().transform((v) => v || null),
     academic_year: t.optText(20),
     manager: z.object({
       first: t.optText(40), second: t.optText(40), third: t.optText(40), family: t.optText(40),
@@ -51,7 +51,7 @@ function normalize(b) {
 
 const STATUS = {
   new: "وصل طلبك وينتظر المراجعة", reviewing: "قيد المراجعة، وسنتواصل معك قريبًا", approved: "تمت الموافقة، ونجهّز مدرستك",
-  awaiting_payment: "بانتظار إتمام الدفع", active: "مدرستك جاهزة، ووصلكم رابط التفعيل", rejected: "اعتذرنا عن الطلب",
+  awaiting_payment: "بانتظار إتمام الدفع", active: "مدرستك جاهزة، وأرسلنا لكم رابط دخولها", rejected: "اعتذرنا عن الطلب",
   canceled: "أُلغي الطلب", expired: "انتهت صلاحية الطلب",
 };
 const KIND = { trial: "تجربة مجانية", subscription: "اشتراك", contact: "رسالة تواصل" };

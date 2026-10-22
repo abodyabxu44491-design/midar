@@ -14,6 +14,8 @@ import { fmtDate } from "./format.js";
 
 export const inst = { base: "/api/admin/institute", meta: null };
 export const T = (k) => inst.meta?.settings?.terms?.[k] || k;
+// The plural after a preposition or a possessive («كل المتدربين»): sound masculine plurals take -ين.
+export const Tg = (k) => T(k).replace(/ون$/, "ين");
 export const L = (group, k) => inst.meta?.labels?.[group]?.[k] || k;
 export const has = (cap) => (inst.meta?.caps || []).includes(cap);
 export async function loadMeta(base) {
@@ -71,7 +73,7 @@ export async function attendanceDialog(sessionId, { onSaved } = {}) {
           onclick: () => { v.status = k; draw(); },
         }, l))),
         v.status === "late" ? late : null);
-    }) : empty(`لا يوجد ${T("trainees")} في هذه ${T("session")}.`));
+    }) : empty(`ليس هناك أي ${T("trainee")} في هذه ${T("session")}.`));
   };
   draw();
   const locked = ["canceled", "rescheduled"].includes(s.status);
@@ -111,7 +113,7 @@ export function scoresDialog(assessment, roster, { grading, onSaved } = {}) {
   }));
   const dd = dialog(`رصد: ${assessment.name}`, h("div", {},
     sub(`${L("assess_kind", assessment.kind)}${grading === "score" ? ` · الوزن ${num(assessment.weight)}%` : ""}`),
-    rows.length ? body : empty(`لا يوجد ${T("trainees")}.`), field("سبب التعديل", reason, "مطلوب فقط عند تغيير درجة سبق رصدها")), [
+    rows.length ? body : empty(`ليس هناك أي ${T("trainee")}.`), field("سبب التعديل", reason, "مطلوب فقط عند تغيير درجة سبق رصدها")), [
     btn("حفظ الدرجات", async () => {
       const scores = [...values.entries()].map(([id, v]) => ({ enrollment_id: id, ...(grading === "pass_fail" ? { passed: v.passed } : { score: v.score }) }));
       if (!scores.length) return dd.close();

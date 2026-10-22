@@ -11,9 +11,9 @@ import { syncCatalog, applyPlanChange } from "../shared/subscription.service.js"
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
-const money = z.union([z.coerce.number().min(0).max(10_000_000), z.literal(""), z.null()]).optional()
+const money = z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(10_000_000)]).optional()
   .transform((v) => (v === "" ? null : v));
-const optInt = (max) => z.union([z.coerce.number().int().min(1).max(max), z.literal(""), z.null()]).optional()
+const optInt = (max) => z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(max)]).optional()
   .transform((v) => (v === "" ? null : v));
 
 const featureSchema = z.object({

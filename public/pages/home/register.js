@@ -191,7 +191,7 @@ export function registerDialog(site, { kind = "trial", plan = null, cycle = "yea
         h("h3", {}, "وصلنا طلبك"),
         h("div", { class: "rg-no" }, h("span", {}, "رقم الطلب"), h("b", { dir: "ltr" }, `#${r.id}`)),
         h("p", {}, `حالة الطلب: ${r.status_label}`),
-        h("p", { class: "muted" }, kind === "trial" ? "نراجع الطلب ونتواصل معك، ثم يصلك رابط تفعيل الحساب." : "نتواصل معك لإتمام الاشتراك."),
+        h("p", { class: "muted" }, kind === "trial" ? "نراجع الطلب ونتواصل معك، ثم يصلك رابط دخول مدرستك." : "نتواصل معك لإتمام الاشتراك."),
         h("p", { class: "muted" }, "احفظ رقم الطلب، وتابع حالته في أي وقت من «متابعة طلب» برقم الطلب وجوالك."),
         h("button", { type: "button", class: "rg-btn pri", onclick: () => d.close() }, "تم")));
     } catch (e) { mount(msg, e.message); next.disabled = false; }

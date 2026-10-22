@@ -114,7 +114,7 @@ export const pushSchema = z.object({
 const attPayload = z.object({ student_id: t.id, day: t.date, status: z.enum(attendance.STATUSES), reason: t.optText(300), excuse: t.optText(200) });
 const scorePayload = z.object({
   exam_id: t.id, student_id: t.id,
-  score: z.union([z.coerce.number().min(0).max(1000), z.null()]),
+  score: z.union([z.null(), z.coerce.number().min(0).max(1000)]),
 });
 
 async function registerDevice(q, deviceId, user, req) {

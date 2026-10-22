@@ -12,7 +12,7 @@ import { icons } from "../../shared/js/icons.js";
 import { resultsApproval } from "../../shared/js/results-approval.js";
 import { designsView } from "../../shared/js/cert-designer.js";
 import { money, fmtDate, fmtDateTime, today, METHODS } from "../../shared/js/format.js";
-import { inst, T, L, has, courseBadge, enrollBadge, num, pct, bar, progressBlock, attendanceDialog, scoresDialog, printCertificates,
+import { inst, T, Tg, L, has, courseBadge, enrollBadge, num, pct, bar, progressBlock, attendanceDialog, scoresDialog, printCertificates,
   reportTable, printReport, textareaField } from "../../shared/js/institute-ui.js";
 
 const I = () => inst.base;
@@ -37,7 +37,7 @@ export async function dashboard({ goTo }) {
   return [
     h("section", { class: "in-hero" }, h("div", {}, h("h2", {}, `مرحبًا بك في لوحة المعهد`), sub(`${fmtDate(today())} · ${d.sessions_today} ${T("session")} اليوم`))),
     kpiGrid(
-      kpiCard({ icon: "users", label: `إجمالي ${T("trainees")}`, value: num(d.trainees), note: `النشطون ${num(d.active_trainees)}`, onClick: () => goTo("trainees") }),
+      kpiCard({ icon: "users", label: T("trainees"), value: num(d.trainees), note: `النشطون ${num(d.active_trainees)}`, onClick: () => goTo("trainees") }),
       kpiCard({ icon: "clipboard", tone: "violet", label: `${T("courses")} الجارية`, value: num(d.running), note: `القادمة ${num(d.upcoming)} · المكتملة ${num(d.completed)}`, onClick: () => goTo("courses") }),
       kpiCard({ icon: "check", tone: d.low_attendance ? "amber" : "teal", label: "متوسط الحضور", value: pct(d.attendance_avg), ratio: (d.attendance_avg ?? 0) / 100,
         note: d.low_attendance ? `${d.low_attendance} دون الحد المطلوب` : "لا أحد دون الحد" }),
@@ -48,11 +48,11 @@ export async function dashboard({ goTo }) {
       panel(`${T("sessions")} اليوم`, btn("الجدول", () => goTo("sessions"), "ghost sm"),
         d.today.length ? h("div", { class: "in-list" }, d.today.map((s) => h("button", { type: "button", class: "in-item", onclick: () => attendanceDialog(s.id) },
           h("div", {}, h("b", {}, s.course), sub([s.group_name, s.trainer, s.starts_at ? s.starts_at.slice(0, 5) : null, `${num(s.hours)} س`].filter(Boolean).join(" · "))),
-          badge(s.status === "held" ? "سُجل الحضور" : "تسجيل الحضور", s.status === "held" ? "" : "blue")))) : empty(`لا توجد ${T("sessions")} اليوم.`)),
+          badge(s.status === "held" ? "سُجل الحضور" : "تسجيل الحضور", s.status === "held" ? "" : "blue")))) : empty(`ليس هناك أي ${T("session")} اليوم.`)),
       panel(`${T("courses")} الجارية`, btn("الكل", () => goTo("courses"), "ghost sm"),
         d.running_courses.length ? h("div", { class: "in-list" }, d.running_courses.map((c) => h("button", { type: "button", class: "in-item", onclick: () => courseFile(c.id) },
           h("div", { style: "flex:1;min-width:0" }, h("b", {}, c.name), sub(`${c.trainer || "بلا مدرب"} · ${num(c.held_hours)} من ${num(c.hours)} ساعة`), bar(c.held_hours, c.hours)),
-          h("small", { class: "in-count" }, `${c.enrolled}${c.seats ? `/${c.seats}` : ""}`)))) : empty(`لا توجد ${T("courses")} جارية.`))),
+          h("small", { class: "in-count" }, `${c.enrolled}${c.seats ? `/${c.seats}` : ""}`)))) : empty(`ليس هناك أي ${T("course")} جارية.`))),
   ];
 }
 
@@ -69,9 +69,9 @@ export async function trainees({ refresh }) {
       onkeydown: (e) => e.key === "Enter" && traineeFile(s.id, refresh) },
       h("header", {}, h("span", { class: "in-av" }, icons.user({ size: 18 })), h("div", { class: "in-id" }, h("b", {}, s.full_name),
         h("small", { dir: "ltr" }, [s.student_no, s.student_phone].filter(Boolean).join(" · "))), badge(L("trainee_status", s.status), s.status === "active" ? "" : "gray")),
-      h("p", { class: "in-line" }, s.current_courses || `لا ${T("courses")} حالية`),
+      h("p", { class: "in-line" }, s.current_courses || `ليس له أي ${T("course")} حالية`),
       h("footer", {}, h("span", {}, `${s.courses} ${T("course")} · أكمل ${s.completed}`), h("span", {}, `منذ ${fmtDate(s.enrolled_on || s.created_at)}`))))
-      : empty(`لا يوجد ${T("trainees")} مطابقون.`));
+      : empty(`ليس هناك أي ${T("trainee")} مطابق.`));
   };
   q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(load, 300); });
   status.addEventListener("change", load);
@@ -217,7 +217,7 @@ async function enrollDialog({ student = null, course = null, onDone }) {
     feeNote.textContent = `رسوم ${T("course")}: ${money(d.course.fee)} — تُحفظ للمتدرب كما هي ولا تتأثر بتعديلها لاحقًا.`;
   };
   cSel.addEventListener("change", syncGroups);
-  if (!open.length) return toast(`لا توجد ${T("courses")} مفتوحة للتسجيل`, true);
+  if (!open.length) return toast(`ليس هناك أي ${T("course")} مفتوحة للتسجيل`, true);
   syncGroups();
   const dd = dialog(`تسجيل في ${T("course")}`, h("div", {},
     student ? sub(`${T("trainee")}: ${student.full_name}`) : field(T("trainee"), sSel),
@@ -343,7 +343,7 @@ export async function programs({ refresh }) {
       p.description ? h("p", { class: "in-line" }, p.description) : null,
       h("footer", {}, h("span", {}, `${p.courses} ${T("course")} · ${num(p.hours)} ساعة`), h("span", {}, p.department || "")),
       has("catalog") ? h("div", { class: "in-acts" }, btn("تعديل", () => programForm(p, refresh), "ghost sm")) : null)))
-      : empty(`لا توجد ${T("programs")} بعد. البرنامج يجمع عدة ${T("courses")} تحت مسار واحد.`));
+      : empty(`ليس هناك أي ${T("program")} بعد، ويجمع كل ${T("program")} أكثر من ${T("course")} تحت مسار واحد.`));
 }
 function programForm(p, refresh) {
   const f = { code: input({ value: p?.code || "", dir: "ltr", placeholder: "WEB" }), name: input({ value: p?.name || "" }), department: input({ value: p?.department || "" }),
@@ -375,7 +375,7 @@ export async function courses({ refresh }) {
         h("div", {}, h("small", {}, "المقاعد"), h("b", {}, c.seats ? `${c.enrolled} من ${c.seats}` : `${c.enrolled}`), c.seats ? bar(c.enrolled, c.seats, c.enrolled >= c.seats ? "warn" : "") : null),
         h("div", {}, h("small", {}, "الساعات المنفذة"), h("b", {}, `${num(c.held_hours)} من ${num(c.hours)}`), bar(c.held_hours, c.hours))),
       h("footer", {}, h("span", {}, c.starts_on ? `${fmtDate(c.starts_on)}${c.ends_on ? ` ← ${fmtDate(c.ends_on)}` : ""}` : "بدون موعد"), h("span", {}, Number(c.fee) ? money(c.fee) : "مجانية"))))
-      : empty(list.length ? `لا توجد ${T("courses")} مطابقة.` : `لا توجد ${T("courses")} بعد. أنشئ أول ${T("course")}.`));
+      : empty(list.length ? `ليس هناك أي ${T("course")} مطابقة.` : `ليس هناك أي ${T("course")} بعد. أنشئ أول ${T("course")}.`));
   };
   for (const el of [st, pr]) el.addEventListener("change", draw);
   q.addEventListener("input", draw);
@@ -456,7 +456,7 @@ export async function courseFile(id, refresh) {
             g.seats ? bar(g.enrolled, g.seats, g.enrolled >= g.seats ? "warn" : "") : null),
           has("catalog") ? h("div", { class: "row", style: "flex:none;gap:6px" }, btn("تعديل", () => groupForm(c, g, again("groups")), "ghost sm"),
             btn("حذف", async () => { if (!confirmAction(`حذف ${g.name}؟`)) return; try { await api(`${I()}/courses/${c.id}/groups/${g.id}`, undefined, "DELETE"); again("groups")(); } catch (e) { toast(e.message, true); } }, "ghost sm danger")) : null)))
-          : empty(`لا توجد ${T("groups")}. يمكن تقسيم ${T("trainees")} إلى ${T("groups")} لكل منها ${T("trainer")} وجدول.`),
+          : empty(`ليس هناك أي ${T("group")}. يمكن تقسيم ${Tg("trainees")} إلى أكثر من ${T("group")}، لكل منها ${T("trainer")} وجدول.`),
         has("catalog") ? btn(`+ ${T("group")}`, () => groupForm(c, null, again("groups"))) : null],
       trainees: () => [
         has("enroll") ? h("div", { class: "row", style: "justify-content:flex-start;gap:8px;margin-bottom:10px" },
@@ -466,10 +466,10 @@ export async function courseFile(id, refresh) {
           h("div", { class: "in-ros-m" }, h("small", {}, "الحضور"), h("b", { class: e.progress.low_attendance ? "danger-text" : "" }, pct(e.progress.attendance_pct))),
           h("div", { class: "in-ros-m" }, h("small", {}, c.grading === "score" ? "النتيجة" : "التقييمات"), h("b", {}, c.grading === "score" ? pct(e.progress.final_score)
             : `${e.progress.items.filter((x) => x.passed).length}/${e.progress.items.length}`)),
-          enrollBadge(e.status)))) : empty(`لا يوجد ${T("trainees")} مسجلون.`)],
+          enrollBadge(e.status)))) : empty(`ليس هناك أي ${T("trainee")} مسجل.`)],
       sessions: () => [
         has("teach") ? btn(`+ ${T("session")}`, () => sessionForm(c, d.groups, again("sessions"))) : null,
-        d.sessions.length ? h("div", { class: "in-list" }, d.sessions.map((s) => sessionRow(s, again("sessions")))) : empty(`لا توجد ${T("sessions")} بعد.`)],
+        d.sessions.length ? h("div", { class: "in-list" }, d.sessions.map((s) => sessionRow(s, again("sessions")))) : empty(`ليس هناك أي ${T("session")} بعد.`)],
       assessments: () => [
         sub(c.grading === "score" ? `مجموع الأوزان ${num(d.assessments.reduce((t, a) => t + Number(a.weight), 0))}% من 100%` : "كل تقييم يُرصد باجتياز أو عدم اجتياز."),
         d.assessments.length ? h("div", { class: "in-list" }, d.assessments.map((a) => h("div", { class: "in-item" },
@@ -564,7 +564,7 @@ function sessionActions(s, again) {
 }
 async function sessionForm(c, groups, again) {
   const trainers = await trainerOptions(`حسب ${T("group")} أو ${T("course")}`);
-  const f = { group_id: select([["", `كل ${T("trainees")}`], ...groups.map((g) => [g.id, g.name])]), trainer_id: select(trainers),
+  const f = { group_id: select([["", `كل ${Tg("trainees")}`], ...groups.map((g) => [g.id, g.name])]), trainer_id: select(trainers),
     day: input({ type: "date", value: today() }), starts_at: input({ type: "time" }), hours: input({ type: "number", min: 0.5, step: 0.5, value: 2 }),
     mode: select([["onsite", "حضوري"], ["remote", "عن بُعد"]], { value: c.mode === "remote" ? "remote" : "onsite" }), topic: input(),
     repeat_weeks: input({ type: "number", min: 1, max: 52, value: 1 }) };
@@ -595,7 +595,7 @@ export async function trainers({ refresh }) {
       h("div", { class: "in-mini" }, h("div", {}, h("small", {}, `${T("courses")} الحالية`), h("b", {}, num(t.active_courses))),
         h("div", {}, h("small", {}, "ساعات منفذة"), h("b", {}, num(t.held_hours))), h("div", {}, h("small", {}, "قادمة"), h("b", {}, num(t.upcoming)))),
       h("footer", {}, h("span", { dir: "ltr" }, t.username ? `@${t.username}` : "بلا حساب"), h("span", { dir: "ltr" }, t.phone || "")))))
-      : empty(`لا يوجد ${T("trainers")}. أضف ${T("trainer")} لتسند له ${T("courses")} و${T("groups")}.`));
+      : empty(`ليس هناك أي ${T("trainer")}. أضف ${T("trainer")} لتسند له ${T("courses")} و${T("groups")}.`));
 }
 function trainerForm(refresh) {
   const f = { name: input(), username: input({ dir: "ltr", placeholder: "sami" }), phone: input({ type: "tel", dir: "ltr" }), specialty: input(), qualification: input(), email: input({ type: "email", dir: "ltr" }) };
@@ -638,7 +638,7 @@ export async function sessions({ refresh }) {
     mount(box, days.length ? days.map((d) => h("section", { class: `in-day${d === today() ? " now" : ""}` },
       h("h4", {}, new Date(`${d}T12:00:00`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { weekday: "long", day: "numeric", month: "long" }), d === today() ? badge("اليوم", "blue") : null),
       h("div", { class: "in-list" }, rows.filter((s) => String(s.day).slice(0, 10) === d).map((s) => sessionRow({ ...s, day: d }, load, { withCourse: true })))))
-      : empty(`لا توجد ${T("sessions")} في هذه الفترة. أضفها من ملف ${T("course")}.`));
+      : empty(`ليس هناك أي ${T("session")} في هذه الفترة. أضفها من ملف ${T("course")}.`));
   };
   for (const el of [from, to]) el.addEventListener("change", load);
   load();
@@ -719,7 +719,7 @@ export async function staff({ refresh }) {
   const ROLES = inst.meta.labels.staff_roles;
   return panel("الموظفون والصلاحيات", btn("+ موظف", () => staffForm(refresh), "sm"),
     h("div", { class: "in-roles" }, Object.entries({ director: "كل الأقسام والإعدادات", academic: `${T("programs")} و${T("courses")} و${T("trainees")} والنتائج والشهادات`,
-      registrar: `تسجيل ${T("trainees")} وإدارة الالتحاق`, reception: `الاطلاع وإضافة ${T("trainees")}` }).map(([k, v]) => h("div", {}, h("b", {}, ROLES[k]), h("small", {}, v))),
+      registrar: `التسجيل وإدارة الالتحاق بال${T("courses").replace(/^ال/, "")}`, reception: `الاطلاع، وإضافة ${T("trainee")} جديد` }).map(([k, v]) => h("div", {}, h("b", {}, ROLES[k]), h("small", {}, v))),
     h("div", {}, h("b", {}, "المحاسب"), h("small", {}, "الرسوم والمدفوعات والإيصالات والتقارير المالية")), h("div", {}, h("b", {}, T("trainer")), h("small", {}, `حضور وتقييمات ${T("courses")} المسندة إليه فقط`))),
     h("div", { class: "in-list" }, list.map((u) => h("div", { class: "in-item" },
       h("div", {}, h("b", {}, u.full_name), sub(`@${u.username} · ${u.role === "accountant" ? "المحاسب" : ROLES[u.staff_role || "director"]}${u.is_active ? "" : " · موقوف"}`)),

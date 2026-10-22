@@ -55,6 +55,8 @@ export async function mySubscription({ me, show }) {
   const expiredTrial = a.status === "trial_expired";
   const wa = d.support?.whatsapp ? `https://wa.me/${String(d.support.whatsapp).replace(/\D/g, "")}` : null;
   const reqMode = d.feature_request_mode;
+  // Periods shorter than a year are offered only when the plan has a monthly price.
+  const monthlyNow = !!d.plans.find((p) => p.name === s?.plan_name)?.monthly;
   const pct = (used, max) => (max ? Math.min(100, Math.round((used / max) * 100)) : 0);
   const usageRow = (label, used, max) => h("div", { style: "margin-bottom:8px" },
     h("div", { class: "row", style: "justify-content:space-between" }, h("span", {}, label), h("b", { style: "flex:none" }, `${used} / ${max ?? "مفتوح"}`)),
@@ -67,7 +69,7 @@ export async function mySubscription({ me, show }) {
       h("p", { class: "sub" }, "كل بيانات مدرستك محفوظة كما هي: الطلاب والمعلمون والدرجات والحضور والرسوم والإعدادات، وتعود للعمل فور التفعيل."),
       h("div", { class: "row", style: "justify-content:center;gap:8px" },
         d.plans.length ? btn(expiredTrial ? "اختر باقة للاستمرار" : "تجديد الاشتراك", () => document.getElementById("sub-plans")?.scrollIntoView({ behavior: "smooth" })) : null,
-        btn("طلب تجديد", () => requestDialog("renewal", {}, show), "soft"),
+        btn("طلب تجديد", () => requestDialog("renewal", { monthly: monthlyNow }, show), "soft"),
         wa ? h("a", { class: "btn ghost", href: wa, target: "_blank", rel: "noopener" }, "تواصل عبر واتساب") : null))
     : null;
 
@@ -82,7 +84,7 @@ export async function mySubscription({ me, show }) {
     usageRow("عدد الطلاب المستخدم", d.usage.students, s.max_students),
     usageRow("عدد المعلمين", d.usage.teachers, s.max_teachers),
     !locked ? h("div", { class: "row spaced", style: "justify-content:flex-start;flex-wrap:wrap" },
-      s.kind === "trial" ? btn("اشترك الآن", () => document.getElementById("sub-plans")?.scrollIntoView({ behavior: "smooth" })) : btn("تجديد الاشتراك", () => requestDialog("renewal", {}, show)),
+      s.kind === "trial" ? btn("اشترك الآن", () => document.getElementById("sub-plans")?.scrollIntoView({ behavior: "smooth" })) : btn("تجديد الاشتراك", () => requestDialog("renewal", { monthly: monthlyNow }, show)),
       btn("ترقية الباقة", () => document.getElementById("sub-plans")?.scrollIntoView({ behavior: "smooth" }), "soft"),
       btn("تواصل مع إدارة المنصة", () => requestDialog("contact", {}, show), "ghost")) : null) : null;
 
@@ -104,7 +106,7 @@ export async function mySubscription({ me, show }) {
         p.monthly ? h("div", {}, h("b", { style: "font-size:20px" }, Number(p.monthly.final).toLocaleString("ar")), ` ${CUR[p.currency]} شهريًا`) : null,
         p.yearly ? h("div", {}, h("b", {}, Number(p.yearly.final).toLocaleString("ar")), ` ${CUR[p.currency]} سنويًا`) : null),
       sub(`${p.max_students ? `حتى ${p.max_students} طالب` : "طلاب بلا حد"} — ${p.features.length} ميزة`),
-      btn(p.name === s?.plan_name ? "طلب تجديد" : "طلب هذه الباقة", () => requestDialog(p.name === s?.plan_name ? "renewal" : (s?.kind === "trial" || locked ? "subscription" : "upgrade"), { plan: p }, show),
+      btn(p.name === s?.plan_name ? "طلب تجديد" : "طلب هذه الباقة", () => requestDialog(p.name === s?.plan_name ? "renewal" : (s?.kind === "trial" || locked ? "subscription" : "upgrade"), { plan: p, monthly: !!p.monthly }, show),
         p.highlight ? "" : "soft"))))) : null;
 
   const requests = panel("طلباتك", null, d.requests.length ? d.requests.map((r) => line(
@@ -122,11 +124,11 @@ export async function mySubscription({ me, show }) {
   return [header, current, locked ? plans : null, features, locked ? null : plans, requests, history, support];
 }
 
-function requestDialog(kind, { feature, plan } = {}, show) {
+function requestDialog(kind, { feature, plan, monthly = false } = {}, show) {
   const title = { feature: `طلب ميزة: ${feature?.name}`, upgrade: plan ? `طلب ترقية إلى ${plan.name}` : "طلب ترقية الباقة", renewal: "طلب تجديد الاشتراك",
     subscription: plan ? `طلب اشتراك: ${plan.name}` : "طلب اشتراك", contact: "تواصل مع إدارة المنصة" }[kind];
-  const cycle = select([["yearly", "سنوي"], ["monthly", "شهري"]]);
-  const months = select([[12, "سنة"], [6, "6 أشهر"], [3, "3 أشهر"], [1, "شهر"]]);
+  const cycle = select([["yearly", "سنوي"], ...(monthly ? [["monthly", "شهري"]] : [])]);
+  const months = select([[12, "سنة"], ...(monthly ? [[6, "6 أشهر"], [3, "3 أشهر"], [1, "شهر"]] : [])]);
   const name = input({ placeholder: "اسم المسؤول" });
   const phone = input({ class: "ltr", inputMode: "tel", placeholder: "رقم للتواصل" });
   const note = textarea({ rows: 3, placeholder: kind === "contact" ? "اكتب رسالتك" : "ملاحظات (اختياري)" });

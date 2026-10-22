@@ -43,7 +43,7 @@ export const t = {
   optText: (max = 300) => z.string().trim().max(max).optional().nullable().transform(keep),
   phone: z.preprocess(phoneText, z.string().trim().regex(/^[0-9+ ]{0,20}$/, "رقم الجوال غير صحيح").optional().nullable()).transform(keep),
   id: z.coerce.number().int().positive(),
-  optId: z.union([z.coerce.number().int().positive(), z.literal(""), z.null()]).optional().transform((v) => (v === undefined ? undefined : v ? Number(v) : null)),
+  optId: z.union([z.literal(""), z.null(), z.coerce.number().int().positive()]).optional().transform((v) => (v === undefined ? undefined : v ? Number(v) : null)),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ غير صحيح"),
   optDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ غير صحيح"), z.literal(""), z.null()]).optional().transform(keep),
   money: z.coerce.number().positive("المبلغ يجب أن يكون أكبر من صفر").max(10_000_000).multipleOf(0.01, "المبلغ بحد أقصى رقمين بعد الفاصلة"),

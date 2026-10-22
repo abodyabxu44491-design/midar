@@ -34,7 +34,7 @@ export const createSchema = z.object({
   max_score: z.coerce.number().positive("الدرجة القصوى غير صحيحة").max(1000).multipleOf(0.25),
   component_id: t.id.nullable().optional(),
 });
-const scoreValue = z.union([z.coerce.number().min(0, "الدرجة لا تكون سالبة").max(1000).multipleOf(0.25), z.literal(""), z.null()]);
+const scoreValue = z.union([z.literal(""), z.null(), z.coerce.number().min(0, "الدرجة لا تكون سالبة").max(1000).multipleOf(0.25)]);
 export const scoresSchema = z.object({
   scores: z.record(z.string().regex(/^\d+$/), scoreValue),
   // The grades as they were on screen when the page opened; a grade someone else changed since then is not

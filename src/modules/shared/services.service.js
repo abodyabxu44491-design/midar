@@ -16,9 +16,9 @@ const addDays = (d, n) => { const x = new Date(`${d}T00:00:00Z`); x.setUTCDate(x
 export const busSchema = z.object({
   name: z.string().trim().min(1, "اكتب اسم الحافلة أو الخط").max(60),
   plate: opt(30), driver_name: opt(80), driver_phone: t.phone, supervisor: opt(80),
-  capacity: z.union([z.coerce.number().int().min(1).max(200), z.literal(""), z.null()]).optional().transform((v) => (v === "" ? null : v ?? null)),
+  capacity: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(200)]).optional().transform((v) => (v === "" ? null : v ?? null)),
   route: opt(1000),
-  fee: z.union([z.coerce.number().min(0).max(10_000_000), z.literal(""), z.null()]).optional().transform((v) => (v === "" ? null : v ?? null)),
+  fee: z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(10_000_000)]).optional().transform((v) => (v === "" ? null : v ?? null)),
   is_active: z.boolean().optional(),
 });
 export const buses = (q) => q(
@@ -305,7 +305,7 @@ export async function saveHealth(q, studentId, b, actor) {
     [studentId, b.blood_type ?? null, b.allergies, b.chronic, b.medications, b.emergency_phone ?? null, b.notes, actor]);
 }
 export const visitSchema = z.object({ student_id: t.id, complaint: t.shortText("الشكوى", 300), action: opt(500),
-  temperature: z.union([z.coerce.number().min(30).max(45), z.literal(""), z.null()]).optional().transform((v) => (v === "" ? null : v ?? null)),
+  temperature: z.union([z.literal(""), z.null(), z.coerce.number().min(30).max(45)]).optional().transform((v) => (v === "" ? null : v ?? null)),
   sent_home: z.boolean().default(false), notify_parent: z.boolean().default(true) });
 export async function addVisit(q, b, actor) {
   const [st] = await q("SELECT id, full_name FROM students WHERE id = $1 AND archived_at IS NULL", [b.student_id]);
