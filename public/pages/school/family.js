@@ -28,7 +28,7 @@ const fmtKey = (el) => el.addEventListener("input", () => {
   el.value = v.length > 4 ? `${v.slice(0, 4)}-${v.slice(4)}` : v;
 });
 const idInput = (props = {}) => input({ type: "text", inputMode: "email", dir: "ltr", autocomplete: "username", autocapitalize: "none", spellcheck: false,
-  placeholder: "example@mail.com  /  7XXXXXXXX", maxLength: 120, ...props });
+  placeholder: "البريد الإلكتروني أو رقم الجوال", maxLength: 120, ...props });
 const idValue = (el) => toAsciiDigits(el.value.trim());
 const signedIn = (msg) => { setParentSignedIn(school, true); if (msg) sessionStorage.setItem(`midar_parent_welcome_${school}`, msg); location.hash = "#/family"; };
 
