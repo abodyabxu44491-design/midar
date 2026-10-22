@@ -9,7 +9,7 @@ import { QTYPES, OPTION_LETTERS, fmtNum } from "./engine.js";
 import { parseQuestions } from "./parse.js";
 import { rich, loadMath } from "./math.js";
 
-const EXAMPLE = "الصق أسئلتك هنا، أو ارفع ملف Word. مثال:\n\n1- عاصمة المملكة العربية السعودية هي:\nأ) الرياض *\nب) جدة\nج) مكة\n\n2- الشمس نجم (صح)\n3- عاصمة مصر هي ______ (القاهرة)";
+const EXAMPLE = "الصق أسئلتك هنا، أو ارفع ملف Word. مثال:\n\n1- أكبر كواكب المجموعة الشمسية هو:\nأ) المشتري *\nب) المريخ\nج) الأرض\n\n2- الشمس نجم (صح)\n3- يتكون الماء من الهيدروجين و ______ (الأكسجين)";
 
 function answerText(q) {
   if (q.options) { const c = q.options.filter((o) => (q.correct || []).includes(o.id)).map((o) => o.text); return c.length ? `✓ ${c.join("، ")}` : "⚠ بدون إجابة صحيحة"; }

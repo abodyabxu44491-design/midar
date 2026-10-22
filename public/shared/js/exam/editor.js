@@ -159,8 +159,8 @@ export function tableEditor(table, changed) {
 }
 
 const PLACEHOLDER = {
-  mcq: "مثال: عاصمة المملكة العربية السعودية هي:", multi: "مثال: من الأعداد الأولية:", truefalse: "مثال: الشمس نجم",
-  fill: "مثال: عاصمة مصر هي ____", short: "مثال: عرّف التمثيل الضوئي", essay: "مثال: اكتب فقرة عن…",
+  mcq: "مثال: أكبر كواكب المجموعة الشمسية هو:", multi: "مثال: من الأعداد الأولية:", truefalse: "مثال: الشمس نجم",
+  fill: "مثال: يتكون الماء من الهيدروجين و ____", short: "مثال: عرّف التمثيل الضوئي", essay: "مثال: اكتب فقرة عن…",
   match: "مثال: صِل كل مادة برمزها الكيميائي", order: "مثال: رتّب مراحل نمو النبات", math: "مثال: حل المعادلة $2x+3=7$",
 };
 export function questionEditor(q, { base, onChange, onTypeChange, bankFields = null }) {

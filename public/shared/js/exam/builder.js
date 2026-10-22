@@ -596,7 +596,7 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
       } }), label)));
     const extra = input({ value: (L.extra_fields || []).join("، "), placeholder: "مثل: رقم الجلوس، اسم المدرسة السابقة", disabled: ro });
     extra.addEventListener("input", () => set("extra_fields", extra.value.split(/[،,]/).map((x) => x.trim()).filter(Boolean).slice(0, 4)));
-    const note = textarea({ rows: 2, value: L.header_note, placeholder: "مثل: المملكة العربية السعودية\nوزارة التعليم", disabled: ro });
+    const note = textarea({ rows: 2, value: L.header_note, placeholder: "مثل: وزارة التعليم\nإدارة التعليم بالمنطقة", disabled: ro });
     note.addEventListener("input", () => set("header_note", note.value));
     const foot = input({ value: L.footer_text, placeholder: "نص التذييل (مثل: مع تمنياتنا بالتوفيق)", disabled: ro });
     foot.addEventListener("input", () => set("footer_text", foot.value));
