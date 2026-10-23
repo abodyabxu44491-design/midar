@@ -195,7 +195,7 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
   function questionEl(q, s, no, L) {
     const def = QTYPES[q.type];
     const el = h("div", { class: `xs-q xp-q t-${q.type}${active === q.id ? " active" : ""}`, "data-qid": q.id,
-      onfocusin: () => { if (active !== q.id) { const prev = active; active = q.id; if (prev && prune(prev)) { const k = focusKey; draw(); if (k) focusField(k); return; } touch(s); for (const x of sheet.querySelectorAll(".xs-q.active")) x.classList.remove("active"); el.classList.add("active"); mountBar(); } },
+      onfocusin: () => { if (active !== q.id) { const prev = active; active = q.id; if (prev && prune(prev)) { const k = focusKey; draw(); if (k) focusField(k); return; } touch(s); for (const x of sheet.querySelectorAll(".xs-q.active")) { x.classList.remove("active"); x.querySelector(".xs-bar-slot")?.replaceChildren(); } el.classList.add("active"); mountBar(); } },
       onclick: (e) => { if (e.target === el || e.target.classList.contains("xs-q-main")) el.querySelector(".xs-ed")?.focus(); },
       onkeydown: (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addQuestion(q.type, s, q); } } });
     const barSlot = h("div", { class: "xs-bar-slot" });
