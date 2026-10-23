@@ -44,7 +44,7 @@ export function featureSections(d, actions = {}) {
             if (x.state === "open" && !confirm(`ابدأ «${x.title}»؟ يبدأ العدّاد (${x.duration_min} دقيقة) من الآن ولا يتوقف.`)) return;
             const { takeExam } = await import("./online-exam-take.js");
             try {
-              mount(box, await takeExam({ call: actions.api, id: x.id, onExit: () => location.reload() }));
+              mount(box, await takeExam({ call: actions.api, fetchFile: actions.fetchFile, id: x.id, onExit: () => location.reload() }));
               list.hidden = true; box.scrollIntoView({ behavior: "smooth" });
             } catch (e) { toast(e.message, true); }
           }, "sm") : actions.api && x.can_review ? btn("مراجعة الإجابات", async () => {
@@ -159,7 +159,8 @@ function reviewView(r) {
       else if (q.type === "match") { mine = (q.left || []).map((l) => `${l.text} ← ${(q.right || []).find((x) => x.id === a?.[l.id])?.text || "—"}`).join(" | ");
         right = (q.left || []).map((l) => `${l.text} ← ${(q.right || []).find((x) => x.id === q.key_pairs?.[l.id])?.text || ""}`).join(" | "); }
       else if (q.type === "order") { mine = [].concat(a || []).map((id) => (q.items || []).find((x) => x.id === id)?.text).join(" ← "); right = (q.items || []).map((x) => x.text).join(" ← "); }
-      else mine = a || "—";
+      else if (q.file || a?.file) mine = (q.respond === "audio" || a?.file === "audio") ? "تسجيل صوتي" : "صورة الحل";
+      else mine = typeof a === "string" && a ? a : "—";
       return h("div", { class: "oe-review" }, h("b", {}, `${i + 1}. ${q.text}`), sub(`إجابتك: ${mine}`), right ? sub(`الصحيح: ${right}`) : null,
         sub(`الدرجة: ${q.mark ?? "—"} من ${q.marks}`));
     }));

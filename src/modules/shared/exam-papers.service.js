@@ -237,12 +237,21 @@ export async function readImage(q, id, size = "full") {
   return row;
 }
 
+// Pictures and clips another school uploaded (or ones deleted since) are dropped, so a paper never points outside its school.
 async function dropForeignImages(q, content) {
-  const ids = new Set();
-  for (const s of content.sections) for (const qq of s.questions) if (qq.image?.id) ids.add(Number(qq.image.id));
-  if (!ids.size) return content;
-  const ok = new Set((await q("SELECT id FROM exam_images WHERE id = ANY($1::bigint[])", [[...ids]])).map((r) => Number(r.id)));
-  for (const s of content.sections) for (const qq of s.questions) if (qq.image && !ok.has(Number(qq.image.id))) qq.image = null;
+  const ids = new Set(), clips = new Set();
+  for (const s of content.sections) for (const qq of s.questions) {
+    if (qq.image?.id) ids.add(Number(qq.image.id));
+    for (const o of qq.options || []) if (o.image?.id) ids.add(Number(o.image.id));
+    if (qq.media?.id) clips.add(Number(qq.media.id));
+  }
+  const ok = ids.size ? new Set((await q("SELECT id FROM exam_images WHERE id = ANY($1::bigint[])", [[...ids]])).map((r) => Number(r.id))) : new Set();
+  const okClips = clips.size ? new Set((await q("SELECT id FROM exam_media WHERE id = ANY($1::bigint[])", [[...clips]])).map((r) => Number(r.id))) : new Set();
+  for (const s of content.sections) for (const qq of s.questions) {
+    if (qq.image && !ok.has(Number(qq.image.id))) qq.image = null;
+    for (const o of qq.options || []) if (o.image && !ok.has(Number(o.image.id))) o.image = null;
+    if (qq.media?.id && !okClips.has(Number(qq.media.id))) qq.media = null;
+  }
   return content;
 }
 

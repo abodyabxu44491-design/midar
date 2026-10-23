@@ -9,6 +9,7 @@ import { handle, forbidden } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import * as papers from "./exam-papers.service.js";
 import * as bank from "./question-bank.service.js";
+import * as media from "./exam-media.service.js";
 import { answerKey } from "../../../public/shared/js/exam/engine.js";
 
 const whoOf = (req, role) => (role === "teacher" ? { role, teacherId: req.user.teacher_id } : { role: "admin" });
@@ -50,6 +51,12 @@ export function papersRouter(role) {
     res.status(201).json(await inTenant(req, (q) => papers.saveImage(q, { teacherId: tid(req), file: b, actor: req.actor })));
   }));
   r.get("/images/:id", handle(async (req, res) => sendImage(res, await inTenant(req, (q) => papers.readImage(q, idParam(req), req.query.size === "thumb" ? "thumb" : "full")))));
+
+  r.post("/media", handle(async (req, res) => {
+    const b = parse(media.mediaUploadSchema, req.body);
+    res.status(201).json(await inTenant(req, (q) => media.saveMedia(q, { teacherId: tid(req), file: b, actor: req.actor })));
+  }));
+  r.get("/media/:id", handle(async (req, res) => media.sendMedia(req, res, await inTenant(req, (q) => media.readMedia(q, idParam(req))))));
 
   r.get("/bank", handle(async (req, res) => {
     const f = parse(bank.listSchema, req.query);

@@ -107,6 +107,71 @@ function imageControls(q, base, changed) {
   return box;
 }
 
+const readBase64 = (file) => toBase64(file);
+const MEDIA_MAX = 10 * 1024 * 1024;
+export async function uploadMedia(base, file) {
+  if (file.size > MEDIA_MAX) throw new Error("حجم الملف أكبر من 10 ميجابايت. للفيديو الأطول أضف رابط يوتيوب");
+  return api(`${base}/media`, { mime: file.type || "application/octet-stream", data: await readBase64(file), name: file.name.slice(0, 150) });
+}
+// The question's clip as the teacher sees it: a player for an uploaded file, or the link of a video site.
+export function mediaPlayer(m, src) {
+  if (!m) return null;
+  if (m.url) return h("a", { class: "xb-media-link", href: m.url, target: "_blank", rel: "noopener" }, "فتح الفيديو: ", h("span", { dir: "ltr" }, m.url));
+  return m.kind === "video"
+    ? h("video", { class: "xb-media", src, controls: true, preload: "metadata", playsinline: true })
+    : h("audio", { class: "xb-media", src, controls: true, preload: "metadata" });
+}
+
+function mediaControls(q, base, changed) {
+  const box = h("div", { class: "xb-media-box" });
+  const audioIn = h("input", { type: "file", accept: "audio/*,.mp3,.m4a,.ogg,.wav", class: "hidden" });
+  const videoIn = h("input", { type: "file", accept: "video/mp4,video/webm,.mp4,.webm,.mov", class: "hidden" });
+  const pick = (kind) => async (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    try {
+      toast(kind === "audio" ? "جارٍ رفع الصوت…" : "جارٍ رفع الفيديو…");
+      const r = await uploadMedia(base, f);
+      q.media = { kind: r.kind, id: r.id, plays: q.media?.plays || 0 };
+      changed(); draw(); toast("أُضيف الملف");
+    } catch (err) { toast(err.message, true); }
+  };
+  audioIn.addEventListener("change", pick("audio"));
+  videoIn.addEventListener("change", pick("video"));
+  const linkDialog = () => {
+    const url = input({ type: "url", placeholder: "https://www.youtube.com/watch?v=…", dir: "ltr" });
+    const wrap = h("div", { class: "row", style: "align-items:flex-end" }, field("رابط الفيديو (يوتيوب أو فيميو أو قوقل درايف)", url),
+      btn("إضافة", () => {
+        const v = url.value.trim();
+        if (!/^https:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|vimeo\.com|player\.vimeo\.com|drive\.google\.com)\//i.test(v)) return toast("أضف رابطًا من يوتيوب أو فيميو أو قوقل درايف", true);
+        q.media = { kind: "video", url: v, plays: 0 }; changed(); draw();
+      }, "sm"), btn("إلغاء", draw, "ghost sm"));
+    mount(box, wrap); url.focus();
+  };
+  const draw = () => {
+    if (!q.media) {
+      mount(box, h("div", { class: "row", style: "justify-content:flex-start;flex-wrap:wrap;gap:6px" },
+        btn("إضافة صوت", () => audioIn.click(), "ghost sm"),
+        btn("إضافة فيديو", () => videoIn.click(), "ghost sm"),
+        btn("رابط فيديو", linkDialog, "ghost sm")),
+        h("small", { class: "sub" }, "الصوت والفيديو حتى 10 ميجابايت، ويعملان في الاختبار الإلكتروني. للفيديو الأطول أضف رابطه."), audioIn, videoIn);
+      return;
+    }
+    const plays = select([["0", "بلا حد"], ["1", "مرة واحدة"], ["2", "مرتين"], ["3", "3 مرات"]], { value: String(q.media.plays || 0) });
+    plays.addEventListener("change", () => { q.media.plays = Number(plays.value); changed(); });
+    mount(box, h("b", { class: "small" }, q.media.kind === "audio" ? "صوت السؤال" : "فيديو السؤال"),
+      mediaPlayer(q.media, q.media.id ? `${base}/media/${q.media.id}` : null),
+      h("div", { class: "row", style: "align-items:flex-end" },
+        q.media.url ? null : field("عدد مرات التشغيل للطالب", plays),
+        btn(q.media.kind === "audio" ? "تغيير الصوت" : q.media.url ? "تغيير الرابط" : "تغيير الفيديو", () => (q.media.url ? linkDialog() : (q.media.kind === "audio" ? audioIn : videoIn).click()), "ghost sm"),
+        btn("إزالة", () => { q.media = null; changed(); draw(); }, "danger sm")),
+      audioIn, videoIn);
+  };
+  draw();
+  return box;
+}
+
 export function tableEditor(table, changed) {
   const box = h("div");
   let sel = null;
@@ -171,7 +236,7 @@ export function questionEditor(q, { base, onChange, onTypeChange, bankFields = n
     const def = QTYPES[q.type];
     const type = select(Object.entries(QTYPES).map(([k, v]) => [k, v.label]), { value: q.type });
     type.addEventListener("change", () => {
-      const keep = { text: q.text, marks: q.marks, difficulty: q.difficulty, image: q.image, solution: q.solution, notes: q.notes, unit: q.unit, lesson: q.lesson, bank_id: null };
+      const keep = { text: q.text, marks: q.marks, difficulty: q.difficulty, image: q.image, media: q.media, solution: q.solution, notes: q.notes, unit: q.unit, lesson: q.lesson, bank_id: null };
       const fresh = newQuestion(type.value, q.marks);
       for (const k of Object.keys(q)) if (k !== "id") delete q[k];
       Object.assign(q, fresh, keep, { id: q.id || fresh.id });
@@ -194,20 +259,23 @@ export function questionEditor(q, { base, onChange, onTypeChange, bankFields = n
       insertPlain(ta, " ________ ");
     }, "ghost sm"));
 
-    parts.push(typeBody(q, changed, draw));
+    parts.push(typeBody(q, changed, draw, base));
     if (def.space) parts.push(h("div", { class: "xb-teacher-only" }, h("b", {}, "الإجابة الصحيحة — للمعلم فقط، لا تظهر في ورقة الطالب"),
       richInput(q.answer, (v) => { q.answer = v; changed(); }, { rows: q.type === "essay" ? 2 : 1, placeholder: q.type === "essay" ? "عناصر الإجابة المتوقعة" : "الإجابة (تظهر في نموذج الإجابة)" })));
 
-    const extraOpen = !!(q.image || q.table || q.solution || q.notes) || q.type === "image" || q.type === "table";
+    const extraOpen = !!(q.image || q.media || q.table || q.solution || q.notes || (q.respond && q.respond !== "text")) || q.type === "image" || q.type === "table";
+    const respond = def.space ? select([["text", "يكتب الإجابة"], ["image", "يرفع صورة لحله"], ["audio", "يسجّل إجابته بصوته"]], { value: q.respond || "text" }) : null;
+    respond?.addEventListener("change", () => { if (respond.value === "text") delete q.respond; else q.respond = respond.value; changed(); });
     const space = def.space ? select(Object.entries(ANSWER_SPACE).map(([k, [l]]) => [k, l]), { value: q.space || "auto" }) : null;
     space?.addEventListener("change", () => { q.space = space.value; changed(); });
     const lined = def.space ? h("input", { type: "checkbox", checked: q.lined !== false, onchange: (e) => { q.lined = e.target.checked; changed(); } }) : null;
     parts.push(h("details", { class: "xb-more", open: extraOpen },
-      h("summary", {}, "خيارات إضافية", h("small", {}, " — الصعوبة، صورة أو جدول، مساحة الإجابة، الحل النموذجي")),
+      h("summary", {}, "خيارات إضافية", h("small", {}, " — الصعوبة، صورة أو صوت أو فيديو أو جدول، مساحة الإجابة، الحل النموذجي")),
       h("div", { class: "row" }, field("الصعوبة", diff),
         def.space ? field("مساحة الإجابة في الورقة", space) : null,
         def.space ? h("label", { class: "row", style: "align-items:center;gap:6px;flex:none;margin-bottom:12px" }, lined, "خطوط للكتابة") : null),
-      h("div", { class: "xb-more-media" }, imageControls(q, base, changed),
+      respond ? field("إجابة الطالب في الاختبار الإلكتروني", respond) : null,
+      h("div", { class: "xb-more-media" }, imageControls(q, base, changed), mediaControls(q, base, changed),
         q.table ? h("div", { class: "spaced" }, tableEditor(q.table, changed),
           q.type !== "table" ? btn("إزالة الجدول", () => { q.table = null; changed(); draw(); }, "danger sm") : null)
           : btn("إضافة جدول", () => { q.table = newTable(); changed(); draw(); }, "ghost sm")),
@@ -227,9 +295,9 @@ function insertPlain(ta, text) {
   ta.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-function typeBody(q, changed, redraw) {
+function typeBody(q, changed, redraw, base) {
   switch (q.type) {
-    case "mcq": case "multi": return optionsEditor(q, changed, redraw);
+    case "mcq": case "multi": return optionsEditor(q, changed, redraw, base);
     case "truefalse": {
       const box = h("div", { class: "xb-tf" });
       const paint = () => mount(box, [[true, "✓ صح"], [false, "✗ خطأ"]].map(([val, label]) => h("button", {
@@ -287,8 +355,17 @@ function typeBody(q, changed, redraw) {
   }
 }
 
-function optionsEditor(q, changed) {
+function optionsEditor(q, changed, redraw, base) {
   const box = h("div");
+  const optImageIn = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", class: "hidden" });
+  let optTarget = null;
+  optImageIn.addEventListener("change", async () => {
+    const f = optImageIn.files[0];
+    optImageIn.value = "";
+    if (!f || !optTarget) return;
+    try { toast("جارٍ رفع الصورة…"); const r = await uploadImage(base, f); optTarget.image = { id: r.id }; changed(); draw(); }
+    catch (e) { toast(e.message, true); }
+  });
   const multi = q.type === "multi";
   const focusOpt = (i) => box.querySelector(`[data-opt="${i}"]`)?.focus();
   const draw = () => {
@@ -332,14 +409,18 @@ function optionsEditor(q, changed) {
           changed(); draw(); focusOpt(Math.min(q.options.length - 1, i + lines.length - 1));
         });
         paint();
-        return h("div", { class: `xb-opt${correct.has(o.id) ? " ok" : ""}` }, mark, h("span", { class: "letter" }, OPTION_LETTERS[i]), text, shown,
+        const pic = o.image?.id
+          ? h("span", { class: "xb-opt-img" }, h("img", { src: `${base}/images/${o.image.id}?size=thumb`, alt: "" }),
+            h("button", { type: "button", class: "xb-icon danger", "aria-label": "إزالة صورة الخيار", onclick: () => { o.image = null; changed(); draw(); } }, icons.trash({ size: 14 })))
+          : h("button", { type: "button", class: "xb-icon", title: "صورة للخيار", "aria-label": "صورة للخيار", onclick: () => { optTarget = o; optImageIn.click(); } }, icons.image({ size: 16 }));
+        return h("div", { class: `xb-opt${correct.has(o.id) ? " ok" : ""}` }, mark, h("span", { class: "letter" }, OPTION_LETTERS[i]), text, shown, pic,
           h("button", { type: "button", class: "xb-icon danger", "aria-label": "حذف الخيار", onclick: () => {
             q.options.splice(i, 1); q.correct = (q.correct || []).filter((x) => x !== o.id); changed(); draw();
           } }, icons.trash({ size: 16 })));
       }),
       h("div", { class: "row", style: "align-items:center" },
         (q.options || []).length < 8 ? btn("+ خيار", () => { q.options.push({ id: uid("o"), text: "" }); changed(); draw(); }, "ghost sm") : null,
-        field("عرض الخيارات", cols)));
+        field("عرض الخيارات", cols)), optImageIn);
   };
   draw();
   return box;

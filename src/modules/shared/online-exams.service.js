@@ -10,6 +10,7 @@ import { badRequest, notFound, forbidden, conflict } from "../../core/http/error
 import { getFor } from "./exam-papers.service.js";
 import { notify } from "./notify.service.js";
 import { resolveForExam } from "./grade-components.service.js";
+import * as media from "./exam-media.service.js";
 
 const AUTO = new Set(["mcq", "multi", "truefalse", "fill", "match", "order"]);
 const GRACE_MS = 60_000;
@@ -182,12 +183,42 @@ export async function attemptDetail(q, who, id, attemptId) {
   const [a] = await q("SELECT * FROM online_attempts WHERE id = $1 AND online_exam_id = $2", [attemptId, x.id]);
   if (!a) throw notFound("المحاولة غير موجودة");
   const [st] = await q("SELECT full_name FROM students WHERE id = $1", [a.student_id]);
-  return { student: st?.full_name, attempt: a, questions: reviewQuestions(x.content, a, true) };
+  return { student: st?.full_name, attempt: a, questions: reviewQuestions(x.content, a, true, await media.answerFilesOf(q, a.id)) };
 }
 
-function reviewQuestions(content, a, withKey) {
+// The photo or recording a student answered a question with, for the teacher who grades it.
+export async function attemptFile(q, who, id, attemptId, questionId) {
+  const x = await own(q, who, id);
+  const [a] = await q("SELECT id FROM online_attempts WHERE id = $1 AND online_exam_id = $2", [attemptId, x.id]);
+  if (!a) throw notFound("المحاولة غير موجودة");
+  return media.readAnswerFile(q, a.id, questionId);
+}
+
+// The clips and pictures inside a published exam, for the teacher reviewing answers.
+export async function examAsset(q, who, id, kind, assetId) {
+  const x = await own(q, who, id);
+  return assetOf(q, x, kind, assetId);
+}
+
+const usesImage = (content, imageId) => questionsOf(content).some((qq) => Number(qq.image?.id) === Number(imageId)
+  || (qq.options || []).some((o) => Number(o.image?.id) === Number(imageId)));
+const usesMedia = (content, mediaId) => questionsOf(content).some((qq) => Number(qq.media?.id) === Number(mediaId));
+
+async function assetOf(q, x, kind, assetId) {
+  if (kind === "media") {
+    if (!usesMedia(x.content, assetId)) throw notFound("الملف غير موجود");
+    return media.readMedia(q, assetId);
+  }
+  if (!usesImage(x.content, assetId)) throw notFound("الصورة غير موجودة");
+  const [img] = await q("SELECT mime, data FROM exam_images WHERE id = $1", [assetId]);
+  if (!img) throw notFound("الصورة غير موجودة");
+  return img;
+}
+
+function reviewQuestions(content, a, withKey, files = new Set()) {
   return questionsOf(content).map((qq) => {
     const out = { id: qq.id, type: qq.type, text: qq.text, marks: qq.marks, options: qq.options, items: qq.items, table: qq.table, image: qq.image,
+      media: qq.media || null, respond: qq.respond || "text", file: files.has(qq.id),
       answer: a.answers?.[qq.id] ?? null, mark: a.marks?.[qq.id] ?? null, auto: AUTO.has(qq.type) };
     if (qq.type === "match") {
       out.left = (qq.pairs || []).map((p) => ({ id: p.id, text: p.left }));
@@ -331,14 +362,41 @@ export async function review(q, s, id) {
   if (Date.now() < new Date(x.closes_at).getTime() && x.status === "open") throw badRequest("تظهر الإجابات بعد إغلاق الاختبار");
   const [a] = await q("SELECT * FROM online_attempts WHERE online_exam_id = $1 AND student_id = $2 AND submitted_at IS NOT NULL", [x.id, s.id]);
   if (!a) throw notFound("لا توجد محاولة مسلّمة");
-  return { title: x.title, score: a.needs_grading ? null : a.score, max_score: x.max_score, questions: reviewQuestions(x.content, a, true) };
+  return { title: x.title, score: a.needs_grading ? null : a.score, max_score: x.max_score,
+    questions: reviewQuestions(x.content, a, true, await media.answerFilesOf(q, a.id)) };
 }
 
 export async function imageFor(q, s, id, imageId) {
   const x = await studentExam(q, s, id);
-  const used = questionsOf(x.content).some((qq) => Number(qq.image?.id) === Number(imageId));
-  if (!used) throw notFound("الصورة غير موجودة");
-  const [img] = await q("SELECT mime, data FROM exam_images WHERE id = $1", [imageId]);
-  if (!img) throw notFound("الصورة غير موجودة");
+  const img = await assetOf(q, x, "image", imageId);
   return { src: `data:${img.mime};base64,${Buffer.from(img.data).toString("base64")}` };
+}
+
+// A question's sound or video clip, only while the student may still see the exam (taking it, or reviewing it after).
+export async function mediaFor(q, s, id, mediaId) {
+  const x = await studentExam(q, s, id);
+  const [a] = await q("SELECT 1 FROM online_attempts WHERE online_exam_id = $1 AND student_id = $2", [x.id, s.id]);
+  if (!a) throw badRequest("ابدأ الاختبار أولًا");
+  return assetOf(q, x, "media", mediaId);
+}
+
+// A photo of the solution or a voice recording, saved for one question while the attempt is open.
+export async function answerFile(q, s, id, b) {
+  const x = await studentExam(q, s, id);
+  const [a] = await q("SELECT * FROM online_attempts WHERE online_exam_id = $1 AND student_id = $2 FOR UPDATE", [x.id, s.id]);
+  if (!a) throw badRequest("ابدأ الاختبار أولًا");
+  if (a.submitted_at || Date.now() > new Date(a.deadline_at).getTime() + GRACE_MS) throw badRequest("انتهى وقت الاختبار");
+  const question = questionsOf(x.content).find((qq) => qq.id === b.question_id);
+  if (!question || !["image", "audio"].includes(question.respond)) throw badRequest("هذا السؤال لا يقبل ملفًا");
+  const saved = await media.saveAnswerFile(q, a.id, question, b);
+  const answers = { ...(a.answers || {}), [question.id]: { file: saved.kind } };
+  await q("UPDATE online_attempts SET answers = $2 WHERE id = $1", [a.id, JSON.stringify(answers)]);
+  return { saved: true, kind: saved.kind };
+}
+
+export async function myAnswerFile(q, s, id, questionId) {
+  const x = await studentExam(q, s, id);
+  const [a] = await q("SELECT id FROM online_attempts WHERE online_exam_id = $1 AND student_id = $2", [x.id, s.id]);
+  if (!a) throw notFound("لا يوجد ملف");
+  return media.readAnswerFile(q, a.id, questionId);
 }

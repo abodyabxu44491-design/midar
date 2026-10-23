@@ -6,8 +6,9 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
-import { parse, t } from "../../core/http/validate.js";
+import { parse, t, z } from "../../core/http/validate.js";
 import * as oe from "./online-exams.service.js";
+import { sendMedia } from "./exam-media.service.js";
 
 export function onlineExamsRouter(role) {
   const r = Router();
@@ -23,6 +24,11 @@ export function onlineExamsRouter(role) {
   r.get("/:id/attempts/:aid", handle(async (req, res) => {
     res.json(await inTenant(req, (q) => oe.attemptDetail(q, who(req), parse(t.id, req.params.id), parse(t.id, req.params.aid))));
   }));
+  const qid = z.string().regex(/^[a-z]_[a-z0-9]{3,20}$/);
+  r.get("/:id/attempts/:aid/files/:qid", handle(async (req, res) => sendMedia(req, res, await inTenant(req, (q) =>
+    oe.attemptFile(q, who(req), parse(t.id, req.params.id), parse(t.id, req.params.aid), parse(qid, req.params.qid))))));
+  r.get("/:id/assets/:kind/:aid", handle(async (req, res) => sendMedia(req, res, await inTenant(req, (q) =>
+    oe.examAsset(q, who(req), parse(t.id, req.params.id), parse(z.enum(["image", "media"]), req.params.kind), parse(t.id, req.params.aid))))));
   r.put("/:id/attempts/:aid/marks", handle(async (req, res) => {
     const { marks } = parse(oe.marksSchema, req.body);
     res.json(await inTenant(req, (q) => oe.setMarks(q, who(req), parse(t.id, req.params.id), parse(t.id, req.params.aid), marks, req.actor)));

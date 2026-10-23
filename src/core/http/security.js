@@ -23,7 +23,10 @@ export const securityHeaders = helmet({
       scriptSrc: ["'self'", ...GA.script],
       styleSrc: ["'self'"],
       fontSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", ...GA.img],
+      imgSrc: ["'self'", "data:", "blob:", ...GA.img],
+      // Exam questions: uploaded clips play from memory, and a video link plays inside the question.
+      mediaSrc: ["'self'", "blob:"],
+      frameSrc: ["https://www.youtube-nocookie.com", "https://player.vimeo.com", "https://drive.google.com"],
       connectSrc: ["'self'", ...GA.connect],
       frameAncestors: ["'none'"],
       formAction: ["'self'"],

@@ -8,6 +8,7 @@ import { api } from "./api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, dialog, confirmAction, stats } from "./ui.js";
 import { fmtDateTime } from "./format.js";
 import { rich } from "./exam/math.js";
+import { mediaPlayer } from "./exam/editor.js";
 
 const SHOW = { none: "لا تظهر الدرجة للطالب", score: "تظهر الدرجة بعد التسليم", answers: "الدرجة والإجابات الصحيحة بعد الإغلاق" };
 const pad = (n) => String(n).padStart(2, "0");
@@ -86,7 +87,8 @@ export async function onlineExamsPanel({ base }) {
       let shown;
       if (q.type === "mcq" || q.type === "multi") {
         const picked = new Set([].concat(ans || []));
-        shown = h("ul", { class: "oe-opts" }, (q.options || []).map((o) => h("li", { class: `${(q.correct || []).includes(o.id) ? "right" : ""}${picked.has(o.id) ? " picked" : ""}` }, o.text)));
+        shown = h("ul", { class: "oe-opts" }, (q.options || []).map((o) => h("li", { class: `${(q.correct || []).includes(o.id) ? "right" : ""}${picked.has(o.id) ? " picked" : ""}` },
+          o.image?.id ? h("img", { class: "oe-opt-img", src: `${base}/${id}/assets/image/${o.image.id}`, alt: "", loading: "lazy" }) : null, o.text)));
       } else if (q.type === "truefalse") shown = sub(`إجابته: ${ans === true ? "صح" : ans === false ? "خطأ" : "—"} — الصحيح: ${q.correct ? "صح" : "خطأ"}`);
       else if (q.type === "fill") shown = sub(`إجابته: ${[].concat(ans || []).join(" ، ") || "—"} — الصحيح: ${(q.answers || []).join(" ، ")}`);
       else if (q.type === "match") shown = h("ul", { class: "oe-opts" }, (q.left || []).map((l) => {
@@ -95,11 +97,17 @@ export async function onlineExamsPanel({ base }) {
         return h("li", { class: ok ? "right picked" : "picked" }, `${l.text} ← ${got?.text || "—"}`);
       }));
       else if (q.type === "order") shown = sub(`ترتيبه: ${[].concat(ans || []).map((id) => (q.items || []).find((x) => x.id === id)?.text || "؟").join(" ← ")}`);
-      else shown = h("div", { class: "oe-essay" }, ans ? String(ans) : h("span", { class: "muted" }, "لم يُجب"));
+      else if (q.file) {
+        const src = `${base}/${id}/attempts/${aid}/files/${q.id}`;
+        shown = h("div", { class: "oe-file" }, q.respond === "audio" ? h("audio", { src, controls: true, preload: "metadata" })
+          : h("a", { href: src, target: "_blank", rel: "noopener", title: "فتح الصورة كاملة" }, h("img", { src, alt: "صورة حل الطالب", loading: "lazy" })));
+      } else if (q.respond === "image" || q.respond === "audio") shown = h("span", { class: "muted" }, q.respond === "audio" ? "لم يسجّل إجابة" : "لم يرفع صورة");
+      else shown = h("div", { class: "oe-essay" }, typeof ans === "string" && ans ? ans : h("span", { class: "muted" }, "لم يُجب"));
       const markInput = !q.auto ? input({ type: "number", min: 0, max: q.marks, step: 0.25, value: q.mark ?? "", class: "ltr", style: "max-width:90px" }) : null;
       markInput?.addEventListener("input", () => { manual[q.id] = markInput.value === "" ? null : Number(markInput.value); });
       return h("div", { class: "oe-review" },
         h("div", { class: "oe-q" }, h("b", {}, `${i + 1}. `), rich(q.text, { blanks: q.type === "fill" })),
+        q.media ? h("div", { class: "oe-media" }, mediaPlayer(q.media, q.media.id ? `${base}/${id}/assets/media/${q.media.id}` : null)) : null,
         shown,
         q.model && !q.auto ? sub(`الإجابة النموذجية: ${q.model}`) : null,
         h("div", { class: "oe-mark" }, q.auto ? sub(`الدرجة: ${q.mark ?? 0} من ${q.marks}`) : [field(`درجة السؤال (من ${q.marks})`, markInput)]));
@@ -109,6 +117,7 @@ export async function onlineExamsPanel({ base }) {
         const r = await api(`${base}/${id}/attempts/${aid}/marks`, { marks: manual }, "PUT");
         toast(r.needs_grading ? "حُفظ. بقيت أسئلة بلا درجة." : `الدرجة النهائية ${r.score}`); dd.close(); after();
       })] : []);
+    dd.classList.add("oe-grade-dialog");
   }
 }
 

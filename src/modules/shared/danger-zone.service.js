@@ -154,7 +154,7 @@ const TABLE_LABEL = {
   donations: "التبرعات", payroll_items: "بنود الرواتب", payroll_runs: "مسيرات الرواتب", finance_entries: "القيود المالية",
   teacher_assignments: "إسنادات المعلمين", teachers: "المعلمون", users: "الحسابات", classes: "الشعب", grades: "الصفوف", stages: "المراحل",
   subjects: "المواد", sessions: "الجلسات المفتوحة", school_public_settings: "إعدادات الصفحة العامة", exam_paper_settings: "إعدادات أوراق الاختبارات",
-  timetable_settings: "إعدادات الجدول", school_messages: "قوالب الرسائل", exam_images: "صور الاختبارات والشعار", attachments: "المرفقات",
+  timetable_settings: "إعدادات الجدول", school_messages: "قوالب الرسائل", exam_images: "صور الاختبارات والشعار", exam_media: "صوت وفيديو الاختبارات", online_answer_files: "ملفات إجابات الطلاب", attachments: "المرفقات",
   academic_years: "السنوات الدراسية", terms: "الفصول الدراسية", holidays: "الإجازات", fee_plans: "خطط الرسوم", staff: "الموظفون",
   subscriptions: "سجلات الاشتراك", subscription_invoices: "فواتير الاشتراك",
   custom_fields: "الحقول المخصصة", custom_values: "قيم الحقول المخصصة", exam_types: "أنواع الاختبارات",

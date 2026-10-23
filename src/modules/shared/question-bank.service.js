@@ -25,6 +25,15 @@ const cell = z.object({
   rs: z.coerce.number().int().min(1).max(30).optional(),
   hide: z.boolean().optional(),
 });
+// A sound or video for a question: an uploaded clip (exam_media) or, for video only, a link to a video site.
+const VIDEO_LINK = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?|shorts\/|embed\/)|youtu\.be\/|vimeo\.com\/|player\.vimeo\.com\/video\/|drive\.google\.com\/file\/d\/)/i;
+export const mediaRef = z.object({
+  kind: z.enum(["audio", "video"]),
+  id: t.id.optional(),
+  url: z.string().trim().max(500).regex(VIDEO_LINK, "رابط الفيديو المسموح: يوتيوب أو فيميو أو قوقل درايف").optional(),
+  plays: z.coerce.number().int().min(0).max(10).default(0),     // كم مرة يشغّله الطالب (0 = بلا حد)
+}).refine((m) => Boolean(m.id) !== Boolean(m.url), "أضف ملفًا أو رابطًا واحدًا")
+  .refine((m) => !m.url || m.kind === "video", "الصوت يُرفع ملفًا");
 export const tableSchema = z.object({
   header: z.boolean().default(true),
   rows: z.array(z.array(cell).min(1).max(10)).min(1).max(30),
@@ -35,7 +44,7 @@ export const questionFields = {
   marks,
   text: txt(4000),
   difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
-  options: z.array(z.object({ id: itemId, text: txt(1000) })).max(8).optional(),
+  options: z.array(z.object({ id: itemId, text: txt(1000), image: z.object({ id: t.id }).nullable().optional() })).max(8).optional(),
   correct: z.union([z.array(itemId).max(8), z.boolean(), z.null()]).optional(),
   answers: z.array(z.string().max(300)).max(20).optional(),
   answer: txt(4000).optional(),
@@ -43,6 +52,8 @@ export const questionFields = {
   items: z.array(z.object({ id: itemId, text: txt(500) })).max(12).optional(),
   table: tableSchema.nullable().optional(),
   image: imageRef.nullable().optional(),
+  media: mediaRef.nullable().optional(),
+  respond: z.enum(["text", "image", "audio"]).optional(),    // كيف يجيب الطالب في الاختبار الإلكتروني (الأسئلة التي يصححها المعلم)
   space: z.enum(["none", "small", "medium", "large", "page", "auto"]).optional(),
   lined: z.boolean().optional(),
   cols: z.coerce.number().int().refine((v) => [1, 2, 4].includes(v)).optional(),
@@ -72,6 +83,7 @@ export function normalizeQuestion(q) {
   if (q.type !== "match") delete out.pairs;
   if (q.type !== "order") delete out.items;
   if (q.type !== "fill") delete out.answers;
+  if (!def.space || q.respond === "text") delete out.respond;
   return out;
 }
 
@@ -93,7 +105,7 @@ export const bankBulkSchema = z.object({
 });
 export const bankUpdateSchema = bankBody.partial({ subject_id: true }).extend({ type: questionFields.type.optional(), marks: marks.optional() });
 
-const BODY_KEYS = ["text", "options", "correct", "answers", "answer", "pairs", "items", "table", "image", "space", "lined", "cols", "solution", "notes"];
+const BODY_KEYS = ["text", "options", "correct", "answers", "answer", "pairs", "items", "table", "image", "media", "respond", "space", "lined", "cols", "solution", "notes"];
 const toBody = (q) => Object.fromEntries(BODY_KEYS.filter((k) => q[k] !== undefined).map((k) => [k, q[k]]));
 
 const COLS = `b.id, b.teacher_id, b.subject_id, b.grade_id, b.term_id, b.unit, b.lesson, b.qtype AS type, b.difficulty, b.marks,
