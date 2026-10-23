@@ -38,9 +38,11 @@ test("رفع الصوت والفيديو: الأنواع المسموحة فقط
   assert.equal(a.data.kind, "audio");
   audio = a.data;
   const v = await A.teacher.post("/api/teacher/papers/media", { mime: "video/quicktime", data: b64(mp4) });
-  assert.equal(v.status, 201, "اسم آيفون للفيديو يُقبل كـ MP4");
-  assert.equal(v.data.mime, "video/mp4");
-  video = v.data;
+  assert.equal(v.status, 400, "الفيديو يُضاف برابط ولا يُرفع");
+  const m4a = await A.teacher.post("/api/teacher/papers/media", { mime: "audio/x-m4a", data: b64(mp4) });
+  assert.equal(m4a.status, 201, "اسم آيفون للصوت يُقبل كـ M4A");
+  assert.equal(m4a.data.mime, "audio/mp4");
+  video = m4a.data;
   assert.equal((await A.teacher.post("/api/teacher/papers/media", { mime: "audio/mpeg", data: b64(png) })).status, 400, "صورة باسم صوت");
   assert.equal((await A.teacher.post("/api/teacher/papers/media", { mime: "application/pdf", data: b64(mp3) })).status, 400, "نوع غير مسموح");
   const i = await A.teacher.post("/api/teacher/papers/images", { mime: "image/png", data: b64(png) });
@@ -62,7 +64,7 @@ test("الورقة: صوت وفيديو ورابط ورقم تشغيل، وصو�
   const content = { sections: [{ id: "s_media", title: "", instructions: "", questions: [
     { id: "q_lis1", type: "mcq", marks: 2, text: "استمع ثم اختر", media: { kind: "audio", id: audio.id, plays: 2 },
       options: [{ id: "o_pic1", text: "", image: { id: pic.id } }, { id: "o_txt1", text: "قطة" }], correct: ["o_pic1"] },
-    { id: "q_vid1", type: "short", marks: 2, text: "شاهد ثم أجب", media: { kind: "video", id: video.id } },
+    { id: "q_vid1", type: "short", marks: 2, text: "استمع ثم أجب", media: { kind: "audio", id: video.id } },
     { id: "q_lnk1", type: "truefalse", marks: 1, text: "شاهد المقطع", media: { kind: "video", url: "https://www.youtube.com/watch?v=abcdefghijk" }, correct: true },
     { id: "q_pho1", type: "essay", marks: 3, text: "حل المسألة على الورقة وصوّرها", respond: "image" },
     { id: "q_voi1", type: "short", marks: 2, text: "اقرأ الآية بصوتك", respond: "audio" },

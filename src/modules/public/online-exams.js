@@ -21,14 +21,20 @@ const run = (req, fn) => inSchool(req, "طالب", async (q, tenant) => {
 const idOf = (req) => parse(t.id, req.params.id);
 
 r.post("/student/online-exams", limits.studentKey, handle(async (req, res) => res.json(await run(req, (q, s) => oe.forStudent(q, s)))));
-r.post("/student/online-exams/:id/start", limits.studentKey, handle(async (req, res) => res.json(await run(req, (q, s) => oe.start(q, s, idOf(req), req.ip)))));
+r.post("/student/online-exams/:id/start", limits.studentKey, handle(async (req, res) => {
+  const code = typeof req.body?.access_code === "string" ? req.body.access_code.slice(0, 20) : undefined;
+  res.json(await run(req, (q, s) => oe.start(q, s, idOf(req), req.ip, code)));
+}));
 r.post("/student/online-exams/:id/save", limits.publicApi, handle(async (req, res) => {
-  const { answers } = parse(oe.saveSchema, req.body);
-  res.json(await run(req, (q, s) => oe.save(q, s, idOf(req), answers)));
+  const { answers, page, flags } = parse(oe.saveSchema, req.body);
+  res.json(await run(req, (q, s) => oe.save(q, s, idOf(req), answers, { page, flags })));
 }));
 r.post("/student/online-exams/:id/submit", limits.studentKey, handle(async (req, res) => {
-  const { answers } = parse(oe.saveSchema, req.body);
-  res.json(await run(req, (q, s) => oe.save(q, s, idOf(req), answers, { submit: true })));
+  const { answers, page, flags } = parse(oe.saveSchema, req.body);
+  res.json(await run(req, (q, s) => oe.save(q, s, idOf(req), answers, { submit: true, page, flags })));
+}));
+r.post("/student/online-exams/:id/leave", limits.publicApi, handle(async (req, res) => {
+  res.json(await run(req, (q, s) => oe.leave(q, s, idOf(req))));
 }));
 r.post("/student/online-exams/:id/review", limits.studentKey, handle(async (req, res) => res.json(await run(req, (q, s) => oe.review(q, s, idOf(req))))));
 r.post("/student/online-exams/:id/image", limits.publicApi, handle(async (req, res) => {

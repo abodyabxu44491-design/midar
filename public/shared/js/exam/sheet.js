@@ -236,7 +236,7 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     if (imgEl && q.image.position === "before") el.append(imgEl);
     main.append(head);
     if (q.media) main.append(h("button", { type: "button", class: "xp-media-tag xs-media", disabled: ro, onclick: () => advanced(q), title: "اضغط لتغيير المقطع" },
-      q.media.kind === "audio" ? "سؤال استماع — فيه مقطع صوتي" : q.media.url ? "سؤال فيديو — برابط" : "سؤال فيديو — فيه مقطع فيديو"));
+      `${q.media.kind === "audio" ? "سؤال استماع — فيه مقطع صوتي" : "سؤال فيديو"} — للاختبار الإلكتروني فقط ولا يُطبع`));
     if (imgEl && !side && q.image.position !== "before") main.append(imgEl);
     if (q.table) main.append(h("div", { class: "xs-table", onclick: () => !ro && advanced(q), title: "اضغط لتعديل الجدول" }, tableEl(q.table)));
     main.append(...typeBody(q, s));

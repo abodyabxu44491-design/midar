@@ -125,20 +125,18 @@ export function mediaPlayer(m, src) {
 function mediaControls(q, base, changed) {
   const box = h("div", { class: "xb-media-box" });
   const audioIn = h("input", { type: "file", accept: "audio/*,.mp3,.m4a,.ogg,.wav", class: "hidden" });
-  const videoIn = h("input", { type: "file", accept: "video/mp4,video/webm,.mp4,.webm,.mov", class: "hidden" });
   const pick = (kind) => async (e) => {
     const f = e.target.files[0];
     e.target.value = "";
     if (!f) return;
     try {
-      toast(kind === "audio" ? "جارٍ رفع الصوت…" : "جارٍ رفع الفيديو…");
+      toast("جارٍ رفع الصوت…");
       const r = await uploadMedia(base, f);
       q.media = { kind: r.kind, id: r.id, plays: q.media?.plays || 0 };
       changed(); draw(); toast("أُضيف الملف");
     } catch (err) { toast(err.message, true); }
   };
   audioIn.addEventListener("change", pick("audio"));
-  videoIn.addEventListener("change", pick("video"));
   const linkDialog = () => {
     const url = input({ type: "url", placeholder: "https://www.youtube.com/watch?v=…", dir: "ltr" });
     const wrap = h("div", { class: "row", style: "align-items:flex-end" }, field("رابط الفيديو (يوتيوب أو فيميو أو قوقل درايف)", url),
@@ -153,9 +151,8 @@ function mediaControls(q, base, changed) {
     if (!q.media) {
       mount(box, h("div", { class: "row", style: "justify-content:flex-start;flex-wrap:wrap;gap:6px" },
         btn("إضافة صوت", () => audioIn.click(), "ghost sm"),
-        btn("إضافة فيديو", () => videoIn.click(), "ghost sm"),
         btn("رابط فيديو", linkDialog, "ghost sm")),
-        h("small", { class: "sub" }, "الصوت والفيديو حتى 10 ميجابايت، ويعملان في الاختبار الإلكتروني. للفيديو الأطول أضف رابطه."), audioIn, videoIn);
+        h("small", { class: "sub" }, "للاختبار الإلكتروني فقط ولا يظهر في الورقة المطبوعة. الصوت يُرفع حتى 10 ميجابايت، والفيديو يُضاف برابط من يوتيوب أو فيميو أو قوقل درايف."), audioIn);
       return;
     }
     const plays = select([["0", "بلا حد"], ["1", "مرة واحدة"], ["2", "مرتين"], ["3", "3 مرات"]], { value: String(q.media.plays || 0) });
@@ -164,9 +161,9 @@ function mediaControls(q, base, changed) {
       mediaPlayer(q.media, q.media.id ? `${base}/media/${q.media.id}` : null),
       h("div", { class: "row", style: "align-items:flex-end" },
         q.media.url ? null : field("عدد مرات التشغيل للطالب", plays),
-        btn(q.media.kind === "audio" ? "تغيير الصوت" : q.media.url ? "تغيير الرابط" : "تغيير الفيديو", () => (q.media.url ? linkDialog() : (q.media.kind === "audio" ? audioIn : videoIn).click()), "ghost sm"),
+        q.media.kind === "audio" || q.media.url ? btn(q.media.kind === "audio" ? "تغيير الصوت" : "تغيير الرابط", () => (q.media.url ? linkDialog() : audioIn.click()), "ghost sm") : null,
         btn("إزالة", () => { q.media = null; changed(); draw(); }, "danger sm")),
-      audioIn, videoIn);
+      h("small", { class: "sub" }, "للاختبار الإلكتروني فقط ولا يظهر في الورقة المطبوعة."), audioIn);
   };
   draw();
   return box;

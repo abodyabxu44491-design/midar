@@ -3,9 +3,9 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
-// Sound and video for exam questions (uploaded by the teacher), and the files a student answers with in an online exam:
-// a photo of the solution or a voice recording. Files are kept in the database like the exam images; long videos are
-// added as links (YouTube and the like) and never stored.
+// Sound for exam questions (uploaded by the teacher), and the files a student answers with in an online exam:
+// a photo of the solution or a voice recording. Files are kept in the database like the exam images; videos are
+// added as links (YouTube and the like) and never stored. Videos uploaded before this rule still play.
 import { z } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { matchesMime } from "./attachments.service.js";
@@ -45,7 +45,7 @@ export const answerUploadSchema = fileBody(ANSWER_MAX).extend({ question_id: z.s
 function decode(file, allowed, max, what) {
   const mime = canonical(file.mime);
   if (!allowed.includes(mime)) throw badRequest(what === "media"
-    ? "الملفات المسموحة: صوت (MP3 أو M4A أو OGG أو WAV) أو فيديو (MP4 أو WEBM)"
+    ? "الملفات المسموحة: صوت (MP3 أو M4A أو OGG أو WAV)"
     : "الملفات المسموحة: صورة (JPG أو PNG) أو تسجيل صوتي");
   const buffer = Buffer.from(file.data, "base64");
   if (!buffer.length) throw badRequest("الملف فارغ");
@@ -55,6 +55,8 @@ function decode(file, allowed, max, what) {
 }
 
 export async function saveMedia(q, { teacherId = null, file, actor }) {
+  // Videos are added by link (YouTube, Vimeo, Google Drive) so the school's database stays light; only sound is uploaded.
+  if (canonical(file.mime).startsWith("video/")) throw badRequest("الفيديو يُضاف برابط (يوتيوب أو فيميو أو قوقل درايف) ولا يُرفع. ارفع المقاطع الصوتية فقط");
   const { mime, buffer, kind } = decode(file, MEDIA_MIMES, MEDIA_MAX, "media");
   const [row] = await q(
     `INSERT INTO exam_media (tenant_id, kind, teacher_id, mime, size_bytes, data, name, uploaded_by)

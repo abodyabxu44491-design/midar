@@ -431,3 +431,4 @@ dialog.xb-wide { width: min(760px, 96vw); }
   .xs-add-mobile .xs-menu-list { min-width: min(300px, calc(100vw - 40px)); max-height: 60vh; overflow: auto; }
   .xs-addbar { bottom: 6px; padding: 6px 8px; }
 }
+@media print { .xs-media { display: none !important; } }

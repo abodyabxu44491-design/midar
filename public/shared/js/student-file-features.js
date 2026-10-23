@@ -41,10 +41,10 @@ export function featureSections(d, actions = {}) {
             sub(`${x.subject} — ${fmtDateTime(x.opens_at)} إلى ${fmtDateTime(x.closes_at)} — ${x.duration_min} دقيقة — ${x.max_score} درجة`),
             x.score !== null ? sub(`الدرجة: ${x.score} من ${x.max_score}`) : x.pending ? sub("بانتظار تصحيح المعلم") : null),
           actions.api && (x.state === "open" || x.state === "in_progress") ? btn(x.state === "open" ? "ابدأ الاختبار" : "أكمل الاختبار", async () => {
-            if (x.state === "open" && !confirm(`ابدأ «${x.title}»؟ يبدأ العدّاد (${x.duration_min} دقيقة) من الآن ولا يتوقف.`)) return;
             const { takeExam } = await import("./online-exam-take.js");
             try {
-              mount(box, await takeExam({ call: actions.api, fetchFile: actions.fetchFile, id: x.id, onExit: () => location.reload() }));
+              mount(box, await takeExam({ call: actions.api, fetchFile: actions.fetchFile, id: x.id, info: x,
+                onExit: () => { if (box.querySelector(".oe-start")) { mount(box); list.hidden = false; } else location.reload(); } }));
               list.hidden = true; box.scrollIntoView({ behavior: "smooth" });
             } catch (e) { toast(e.message, true); }
           }, "sm") : actions.api && x.can_review ? btn("مراجعة الإجابات", async () => {

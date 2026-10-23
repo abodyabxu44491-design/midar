@@ -80,7 +80,7 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   main.append(head);
   if (img && !side && q.image.position !== "before") body.append(img);
   // A clip cannot play on paper: the sheet says the question has one, so the teacher plays it in class.
-  if (q.media) main.append(h("div", { class: "xp-media-tag" }, q.media.kind === "audio" ? "يُستمع إلى المقطع الصوتي ثم يُجاب عن السؤال" : "يُشاهَد مقطع الفيديو ثم يُجاب عن السؤال"));
+  // A question's sound or video belongs to the online exam only; the printed paper does not mention it.
   if (q.table) main.append(tableEl(q.table));
 
   if (def.options) {

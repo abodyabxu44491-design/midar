@@ -33,6 +33,17 @@ export function onlineExamsRouter(role) {
     const { marks } = parse(oe.marksSchema, req.body);
     res.json(await inTenant(req, (q) => oe.setMarks(q, who(req), parse(t.id, req.params.id), parse(t.id, req.params.aid), marks, req.actor)));
   }));
+  r.patch("/:id", handle(async (req, res) => {
+    const b = parse(oe.updateSchema, req.body);
+    res.json(await inTenant(req, (q) => oe.update(q, who(req), parse(t.id, req.params.id), b)));
+  }));
+  r.post("/:id/attempts/:aid/extend", handle(async (req, res) => {
+    const { minutes } = parse(oe.extendSchema, req.body);
+    res.json(await inTenant(req, (q) => oe.extend(q, who(req), parse(t.id, req.params.id), parse(t.id, req.params.aid), minutes)));
+  }));
+  r.delete("/:id/attempts/:aid", handle(async (req, res) => {
+    res.json(await inTenant(req, (q) => oe.resetAttempt(q, who(req), parse(t.id, req.params.id), parse(t.id, req.params.aid))));
+  }));
   r.post("/:id/sync", handle(async (req, res) => {
     res.json(await inTenant(req, (q) => oe.syncScores(q, who(req), parse(t.id, req.params.id), req.actor)));
   }));
