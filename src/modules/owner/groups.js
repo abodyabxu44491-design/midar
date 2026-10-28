@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, t, z, optional } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword } from "../../core/auth/codes.js";
 import { baseUrl } from "../../core/links.js";
@@ -25,16 +25,16 @@ const fields = {
   name: t.shortText("اسم المجموعة", 150),
   manager_name: t.name("اسم المدير العام"),
   phone: t.optText(25),
-  max_schools: z.coerce.number().int().min(1).max(100).default(3),
+  max_schools: z.coerce.number().int().min(1).max(100).prefault(3),
   extra_school_price: money,
   plan_id: t.optId,
   ends_on: t.optDate,
 };
 const createSchema = z.object({ id: code.refine((v) => !RESERVED_CODES.has(v), "هذا الرمز محجوز"), ...fields });
 const updateSchema = z.object({
-  ...Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.optional()])),
+  ...Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, optional(v)])),
   status: z.enum(["active", "suspended"]).optional(),
-  apply_to_schools: z.boolean().default(false),
+  apply_to_schools: z.boolean().prefault(false),
 });
 
 const link = (req) => `${baseUrl(req)}/group`;
@@ -107,7 +107,7 @@ r.post("/:id/reset-password", handle(async (req, res) => {
 
 r.post("/:id/schools", handle(async (req, res) => {
   const id = parse(code, req.params.id);
-  const b = parse(z.object({ tenant_id: code, apply_subscription: z.boolean().default(true) }), req.body);
+  const b = parse(z.object({ tenant_id: code, apply_subscription: z.boolean().prefault(true) }), req.body);
   await platform(req, async (q) => {
     const [tn] = await q("SELECT id, group_id FROM tenants WHERE id = $1 FOR UPDATE", [b.tenant_id]);
     if (!tn) throw notFound("المدرسة غير موجودة");

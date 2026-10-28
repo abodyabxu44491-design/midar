@@ -14,10 +14,10 @@ const TYPES = ["all", "stage", "grade", "class", "students", "teachers", "staff"
 const schema = z.object({
   title: t.shortText("العنوان"),
   body: t.optText(2000),
-  kind: z.enum(["announcement", "message"]).default("announcement"),
+  kind: z.enum(["announcement", "message"]).prefault("announcement"),
   class_id: t.optId,
-  target: z.object({ type: z.enum(TYPES), ids: z.array(t.id).max(2000).default([]) }).optional(),
-  dry_run: z.boolean().default(false),
+  target: z.object({ type: z.enum(TYPES), ids: z.array(t.id).max(2000).prefault([]) }).optional(),
+  dry_run: z.boolean().prefault(false),
   expected: z.number().int().min(0).optional(),
 });
 const STAFF_TYPES = new Set(["teachers", "staff"]);

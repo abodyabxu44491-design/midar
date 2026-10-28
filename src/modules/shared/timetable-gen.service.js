@@ -13,12 +13,12 @@ export const settingsSchema = z.object({
   start_time: z.string().regex(/^\d{2}:\d{2}$/, "الوقت بصيغة 07:30"),
   period_minutes: z.coerce.number().int().min(20).max(120),
   break_after: z.coerce.number().int().min(1).max(10).nullable().optional(),
-  break_minutes: z.coerce.number().int().min(0).max(120).default(20),
+  break_minutes: z.coerce.number().int().min(0).max(120).prefault(20),
 });
 
 export const generateSchema = z.object({
   class_ids: z.array(t.id).max(200).optional(),
-  replace: z.boolean().default(false),
+  replace: z.boolean().prefault(false),
 });
 
 export const applySchema = z.object({
@@ -27,7 +27,7 @@ export const applySchema = z.object({
     period: z.coerce.number().int().min(1).max(10),
     subject_id: t.id, teacher_id: t.optId, room: t.optText(30),
   })).max(2000),
-  replace: z.boolean().default(true),
+  replace: z.boolean().prefault(true),
 });
 
 const DEFAULTS = { days: [0, 1, 2, 3, 4], periods_per_day: 7, start_time: "07:30", period_minutes: 45, break_after: 3, break_minutes: 20 };

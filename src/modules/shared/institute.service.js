@@ -47,7 +47,7 @@ export async function getSettings(q) {
     late_counts_as: Number(row.late_counts_as), terms: { ...DEFAULT_TERMS, ...row.terms } };
 }
 export const settingsSchema = z.object({
-  terms: z.record(z.enum(Object.keys(DEFAULT_TERMS)), z.string().trim().min(2).max(40)).optional(),
+  terms: z.partialRecord(z.enum(Object.keys(DEFAULT_TERMS)), z.string().trim().min(2).max(40)).optional(),
   required_fields: z.array(z.enum(Object.keys(TRAINEE_FIELDS))).max(10).optional(),
   min_attendance: z.coerce.number().min(0).max(100).optional(),
   pass_mark: z.coerce.number().min(0).max(100).optional(),
@@ -100,9 +100,9 @@ export const courseSchema = z.object({
   code, name: t.shortText("اسم الدورة", 150), program_id: t.optId, department: t.optText(100), description: t.optText(2000),
   objectives: t.optText(2000), prerequisites: t.optText(1000), trainer_id: t.optId,
   hours: z.coerce.number().positive("عدد الساعات مطلوب").max(5000), seats: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(5000)]).optional().transform((v) => (v ? Number(v) : null)),
-  starts_on: t.optDate, ends_on: t.optDate, schedule: t.optText(300), fee: z.coerce.number().min(0).max(100_000_000).default(0),
-  mode: z.enum(["onsite", "remote", "blended"]).default("onsite"), status: z.enum(Object.keys(COURSE_STATUS)).default("planned"),
-  grading: z.enum(["score", "pass_fail"]).default("score"),
+  starts_on: t.optDate, ends_on: t.optDate, schedule: t.optText(300), fee: z.coerce.number().min(0).max(100_000_000).prefault(0),
+  mode: z.enum(["onsite", "remote", "blended"]).prefault("onsite"), status: z.enum(Object.keys(COURSE_STATUS)).prefault("planned"),
+  grading: z.enum(["score", "pass_fail"]).prefault("score"),
   pass_mark: z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(100)]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
   min_attendance: z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(100)]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
   reason: t.optText(300),
@@ -286,7 +286,7 @@ export async function listTrainees(q, { q: term = null, status = null, course_id
 
 // ---------- Enrollments ----------
 export const enrollSchema = z.object({ student_id: t.id, course_id: t.id, group_id: t.optId,
-  discount: z.coerce.number().min(0).max(100_000_000).default(0), note: t.optText(300), invoice: z.boolean().default(true) });
+  discount: z.coerce.number().min(0).max(100_000_000).prefault(0), note: t.optText(300), invoice: z.boolean().prefault(true) });
 
 export async function enroll(q, b, actor, { canDiscount = false } = {}) {
   const [c] = await q("SELECT * FROM courses WHERE id = $1 FOR UPDATE", [b.course_id]);
@@ -380,8 +380,8 @@ export async function courseRoster(q, courseId, { trainerId = null } = {}) {
 // ---------- Sessions and attendance ----------
 export const sessionSchema = z.object({
   group_id: t.optId, trainer_id: t.optId, day: t.date, starts_at: z.union([z.string().regex(/^\d{2}:\d{2}$/), z.literal(""), z.null()]).optional().transform((v) => v || null),
-  hours: z.coerce.number().positive("مدة الجلسة مطلوبة").max(24), mode: z.enum(["onsite", "remote"]).default("onsite"), topic: t.optText(200),
-  repeat_weeks: z.coerce.number().int().min(1).max(52).default(1), weekdays: z.array(z.coerce.number().int().min(0).max(6)).max(7).optional(),
+  hours: z.coerce.number().positive("مدة الجلسة مطلوبة").max(24), mode: z.enum(["onsite", "remote"]).prefault("onsite"), topic: t.optText(200),
+  repeat_weeks: z.coerce.number().int().min(1).max(52).prefault(1), weekdays: z.array(z.coerce.number().int().min(0).max(6)).max(7).optional(),
 });
 export async function addSessions(q, courseId, b) {
   const [c] = await q("SELECT id, trainer_id, mode, status FROM courses WHERE id = $1", [courseId]);
@@ -474,9 +474,9 @@ export async function saveAttendance(q, id, b, actor, { trainerId = null } = {})
 }
 
 // ---------- Assessments and scores ----------
-export const assessmentSchema = z.object({ name: t.shortText("اسم التقييم", 100), kind: z.enum(Object.keys(ASSESS_KIND)).default("theory"),
+export const assessmentSchema = z.object({ name: t.shortText("اسم التقييم", 100), kind: z.enum(Object.keys(ASSESS_KIND)).prefault("theory"),
   max_score: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
-  weight: z.coerce.number().min(0).max(100).default(0), sort: z.coerce.number().int().min(0).max(1000).default(0) });
+  weight: z.coerce.number().min(0).max(100).prefault(0), sort: z.coerce.number().int().min(0).max(1000).prefault(0) });
 export async function saveAssessment(q, courseId, id, b) {
   const [c] = await q("SELECT grading FROM courses WHERE id = $1", [courseId]);
   if (!c) throw notFound("الدورة غير موجودة");
@@ -676,7 +676,7 @@ async function programsCompleted(q, studentId) {
 }
 
 // ---------- Certificates ----------
-export const certificateSchema = z.object({ kind: z.enum(["course", "attendance"]).default("course"), title: t.optText(120), template_id: t.optId });
+export const certificateSchema = z.object({ kind: z.enum(["course", "attendance"]).prefault("course"), title: t.optText(120), template_id: t.optId });
 // A completion certificate comes only from the course's approved results; an attendance statement is not a
 // result and needs no approval. Re-issuing replaces the earlier certificate (kept, marked «مستبدلة»).
 export async function issueCertificate(q, enrollmentId, b, actor, school, { reason = null } = {}) {

@@ -168,7 +168,7 @@ export function papersRouter(role) {
   }));
 
   r.get("/:id/answer-key", handle(async (req, res) => {
-    const v = parse(z.object({ v: z.coerce.number().int().min(0).max(3).default(0) }), req.query);
+    const v = parse(z.object({ v: z.coerce.number().int().min(0).max(3).prefault(0) }), req.query);
     res.json(await inTenant(req, async (q) => {
       const { paper, perms } = await papers.getFor(q, who(req), idParam(req));
       if (!perms.answer_key) throw forbidden("نموذج الإجابة من صلاحية إدارة المدرسة");

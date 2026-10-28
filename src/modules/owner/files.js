@@ -23,7 +23,7 @@ const listQuery = z.object({
   status: z.enum(["active", "suspended", "archived"]).optional().or(z.literal("")),
   stage: z.enum(sf.STAGES.map(([k]) => k)).optional().or(z.literal("")),
   delivery: z.enum(["sent", "failed", "pending", "none"]).optional().or(z.literal("")),
-  sort: z.enum(["newest", "oldest", "updated"]).default("newest"),
+  sort: z.enum(["newest", "oldest", "updated"]).prefault("newest"),
 });
 
 r.get("/", handle(async (req, res) => {

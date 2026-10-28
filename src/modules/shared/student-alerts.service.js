@@ -11,11 +11,11 @@ export const KINDS = ["note", "attendance", "behavior", "academic", "health", "p
 export const LEVELS = ["info", "warning", "urgent", "positive"];
 
 export const alertSchema = z.object({
-  kind: z.enum(KINDS).default("note"),
-  level: z.enum(LEVELS).default("info"),
+  kind: z.enum(KINDS).prefault("note"),
+  level: z.enum(LEVELS).prefault("info"),
   title: z.string().trim().min(2, "اكتب عنوان التنبيه").max(120),
   body: t.optText(1000),
-  for_parent: z.boolean().default(true),
+  for_parent: z.boolean().prefault(true),
 });
 
 const COLS = `a.id, a.kind, a.level, a.title, a.body, a.for_parent, a.created_by, a.acknowledged_at, a.created_at, a.teacher_id`;

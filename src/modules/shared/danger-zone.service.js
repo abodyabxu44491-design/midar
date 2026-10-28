@@ -126,7 +126,7 @@ export const planSchema = z.object({
     backup_id: z.coerce.number().int().positive().optional(),
     include_admins: z.boolean().optional(),
     reason: z.string().trim().max(300).optional(),
-  }).default({}),
+  }).prefault({}),
 });
 export const stepSchema = z.object({ token: z.string().min(20).max(100) });
 export const executeSchema = stepSchema.extend({

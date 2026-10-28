@@ -27,7 +27,7 @@ export const decideSchema = z.object({
 export const paySchema = z.object({
   account_id: t.id,
   category_id: t.optId,
-  method: z.enum(["cash", "transfer", "card", "online"]).default("cash"),
+  method: z.enum(["cash", "transfer", "card", "online"]).prefault("cash"),
   reference: t.optText(80),
   occurred_on: t.optDate,
   rate: z.coerce.number().positive().optional(),

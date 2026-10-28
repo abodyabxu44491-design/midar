@@ -12,7 +12,7 @@ export const planSchema = z.object({
   class_id: t.id, subject_id: t.id, week_start: t.date,
   topic: t.shortText("موضوع الدرس", 200),
   objectives: txt(2000), content: txt(4000), activities: txt(2000), assessment: txt(1000), homework: txt(1000), resources: txt(1000),
-  submit: z.boolean().default(false),
+  submit: z.boolean().prefault(false),
 });
 export const STATUS = { draft: "مسودة", submitted: "مرسلة للمراجعة", approved: "معتمدة", returned: "معادة للتعديل" };
 

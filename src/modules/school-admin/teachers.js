@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, t, z, optional } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword } from "../../core/auth/codes.js";
 import { clearLoginFailures, logEvent } from "../../core/audit.js";
@@ -16,7 +16,7 @@ import { usernameFromName, uniqueUsername, nextEmployeeNo } from "../../core/aut
 import { featureSettings, TEACHER_SECTIONS } from "../shared/feature-settings.service.js";
 
 const r = Router();
-const loadSchema = z.array(z.object({ class_id: t.id, subject_id: t.id })).max(200).default([]);
+const loadSchema = z.array(z.object({ class_id: t.id, subject_id: t.id })).max(200).prefault([]);
 const profileFields = {
   employee_no: t.optText(30),
   national_id: z.string().trim().regex(/^[0-9]{5,20}$/, "رقم الهوية أرقام فقط").optional().or(z.literal("")).transform((v) => v || null),
@@ -37,7 +37,7 @@ const profileFields = {
 const EXTRA = ["short_name", "gender", "birth_date", "job_title", "qualification", "hire_date", "employment_type", "address", "emergency_name", "emergency_phone"];
 const photoSchema = z.object({ data_url: z.string().max(220_000, "الصورة كبيرة").regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "صيغة الصورة غير مدعومة") });
 const createSchema = z.object({ name: t.name("اسم المعلم"), username: t.username.optional().or(z.literal("").transform(() => undefined)), phone: t.phone, load: loadSchema, ...profileFields });
-const updateSchema = z.object({ name: t.name("اسم المعلم").optional(), phone: t.phone, load: loadSchema.optional(), ...profileFields });
+const updateSchema = z.object({ name: t.name("اسم المعلم").optional(), phone: t.phone, load: optional(loadSchema), ...profileFields });
 
 async function setLoad(q, teacherId, load) {
   const seen = new Set();

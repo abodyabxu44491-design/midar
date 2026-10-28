@@ -24,7 +24,7 @@ const schema = z.object({
   username: z.string().max(100),
   password: z.string().max(200),
   code: z.string().max(20).optional(),
-  remember: z.boolean().optional().default(false),
+  remember: z.boolean().optional().prefault(false),
 });
 const ENROLL_MINUTES = 10;
 const sha = (v) => crypto.createHash("sha256").update(String(v)).digest("hex");
@@ -103,7 +103,7 @@ r.post("/login", limits.login, handle(async (req, res) => {
 
 // Finishing enrollment: the code from the authenticator app proves the secret was saved; only then a session opens.
 r.post("/enroll", limits.login, handle(async (req, res) => {
-  const b = parse(z.object({ ticket: z.string().regex(/^[0-9a-f]{64}$/), code: z.string().max(10), remember: z.boolean().optional().default(false) }), req.body);
+  const b = parse(z.object({ ticket: z.string().regex(/^[0-9a-f]{64}$/), code: z.string().max(10), remember: z.boolean().optional().prefault(false) }), req.body);
   let codes = [];
   await transaction(platform(req), async (q) => {
     if (await ownerTotp(q)) throw badRequest("التحقق الثنائي مفعّل بالفعل. سجّل الدخول بالرمز.");

@@ -21,10 +21,10 @@ export const accountSchema = z.object({
   name: t.shortText("اسم الحساب", 80),
   kind: z.enum(["bank", "cash", "online", "donations", "other"]),
   currency: z.enum(["SAR", "YER", "USD"]).optional(),
-  opening_balance: z.coerce.number().min(-100_000_000).max(100_000_000).default(0),
+  opening_balance: z.coerce.number().min(-100_000_000).max(100_000_000).prefault(0),
   low_balance: z.union([z.literal(""), z.coerce.number().min(0)]).optional().transform((v) => (v === "" || v === undefined ? null : Number(v))),
   note: t.optText(300),
-  methods: z.array(z.enum(["cash", "transfer", "card", "online"])).max(4).default([]),
+  methods: z.array(z.enum(["cash", "transfer", "card", "online"])).max(4).prefault([]),
 });
 export const categorySchema = z.object({
   direction: z.enum(["income", "expense"]),
@@ -38,12 +38,12 @@ export const entrySchema = z.object({
   occurred_on: t.date,
   reason: t.shortText("سبب الحركة", 300),
   beneficiary: t.optText(120),
-  method: z.enum(["cash", "transfer", "card", "online"]).default("cash"),
+  method: z.enum(["cash", "transfer", "card", "online"]).prefault("cash"),
   reference: t.optText(80),
   attachment: t.optText(300),
   note: t.optText(300),
   rate: z.coerce.number().positive("سعر التحويل غير صحيح").max(1_000_000).optional(),
-  needs_approval: z.boolean().default(false),
+  needs_approval: z.boolean().prefault(false),
 });
 export const transferSchema = z.object({
   from_account_id: t.id,

@@ -27,7 +27,7 @@ r.post("/sign-out-all", handle(async (req, res) => {
 }));
 
 const renewalSchema = z.object({
-  kind: z.enum(["renew", "upgrade", "support"]).default("renew"),
+  kind: z.enum(["renew", "upgrade", "support"]).prefault("renew"),
   months: z.coerce.number().int().min(1).max(36).optional(),
   students_wanted: z.coerce.number().int().min(1).max(100000).optional(),
   contact_name: t.optText(120),

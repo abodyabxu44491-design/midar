@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, t, z, patch } from "../../core/http/validate.js";
 import * as fields from "../shared/custom-fields.service.js";
 
 const r = Router();
@@ -24,7 +24,7 @@ r.post("/", handle(async (req, res) => {
 
 r.patch("/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  const b = parse(fields.fieldSchema.partial(), req.body);
+  const b = parse(patch(fields.fieldSchema), req.body);
   await inTenant(req, (q) => fields.updateField(q, id, b));
   res.json({ ok: true });
 }));

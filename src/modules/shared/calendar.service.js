@@ -10,13 +10,13 @@ import { notify } from "./notify.service.js";
 export const KINDS = { event: "فعالية", exam: "اختبارات", meeting: "اجتماع", activity: "نشاط", trip: "رحلة", deadline: "موعد نهائي", other: "أخرى" };
 export const eventSchema = z.object({
   title: t.shortText("عنوان الفعالية", 120),
-  kind: z.enum(Object.keys(KINDS)).default("event"),
+  kind: z.enum(Object.keys(KINDS)).prefault("event"),
   starts_on: t.date, ends_on: t.optDate,
   time_text: z.string().trim().max(40).optional().nullable().transform((v) => v || null),
-  audience: z.enum(["all", "staff", "parents"]).default("all"),
+  audience: z.enum(["all", "staff", "parents"]).prefault("all"),
   class_id: t.optId,
   description: t.optText(1000),
-  notify: z.boolean().default(false),
+  notify: z.boolean().prefault(false),
 });
 export const rangeSchema = z.object({ from: t.date, to: t.date });
 

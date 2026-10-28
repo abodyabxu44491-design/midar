@@ -50,7 +50,7 @@ export const ridersOf = (q, busId) => q(
     WHERE x.bus_id = $1 AND s.archived_at IS NULL ORDER BY x.stop NULLS LAST, s.full_name`, [busId]);
 
 export const assignSchema = z.object({ student_ids: z.array(t.id).min(1).max(300), stop: opt(120),
-  direction: z.enum(["both", "to_school", "from_school"]).default("both"), pickup_time: opt(20) });
+  direction: z.enum(["both", "to_school", "from_school"]).prefault("both"), pickup_time: opt(20) });
 export async function assignRiders(q, busId, b) {
   const [bus] = await q("SELECT id, capacity FROM buses WHERE id = $1 AND is_active", [busId]);
   if (!bus) throw notFound("الحافلة غير موجودة أو موقوفة");
@@ -114,14 +114,14 @@ export async function transportOf(q, studentId) {
 export const PARTS = { first: "الجزء الأول", second: "الجزء الثاني", combined: "جزء مشترك (مجلد واحد)" };
 export const SOURCES = { government: "طبعة حكومية", private: "طباعة خاصة" };
 export const bookSchema = z.object({ title: z.string().trim().min(1, "اكتب عنوان الكتاب").max(200), author: opt(120), isbn: opt(20), category: opt(60), shelf: opt(30),
-  copies: z.coerce.number().int().min(0).max(10000).default(1), notes: opt(300),
+  copies: z.coerce.number().int().min(0).max(10000).prefault(1), notes: opt(300),
   grade_id: t.optId, subject_id: t.optId, part: z.enum(Object.keys(PARTS)).nullable().optional().transform((v) => v || null),
   source: z.enum(Object.keys(SOURCES)).nullable().optional().transform((v) => v || null) });
 export const bulkSchema = z.object({
   grade_id: t.id, source: z.enum(Object.keys(SOURCES)).nullable().optional().transform((v) => v || null), shelf: opt(30),
   items: z.array(z.object({ subject_id: t.id, part: z.enum(Object.keys(PARTS)), copies: z.coerce.number().int().min(1).max(10000) })).min(1).max(200),
 });
-export const coverSchema = z.object({ mime: z.enum(["image/png", "image/jpeg", "image/webp"], { errorMap: () => ({ message: "صورة الغلاف PNG أو JPG أو WEBP" }) }),
+export const coverSchema = z.object({ mime: z.enum(["image/png", "image/jpeg", "image/webp"], { error: "صورة الغلاف PNG أو JPG أو WEBP" }),
   data: z.string().min(16).max(Math.ceil(1.5 * 1024 * 1024 * 1.37)) });
 
 export const books = (q, { search = null, grade_id = null } = {}) => q(
@@ -245,8 +245,8 @@ export const loansOf = (q, studentId) => q(
   `SELECT b.title, l.loaned_on::text, l.due_on::text, l.returned_on::text, (l.returned_on IS NULL AND l.due_on < CURRENT_DATE) AS overdue
      FROM library_loans l JOIN library_books b ON b.id = l.book_id WHERE l.student_id = $1 ORDER BY l.loaned_on DESC LIMIT 30`, [studentId]);
 
-export const itemSchema = z.object({ name: z.string().trim().min(1).max(120), category: opt(60), unit: z.string().trim().min(1).max(20).default("قطعة"),
-  min_quantity: z.coerce.number().min(0).max(1e9).default(0), location: opt(80), note: opt(300) });
+export const itemSchema = z.object({ name: z.string().trim().min(1).max(120), category: opt(60), unit: z.string().trim().min(1).max(20).prefault("قطعة"),
+  min_quantity: z.coerce.number().min(0).max(1e9).prefault(0), location: opt(80), note: opt(300) });
 export const items = (q) => q(
   `SELECT i.*, COALESCE((SELECT sum(CASE WHEN m.kind = 'custody' THEN m.qty ELSE -m.qty END) FROM inventory_moves m
              WHERE m.item_id = i.id AND m.kind IN ('custody', 'return')), 0) AS in_custody
@@ -306,7 +306,7 @@ export async function saveHealth(q, studentId, b, actor) {
 }
 export const visitSchema = z.object({ student_id: t.id, complaint: t.shortText("الشكوى", 300), action: opt(500),
   temperature: z.union([z.literal(""), z.null(), z.coerce.number().min(30).max(45)]).optional().transform((v) => (v === "" ? null : v ?? null)),
-  sent_home: z.boolean().default(false), notify_parent: z.boolean().default(true) });
+  sent_home: z.boolean().prefault(false), notify_parent: z.boolean().prefault(true) });
 export async function addVisit(q, b, actor) {
   const [st] = await q("SELECT id, full_name FROM students WHERE id = $1 AND archived_at IS NULL", [b.student_id]);
   if (!st) throw notFound("الطالب غير موجود");

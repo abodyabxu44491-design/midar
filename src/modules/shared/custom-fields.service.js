@@ -9,13 +9,13 @@ import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 export const TYPES = { text: "نص", number: "رقم", date: "تاريخ", select: "قائمة", boolean: "نعم / لا" };
 
 export const fieldSchema = z.object({
-  entity: z.enum(["student", "teacher", "staff"]).default("student"),
+  entity: z.enum(["student", "teacher", "staff"]).prefault("student"),
   label: t.shortText("اسم الحقل", 60),
   type: z.enum(["text", "number", "date", "select", "boolean"]),
   options: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
-  required: z.boolean().default(false),
-  show_admin: z.boolean().default(true),
-  show_parent: z.boolean().default(false),
+  required: z.boolean().prefault(false),
+  show_admin: z.boolean().prefault(true),
+  show_parent: z.boolean().prefault(false),
   is_active: z.boolean().optional(),
 });
 

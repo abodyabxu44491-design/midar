@@ -30,7 +30,7 @@ export const gradeSchema = z.object({
 });
 export const sectionsSchema = z.object({
   count: z.coerce.number().int().min(1).max(20),
-  naming: z.enum(["arabic", "english", "numeric"]).default("arabic"),
+  naming: z.enum(["arabic", "english", "numeric"]).prefault("arabic"),
 });
 export const subjectSchema = z.object({
   name: t.shortText("اسم المادة", 60),
@@ -41,9 +41,9 @@ export const subjectSchema = z.object({
 });
 export const templateSchema = z.object({
   template: z.enum(Object.keys(TEMPLATES)),
-  sections_per_grade: z.coerce.number().int().min(0).max(20).default(1),
-  naming: z.enum(["arabic", "english", "numeric"]).default("arabic"),
-  grade_set: z.enum(["arabic_full", "arabic_short", "arabic_basic", "yemen", "international", "international_en"]).default("arabic_full"),
+  sections_per_grade: z.coerce.number().int().min(0).max(20).prefault(1),
+  naming: z.enum(["arabic", "english", "numeric"]).prefault("arabic"),
+  grade_set: z.enum(["arabic_full", "arabic_short", "arabic_basic", "yemen", "international", "international_en"]).prefault("arabic_full"),
   subjects: z.array(z.string().max(60)).max(120).optional(),
   stages: z.array(z.string().max(30)).max(10).optional(),
   custom_grades: z.record(z.string().max(30), z.array(z.string().trim().min(1, "اسم الصف فارغ").max(60)).max(20)).optional(),

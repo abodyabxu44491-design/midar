@@ -11,8 +11,8 @@ export const yearSchema = z.object({
   name: t.shortText("اسم السنة", 40),
   start_date: t.date,
   end_date: t.date,
-  terms: z.coerce.number().int().min(1).max(6).default(2),
-  make_current: z.boolean().default(true),
+  terms: z.coerce.number().int().min(1).max(6).prefault(2),
+  make_current: z.boolean().prefault(true),
 });
 export const termSchema = z.object({
   name: t.shortText("اسم الفصل", 40),
@@ -31,16 +31,16 @@ export const rolloverSchema = z.object({
   year: yearSchema,
   moves: z.array(z.object({
     from_class_id: t.id,
-    action: z.enum(["promote", "graduate", "repeat"]).default("promote"),
+    action: z.enum(["promote", "graduate", "repeat"]).prefault("promote"),
     to_class_id: t.optId,
-  })).max(200).default([]),
+  })).max(200).prefault([]),
   overrides: z.array(z.object({
     student_id: t.id,
     action: z.enum(ACTIONS),
     to_class_id: t.optId,
     note: t.optText(300),
-  })).max(2000).default([]),
-  repeat_failed: z.boolean().default(true),
+  })).max(2000).prefault([]),
+  repeat_failed: z.boolean().prefault(true),
   expected_year_id: t.optId,
 });
 
@@ -266,12 +266,12 @@ export const HOLIDAY_KINDS = {
 };
 export const holidaySchema = z.object({
   name: t.shortText("اسم الإجازة", 80),
-  kind: z.enum(Object.keys(HOLIDAY_KINDS)).default("official"),
+  kind: z.enum(Object.keys(HOLIDAY_KINDS)).prefault("official"),
   start_date: t.date,
   end_date: t.date,
   notes: t.optText(300),
-  affects_attendance: z.boolean().default(true),
-  show_in_calendar: z.boolean().default(true),
+  affects_attendance: z.boolean().prefault(true),
+  show_in_calendar: z.boolean().prefault(true),
 });
 export const listHolidays = (q) => q(
   `SELECT id, name, kind, start_date::text, end_date::text, notes, affects_attendance, show_in_calendar

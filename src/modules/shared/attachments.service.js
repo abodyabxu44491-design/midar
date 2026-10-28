@@ -11,7 +11,7 @@ const MIMES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
 export const uploadSchema = z.object({
   filename: t.shortText("اسم الملف", 160),
-  mime: z.enum(MIMES, { errorMap: () => ({ message: "الملفات المسموحة: صورة JPG أو PNG أو WEBP أو ملف PDF" }) }),
+  mime: z.enum(MIMES, { error: "الملفات المسموحة: صورة JPG أو PNG أو WEBP أو ملف PDF" }),
   data: z.string().min(16).max(Math.ceil(MAX_BYTES * 1.4)),      // base64
 });
 

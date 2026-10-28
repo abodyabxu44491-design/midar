@@ -171,7 +171,7 @@ const sha = (v) => crypto.createHash("sha256").update(String(v)).digest();
 const sameHash = (a, b) => Boolean(a && b && a.length === b.length && crypto.timingSafeEqual(a, b));
 export const PAIR_HOURS = 24;
 const pairInfo = z.object({ ua: z.string().max(200).optional(), platform: z.string().max(60).optional(), screen: z.string().max(30).optional(),
-  lang: z.string().max(20).optional() }).default({});
+  lang: z.string().max(20).optional() }).prefault({});
 
 export const gateBody = z.object({ name: z.string().trim().min(2).max(60), location: t.optText(120), is_active: z.boolean().optional(),
   direction: z.enum(["in", "out", "both"]).optional(),
@@ -260,9 +260,9 @@ export async function rePair(q, id) {
 }
 export const joinCodeBody = z.object({
   gate_id: t.id.optional(),
-  minutes: z.coerce.number().int().min(10).max(24 * 60).default(60),
-  max_devices: z.coerce.number().int().min(1).max(50).default(1),
-  auto_approve: z.boolean().default(false),
+  minutes: z.coerce.number().int().min(10).max(24 * 60).prefault(60),
+  max_devices: z.coerce.number().int().min(1).max(50).prefault(1),
+  auto_approve: z.boolean().prefault(false),
 });
 const joinAad = (tenant) => `gate-join:${tenant}`;
 const tenantId = async (q) => (await q("SELECT app_tenant() AS t"))[0].t;
@@ -522,13 +522,13 @@ export const REASONS = {
 };
 const MAX_OFFLINE_HOURS = 12;
 export const scanBody = z.object({
-  event_id: z.string().uuid(),
+  event_id: z.guid(),
   code: z.string().trim().min(4).max(400),
   client_ts: z.coerce.number().int().positive().optional(),
-  offline: z.boolean().default(false),
+  offline: z.boolean().prefault(false),
   skew_ms: z.coerce.number().int().min(-2e9).max(2e9).optional(),
-  direction: z.enum(["in", "out"]).default("in"),
-  source: z.enum(["qr", "nfc"]).default("qr"),
+  direction: z.enum(["in", "out"]).prefault("in"),
+  source: z.enum(["qr", "nfc"]).prefault("qr"),
 });
 export const batchBody = z.object({ events: z.array(scanBody).min(1).max(200) });
 
@@ -728,7 +728,7 @@ export async function daySummary(q, day) {
   };
 }
 
-export const feedQuery = z.object({ date: t.date, after: z.coerce.number().int().min(0).default(0), gate_id: t.id.optional() });
+export const feedQuery = z.object({ date: t.date, after: z.coerce.number().int().min(0).prefault(0), gate_id: t.id.optional() });
 export async function feed(q, { date, after, gate_id }) {
   const { timezone } = await getQuiet(q);
   const rows = await q(

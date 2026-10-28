@@ -28,7 +28,7 @@ export const studentSchema = z.object({
   grade_id: t.optId,
   guardian_name: t.optText(120),
   guardian_phone: t.phone,
-  fees_enabled: z.boolean().optional().default(false),
+  fees_enabled: z.boolean().optional().prefault(false),
 });
 export const importSchema = z.object({ students: z.array(studentSchema).min(1, "لا يوجد طلاب").max(1000, "الحد 1000 طالب في المرة") });
 export const updateSchema = z.object({

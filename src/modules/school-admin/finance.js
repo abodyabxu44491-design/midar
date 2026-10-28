@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
-import { parse, t } from "../../core/http/validate.js";
+import { parse, t, patch } from "../../core/http/validate.js";
 import * as finance from "../shared/finance.service.js";
 import * as ledger from "../shared/ledger.service.js";
 import * as payments from "../shared/payments.service.js";
@@ -18,10 +18,10 @@ const r = Router();
 
 const invoiceQuery = z.object({
   q: z.string().trim().max(80).optional(), class_id: t.optId, student_id: t.optId,
-  status: z.enum(["all", "open", "void", "unpaid"]).default("all"),
+  status: z.enum(["all", "open", "void", "unpaid"]).prefault("all"),
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
-  totals: z.enum(["0", "1"]).default("1"),
+  offset: z.coerce.number().int().min(0).max(1_000_000).prefault(0),
+  totals: z.enum(["0", "1"]).prefault("1"),
 });
 r.get("/invoices", handle(async (req, res) => {
   const f = parse(invoiceQuery, req.query);
@@ -101,7 +101,7 @@ r.post("/plans", handle(async (req, res) => {
 
 r.patch("/plans/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  const b = parse(plans.planSchema.partial().extend({ is_active: z.boolean().optional() }), req.body);
+  const b = parse(patch(plans.planSchema).extend({ is_active: z.boolean().optional() }), req.body);
   await inTenant(req, (q) => plans.updatePlan(q, id, b));
   res.json({ ok: true });
 }));

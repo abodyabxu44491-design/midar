@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, badRequest, conflict } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, t, z, patch } from "../../core/http/validate.js";
 import { syncCatalog, applyPlanChange } from "../shared/subscription.service.js";
 
 const r = Router();
@@ -20,12 +20,12 @@ const featureSchema = z.object({
   key: z.string().trim().regex(/^[a-z][a-z0-9_]{1,39}$/, "المفتاح: حروف إنجليزية صغيرة وأرقام و _"),
   name: t.shortText("اسم الميزة", 80),
   description: t.optText(300),
-  category: z.string().trim().min(2).max(40).default("الخدمات"),
-  sort: z.coerce.number().int().min(0).max(10000).default(100),
-  requestable: z.boolean().default(true),
+  category: z.string().trim().min(2).max(40).prefault("الخدمات"),
+  sort: z.coerce.number().int().min(0).max(10000).prefault(100),
+  requestable: z.boolean().prefault(true),
   addon_monthly: money, addon_yearly: money,
 });
-const featurePatch = featureSchema.omit({ key: true }).partial().extend({ is_active: z.boolean().optional() });
+const featurePatch = patch(featureSchema.omit({ key: true })).extend({ is_active: z.boolean().optional() });
 
 r.get("/catalog", handle(async (req, res) => {
   res.json(await platform(req, async (q) => {
@@ -65,23 +65,23 @@ const planSchema = z.object({
   code: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,29}$/, "رمز الباقة: حروف إنجليزية صغيرة وأرقام"),
   name: t.shortText("اسم الباقة", 60),
   tagline: t.optText(80), description: t.optText(500), badge: t.optText(30),
-  currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
+  currency: z.enum(["SAR", "YER", "USD"]).prefault("SAR"),
   monthly_price: money, yearly_price: money,
-  setup_fee: z.coerce.number().min(0).max(10_000_000).default(0),
-  discount_kind: z.enum(["none", "percent", "amount", "price"]).default("none"),
+  setup_fee: z.coerce.number().min(0).max(10_000_000).prefault(0),
+  discount_kind: z.enum(["none", "percent", "amount", "price"]).prefault("none"),
   discount_value: money,
   sale_monthly_price: money, sale_yearly_price: money,
   discount_starts_at: t.optDate, discount_ends_at: t.optDate,
   promo_label: t.optText(60),
-  contact_only: z.boolean().default(false),
+  contact_only: z.boolean().prefault(false),
   max_students: optInt(100000), max_teachers: optInt(10000),
   first_year_price: money, audience: t.optText(400),
-  max_schools: z.coerce.number().int().min(1).max(100).default(1), extra_school_price: money,
-  trial_enabled: z.boolean().default(true),
-  is_public: z.boolean().default(true),
-  highlight: z.boolean().default(false),
-  sort: z.coerce.number().int().min(0).max(1000).default(100),
-  features: z.array(z.string().max(40)).max(200).default([]),
+  max_schools: z.coerce.number().int().min(1).max(100).prefault(1), extra_school_price: money,
+  trial_enabled: z.boolean().prefault(true),
+  is_public: z.boolean().prefault(true),
+  highlight: z.boolean().prefault(false),
+  sort: z.coerce.number().int().min(0).max(1000).prefault(100),
+  features: z.array(z.string().max(40)).max(200).prefault([]),
 })
   .refine((p) => p.discount_kind !== "percent" || (p.discount_value >= 1 && p.discount_value <= 90), "نسبة الخصم بين 1 و90")
   .refine((p) => p.discount_kind !== "amount" || p.discount_value > 0, "حدد مبلغ الخصم")
@@ -92,9 +92,9 @@ const planSchema = z.object({
   .refine((p) => p.first_year_price == null || p.yearly_price == null || p.first_year_price <= p.yearly_price, "سعر السنة الأولى يجب ألا يزيد عن السعر السنوي");
 const planUpdate = z.object({
   plan: z.any(),
-  apply: z.enum(["new", "existing", "tenant"]).default("new"),
+  apply: z.enum(["new", "existing", "tenant"]).prefault("new"),
   tenant_id: z.string().max(30).optional(),
-  confirm: z.boolean().default(false),
+  confirm: z.boolean().prefault(false),
 });
 
 async function listPlans(q) {

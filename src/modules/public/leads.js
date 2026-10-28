@@ -18,7 +18,7 @@ const leadSchema = z.object({
   city: t.optText(60),
   students_count: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(100000)]).optional().transform((v) => v || null),
   note: t.optText(1000),
-  kind: z.enum(["trial", "subscription", "contact"]).default("trial"),
+  kind: z.enum(["trial", "subscription", "contact"]).prefault("trial"),
   plan_id: z.union([z.literal(""), z.null(), z.coerce.number().int().positive()]).optional().transform((v) => v || null),
   billing_cycle: z.union([z.enum(["monthly", "yearly"]), z.literal(""), z.null()]).optional(),
   months: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(36)]).optional().transform((v) => v || null),
@@ -40,7 +40,7 @@ const leadSchema = z.object({
       first: t.optText(40), second: t.optText(40), third: t.optText(40), family: t.optText(40),
       title: t.optText(60), preferred: z.enum(["whatsapp", "call", "email"]).optional(),
     }).optional(),
-  }).optional().default({}),
+  }).optional().prefault({}),
 });
 
 function normalize(b) {

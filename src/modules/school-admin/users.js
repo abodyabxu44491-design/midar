@@ -15,9 +15,9 @@ const r = Router();
 const createSchema = z.object({
   name: t.name("اسم المحاسب"),
   username: t.username,
-  can_approve_finance: z.boolean().default(false),
-  can_manage_payroll: z.boolean().default(false),
-  can_manage_accounts: z.boolean().default(false),
+  can_approve_finance: z.boolean().prefault(false),
+  can_manage_payroll: z.boolean().prefault(false),
+  can_manage_accounts: z.boolean().prefault(false),
 });
 const permsSchema = z.object({
   can_approve_finance: z.boolean(),
@@ -95,7 +95,7 @@ r.get("/admins", handle(async (req, res) => {
 }));
 
 r.post("/admins", handle(async (req, res) => {
-  const b = parse(z.object({ name: t.name("اسم المستخدم"), username: t.username, admin_scope: scope.default("school") }), req.body);
+  const b = parse(z.object({ name: t.name("اسم المستخدم"), username: t.username, admin_scope: scope.prefault("school") }), req.body);
   const password = newTempPassword();
   const hash = await hashPassword(password);
   await inTenant(req, async (q) => {

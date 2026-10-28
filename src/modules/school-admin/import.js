@@ -24,8 +24,8 @@ r.get("/kinds", handle(async (req, res) => {
 
 const studentsRows = z.object({
   rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).min(1, "الملف فارغ").max(2000, "الحد 2000 سطر في المرة"),
-  grade_map: z.record(z.string().max(120), z.coerce.number().int().positive()).default({}),
-  include_duplicates: z.boolean().default(false),
+  grade_map: z.record(z.string().max(120), z.coerce.number().int().positive()).prefault({}),
+  include_duplicates: z.boolean().prefault(false),
 });
 const templateQuery = z.object({
   grade_id: z.coerce.number().int().positive().optional(),
@@ -58,7 +58,7 @@ r.post("/students/commit", handle(async (req, res) => {
 
 const teachersRows = z.object({
   rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).min(1, "الملف فارغ").max(teachersImport.MAX_ROWS, `الحد ${teachersImport.MAX_ROWS} معلم في المرة`),
-  grade_map: z.record(z.string().max(120), z.coerce.number().int().positive()).default({}),
+  grade_map: z.record(z.string().max(120), z.coerce.number().int().positive()).prefault({}),
 });
 
 r.get("/teachers/fields", handle(async (req, res) => {

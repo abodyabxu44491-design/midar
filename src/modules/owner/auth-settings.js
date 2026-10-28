@@ -62,8 +62,8 @@ r.post("/mail/test", handle(async (req, res) => {
 const providerSchema = z.object({
   enabled: z.boolean(),
   client_id: z.string().trim().max(300),
-  team_id: z.string().trim().max(20).optional().default(""),
-  key_id: z.string().trim().max(20).optional().default(""),
+  team_id: z.string().trim().max(20).optional().prefault(""),
+  key_id: z.string().trim().max(20).optional().prefault(""),
   secret: z.string().max(4000).optional(),
 });
 r.put("/providers/:provider", handle(async (req, res) => {

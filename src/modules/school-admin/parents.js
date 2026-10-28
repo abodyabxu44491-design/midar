@@ -14,7 +14,7 @@ const r = Router();
 const idP = z.object({ id: t.id });
 
 r.get("/", handle(async (req, res) => {
-  const { search } = parse(z.object({ search: z.string().trim().max(60).optional().default("") }), req.query);
+  const { search } = parse(z.object({ search: z.string().trim().max(60).optional().prefault("") }), req.query);
   res.json(await inTenant(req, (q) => parents.listParents(q, { search })));
 }));
 r.post("/", handle(async (req, res) => {

@@ -21,7 +21,7 @@ r.put("/templates", handle(async (req, res) => {
 
 r.get("/student/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  const kind = parse(z.enum(["absence", "late", "fees", "general"]).default("general"), req.query.kind || undefined);
+  const kind = parse(z.enum(["absence", "late", "fees", "general"]).prefault("general"), req.query.kind || undefined);
   res.json(await inTenant(req, async (q) => {
     const [s] = await q(
       `SELECT s.id, s.full_name AS name, s.guardian_name, s.guardian_phone, s.fees_enabled, c.name AS class_name

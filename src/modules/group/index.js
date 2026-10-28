@@ -27,7 +27,7 @@ const loginSchema = z.object({
   group: groupCode,
   username: z.string().trim().toLowerCase().max(40),
   password: z.string().max(200),
-  remember: z.boolean().optional().default(false),
+  remember: z.boolean().optional().prefault(false),
 });
 
 r.post("/login", limits.login, handle(async (req, res) => {
@@ -113,7 +113,7 @@ const newSchool = z.object({
   name: t.shortText("اسم المدرسة", 150),
   admin_name: t.name("اسم مدير المدرسة"),
   manager_email: managerEmail,
-  currency: z.enum(["SAR", "YER", "USD"]).default("YER"),
+  currency: z.enum(["SAR", "YER", "USD"]).prefault("YER"),
 });
 
 r.post("/schools", handle(async (req, res) => {

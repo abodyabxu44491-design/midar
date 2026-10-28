@@ -32,7 +32,7 @@ export const recordSchema = z.object({
   title: z.string().trim().min(2).max(80).optional(),
   note: t.optText(500),
   day: t.optDate,
-  notify_parent: z.boolean().default(true),
+  notify_parent: z.boolean().prefault(true),
 });
 
 export const listQuery = z.object({
