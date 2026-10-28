@@ -14,6 +14,9 @@ export class ApiError extends Error {
   }
 }
 
+// Any server-side failure reads the same to people: the platform is under maintenance and back shortly.
+const MAINTENANCE = "المنصة في وضع الصيانة حاليًا، وستعود خلال وقت قصير. حاول مرة أخرى بعد قليل.";
+
 export const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || "dev";
 let updateShown = false;
 export function announceUpdate() {
@@ -88,7 +91,8 @@ async function once(url, method, body, timeoutMs) {
   try { data = await res.json(); } catch { /* ignore */ }
   if (!res.ok) {
     if (data?.code === "subscription_inactive" && !window.__midarLockReload) { window.__midarLockReload = true; setTimeout(() => location.reload(), 1200); }
-    throw new ApiError(data?.error || "حدث خطأ غير متوقع", res.status, data?.code, data);
+    const down = res.status >= 500 || !data;
+    throw new ApiError(down ? MAINTENANCE : data.error || MAINTENANCE, res.status, data?.code, data);
   }
   return data;
 }

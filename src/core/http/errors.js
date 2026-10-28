@@ -25,10 +25,13 @@ const DB_DOWN_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ETIMED
 export const isDatabaseDown = (err) => !!err && (DB_DOWN_CODES.has(err.code)
   || /exceeded the (compute time )?quota|connection terminated|timeout exceeded when trying to connect|Connection terminated unexpectedly|endpoint is disabled|project.*suspended/i.test(String(err.message || "")));
 
+// Whatever goes wrong on the server, people see one calm message; the reference stays in the logs and the response.
+export const MAINTENANCE = "المنصة في وضع الصيانة حاليًا، وستعود خلال وقت قصير. حاول مرة أخرى بعد قليل.";
+
 function fromDatabase(err) {
   if (isDatabaseDown(err)) {
     console.error(`[قاعدة البيانات غير متاحة] ${err.code || ""} ${err.message}`);
-    return new AppError(503, "المنصة متوقفة مؤقتًا للصيانة، وستعود خلال وقت قصير. حاول مرة أخرى بعد قليل.", "unavailable");
+    return new AppError(503, MAINTENANCE, "unavailable");
   }
   switch (err.code) {
     case "P0001": return new AppError(400, err.message, "rule");
@@ -39,7 +42,7 @@ function fromDatabase(err) {
     case "23502": return new AppError(400, "حقل مطلوب ناقص", "required");
     case "22P02": case "22007": case "22008": return new AppError(400, "صيغة إحدى القيم غير صحيحة", "format");
     case "40001": case "40P01": return new AppError(409, "تعارض مؤقت، أعد المحاولة", "retry");
-    case "57014": return new AppError(503, "استغرقت العملية وقتًا طويلًا، أعد المحاولة", "timeout");
+    case "57014": return new AppError(503, MAINTENANCE, "timeout");
     default: return null;
   }
 }
@@ -49,7 +52,7 @@ export function publicError(err) {
   if (known) return { message: known.message, status: known.status, details: known.details || null };
   const ref = Math.random().toString(36).slice(2, 10);
   console.error(`[error ${ref}] background job`, err);
-  return { message: `حدث خطأ في الخادم (مرجع ${ref})`, status: 500, details: null };
+  return { message: MAINTENANCE, status: 500, details: { ref } };
 }
 
 export function errorHandler(err, req, res, _next) {
@@ -59,5 +62,5 @@ export function errorHandler(err, req, res, _next) {
   if (err.type === "entity.too.large") return res.status(413).json({ error: "حجم الطلب كبير" });
   const ref = Math.random().toString(36).slice(2, 10);
   console.error(`[error ${ref}] ${req.method} ${req.originalUrl}`, err);
-  res.status(500).json({ error: `حدث خطأ في الخادم (مرجع ${ref})`, code: "server" });
+  res.status(500).json({ error: MAINTENANCE, code: "server", ref });
 }

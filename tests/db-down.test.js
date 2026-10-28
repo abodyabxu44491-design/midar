@@ -16,7 +16,7 @@ const respond = (err) => {
   return out;
 };
 
-test("قاعدة البيانات غير متاحة: رسالة واضحة 503 بدل خطأ في الخادم", () => {
+test("قاعدة البيانات غير متاحة: رسالة الصيانة 503 بدل خطأ في الخادم", () => {
   const quota = Object.assign(new Error("ERROR:  Your account or project has exceeded the quota. Upgrade your plan to increase limits."), { code: "XX000" });
   for (const e of [quota, Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:5432"), { code: "ECONNREFUSED" }),
     new Error("timeout exceeded when trying to connect"), Object.assign(new Error("terminating connection"), { code: "57P01" })]) {
@@ -24,10 +24,13 @@ test("قاعدة البيانات غير متاحة: رسالة واضحة 503 �
     const r = respond(e);
     assert.equal(r.status, 503);
     assert.equal(r.body.code, "unavailable");
-    assert.match(r.body.error, /متوقفة مؤقتًا/);
+    assert.match(r.body.error, /وضع الصيانة/);
   }
   assert.equal(isDatabaseDown(Object.assign(new Error("duplicate"), { code: "23505" })), false);
-  assert.equal(respond(new Error("boom")).status, 500, "الأخطاء الأخرى كما هي");
+  const other = respond(new Error("boom"));
+  assert.equal(other.status, 500);
+  assert.match(other.body.error, /وضع الصيانة/, "أي خطأ آخر في الخادم يظهر كصيانة");
+  assert.ok(other.body.ref, "المرجع يبقى للدعم");
 });
 
 test("العمل الخلفي: كل دورة أثناء الاستخدام، ونادرًا عند الخمول", async () => {
