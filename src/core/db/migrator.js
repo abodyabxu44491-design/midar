@@ -9,7 +9,7 @@ import crypto from "node:crypto";
 import pg from "pg";
 
 export async function migrate({ connectionString, dir, ssl = false, log = console.log }) {
-  const client = new pg.Client({ connectionString, ssl: ssl ? { rejectUnauthorized: true } : false });
+  const client = new pg.Client({ connectionString, ssl: ssl ? { rejectUnauthorized: true } : false, connectionTimeoutMillis: 30_000 });
   await client.connect();
   try {
     await client.query("SELECT pg_advisory_lock(727274)");
