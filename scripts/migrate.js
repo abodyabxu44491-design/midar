@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: fs.existsSync(".env.local") ? ".env.local" : ".env" });
 import path from "node:path";
 import { migrate } from "../src/core/db/migrator.js";
+import { isDatabaseDown } from "../src/core/http/errors.js";
 
 const url = process.env.MIGRATION_DATABASE_URL;
 if (!url) { console.error("✗ عيّن MIGRATION_DATABASE_URL في .env.local"); process.exit(1); }
@@ -15,5 +16,8 @@ try {
   await migrate({ connectionString: url, dir: path.resolve("db/migrations"), ssl: process.env.DATABASE_SSL === "true" });
 } catch (e) {
   console.error("✗", e.message);
+  // In production an unreachable database must not block the deploy: the server starts in maintenance mode and applies
+  // the migrations itself once the database is back.
+  if (process.env.NODE_ENV === "production" && isDatabaseDown(e)) { console.error("  الخادم سيطبق الترحيلات عند عودة قاعدة البيانات."); process.exit(0); }
   process.exit(1);
 }

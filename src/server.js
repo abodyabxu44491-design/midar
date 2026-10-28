@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import path from "node:path";
 import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { getPool, closePool, healthCheck } from "./core/db/pool.js";
@@ -13,25 +14,49 @@ import { runReminders } from "./modules/shared/reminders.service.js";
 import { runGateTick } from "./modules/shared/gate.service.js";
 import { ensureDemoSchool } from "./modules/owner/demo-provision.js";
 import { gated } from "./core/activity.js";
+import { migrate } from "./core/db/migrator.js";
+import { isDatabaseDown } from "./core/http/errors.js";
 import { startDeliveryWorker, kickDeliveries, deliveriesIdle } from "./modules/shared/notify.service.js";
 
-try {
+// When the database is unreachable at boot, the server still starts: every request gets the maintenance message, and
+// pending migrations and startup work run as soon as the database answers again (checked every minute).
+async function checkDatabase() {
   await healthCheck();
   const [{ n }] = (await (await getPool()).query("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_name = 'tenants'")).rows;
   if (!n) throw new Error("الجداول غير موجودة. شغّل: npm run migrate");
-} catch (e) {
-  console.error("✗ تعذر الاتصال بقاعدة البيانات:", e.message);
-  process.exit(1);
+}
+async function whenReady() {
+  await failInterruptedJobs();
+  if (process.env.DEMO_AUTO !== "false") ensureDemoSchool().catch((e) => console.error("[العرض التجريبي]", e.message));
 }
 
-await failInterruptedJobs();
+let dbReady = false;
+try {
+  await checkDatabase();
+  dbReady = true;
+} catch (e) {
+  if (!isDatabaseDown(e)) { console.error("✗ تعذر الاتصال بقاعدة البيانات:", e.message); process.exit(1); }
+  console.error("✗ قاعدة البيانات غير متاحة الآن، والمنصة تعرض رسالة الصيانة حتى تعود:", e.message);
+}
+if (dbReady) await whenReady();
+else {
+  const retry = setInterval(async () => {
+    try {
+      if (env.MIGRATION_DATABASE_URL) await migrate({ connectionString: env.MIGRATION_DATABASE_URL, dir: path.resolve("db/migrations"), ssl: env.DATABASE_SSL });
+      await checkDatabase();
+    } catch (e) { console.error("[قاعدة البيانات] ما زالت غير متاحة:", e.message); return; }
+    clearInterval(retry);
+    console.log("✓ عادت قاعدة البيانات");
+    await whenReady().catch((e) => console.error("[بدء التشغيل]", e.message));
+  }, 60_000);
+  retry.unref();
+}
 
 const server = createApp().listen(env.PORT, () => {
   console.log(`✓ مدار يعمل على المنفذ ${env.PORT}`);
   console.log("  /admin  إدارة المدرسة   |  /teacher  المعلمون   |  /<رمز-المدرسة>  صفحة الطلاب");
   console.log(`  ${env.OWNER_PATH}  لوحة المالك (سرّي)`);
 });
-if (process.env.DEMO_AUTO !== "false") ensureDemoSchool().catch((e) => console.error("[العرض التجريبي]", e.message));
 const stopDeliveries = startDeliveryWorker();
 kickDeliveries();
 server.headersTimeout = 20_000;
