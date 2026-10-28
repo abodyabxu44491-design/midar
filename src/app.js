@@ -32,6 +32,7 @@ import accountantApi from "./modules/accountant/index.js";
 import publicApi from "./modules/public/index.js";
 import gateApi from "./modules/gate/index.js";
 import { accountRouter, appleCallback } from "./modules/account/routes.js";
+import { markActive } from "./core/activity.js";
 import { staffLoginRouter } from "./modules/shared/staff-auth.js";
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
@@ -52,6 +53,8 @@ export function createApp() {
   });
 
   app.get("/healthz", (req, res) => res.json({ ok: true }));
+  // Real use of the platform (not health checks) keeps the background work running at full pace.
+  app.use("/api", (req, res, next) => { markActive(); next(); });
 
   app.get("/healthz/db", limits.health, async (req, res) => {
     try { await healthCheck(); res.json({ ok: true, db: true }); }

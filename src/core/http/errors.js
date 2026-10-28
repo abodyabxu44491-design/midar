@@ -19,7 +19,17 @@ export const conflict = (m) => new AppError(409, m, "conflict");
 
 export const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// The database cannot be reached (down, restarting, or its plan's limit reached): a clear "back soon" for users,
+// not a server error, and the details stay in the log.
+const DB_DOWN_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ECONNRESET", "57P01", "57P02", "57P03", "53300", "08000", "08001", "08003", "08004", "08006"]);
+export const isDatabaseDown = (err) => !!err && (DB_DOWN_CODES.has(err.code)
+  || /exceeded the (compute time )?quota|connection terminated|timeout exceeded when trying to connect|Connection terminated unexpectedly|endpoint is disabled|project.*suspended/i.test(String(err.message || "")));
+
 function fromDatabase(err) {
+  if (isDatabaseDown(err)) {
+    console.error(`[قاعدة البيانات غير متاحة] ${err.code || ""} ${err.message}`);
+    return new AppError(503, "المنصة متوقفة مؤقتًا للصيانة، وستعود خلال وقت قصير. حاول مرة أخرى بعد قليل.", "unavailable");
+  }
   switch (err.code) {
     case "P0001": return new AppError(400, err.message, "rule");
     case "P0002": return new AppError(404, err.message, "not_found");
