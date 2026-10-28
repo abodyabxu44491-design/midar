@@ -64,7 +64,7 @@ function render(d, inbox, chat) {
     // Clips and answer files come back as the file itself, played from memory (the student key never goes in a URL).
     fetchFile: async (path, body) => {
       const res = await fetch(`${P}${path}`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...who, ...body }) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "تعذّر تحميل الملف");
+      if (!res.ok) throw new Error(res.status >= 500 ? "المنصة في وضع الصيانة حاليًا، وستعود خلال وقت قصير. حاول مرة أخرى بعد قليل." : (await res.json().catch(() => ({}))).error || "تعذّر تحميل الملف");
       return res.blob();
     },
     printCertificate: (id) => api(`${P}/student/certificates/print`, { ...who, id }),

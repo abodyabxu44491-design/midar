@@ -90,7 +90,7 @@ export default async function students({ me, refresh }) {
   };
   const fetchPage = async (offset) => {
     const res = await fetch(query(offset), { credentials: "same-origin", cache: "no-store" });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "تعذر تحميل الطلاب");
+    if (!res.ok) throw new Error(res.status >= 500 ? "المنصة في وضع الصيانة حاليًا، وستعود خلال وقت قصير. حاول مرة أخرى بعد قليل." : (await res.json().catch(() => ({}))).error || "تعذر تحميل الطلاب");
     return { rows: await res.json(), total: Number(res.headers.get("X-Total-Count") || 0) };
   };
   const observer = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { rootMargin: "400px" });
