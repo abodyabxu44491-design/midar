@@ -62,7 +62,7 @@ export const KINDS = {
 
 export const rowsSchema = z.object({
   rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).min(1, "الملف فارغ").max(2000, "الحد 2000 سطر في المرة"),
-  dry_run: z.boolean().default(false),
+  dry_run: z.boolean().prefault(false),
 });
 
 export function template(kind) {

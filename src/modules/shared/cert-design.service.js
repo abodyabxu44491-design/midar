@@ -25,15 +25,15 @@ const style = z.object({
 }).strict();
 const element = z.object({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,24}$/), type: z.enum(ELEMENT_TYPES),
-  x: mm(), y: mm(), w: z.number().min(0.2).max(420), h: z.number().min(0.2).max(420), rot: z.number().min(-180).max(180).default(0),
-  locked: z.boolean().default(false), hidden: z.boolean().default(false),
-  text: z.string().max(2000).optional(), asset: z.number().int().positive().nullable().optional(), style: style.default({}),
+  x: mm(), y: mm(), w: z.number().min(0.2).max(420), h: z.number().min(0.2).max(420), rot: z.number().min(-180).max(180).prefault(0),
+  locked: z.boolean().prefault(false), hidden: z.boolean().prefault(false),
+  text: z.string().max(2000).optional(), asset: z.number().int().positive().nullable().optional(), style: style.prefault({}),
 }).strict();
 export const layoutSchema = z.object({
-  v: z.literal(1).default(1),
+  v: z.literal(1).prefault(1),
   page: z.object({
-    orientation: z.enum(["portrait", "landscape"]), bg: color.default("#FFFFFF"), bgAsset: z.number().int().positive().nullable().default(null),
-    bgFit: z.enum(["cover", "contain", "fill"]).default("cover"), bgOp: z.number().min(0).max(1).default(1),
+    orientation: z.enum(["portrait", "landscape"]), bg: color.prefault("#FFFFFF"), bgAsset: z.number().int().positive().nullable().prefault(null),
+    bgFit: z.enum(["cover", "contain", "fill"]).prefault("cover"), bgOp: z.number().min(0).max(1).prefault(1),
     border: z.object({ style: z.enum(Object.keys(BORDERS)), color, accent: color, width: z.number().min(0.2).max(6), inset: z.number().min(0).max(30) }).strict(),
   }).strict(),
   els: z.array(element).max(120),
@@ -112,8 +112,8 @@ export async function layoutFor(q, kind, templateId = null) {
 
 // ---------- Images ----------
 export const assetSchema = z.object({
-  name: z.string().trim().min(1).max(80).default("صورة"),
-  mime: z.enum(["image/png", "image/jpeg", "image/webp"], { errorMap: () => ({ message: "الصور المسموحة: PNG أو JPG أو WEBP" }) }),
+  name: z.string().trim().min(1).max(80).prefault("صورة"),
+  mime: z.enum(["image/png", "image/jpeg", "image/webp"], { error: "الصور المسموحة: PNG أو JPG أو WEBP" }),
   data: z.string().min(16).max(Math.ceil(2.8 * 1024 * 1024 * 1.37)),
   width: z.number().int().min(1).max(20000).optional(), height: z.number().int().min(1).max(20000).optional(),
 });

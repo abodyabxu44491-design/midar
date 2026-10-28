@@ -41,7 +41,7 @@ r.put("/settings", handle(async (req, res) => {
 }));
 
 r.post("/copy", handle(async (req, res) => {
-  const b = parse(z.object({ from_class_id: t.id, to_class_id: t.id, keep_teachers: z.boolean().default(false) }), req.body);
+  const b = parse(z.object({ from_class_id: t.id, to_class_id: t.id, keep_teachers: z.boolean().prefault(false) }), req.body);
   if (b.from_class_id === b.to_class_id) throw notFound("اختر شعبتين مختلفتين");
   res.json(await inTenant(req, async (q) => {
     const [target] = await q("SELECT id FROM classes WHERE id = $1", [b.to_class_id]);

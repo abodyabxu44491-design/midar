@@ -30,17 +30,17 @@ export const codeSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-
 const createSchema = z.object({
   id: codeSchema,
   name: t.shortText("اسم المدرسة", 150),
-  admin_name: t.name("اسم المدير").optional().default("مدير المدرسة"),
+  admin_name: t.name("اسم المدير").optional().prefault("مدير المدرسة"),
   // The manager's email: their first entry from the school's login link is accepted with this email only.
   manager_email: z.string().trim().toLowerCase().max(160).regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "بريد المدير غير صحيح").optional(),
-  plan: z.enum(["basic", "pro", "enterprise"]).default("basic"),
-  max_students: z.coerce.number().int().min(1).max(100000).default(200),
+  plan: z.enum(["basic", "pro", "enterprise"]).prefault("basic"),
+  max_students: z.coerce.number().int().min(1).max(100000).prefault(200),
   subscription_end: t.optDate,
-  currency: z.enum(["SAR", "YER", "USD"]).default("YER"),
+  currency: z.enum(["SAR", "YER", "USD"]).prefault("YER"),
   subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
   subscription: activateSchema.optional(),
-  org_type: z.enum(["school", "institute"]).default("school"),
+  org_type: z.enum(["school", "institute"]).prefault("school"),
 });
 const updateSchema = z.object({
   name: t.shortText("اسم المدرسة", 150).optional(),
@@ -117,9 +117,9 @@ r.post("/", handle(async (req, res) => {
 }));
 
 const showcaseSchema = z.object({
-  id: codeSchema.default("alrowad-aden"),
-  name: t.shortText("اسم المدرسة", 150).default("مدارس الرواد الأهلية للبنين"),
-  per_section: z.coerce.number().int().min(5).max(35).default(24),
+  id: codeSchema.prefault("alrowad-aden"),
+  name: t.shortText("اسم المدرسة", 150).prefault("مدارس الرواد الأهلية للبنين"),
+  per_section: z.coerce.number().int().min(5).max(35).prefault(24),
 });
 export async function createShowcase(req, b, progress) {
   const created = await createTenant(req, { id: b.id, name: b.name, admin_name: "أ. عبدالله محمد باوزير", plan: "enterprise", max_students: 2000, currency: "YER" });

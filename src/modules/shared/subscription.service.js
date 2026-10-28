@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 //
-import { z, t } from "../../core/http/validate.js";
+import { z, t, optional } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { MODULES, KEYS } from "./modules.service.js";
 import { displayPrice } from "./plans-public.service.js";
@@ -109,18 +109,18 @@ export const activateSchema = z.object({
   plan_id: t.optId,
   features: z.array(z.string().max(40)).max(100).optional(),
   plan_name: z.string().trim().min(2).max(60).optional(),
-  billing_cycle: z.enum(["monthly", "yearly", "custom", "none"]).default("yearly"),
+  billing_cycle: z.enum(["monthly", "yearly", "custom", "none"]).prefault("yearly"),
   starts_on: t.optDate,
   ends_on: t.optDate,
   months: z.coerce.number().int().min(1).max(60).optional(),
   price: z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(10_000_000)]).optional(),
-  discount: z.coerce.number().min(0).max(10_000_000).default(0),
-  addons: z.array(z.object({ key: z.string().max(40), until: t.optDate, price: z.coerce.number().min(0).optional(), note: z.string().max(100).optional() })).max(40).default([]),
+  discount: z.coerce.number().min(0).max(10_000_000).prefault(0),
+  addons: z.array(z.object({ key: z.string().max(40), until: t.optDate, price: z.coerce.number().min(0).optional(), note: z.string().max(100).optional() })).max(40).prefault([]),
   max_students: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(100000)]).optional(),
   max_teachers: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(10000)]).optional(),
-  status: z.enum(["active", "pending_payment"]).default("active"),
+  status: z.enum(["active", "pending_payment"]).prefault("active"),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
-  force_trial: z.boolean().default(false),
+  force_trial: z.boolean().prefault(false),
   note: z.string().trim().max(500).optional(),
   lead_id: t.optId,
 });
@@ -226,7 +226,7 @@ export const actionSchema = z.object({
   days: z.coerce.number().int().min(1).max(3650).optional(),
   until: t.optDate,
   months: z.coerce.number().int().min(1).max(60).optional(),
-  addons: activateSchema.shape.addons.optional(),
+  addons: optional(activateSchema.shape.addons),
   note: z.string().trim().max(300).optional(),
 });
 

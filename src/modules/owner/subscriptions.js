@@ -28,7 +28,7 @@ const FILTERS = {
 };
 
 subscriptions.get("/", handle(async (req, res) => {
-  const f = parse(z.object({ filter: z.enum(Object.keys(FILTERS)).default("all"), plan_id: t.optId }), req.query);
+  const f = parse(z.object({ filter: z.enum(Object.keys(FILTERS)).prefault("all"), plan_id: t.optId }), req.query);
   res.json(await platform(req, (q) => q(
     `SELECT t.id AS tenant_id, t.name, t.status AS tenant_status, s.id, s.kind, s.status, s.plan_id, s.plan_name,
             s.starts_on, s.ends_on, s.price, s.discount, s.currency, s.billing_cycle, s.max_students, s.max_teachers,
@@ -160,8 +160,8 @@ requests.patch("/:id", handle(async (req, res) => {
 const convertSchema = z.object({
   id: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)").optional().or(z.literal("")),
   name: t.shortText("اسم المدرسة", 150),
-  admin_name: t.name("اسم المدير").optional().default("مدير المدرسة"),
-  currency: z.enum(["SAR", "YER", "USD"]).default("SAR"),
+  admin_name: t.name("اسم المدير").optional().prefault("مدير المدرسة"),
+  currency: z.enum(["SAR", "YER", "USD"]).prefault("SAR"),
   subscription: activateSchema,
   org_type: z.enum(["school", "institute"]).optional(),
 });
@@ -205,7 +205,7 @@ requests.post("/:id/convert", handle(async (req, res) => {
 
 requests.post("/:id/grant-feature", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  const b = parse(z.object({ price: z.coerce.number().min(0).default(0), until: t.optDate, note: z.string().max(100).optional() }), req.body);
+  const b = parse(z.object({ price: z.coerce.number().min(0).prefault(0), until: t.optDate, note: z.string().max(100).optional() }), req.body);
   res.json(await platform(req, async (q) => {
     const [lead] = await q("SELECT * FROM leads WHERE id = $1 FOR UPDATE", [id]);
     if (!lead || !lead.tenant_id || !lead.feature_key) throw badRequest("هذا ليس طلب ميزة من مدرسة");

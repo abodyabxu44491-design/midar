@@ -40,7 +40,7 @@ const fmtAtt = (r) => ({ student_id: Number(r.student_id), day: iso(r.day), stat
   source: r.source, first_in_at: r.first_in_at, minutes_late: r.minutes_late });
 const iso = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
 
-export const changesQuery = z.object({ since: z.coerce.number().int().min(0), limit: z.coerce.number().int().min(1).max(2000).default(500) });
+export const changesQuery = z.object({ since: z.coerce.number().int().min(0), limit: z.coerce.number().int().min(1).max(2000).prefault(500) });
 
 export async function changes(q, teacherId, { since, limit }) {
   if (since > 0) {
@@ -102,10 +102,10 @@ export async function changes(q, teacherId, { since, limit }) {
 const opSchema = z.object({
   operation_id: z.string().uuid("هوية العملية غير صحيحة"),
   type: z.enum(["attendance.mark", "score.set"]),
-  base_version: z.coerce.number().int().min(0).default(0),
+  base_version: z.coerce.number().int().min(0).prefault(0),
   client_seq: z.coerce.number().int().min(0).optional(),
   client_time: z.string().datetime({ offset: true }).optional(),
-  payload: z.record(z.any()),
+  payload: z.record(z.string(), z.any()),
 });
 export const pushSchema = z.object({
   device_id: z.string().uuid("هوية الجهاز غير صحيحة"),

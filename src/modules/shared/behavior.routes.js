@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, forbidden } from "../../core/http/errors.js";
-import { parse, t } from "../../core/http/validate.js";
+import { parse, t, patch } from "../../core/http/validate.js";
 import * as behavior from "./behavior.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 import { teachesClass } from "../teacher/access.js";
@@ -56,7 +56,7 @@ export function behaviorRouter(role) {
     }));
     r.patch("/categories/:id", handle(async (req, res) => {
       const id = parse(t.id, req.params.id);
-      const b = parse(behavior.categorySchema.partial(), req.body);
+      const b = parse(patch(behavior.categorySchema), req.body);
       await inTenant(req, (q) => behavior.updateCategory(q, id, b));
       res.json({ ok: true });
     }));

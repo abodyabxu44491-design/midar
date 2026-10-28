@@ -12,8 +12,8 @@ dotenv.config({ path: fs.existsSync(".env.local") ? ".env.local" : ".env" });
 const bool = z.enum(["true", "false"]).transform((v) => v === "true");
 
 const schema = z.object({
-  NODE_ENV: z.enum(["development", "production", "test"]).default("production"),
-  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  NODE_ENV: z.enum(["development", "production", "test"]).prefault("production"),
+  PORT: z.coerce.number().int().min(1).max(65535).prefault(3000),
   // Pasted values often carry a space, a line break or a trailing slash; any of them breaks every link built
   // from it (Google rejects a redirect address that contains a space).
   PUBLIC_URL: z.preprocess((v) => (typeof v === "string" ? v.replace(/\s+/g, "").replace(/\/+$/, "") : v),
@@ -22,13 +22,13 @@ const schema = z.object({
   ANDROID_SHA256: z.string().optional().transform((v) => (v || "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(x))),
   DATABASE_URL: z.string().startsWith("postgres"),
   MIGRATION_DATABASE_URL: z.string().startsWith("postgres").optional(),
-  DATABASE_SSL: bool.default("false"),
+  DATABASE_SSL: bool.prefault("false"),
   OWNER_PATH: z.string().regex(/^\/[A-Za-z0-9_-]{10,64}$/, "OWNER_PATH يجب أن يبدأ بـ / ويتكون من 10 أحرف على الأقل")
     .refine((v) => !/change/i.test(v), "غيّر OWNER_PATH إلى رابط سري خاص بك"),
   OWNER_USERNAME: z.string().min(3),
   OWNER_PASSWORD_HASH: z.string().startsWith("scrypt$", "أنشئ OWNER_PASSWORD_HASH بالأمر: npm run owner:password"),
   OWNER_TOTP_SECRET: z.string().regex(/^[A-Z2-7]{16,64}$/).optional().or(z.literal("")),
-  OWNER_ALLOWED_IPS: z.string().default(""),
+  OWNER_ALLOWED_IPS: z.string().prefault(""),
   // Where high-severity security alerts are emailed (through the platform mail gateway). Optional.
   OWNER_ALERT_EMAIL: z.string().trim().email().optional().or(z.literal("")),
   CREDENTIAL_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "CREDENTIAL_KEY يجب أن يكون 64 خانة hex (npm run credential:key)").optional().or(z.literal("")),
@@ -36,12 +36,12 @@ const schema = z.object({
   VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/).optional().or(z.literal("")),
   ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional().or(z.literal("")),
   AI_MODEL: z.string().regex(/^claude-[a-z0-9.-]+$/).optional().or(z.literal("")),
-  COOKIE_SECURE: bool.default("true"),
-  SESSION_COOKIE_MODE: z.enum(["separate", "single"]).default("separate"),
+  COOKIE_SECURE: bool.prefault("true"),
+  SESSION_COOKIE_MODE: z.enum(["separate", "single"]).prefault("separate"),
   // Rollback switch: lets school managers sign in with username and password again (the old way).
-  ADMIN_LEGACY_LOGIN: bool.default("false"),
-  FIREBASE_ANALYTICS: bool.default("false"),
-  TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(1),
+  ADMIN_LEGACY_LOGIN: bool.prefault("false"),
+  FIREBASE_ANALYTICS: bool.prefault("false"),
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).prefault(1),
 });
 
 const parsed = schema.safeParse(process.env);

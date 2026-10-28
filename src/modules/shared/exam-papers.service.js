@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 //
-import { z, t } from "../../core/http/validate.js";
+import { z, t, patch } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
 import { matchesMime } from "./attachments.service.js";
 import {
@@ -14,8 +14,8 @@ import { paperQuestion, normalizeQuestion, newItemId, pick } from "./question-ba
 
 const sectionSchema = z.object({
   id: z.string().regex(/^s_[a-z0-9]{3,20}$/, "معرّف قسم غير صالح"),
-  title: z.string().max(150).default(""),
-  instructions: z.string().max(1500).default(""),
+  title: z.string().max(150).prefault(""),
+  instructions: z.string().max(1500).prefault(""),
   questions: z.array(paperQuestion).max(200),
 });
 export const contentSchema = z.object({ sections: z.array(sectionSchema).max(20) })
@@ -47,7 +47,7 @@ const meta = {
   class_id: t.optId,
   grade_id: t.optId,
   term_id: t.optId,
-  exam_type: t.shortText("نوع الاختبار", 60).default("اختبار قصير"),
+  exam_type: t.shortText("نوع الاختبار", 60).prefault("اختبار قصير"),
   exam_date: t.optDate,
   duration_min: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(600)]).optional()
     .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
@@ -63,7 +63,7 @@ const meta = {
 export const createSchema = z.object({ ...meta, content: contentSchema.optional(), layout: layoutSchema.optional() });
 export const saveSchema = z.object({
   version: z.coerce.number().int().positive(),
-  meta: z.object(meta).partial().optional(),
+  meta: patch(z.object(meta)).optional(),
   content: contentSchema.optional(),
   layout: layoutSchema.optional(),
 });
@@ -129,8 +129,8 @@ const LIST_FROM = `FROM exam_papers p JOIN subjects s ON s.id = p.subject_id LEF
   LEFT JOIN grades g ON g.id = p.grade_id LEFT JOIN teachers te ON te.id = p.teacher_id`;
 
 export const listFilter = z.object({
-  status: z.enum(["draft", "ready", "approved", "printed", "archived", "active", "all"]).default("active"),
-  templates: z.enum(["0", "1"]).default("0"),
+  status: z.enum(["draft", "ready", "approved", "printed", "archived", "active", "all"]).prefault("active"),
+  templates: z.enum(["0", "1"]).prefault("0"),
   teacher_id: t.optId,
 });
 
@@ -209,7 +209,7 @@ async function fillDerived(q, b) {
 }
 
 export const imageSchema = z.object({
-  mime: z.enum(["image/png", "image/jpeg", "image/webp"], { errorMap: () => ({ message: "الصور المسموحة: PNG أو JPG أو WEBP" }) }),
+  mime: z.enum(["image/png", "image/jpeg", "image/webp"], { error: "الصور المسموحة: PNG أو JPG أو WEBP" }),
   data: z.string().min(16).max(Math.ceil(2 * 1024 * 1024 * 1.4)),
   thumb: z.object({ mime: z.enum(["image/png", "image/jpeg", "image/webp"]), data: z.string().min(16).max(360_000) }).optional(),
 });
@@ -361,8 +361,8 @@ export async function remove(q, who, id) {
 
 export const copySchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
-  mode: z.enum(["same", "bank"]).default("same"),
-  shuffle: z.boolean().default(false),
+  mode: z.enum(["same", "bank"]).prefault("same"),
+  shuffle: z.boolean().prefault(false),
   total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional(),
   exam_date: t.optDate,
   class_id: t.optId,
@@ -449,7 +449,7 @@ export function exportPaper(paper, withAnswers) {
 export const importSchema = z.object({
   subject_id: t.id, class_id: t.optId, grade_id: t.optId,
   data: z.object({
-    midar_exam: z.literal(1, { errorMap: () => ({ message: "الملف ليس اختبارًا مصدّرًا من مدار" }) }),
+    midar_exam: z.literal(1, { error: "الملف ليس اختبارًا مصدّرًا من مدار" }),
     title: t.shortText("اسم الاختبار", 150),
     exam_type: z.string().trim().min(2).max(60).optional(),
     duration_min: z.coerce.number().int().min(1).max(600).nullable().optional(),
@@ -482,19 +482,19 @@ function spread(total, n) {
 export const fromBankSchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
   subject_id: t.id, class_id: t.optId, grade_id: t.optId,
-  exam_type: z.string().trim().min(2).max(60).default("اختبار قصير"),
+  exam_type: z.string().trim().min(2).max(60).prefault("اختبار قصير"),
   total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional(),
   exam_date: t.optDate,
-  difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
+  difficulty: z.enum(["easy", "medium", "hard", "mixed"]).prefault("mixed"),
   unit: z.string().trim().max(120).optional().nullable(),
   lesson: z.string().trim().max(120).optional().nullable(),
   spec: z.array(z.object({ type: z.enum(Object.keys(QTYPES)), count: z.coerce.number().int().min(1).max(100) })).min(1).max(12),
-  fill_missing: z.boolean().default(true),
+  fill_missing: z.boolean().prefault(true),
 });
 
 export const quickSchema = z.object({
   subject_id: t.id, class_id: t.optId, grade_id: t.optId,
-  exam_type: z.string().trim().min(2).max(60).default("اختبار قصير"),
+  exam_type: z.string().trim().min(2).max(60).prefault("اختبار قصير"),
   total_marks: z.coerce.number().positive().max(10000),
   count: z.coerce.number().int().min(1).max(100),
   title: z.string().trim().min(2).max(150).optional(),
@@ -562,7 +562,7 @@ export async function addType(q, name, actor) {
   return row;
 }
 
-export const presetSchema = z.object({ title: t.shortText("عنوان التعليمات", 80), body: t.shortText("التعليمات", 3000), is_default: z.boolean().default(false) });
+export const presetSchema = z.object({ title: t.shortText("عنوان التعليمات", 80), body: t.shortText("التعليمات", 3000), is_default: z.boolean().prefault(false) });
 export const presets = (q, teacherId) => q("SELECT id, title, body, is_default FROM exam_instruction_presets WHERE teacher_id = $1 ORDER BY is_default DESC, id DESC", [teacherId]);
 export async function addPreset(q, teacherId, b) {
   if (b.is_default) await q("UPDATE exam_instruction_presets SET is_default = false WHERE teacher_id = $1", [teacherId]);

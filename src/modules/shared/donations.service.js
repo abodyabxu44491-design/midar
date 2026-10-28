@@ -9,7 +9,7 @@ import { addSystemEntry } from "./ledger.service.js";
 
 export const donationSchema = z.object({
   donor_name: t.optText(120),
-  anonymous: z.boolean().default(false),
+  anonymous: z.boolean().prefault(false),
   phone: t.phone,
   amount: z.coerce.number().positive("المبلغ يجب أن يكون أكبر من صفر").max(100_000_000).multipleOf(0.01),
   purpose: t.optText(200),

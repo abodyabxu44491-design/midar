@@ -3,7 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
-import { z, parse } from "../../core/http/validate.js";
+import { z, parse, patch as patchOf } from "../../core/http/validate.js";
 import { badRequest } from "../../core/http/errors.js";
 
 // The teacher app sections a school (or a teacher's file) can hide. The home page and the account never hide.
@@ -92,7 +92,7 @@ export const featureSettings = async (q, section) => (await getFeatureSettings(q
 export async function updateFeatureSettings(q, section, patch) {
   const def = SECTIONS[section];
   if (!def) throw badRequest("قسم إعدادات غير معروف");
-  const clean = parse(def.schema.partial(), patch);
+  const clean = parse(patchOf(def.schema), patch);
   const all = await getFeatureSettings(q);
   const next = { ...all[section], ...clean };
   const err = def.check?.(next);

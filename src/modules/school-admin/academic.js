@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, t, z, patch } from "../../core/http/validate.js";
 import * as academic from "../shared/academic.service.js";
 
 const r = Router();
@@ -32,7 +32,7 @@ r.get("/holidays/impact", handle(async (req, res) => {
 }));
 // Every change to holidays re-applies them to attendance: records inside a holiday are set aside (the days
 // count as a holiday), and records of days no longer in a holiday come back.
-const notifySchema = z.object({ notify: z.boolean().default(false) });
+const notifySchema = z.object({ notify: z.boolean().prefault(false) });
 r.post("/holidays", handle(async (req, res) => {
   const b = parse(academic.holidaySchema, req.body);
   const { notify: tell } = parse(notifySchema, req.body);
@@ -82,7 +82,7 @@ r.patch("/terms/:id", handle(async (req, res) => {
 }));
 
 r.post("/promotion-preview", handle(async (req, res) => {
-  const b = parse(academic.rolloverSchema.partial({ year: true }), req.body);
+  const b = parse(patch(academic.rolloverSchema, { year: true }), req.body);
   res.json(await inTenant(req, (q) => academic.promotionPreview(q, b.moves || [])));
 }));
 

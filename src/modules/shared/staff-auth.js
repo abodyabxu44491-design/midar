@@ -20,7 +20,7 @@ const loginSchema = z.object({
   school: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,30}$/, "رمز المدرسة غير صحيح"),
   username: z.string().trim().toLowerCase().min(1, "اكتب رقم الجوال أو اسم المستخدم").max(40),
   password: z.string().min(1, "اكتب كلمة المرور").max(200),
-  remember: z.boolean().optional().default(true),
+  remember: z.boolean().optional().prefault(true),
 });
 async function unlockIn(q, user, ipKey, acctKey) {
   const at = async (kind, subject, n) => (await q(

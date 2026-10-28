@@ -24,7 +24,7 @@ export const issueSchema = z.object({
   student_ids: z.array(t.id).max(500).optional(),
   title: z.string().trim().min(2).max(120).optional(),
   template_id: t.optId,
-  dry_run: z.boolean().default(false),
+  dry_run: z.boolean().prefault(false),
 });
 
 export const resultOf = results.resultResult;

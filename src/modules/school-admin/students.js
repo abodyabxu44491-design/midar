@@ -15,7 +15,7 @@ import * as alerts from "../shared/student-alerts.service.js";
 const r = Router();
 
 const listQuery = z.object({
-  status: z.enum(["active", "inactive", "all"]).default("active"),
+  status: z.enum(["active", "inactive", "all"]).prefault("active"),
   st: z.enum(students.STATUSES).optional(),
   stats: z.enum(["1"]).optional(),
   since: z.string().datetime({ offset: true }).optional(),
@@ -24,7 +24,7 @@ const listQuery = z.object({
   q: z.string().trim().max(80).optional(),
   fees: z.enum(["paid", "unpaid", "off"]).optional().or(z.literal("")),
   limit: z.coerce.number().int().min(1).max(500).optional(),
-  offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  offset: z.coerce.number().int().min(0).max(1_000_000).prefault(0),
   summary: z.enum(["1"]).optional(),
   fields: z.enum(["basic"]).optional(),
   area: z.string().trim().max(80).optional(),

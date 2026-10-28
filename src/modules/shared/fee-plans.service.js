@@ -14,9 +14,9 @@ export const planSchema = z.object({
   name: t.shortText("اسم القالب", 80),
   grade_id: t.optId,
   amount: z.coerce.number().min(0).max(10_000_000),
-  installments: z.coerce.number().int().min(1).max(12).default(1),
+  installments: z.coerce.number().int().min(1).max(12).prefault(1),
   first_due: t.optDate,
-  interval_months: z.coerce.number().int().min(1).max(12).default(1),
+  interval_months: z.coerce.number().int().min(1).max(12).prefault(1),
   note: t.optText(300),
 });
 
@@ -24,7 +24,7 @@ export const applySchema = z.object({
   grade_id: t.optId,
   class_ids: z.array(t.id).max(200).optional(),
   student_ids: z.array(t.id).max(2000).optional(),
-  dry_run: z.boolean().default(false),
+  dry_run: z.boolean().prefault(false),
 });
 
 export const adjustmentSchema = z.object({

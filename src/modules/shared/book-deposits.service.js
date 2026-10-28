@@ -16,7 +16,7 @@ export const issueSchema = z.object({
   book_id: t.optId,
   book_title: t.optText(200),
   amount: z.coerce.number().positive("اكتب مبلغ التأمين").max(10_000_000),
-  method: z.enum(["cash", "transfer", "card", "online"]).default("cash"),
+  method: z.enum(["cash", "transfer", "card", "online"]).prefault("cash"),
   due_on: t.optDate,
   note: t.optText(300),
 }).refine((b) => b.book_id || (b.book_title || "").trim(), "اختر الكتاب أو اكتب اسمه");
@@ -24,7 +24,7 @@ export const returnSchema = z.object({
   condition: z.enum(Object.keys(CONDITIONS)),
   refund_amount: z.coerce.number().min(0).max(10_000_000),
   deduction_reason: t.optText(300),
-  method: z.enum(["cash", "transfer", "card", "online"]).default("cash"),
+  method: z.enum(["cash", "transfer", "card", "online"]).prefault("cash"),
 });
 
 // The fund is an ordinary finance account reserved for deposits, so every movement shows in the ledger too.

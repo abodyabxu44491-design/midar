@@ -4,20 +4,20 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import crypto from "node:crypto";
-import { z, t } from "../../core/http/validate.js";
+import { z, t, optional, patch } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden } from "../../core/http/errors.js";
 import { QTYPE_KEYS, QTYPES } from "../../../public/shared/js/exam/engine.js";
 
 const itemId = z.string().regex(/^[a-z]_[a-z0-9]{3,20}$/, "معرّف عنصر غير صالح");
-const txt = (max) => z.string().max(max, "النص طويل جدًا").default("");
+const txt = (max) => z.string().max(max, "النص طويل جدًا").prefault("");
 const marks = z.coerce.number().positive("درجة السؤال يجب أن تكون أكبر من صفر").max(1000)
   .transform((v) => Math.round(v * 100) / 100);
 
 export const imageRef = z.object({
   id: t.id,
-  width: z.coerce.number().int().min(10).max(100).default(60),
-  align: z.enum(["start", "center", "end"]).default("center"),
-  position: z.enum(["before", "after", "side"]).default("after"),
+  width: z.coerce.number().int().min(10).max(100).prefault(60),
+  align: z.enum(["start", "center", "end"]).prefault("center"),
+  position: z.enum(["before", "after", "side"]).prefault("after"),
 });
 const cell = z.object({
   t: txt(500),
@@ -31,23 +31,23 @@ export const mediaRef = z.object({
   kind: z.enum(["audio", "video"]),
   id: t.id.optional(),
   url: z.string().trim().max(500).regex(VIDEO_LINK, "رابط الفيديو المسموح: يوتيوب أو فيميو أو قوقل درايف").optional(),
-  plays: z.coerce.number().int().min(0).max(10).default(0),     // كم مرة يشغّله الطالب (0 = بلا حد)
+  plays: z.coerce.number().int().min(0).max(10).prefault(0),     // كم مرة يشغّله الطالب (0 = بلا حد)
 }).refine((m) => Boolean(m.id) !== Boolean(m.url), "أضف ملفًا أو رابطًا واحدًا")
   .refine((m) => !m.url || m.kind === "video", "الصوت يُرفع ملفًا");
 export const tableSchema = z.object({
-  header: z.boolean().default(true),
+  header: z.boolean().prefault(true),
   rows: z.array(z.array(cell).min(1).max(10)).min(1).max(30),
 });
 
 export const questionFields = {
-  type: z.enum(QTYPE_KEYS, { errorMap: () => ({ message: "نوع السؤال غير معروف" }) }),
+  type: z.enum(QTYPE_KEYS, { error: "نوع السؤال غير معروف" }),
   marks,
   text: txt(4000),
-  difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
+  difficulty: z.enum(["easy", "medium", "hard"]).prefault("medium"),
   options: z.array(z.object({ id: itemId, text: txt(1000), image: z.object({ id: t.id }).nullable().optional() })).max(8).optional(),
   correct: z.union([z.array(itemId).max(8), z.boolean(), z.null()]).optional(),
   answers: z.array(z.string().max(300)).max(20).optional(),
-  answer: txt(4000).optional(),
+  answer: optional(txt(4000)),
   pairs: z.array(z.object({ id: itemId, left: txt(500), right: txt(500) })).max(12).optional(),
   items: z.array(z.object({ id: itemId, text: txt(500) })).max(12).optional(),
   table: tableSchema.nullable().optional(),
@@ -57,11 +57,11 @@ export const questionFields = {
   space: z.enum(["none", "small", "medium", "large", "page", "auto"]).optional(),
   lined: z.boolean().optional(),
   cols: z.coerce.number().int().refine((v) => [1, 2, 4].includes(v)).optional(),
-  solution: txt(6000).optional(),
-  notes: txt(2000).optional(),
+  solution: optional(txt(6000)),
+  notes: optional(txt(2000)),
   bank_id: z.coerce.number().int().positive().nullable().optional(),
-  unit: txt(120).optional(),
-  lesson: txt(120).optional(),
+  unit: optional(txt(120)),
+  lesson: optional(txt(120)),
 };
 
 export const paperQuestion = z.object({ id: itemId, ...questionFields });
@@ -91,19 +91,19 @@ const bankBody = z.object({
   subject_id: t.id,
   grade_id: t.optId,
   term_id: t.optId,
-  is_shared: z.boolean().default(false),
+  is_shared: z.boolean().prefault(false),
   ...questionFields,
 });
 export const bankCreateSchema = bankBody;
 export const bankBulkSchema = z.object({
   subject_id: t.id,
   grade_id: t.optId,
-  unit: txt(120).optional(),
-  lesson: txt(120).optional(),
-  is_shared: z.boolean().default(false),
+  unit: optional(txt(120)),
+  lesson: optional(txt(120)),
+  is_shared: z.boolean().prefault(false),
   questions: z.array(z.object(questionFields)).min(1, "لا توجد أسئلة").max(200, "الحد الأقصى 200 سؤال في المرة الواحدة"),
 });
-export const bankUpdateSchema = bankBody.partial({ subject_id: true }).extend({ type: questionFields.type.optional(), marks: marks.optional() });
+export const bankUpdateSchema = patch(bankBody, { subject_id: true }).extend({ type: questionFields.type.optional(), marks: marks.optional() });
 
 const BODY_KEYS = ["text", "options", "correct", "answers", "answer", "pairs", "items", "table", "image", "media", "respond", "space", "lined", "cols", "solution", "notes"];
 const toBody = (q) => Object.fromEntries(BODY_KEYS.filter((k) => q[k] !== undefined).map((k) => [k, q[k]]));
@@ -121,7 +121,7 @@ export const listSchema = z.object({
   difficulty: z.enum(["easy", "medium", "hard"]).optional().or(z.literal("")),
   unit: z.string().trim().max(120).optional(), lesson: z.string().trim().max(120).optional(),
   q: z.string().trim().max(100).optional(), mine: z.enum(["1", "0"]).optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(200),
+  limit: z.coerce.number().int().min(1).max(500).prefault(200),
 });
 
 const flat = (r) => ({ ...r.body, ...r, body: undefined });
@@ -211,9 +211,9 @@ export const pickSchema = z.object({
   grade_id: t.optId,
   unit: z.string().trim().max(120).optional().nullable(),
   lesson: z.string().trim().max(120).optional().nullable(),
-  difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
+  difficulty: z.enum(["easy", "medium", "hard", "mixed"]).prefault("mixed"),
   spec: z.array(z.object({ type: z.enum(QTYPE_KEYS), count: z.coerce.number().int().min(1).max(100) })).min(1).max(12),
-  exclude: z.array(z.coerce.number().int().positive()).max(1000).default([]),
+  exclude: z.array(z.coerce.number().int().positive()).max(1000).prefault([]),
 });
 
 export async function pick(q, teacherId, p) {

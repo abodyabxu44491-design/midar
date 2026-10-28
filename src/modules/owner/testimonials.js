@@ -18,10 +18,10 @@ const schema = z.object({
   body: z.string().trim().min(10, "نص التقييم قصير").max(600, "نص التقييم طويل (600 حرف كحد أقصى)"),
   rating: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(5)]).optional().transform((v) => v || null),
   logo: z.string().regex(/^data:image\/(png|jpeg|webp);base64,/, "صيغة الشعار غير مدعومة").max(400000, "الشعار كبير").nullable().optional(),
-  consent: z.boolean().default(false),
-  status: z.enum(["pending", "approved", "hidden"]).default("pending"),
+  consent: z.boolean().prefault(false),
+  status: z.enum(["pending", "approved", "hidden"]).prefault("pending"),
   tenant_id: z.string().max(30).nullable().optional().transform((v) => v || null),
-  sort: z.coerce.number().int().min(0).max(1000).default(100),
+  sort: z.coerce.number().int().min(0).max(1000).prefault(100),
 }).refine((x) => x.status !== "approved" || x.consent, { message: "لا يُنشر تقييم قبل موافقة المدرسة على نشره", path: ["consent"] });
 const COLS = ["school_name", "author_name", "author_title", "body", "rating", "logo", "consent", "status", "tenant_id", "sort"];
 

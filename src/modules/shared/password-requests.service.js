@@ -28,7 +28,7 @@ export const requestSchema = z.object({
   branch: t.optText(120),
   job_title: z.enum(["admin", "accountant", "teacher"]),
   description: z.string().trim().min(5, "اشرح سبب الطلب").max(600),
-  contact_pref: z.enum(["phone", "whatsapp", "email"]).default("phone"),
+  contact_pref: z.enum(["phone", "whatsapp", "email"]).prefault("phone"),
 });
 
 export const adminReviewSchema = z.object({

@@ -167,7 +167,7 @@ export function instituteRouter() {
     await inTenant(req, (q) => svc.setEnrollmentStatus(q, id(req), b, req.actor)); res.json({ ok: true });
   }));
   r.post("/enrollments/:id/finalize", requireCap("teach"), handle(async (req, res) => {
-    const b = parse(z.object({ force: z.boolean().default(false), reason: t.optText(300) }), req.body);
+    const b = parse(z.object({ force: z.boolean().prefault(false), reason: t.optText(300) }), req.body);
     res.json(await inTenant(req, async (q) => {
       const out = await svc.finalize(q, id(req), req.actor, b);
       await audit(q, req, `اعتماد نتيجة التسجيل ${id(req)}: ${out.status === "completed" ? "اجتاز" : "لم يجتز"}`);
@@ -234,7 +234,7 @@ export function instituteRouter() {
     const R = svc.REPORTS[req.params.key];
     if (!R) throw notFound("التقرير غير موجود");
     if (!svc.can(req.user, R.cap)) throw notFound("التقرير غير متاح");
-    const f = parse(svc.reportSchema.extend({ format: z.enum(["json", "csv"]).default("json") }), req.query);
+    const f = parse(svc.reportSchema.extend({ format: z.enum(["json", "csv"]).prefault("json") }), req.query);
     const out = await inTenant(req, (q) => svc.report(q, req.params.key, f));
     if (f.format === "csv") {
       res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${req.params.key}.csv"`);
@@ -333,7 +333,7 @@ export function trainerRouter() {
     res.json(await inTenant(req, (q) => svc.saveAttendance(q, id(req), b, req.actor, { trainerId: me(req) })));
   }));
   r.patch("/sessions/:id", handle(async (req, res) => {
-    const b = parse(svc.sessionStatusSchema.pick({ topic: true, note: true }).extend({ status: z.enum(["held", "planned"]).default("held") }), req.body);
+    const b = parse(svc.sessionStatusSchema.pick({ topic: true, note: true }).extend({ status: z.enum(["held", "planned"]).prefault("held") }), req.body);
     await inTenant(req, (q) => svc.updateSession(q, id(req), b, { trainerId: me(req) })); res.json({ ok: true });
   }));
   r.put("/assessments/:id/scores", handle(async (req, res) => {

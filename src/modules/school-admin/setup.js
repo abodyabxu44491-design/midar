@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, t, z, patch } from "../../core/http/validate.js";
 import * as S from "../shared/structure.service.js";
 import * as academic from "../shared/academic.service.js";
 import * as gen from "../shared/timetable-gen.service.js";
@@ -33,11 +33,11 @@ r.post("/template", handle(async (req, res) => {
 }));
 
 const finishSchema = z.object({
-  sections_enabled: z.boolean().default(true),
+  sections_enabled: z.boolean().prefault(true),
   template: S.templateSchema,
   year: academic.yearSchema.omit({ make_current: true }),
   days: z.array(z.coerce.number().int().min(0).max(6)).min(1).max(7),
-  holidays: z.array(academic.holidaySchema).max(60).default([]),
+  holidays: z.array(academic.holidaySchema).max(60).prefault([]),
 });
 r.post("/finish", handle(async (req, res) => {
   const b = parse(finishSchema, req.body);
@@ -104,7 +104,7 @@ r.post("/grades", handle(async (req, res) => {
 }));
 r.patch("/grades/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  const b = parse(S.gradeSchema.partial(), req.body);
+  const b = parse(patch(S.gradeSchema), req.body);
   await inTenant(req, (q) => S.updateGrade(q, id, b));
   res.json({ ok: true });
 }));
@@ -137,7 +137,7 @@ r.patch("/sections/:id", handle(async (req, res) => {
 r.post("/grades/:id/copy-subjects", handle(async (req, res) => {
   const from = parse(t.id, req.params.id);
   const { to_grade_id: to, replace } = parse(
-    z.object({ to_grade_id: t.id, replace: z.boolean().default(false) }), req.body);
+    z.object({ to_grade_id: t.id, replace: z.boolean().prefault(false) }), req.body);
   res.json(await inTenant(req, async (q) => {
     const [target] = await q("SELECT id FROM grades WHERE id = $1", [to]);
     if (!target) throw notFound("الصف الهدف غير موجود");
@@ -156,7 +156,7 @@ r.post("/subjects", handle(async (req, res) => {
 }));
 r.patch("/subjects/:id", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
-  const b = parse(S.subjectSchema.partial(), req.body);
+  const b = parse(patch(S.subjectSchema), req.body);
   await inTenant(req, (q) => S.updateSubject(q, id, b));
   res.json({ ok: true });
 }));

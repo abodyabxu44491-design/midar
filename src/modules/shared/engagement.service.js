@@ -18,16 +18,16 @@ const questionSchema = z.object({
   type: z.enum(Object.keys(QTYPES)),
   text: z.string().trim().min(2, "اكتب نص السؤال").max(300),
   options: z.array(z.string().trim().min(1).max(120)).max(12).optional(),
-  required: z.boolean().default(true),
+  required: z.boolean().prefault(true),
 });
 export const surveySchema = z.object({
   title: t.shortText("عنوان الاستبيان", 150),
   description: t.optText(1000),
   audience: z.enum(["parents", "staff", "all"]),
   questions: z.array(questionSchema).min(1, "أضف سؤالًا واحدًا على الأقل").max(40),
-  anonymous: z.boolean().default(true),
+  anonymous: z.boolean().prefault(true),
   closes_on: t.optDate,
-  notify: z.boolean().default(true),
+  notify: z.boolean().prefault(true),
 });
 
 export async function createSurvey(q, b, actor) {
@@ -133,7 +133,7 @@ export const slotsSchema = z.object({
   from: z.string().regex(/^\d{2}:\d{2}$/, "الوقت بصيغة 09:00"),
   to: z.string().regex(/^\d{2}:\d{2}$/, "الوقت بصيغة 12:00"),
   minutes: z.coerce.number().int().min(5).max(180).optional(),
-  mode: z.enum(Object.keys(MODES)).default("in_person"),
+  mode: z.enum(Object.keys(MODES)).prefault("in_person"),
   location: t.optText(120), note: t.optText(300), class_id: t.optId,
   teacher_id: t.optId,
   host_name: t.optText(80),

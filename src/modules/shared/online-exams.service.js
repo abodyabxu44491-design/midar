@@ -23,13 +23,13 @@ export const publishSchema = z.object({
   opens_at: z.coerce.date(),
   closes_at: z.coerce.date(),
   duration_min: z.coerce.number().int().min(1).max(600),
-  shuffle: z.boolean().default(true),
-  show_result: z.enum(["none", "score", "answers"]).default("score"),
-  link_exam: z.boolean().default(true),
-  layout: z.enum(["one", "section", "all"]).default("one"),
-  no_back: z.boolean().default(false),
+  shuffle: z.boolean().prefault(true),
+  show_result: z.enum(["none", "score", "answers"]).prefault("score"),
+  link_exam: z.boolean().prefault(true),
+  layout: z.enum(["one", "section", "all"]).prefault("one"),
+  no_back: z.boolean().prefault(false),
   access_code: z.string().trim().regex(/^[0-9A-Za-z]{3,12}$/, "رمز الدخول من 3 إلى 12 حرفًا إنجليزيًا أو رقمًا").optional().or(z.literal("")),
-  max_leaves: z.coerce.number().int().min(0).max(20).default(0),
+  max_leaves: z.coerce.number().int().min(0).max(20).prefault(0),
 });
 
 // How the exam is taken: one question per page, one section per page, or all on one page; going back allowed or not;

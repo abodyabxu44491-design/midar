@@ -94,8 +94,8 @@ r.post("/grade", limits.publicApi, handle(async (req, res) => {
 
 r.post("/section", limits.publicApi, handle(async (req, res) => {
   const b = parse(base.extend({
-    class_id: t.id, offset: z.coerce.number().int().min(0).max(100000).default(0),
-    limit: z.coerce.number().int().min(1).max(60).default(30), q: z.string().trim().max(60).optional(),
+    class_id: t.id, offset: z.coerce.number().int().min(0).max(100000).prefault(0),
+    limit: z.coerce.number().int().min(1).max(60).prefault(30), q: z.string().trim().max(60).optional(),
   }), req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);

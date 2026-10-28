@@ -35,7 +35,7 @@ export const schemas = {
   resetFinish: z.object({ ticket: z.string().max(80), password: t.password }),
   setup: z.object({ token }),
   enter: z.object({ school: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,30}$/, "رمز المدرسة غير صحيح") }),
-  password: z.object({ current: z.string().max(200).optional().default(""), next: t.password }),
+  password: z.object({ current: z.string().max(200).optional().prefault(""), next: t.password }),
 };
 
 // ---- Setup links (the school link the owner sends) ----

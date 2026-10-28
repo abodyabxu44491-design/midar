@@ -13,7 +13,7 @@ import { availableReports, runReport, reportParams } from "../shared/smart-repor
 const r = Router();
 const askSchema = z.object({
   question: z.string().trim().min(2, "اكتب سؤالك").max(1000),
-  history: z.array(z.object({ q: z.string().max(1000), a: z.string().max(20000) })).max(4).default([]),
+  history: z.array(z.object({ q: z.string().max(1000), a: z.string().max(20000) })).max(4).prefault([]),
 });
 
 r.get("/", handle(async (req, res) => {

@@ -87,7 +87,7 @@ const sendSchema = z.object({
   grade_id: t.optId, class_id: t.optId,
   student_ids: z.array(t.id).max(2000).optional(),
   message: z.string().trim().min(2, "اكتب نص الرسالة").max(600),
-  dry_run: z.boolean().default(false),
+  dry_run: z.boolean().prefault(false),
 });
 r.post("/sms/send", handle(async (req, res) => {
   if (!req.modules?.sms) throw badRequest("قسم الرسائل النصية موقوف");

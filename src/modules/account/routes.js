@@ -42,7 +42,7 @@ export function accountRouter() {
     res.json(await acct.setupInfo(b.token, await accountOf(req)));
   }));
   r.post("/setup/link", limits.login, handle(async (req, res) => {
-    const b = parse(acct.schemas.setup.extend({ via: z.enum(["email", "google", "apple", "password"]).default("password") }), req.body);
+    const b = parse(acct.schemas.setup.extend({ via: z.enum(["email", "google", "apple", "password"]).prefault("password") }), req.body);
     res.json(await acct.linkSetup(b.token, await requireAccount(req), b.via, req, res));
   }));
 
@@ -52,7 +52,7 @@ export function accountRouter() {
     res.json(await acct.claimInfo(school));
   }));
   r.post("/claim", limits.login, handle(async (req, res) => {
-    const b = parse(acct.schemas.enter.extend({ via: z.enum(["email", "google", "apple", "password"]).default("email") }), req.body);
+    const b = parse(acct.schemas.enter.extend({ via: z.enum(["email", "google", "apple", "password"]).prefault("email") }), req.body);
     res.json(await acct.claimSchool(await requireAccount(req), b.school, b.via, req, res));
   }));
 
@@ -83,7 +83,7 @@ export function accountRouter() {
   r.get("/oauth/:provider/start", limits.login, handle(async (req, res) => {
     const p = parse(provider, req.params.provider);
     const q = parse(z.object({
-      purpose: z.enum(["login", "setup", "link", "claim"]).default("login"),
+      purpose: z.enum(["login", "setup", "link", "claim"]).prefault("login"),
       school: acct.schemas.enter.shape.school.optional(),
       setup: acct.schemas.setup.shape.token.optional(),
     }), req.query);

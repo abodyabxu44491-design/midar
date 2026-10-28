@@ -162,7 +162,7 @@ export async function overview(q, sc) {
 }
 
 export const reasonSchema = z.object({ reason: t.shortText("السبب", 300) });
-export const approveSchema = z.object({ allow_incomplete: z.boolean().default(false), reason: t.optText(300) });
+export const approveSchema = z.object({ allow_incomplete: z.boolean().prefault(false), reason: t.optText(300) });
 
 export async function submit(q, sc, actor) {
   const b = await ensureBatch(q, sc, actor);

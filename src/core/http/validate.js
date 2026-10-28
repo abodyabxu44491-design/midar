@@ -18,16 +18,30 @@ const FIELD_LABELS = {
 };
 const fieldLabel = (path) => FIELD_LABELS[path[path.length - 1]] || (path.length ? "أحد الحقول" : "الطلب");
 
+const valueAt = (data, path) => path.reduce((v, k) => (v == null ? undefined : v[k]), data);
+
 export const parse = (schema, data) => {
   const r = schema.safeParse(data ?? {});
   if (!r.success) {
     const i = r.error.issues[0];
     const msg = i.message;
-    if (msg === "Required") throw badRequest(`حقل مطلوب: ${fieldLabel(i.path)}`);
+    if (/^[A-Za-z]/.test(msg) && i.path.length && valueAt(data ?? {}, i.path) === undefined) throw badRequest(`حقل مطلوب: ${fieldLabel(i.path)}`);
     throw badRequest(/^[A-Za-z]/.test(msg) ? `قيمة غير صحيحة في: ${fieldLabel(i.path)}` : msg);
   }
   return r.data;
 };
+
+// zod 4 fills in a field's default even when the field is optional. An update must leave an absent field absent, so
+// optional() and patch() drop the default first.
+const bare = (s) => {
+  const d = s._zod.def;
+  if (d.type === "default" || d.type === "prefault" || d.type === "optional") return bare(d.innerType);
+  if (d.type === "pipe") { const i = bare(d.in); return i === d.in ? s : z.pipe(i, d.out); }
+  return s;
+};
+export const optional = (s) => bare(s).optional();
+export const patch = (schema, keys) => schema.extend(Object.fromEntries(Object.entries(schema.shape)
+  .filter(([k]) => !keys || keys[k]).map(([k, s]) => [k, optional(s)])));
 
 const keep = (v) => (v === undefined ? undefined : v || null);
 
@@ -35,7 +49,7 @@ export const asciiDigits = (v) => String(v).replace(/[\u0660-\u0669]/g, (d) => S
   .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
 const phoneText = (v) => (typeof v === "string" ? asciiDigits(v).replace(/[-().\u200e\u200f]/g, "").replace(/\s+/g, " ").trim() : v);
 
-const trimmed = (min, max, label) => z.string({ required_error: `${label} مطلوب` }).trim()
+const trimmed = (min, max, label) => z.string({ error: (i) => (i.input === undefined ? `${label} مطلوب` : undefined) }).trim()
   .min(min, `${label} قصير جدًا`).max(max, `${label} طويل جدًا`);
 export const t = {
   name: (label = "الاسم") => trimmed(2, 120, label),

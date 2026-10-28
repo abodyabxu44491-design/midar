@@ -16,39 +16,39 @@ export const CATEGORIES = {
 };
 const CAT_KEYS = Object.keys(CATEGORIES);
 const money = z.preprocess((v) => (typeof v === "string" ? asciiDigits(v).replace(/[,،٬\s]/g, "").replace("٫", ".") : v),
-  z.coerce.number({ invalid_type_error: "المبلغ أرقام فقط" }).min(0, "المبلغ لا يكون سالبًا").max(100_000_000));
+  z.coerce.number({ error: "المبلغ أرقام فقط" }).min(0, "المبلغ لا يكون سالبًا").max(100_000_000));
 const optNumber = z.preprocess((v) => (typeof v === "string" ? asciiDigits(v).replace(/\s+/g, "") : v),
   z.string().regex(/^[0-9-]{4,34}$/, "رقم الحساب أرقام فقط").optional().nullable().or(z.literal("")).transform((v) => v || null));
 
 export const staffSchema = z.object({
   full_name: t.name("اسم الموظف"),
   job_title: t.optText(80),
-  category: z.enum(CAT_KEYS).default("other"),
+  category: z.enum(CAT_KEYS).prefault("other"),
   phone: t.phone,
   iban: z.string().trim().transform((v) => v.replace(/[\s-]/g, "").toUpperCase())
     .pipe(z.string().regex(/^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$/, "رقم الآيبان غير صحيح")).optional().nullable().or(z.literal("")).transform((v) => v || null),
-  base_salary: money.default(0),
-  allowance: money.default(0),
-  pay_method: z.enum(["cash", "transfer"]).default("cash"),
+  base_salary: money.prefault(0),
+  allowance: money.prefault(0),
+  pay_method: z.enum(["cash", "transfer"]).prefault("cash"),
   account_number: optNumber,
   hire_date: t.optDate,
   notes: t.optText(300),
   teacher_id: t.optId,
 });
-export const salarySchema = z.object({ base_salary: money, allowance: money.default(0) });
+export const salarySchema = z.object({ base_salary: money, allowance: money.prefault(0) });
 export const runSchema = z.object({
   period: t.date,
   note: t.optText(300),
 });
 export const itemSchema = z.object({
-  allowances: money.default(0),
-  bonus: money.default(0),
-  deductions: money.default(0),
-  advances: money.default(0),
+  allowances: money.prefault(0),
+  bonus: money.prefault(0),
+  deductions: money.prefault(0),
+  advances: money.prefault(0),
   note: t.optText(200),
 });
 export const paySchema = z.object({
-  method: z.enum(["cash", "transfer", "card", "online"]).default("cash"),
+  method: z.enum(["cash", "transfer", "card", "online"]).prefault("cash"),
   account_id: t.optId,
   paid_on: t.optDate,
 });
