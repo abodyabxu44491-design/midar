@@ -30,7 +30,7 @@ export default async function analytics() {
       stats([
         ["نسبة الحضور", d.attendance_by_month.length ? `${avg(d.attendance_by_month.map((m) => m.rate))}%` : "—", `آخر ${d.months} أشهر`],
         ["متوسط الدرجات", d.grades_by_class.length ? `${avg(d.grades_by_class.map((c) => c.average))}%` : "—", "الاختبارات المنشورة"],
-        ["المحصّل من الرسوم", money(d.fees.collected), `المتبقي ${money(d.fees.remaining)}`],
+        d.fees ? ["المحصّل من الرسوم", money(d.fees.collected), `المتبقي ${money(d.fees.remaining)}`] : null,
       ]),
 
       panel("نسبة الحضور شهريًا", null,
@@ -65,8 +65,8 @@ export default async function analytics() {
           h("div", {}, h("b", {}, s.name), sub(s.class_name || "—")),
           badge(`${s.average}%`, "red"))) : empty("لا يوجد طالب تحت 60%.")),
 
-      panel("التحصيل المالي شهريًا", null,
-        barChart(d.fees_by_month.map((m) => ({ label: monthName(m.month), value: Math.round(Number(m.collected)), color: "var(--navy)" })))),
+      d.fees ? panel("التحصيل المالي شهريًا", null,
+        barChart(d.fees_by_month.map((m) => ({ label: monthName(m.month), value: Math.round(Number(m.collected)), color: "var(--navy)" })))) : null,
     );
   };
   term.addEventListener("change", load);

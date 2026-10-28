@@ -32,6 +32,7 @@ import accountantApi from "./modules/accountant/index.js";
 import publicApi from "./modules/public/index.js";
 import gateApi from "./modules/gate/index.js";
 import { accountRouter, appleCallback } from "./modules/account/routes.js";
+import { markActive } from "./core/activity.js";
 import { staffLoginRouter } from "./modules/shared/staff-auth.js";
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
@@ -52,6 +53,8 @@ export function createApp() {
   });
 
   app.get("/healthz", (req, res) => res.json({ ok: true }));
+  // Real use of the platform (not health checks) keeps the background work running at full pace.
+  app.use("/api", (req, res, next) => { markActive(); next(); });
 
   app.get("/healthz/db", limits.health, async (req, res) => {
     try { await healthCheck(); res.json({ ok: true, db: true }); }
@@ -67,6 +70,10 @@ export function createApp() {
   const api = express.Router();
   const smallJson = express.json({ limit: "512kb" });
   const uploadJson = express.json({ limit: "4mb" });
+  // Sound and video for exam questions (up to 10 MB), and a student's photo or voice answer (up to 5 MB), as base64.
+  const mediaJson = express.json({ limit: "15mb" });
+  const isMediaUpload = (req) => req.method === "POST" && (/^\/(admin|teacher)\/papers\/media$/.test(req.path)
+    || /^\/public\/[^/]+\/student\/online-exams\/\d+\/answer-file$/.test(req.path));
   const isUpload = (req) => (req.method === "POST" && (
       /^\/(admin|accountant)\/ledger\/entries\/\d+\/attachments$/.test(req.path)
       || /^\/(admin|teacher)\/papers\/images$/.test(req.path)
@@ -80,7 +87,7 @@ export function createApp() {
     || (req.method === "PUT" && /^\/(admin|teacher)\/papers\/\d+$/.test(req.path));
   app.post("/api/account/oauth/apple/callback", limits.login, express.urlencoded({ extended: false, limit: "16kb" }), cookieParser(), noStore, appleCallback);
   api.use((req, res, next) => { res.set("X-App-Version", APP_VERSION); next(); });
-  api.use(limits.api, noStore, (req, res, next) => (isUpload(req) ? uploadJson : smallJson)(req, res, next), cookieParser(), sameOrigin);
+  api.use(limits.api, noStore, (req, res, next) => (isMediaUpload(req) ? mediaJson : isUpload(req) ? uploadJson : smallJson)(req, res, next), cookieParser(), sameOrigin);
   api.use(probeWatch);
   api.use("/owner", ownerApi);
   api.use("/admin", adminApi);

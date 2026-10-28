@@ -49,12 +49,12 @@ const meta = {
   term_id: t.optId,
   exam_type: t.shortText("نوع الاختبار", 60).default("اختبار قصير"),
   exam_date: t.optDate,
-  duration_min: z.union([z.coerce.number().int().min(1).max(600), z.literal(""), z.null()]).optional()
+  duration_min: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(600)]).optional()
     .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
-  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional()
+  total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional()
     .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
   instructions: t.optText(3000),
-  expected_pages: z.union([z.coerce.number().int().min(1).max(50), z.literal(""), z.null()]).optional()
+  expected_pages: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(50)]).optional()
     .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
   versions: z.coerce.number().int().min(1).max(4).optional(),
   shuffle_questions: z.boolean().optional(),
@@ -237,12 +237,21 @@ export async function readImage(q, id, size = "full") {
   return row;
 }
 
+// Pictures and clips another school uploaded (or ones deleted since) are dropped, so a paper never points outside its school.
 async function dropForeignImages(q, content) {
-  const ids = new Set();
-  for (const s of content.sections) for (const qq of s.questions) if (qq.image?.id) ids.add(Number(qq.image.id));
-  if (!ids.size) return content;
-  const ok = new Set((await q("SELECT id FROM exam_images WHERE id = ANY($1::bigint[])", [[...ids]])).map((r) => Number(r.id)));
-  for (const s of content.sections) for (const qq of s.questions) if (qq.image && !ok.has(Number(qq.image.id))) qq.image = null;
+  const ids = new Set(), clips = new Set();
+  for (const s of content.sections) for (const qq of s.questions) {
+    if (qq.image?.id) ids.add(Number(qq.image.id));
+    for (const o of qq.options || []) if (o.image?.id) ids.add(Number(o.image.id));
+    if (qq.media?.id) clips.add(Number(qq.media.id));
+  }
+  const ok = ids.size ? new Set((await q("SELECT id FROM exam_images WHERE id = ANY($1::bigint[])", [[...ids]])).map((r) => Number(r.id))) : new Set();
+  const okClips = clips.size ? new Set((await q("SELECT id FROM exam_media WHERE id = ANY($1::bigint[])", [[...clips]])).map((r) => Number(r.id))) : new Set();
+  for (const s of content.sections) for (const qq of s.questions) {
+    if (qq.image && !ok.has(Number(qq.image.id))) qq.image = null;
+    for (const o of qq.options || []) if (o.image && !ok.has(Number(o.image.id))) o.image = null;
+    if (qq.media?.id && !okClips.has(Number(qq.media.id))) qq.media = null;
+  }
   return content;
 }
 
@@ -354,7 +363,7 @@ export const copySchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
   mode: z.enum(["same", "bank"]).default("same"),
   shuffle: z.boolean().default(false),
-  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional(),
+  total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional(),
   exam_date: t.optDate,
   class_id: t.optId,
 });
@@ -474,7 +483,7 @@ export const fromBankSchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
   subject_id: t.id, class_id: t.optId, grade_id: t.optId,
   exam_type: z.string().trim().min(2).max(60).default("اختبار قصير"),
-  total_marks: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional(),
+  total_marks: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional(),
   exam_date: t.optDate,
   difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
   unit: z.string().trim().max(120).optional().nullable(),

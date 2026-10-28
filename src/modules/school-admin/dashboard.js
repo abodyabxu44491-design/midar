@@ -64,7 +64,10 @@ r.get("/dashboard", handle(async (req, res) => {
     const recentStudents = await q(`SELECT s.id, s.full_name AS name, s.gender, c.name AS class_name, s.created_at
        FROM students s LEFT JOIN classes c ON c.id = s.class_id WHERE s.archived_at IS NULL ORDER BY s.created_at DESC, s.id DESC LIMIT 6`);
     const recentAnnouncements = await q("SELECT id, title, created_at FROM announcements ORDER BY id DESC LIMIT 6");
-    return { ...c, ...(await schoolTotals(q)), academic: await current(q),
+    // School-scope administrators do not see fees or payment claims.
+    const full = (req.user.admin_scope || "full") === "full";
+    if (!full) c.pending_claims = 0;
+    return { ...c, ...(full ? await schoolTotals(q) : {}), academic: await current(q),
       today: await dayStatus(q, new Date().toISOString().slice(0, 10)),
       by_grade: byGrade, recent_students: recentStudents, recent_announcements: recentAnnouncements };
   });

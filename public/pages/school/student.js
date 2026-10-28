@@ -61,6 +61,12 @@ function render(d, inbox, chat) {
     excuse: (date, text) => api(`${P}/student/excuse`, { ...who, date, text }),
     ack: (a) => api(`${P}/student/alerts/ack`, { ...who, alert_id: a.id }),
     who, api: (path, body) => api(`${P}${path}`, { ...who, ...body }),
+    // Clips and answer files come back as the file itself, played from memory (the student key never goes in a URL).
+    fetchFile: async (path, body) => {
+      const res = await fetch(`${P}${path}`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...who, ...body }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "تعذّر تحميل الملف");
+      return res.blob();
+    },
     printCertificate: (id) => api(`${P}/student/certificates/print`, { ...who, id }),
     attendanceCard: () => api(`${P}/student/attendance-card`, who),
   } });

@@ -79,13 +79,16 @@ export function questionBlocks(q, L, { imageUrl, showAnswers = false }) {
   if (img && q.image.position === "before") body.append(img);
   main.append(head);
   if (img && !side && q.image.position !== "before") body.append(img);
+  // A clip cannot play on paper: the sheet says the question has one, so the teacher plays it in class.
+  // A question's sound or video belongs to the online exam only; the printed paper does not mention it.
   if (q.table) main.append(tableEl(q.table));
 
   if (def.options) {
     const correct = new Set(q.correct || []);
     main.append(h("ol", { class: `xp-opts c${side ? Math.min(2, optionCols(q)) : optionCols(q)}` }, (q.options || []).map((o, i) =>
       h("li", { class: showAnswers && correct.has(o.id) ? "ok" : "" },
-        h("span", { class: "xp-letter" }, `${OPTION_LETTERS[i]})`), h("span", {}, rich(o.text))))));
+        h("span", { class: "xp-letter" }, `${OPTION_LETTERS[i]})`),
+        h("span", {}, o.image?.id ? h("img", { class: "xp-opt-img", src: imageUrl(o.image.id), alt: "", loading: "eager", decoding: "sync" }) : null, rich(o.text))))));
   }
   if (q.type === "fill" && !/_{3,}/.test(q.text || "")) main.append(linesEl(1, true));
 

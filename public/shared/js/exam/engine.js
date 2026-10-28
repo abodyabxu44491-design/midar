@@ -132,11 +132,11 @@ export function checkPaper(paper) {
   for (const s of paper.content?.sections || []) for (const q of s.questions || []) {
     n++;
     const where = `السؤال ${n}`;
-    if (!String(q.text || "").trim() && !["match", "order"].includes(q.type) && !q.image) issues.push({ level: "error", text: `${where}: نص السؤال فارغ` });
+    if (!String(q.text || "").trim() && !["match", "order"].includes(q.type) && !q.image && !q.media) issues.push({ level: "error", text: `${where}: نص السؤال فارغ` });
     if (!(Number(q.marks) > 0)) issues.push({ level: "error", text: `${where}: الدرجة غير محددة` });
     if (q.type === "mcq" && (q.correct || []).length !== 1) issues.push({ level: "warn", text: `${where}: حدد الإجابة الصحيحة` });
     if (q.type === "multi" && !(q.correct || []).length) issues.push({ level: "warn", text: `${where}: حدد الإجابات الصحيحة` });
-    if (QTYPES[q.type]?.options && (q.options || []).filter((o) => String(o.text).trim()).length < 2) issues.push({ level: "error", text: `${where}: يحتاج خيارين على الأقل` });
+    if (QTYPES[q.type]?.options && (q.options || []).filter((o) => String(o.text).trim() || o.image?.id).length < 2) issues.push({ level: "error", text: `${where}: يحتاج خيارين على الأقل` });
     if (q.type === "truefalse" && typeof q.correct !== "boolean") issues.push({ level: "warn", text: `${where}: حدد صح أو خطأ` });
     if (q.type === "match" && (q.pairs || []).filter((p) => p.left && p.right).length < 2) issues.push({ level: "error", text: `${where}: يحتاج زوجين على الأقل` });
     if (q.type === "order" && (q.items || []).filter((i) => i.text).length < 2) issues.push({ level: "error", text: `${where}: يحتاج عنصرين على الأقل` });

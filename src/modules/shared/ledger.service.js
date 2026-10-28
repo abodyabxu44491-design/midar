@@ -22,7 +22,7 @@ export const accountSchema = z.object({
   kind: z.enum(["bank", "cash", "online", "donations", "other"]),
   currency: z.enum(["SAR", "YER", "USD"]).optional(),
   opening_balance: z.coerce.number().min(-100_000_000).max(100_000_000).default(0),
-  low_balance: z.union([z.coerce.number().min(0), z.literal("")]).optional().transform((v) => (v === "" || v === undefined ? null : Number(v))),
+  low_balance: z.union([z.literal(""), z.coerce.number().min(0)]).optional().transform((v) => (v === "" || v === undefined ? null : Number(v))),
   note: t.optText(300),
   methods: z.array(z.enum(["cash", "transfer", "card", "online"])).max(4).default([]),
 });

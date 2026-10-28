@@ -26,7 +26,7 @@ export async function home({ goTo, refresh }) {
       kpiCard({ icon: "calendar", label: `${T("sessions")} اليوم`, value: num(todays.length) }),
       kpiCard({ icon: "alert", tone: pending.length ? "amber" : "teal", label: "بانتظار التحضير", value: num(pending.length) }),
       kpiCard({ icon: "clipboard", tone: "violet", label: `${T("courses")}ي`, value: num(courses.filter((c) => ["open", "running", "planned"].includes(c.status)).length), onClick: () => goTo("mycourses") })),
-    panel(`${T("sessions")} اليوم`, null, todays.length ? h("div", { class: "in-list" }, todays.map((s) => sessionItem(s, refresh))) : empty(`لا توجد ${T("sessions")} اليوم.`)),
+    panel(`${T("sessions")} اليوم`, null, todays.length ? h("div", { class: "in-list" }, todays.map((s) => sessionItem(s, refresh))) : empty(`ليس هناك أي ${T("session")} اليوم.`)),
     pending.length ? panel("جلسات سابقة لم يُسجل حضورها", null, h("div", { class: "in-list" }, pending.map((s) => sessionItem(s, refresh)))) : null,
   ];
 }
@@ -34,7 +34,7 @@ export async function home({ goTo, refresh }) {
 export async function sessions({ refresh }) {
   const rows = await api(`${I()}/sessions`);
   return panel(T("sessions"), null, sub("آخر أسبوعين والأسابيع الثلاثة القادمة."),
-    rows.length ? h("div", { class: "in-list" }, rows.map((s) => sessionItem(s, refresh))) : empty(`لا توجد ${T("sessions")}.`));
+    rows.length ? h("div", { class: "in-list" }, rows.map((s) => sessionItem(s, refresh))) : empty(`ليس هناك أي ${T("session")}.`));
 }
 
 export async function courses() {
@@ -44,7 +44,7 @@ export async function courses() {
     h("header", {}, h("div", { class: "in-id" }, h("b", {}, c.name), h("small", { dir: "ltr" }, c.code)), courseBadge(c.status)),
     h("div", { class: "in-mini" }, h("div", {}, h("small", {}, "الساعات المنفذة"), h("b", {}, `${num(c.held_hours)} من ${num(c.hours)}`), bar(c.held_hours, c.hours)),
       h("div", {}, h("small", {}, T("trainees")), h("b", {}, num(c.enrolled)))))))
-    : empty(`لا توجد ${T("courses")} مسندة إليك.`));
+    : empty(`ليس هناك أي ${T("course")} مسندة إليك.`));
 }
 
 async function courseFile(id) {
@@ -64,7 +64,7 @@ async function courseFile(id) {
         h("div", { class: "in-ros-id" }, h("b", {}, e.full_name), sub(e.group_name || "")),
         h("div", { class: "in-ros-m" }, h("small", {}, "الحضور"), h("b", { class: e.progress.low_attendance ? "danger-text" : "" }, pct(e.progress.attendance_pct))),
         h("div", { class: "in-ros-m" }, h("small", {}, "النتيجة"), h("b", {}, c.grading === "score" ? pct(e.progress.final_score) : `${e.progress.items.filter((x) => x.passed).length}/${e.progress.items.length}`)),
-        enrollBadge(e.status)))) : empty(`لا يوجد ${T("trainees")} في مجموعاتك.`)),
+        enrollBadge(e.status)))) : empty(`ليس هناك أي ${T("trainee")} في مجموعاتك.`)),
       panel(T("sessions"), null, d.sessions.length ? h("div", { class: "in-list" }, d.sessions.map((s) => sessionItem({ ...s, course: c.name }, draw))) : empty("لا توجد جلسات."))));
   };
   draw().catch((e) => mount(holder, notice(e.message, "err")));

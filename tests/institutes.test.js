@@ -84,6 +84,9 @@ test("المعهد: من إنشاء البرنامج حتى الشهادة وا�
   assert.equal((await admin.post(`${I}/enrollments`, { student_id: s1.id, course_id: cid })).status, 409, "لا تسجيل مكرر");
   // Course fee changes later do not touch enrolled trainees
   await admin.put(`${I}/courses/${cid}`, { ...course.data, fee: 1200, seats: 3, pass_mark: "", min_attendance: "" });
+  const saved = (await admin.get(`${I}/courses/${cid}`)).data.course;
+  assert.equal(saved.pass_mark, null, "حد النجاح الفارغ يعني افتراضي المعهد، لا صفرًا");
+  assert.equal(saved.min_attendance, null, "الحد الأدنى للحضور الفارغ يعني افتراضي المعهد، لا صفرًا");
   const roster0 = (await admin.get(`${I}/courses/${cid}`)).data.enrollments;
   assert.equal(Number(roster0.find((e) => e.id === e1.data.id).fee), 900, "الرسوم المتفق عليها محفوظة");
   // Transfer with history

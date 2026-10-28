@@ -141,6 +141,8 @@ async function create({ go }) {
   const admin = input({ placeholder: "الاسم الكامل لمدير المدرسة" });
   const mail = input({ type: "email", class: "ltr", placeholder: "manager@example.com" });
   const currency = select([["YER", "ريال يمني"], ["SAR", "ريال سعودي"], ["USD", "دولار أمريكي"]]);
+  // Default to the currency the group's schools already use.
+  currency.value = d.schools[0]?.currency || "SAR";
   code.value = `${g.id}-${d.schools.length + 1}`;
   code.addEventListener("input", () => { code.value = slug(code.value); });
   const msg = h("div");

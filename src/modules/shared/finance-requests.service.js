@@ -22,7 +22,7 @@ export const createSchema = z.object({
 export const decideSchema = z.object({
   decision: z.enum(["approve", "reject"]),
   note: t.optText(300),
-  approved_amount: z.union([z.coerce.number().positive().max(100_000_000), z.literal(""), z.null()]).optional().transform((v) => (v === "" ? null : v)),
+  approved_amount: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(100_000_000)]).optional().transform((v) => (v === "" ? null : v)),
 }).refine((b) => b.decision !== "reject" || (b.note || "").trim().length >= 3, "اكتب سبب الرفض");
 export const paySchema = z.object({
   account_id: t.id,

@@ -18,7 +18,7 @@ import { groupQuota, groupSubscription, syncGroupSchools, enterprisePlanId } fro
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 const code = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "الرمز: حروف إنجليزية صغيرة وأرقام (3 إلى 30)");
-const money = z.union([z.coerce.number().min(0).max(10_000_000), z.literal(""), z.null()]).optional()
+const money = z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(10_000_000)]).optional()
   .transform((v) => (v === "" ? null : v));
 
 const fields = {

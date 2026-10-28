@@ -99,12 +99,12 @@ export async function saveProgram(q, id, b) {
 export const courseSchema = z.object({
   code, name: t.shortText("اسم الدورة", 150), program_id: t.optId, department: t.optText(100), description: t.optText(2000),
   objectives: t.optText(2000), prerequisites: t.optText(1000), trainer_id: t.optId,
-  hours: z.coerce.number().positive("عدد الساعات مطلوب").max(5000), seats: z.union([z.coerce.number().int().min(1).max(5000), z.literal(""), z.null()]).optional().transform((v) => (v ? Number(v) : null)),
+  hours: z.coerce.number().positive("عدد الساعات مطلوب").max(5000), seats: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(5000)]).optional().transform((v) => (v ? Number(v) : null)),
   starts_on: t.optDate, ends_on: t.optDate, schedule: t.optText(300), fee: z.coerce.number().min(0).max(100_000_000).default(0),
   mode: z.enum(["onsite", "remote", "blended"]).default("onsite"), status: z.enum(Object.keys(COURSE_STATUS)).default("planned"),
   grading: z.enum(["score", "pass_fail"]).default("score"),
-  pass_mark: z.union([z.coerce.number().min(0).max(100), z.literal(""), z.null()]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
-  min_attendance: z.union([z.coerce.number().min(0).max(100), z.literal(""), z.null()]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
+  pass_mark: z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(100)]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
+  min_attendance: z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(100)]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
   reason: t.optText(300),
 });
 const COURSE_COLS = ["code", "name", "program_id", "department", "description", "objectives", "prerequisites", "trainer_id", "hours", "seats",
@@ -157,7 +157,7 @@ async function seatsUsed(q, courseId, groupId = null) {
 }
 
 export const groupSchema = z.object({ name: t.shortText("اسم المجموعة", 60), trainer_id: t.optId,
-  seats: z.union([z.coerce.number().int().min(1).max(5000), z.literal(""), z.null()]).optional().transform((v) => (v ? Number(v) : null)),
+  seats: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(5000)]).optional().transform((v) => (v ? Number(v) : null)),
   schedule: t.optText(300), reason: t.optText(300) });
 export async function saveGroup(q, courseId, id, b, actor) {
   try {
@@ -475,7 +475,7 @@ export async function saveAttendance(q, id, b, actor, { trainerId = null } = {})
 
 // ---------- Assessments and scores ----------
 export const assessmentSchema = z.object({ name: t.shortText("اسم التقييم", 100), kind: z.enum(Object.keys(ASSESS_KIND)).default("theory"),
-  max_score: z.union([z.coerce.number().positive().max(10000), z.literal(""), z.null()]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
+  max_score: z.union([z.literal(""), z.null(), z.coerce.number().positive().max(10000)]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
   weight: z.coerce.number().min(0).max(100).default(0), sort: z.coerce.number().int().min(0).max(1000).default(0) });
 export async function saveAssessment(q, courseId, id, b) {
   const [c] = await q("SELECT grading FROM courses WHERE id = $1", [courseId]);
@@ -507,7 +507,7 @@ export async function deleteAssessment(q, courseId, id) {
 }
 
 export const scoresSchema = z.object({ reason: t.optText(200), scores: z.array(z.object({ enrollment_id: t.id,
-  score: z.union([z.coerce.number().min(0).max(10000), z.literal(""), z.null()]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
+  score: z.union([z.literal(""), z.null(), z.coerce.number().min(0).max(10000)]).optional().transform((v) => (v === "" || v == null ? null : Number(v))),
   passed: z.boolean().nullable().optional(), note: t.optText(200) })).min(1).max(500) });
 export async function saveScores(q, assessmentId, b, actor, { trainerId = null } = {}) {
   const [a] = await q(`SELECT a.*, c.grading, c.trainer_id AS course_trainer FROM assessments a JOIN courses c ON c.id = a.course_id WHERE a.id = $1`, [assessmentId]);

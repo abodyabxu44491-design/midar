@@ -12,6 +12,7 @@ import { deriveSecret, openSecret, sealSecret } from "../../core/auth/secret-box
 import { z } from "../../core/http/validate.js";
 import { detectPhone } from "../../../public/shared/js/phone.js";
 import { getModules, effectiveModules } from "./modules.service.js";
+import { gated } from "../../core/activity.js";
 import { accessContext } from "./subscription.service.js";
 
 export const EVENTS = {
@@ -513,7 +514,9 @@ export function kickDeliveries() {
   return running;
 }
 export function startDeliveryWorker(everyMs = 15_000) {
-  const t = setInterval(() => { kickDeliveries(); }, everyMs);
+  // Retries and scheduled messages: every tick while the platform is in use, every half hour while idle
+  // (new notifications are sent right away by kickDeliveries from the request that made them).
+  const t = setInterval(gated(() => { kickDeliveries(); }, { idleEveryMs: 30 * 60_000 }), everyMs);
   t.unref?.();
   return () => clearInterval(t);
 }

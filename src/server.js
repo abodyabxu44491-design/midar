@@ -12,6 +12,7 @@ import { failInterruptedJobs, drainJobs } from "./core/jobs.js";
 import { runReminders } from "./modules/shared/reminders.service.js";
 import { runGateTick } from "./modules/shared/gate.service.js";
 import { ensureDemoSchool } from "./modules/owner/demo-provision.js";
+import { gated } from "./core/activity.js";
 import { startDeliveryWorker, kickDeliveries, deliveriesIdle } from "./modules/shared/notify.service.js";
 
 try {
@@ -36,17 +37,19 @@ kickDeliveries();
 server.headersTimeout = 20_000;
 server.requestTimeout = 30_000;
 
+// Background work stays light when nobody is using the platform, so the database can sleep (see core/activity.js).
 const timer = setInterval(() => {
   runMaintenance().catch((e) => console.error("[purge]", e.message));
   runReminders().catch((e) => console.error("[تذكيرات]", e.message));
 }, 60 * 60 * 1000);
 timer.unref();
-const gateTimer = setInterval(() => {
+const gateTimer = setInterval(gated(() => {
   runGateTick().catch((e) => console.error("[البوابة]", e.message));
   dispatchAlertEmails().catch((e) => console.error("[تنبيه أمني]", e.message));
-}, 5 * 60 * 1000);
+}, { idleEveryMs: 30 * 60_000 }), 5 * 60 * 1000);
 gateTimer.unref();
-const ownerPushTimer = setInterval(() => dispatchOwnerPush().catch((e) => console.error("[إشعار المالك]", e.message)), 60 * 1000);
+const ownerPushTimer = setInterval(gated(() => dispatchOwnerPush().catch((e) => console.error("[إشعار المالك]", e.message)),
+  { idleEveryMs: 30 * 60_000 }), 60 * 1000);
 ownerPushTimer.unref();
 
 let closing = false;

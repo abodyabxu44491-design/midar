@@ -40,3 +40,18 @@ test("الدرجات: تعديل شخص آخر بعد فتح الصفحة لا �
   rows = (await S.admin.get(`/api/admin/exams/${exam}/scores`)).data;
   assert.equal(Number(rows.find((r) => r.id === a.id).score), 9);
 });
+
+test("الدرجات: مسح درجة يتركها فارغة ولا يحفظها صفرًا", async () => {
+  const [a] = S.students;
+  assert.equal((await S.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [a.id]: 14 } })).status, 200);
+  assert.equal((await S.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [a.id]: null } })).status, 200);
+  let row = (await S.admin.get(`/api/admin/exams/${exam}/scores`)).data.find((r) => r.id === a.id);
+  assert.equal(row.score, null, "الدرجة الممسوحة غير مرصودة، وليست صفرًا");
+  assert.equal((await S.admin.put(`/api/admin/exams/${exam}/scores`, { scores: { [a.id]: "" } })).status, 200);
+  row = (await S.admin.get(`/api/admin/exams/${exam}/scores`)).data.find((r) => r.id === a.id);
+  assert.equal(row.score, null);
+  // A real zero is still a zero.
+  assert.equal((await S.teacher.put(`/api/teacher/exams/${exam}/scores`, { scores: { [a.id]: 0 } })).status, 200);
+  row = (await S.admin.get(`/api/admin/exams/${exam}/scores`)).data.find((r) => r.id === a.id);
+  assert.equal(Number(row.score), 0);
+});

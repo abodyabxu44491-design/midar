@@ -18,7 +18,7 @@ import { sectionTitleFor } from "./parse.js";
 
 const ADD_TYPES = ["mcq", "truefalse", "fill", "short", "essay", "match", "order", "multi", "math", "image", "table"];
 const PH = {
-  mcq: "اكتب السؤال هنا… (مثال: عاصمة المملكة العربية السعودية هي:)", multi: "اكتب السؤال… (اختر كل الإجابات الصحيحة)",
+  mcq: "اكتب السؤال هنا… (مثال: أكبر كواكب المجموعة الشمسية هو:)", multi: "اكتب السؤال… (اختر كل الإجابات الصحيحة)",
   truefalse: "اكتب العبارة هنا… (مثال: الشمس نجم)", fill: "اكتب الجملة، وضع ____ مكان الفراغ", short: "اكتب السؤال هنا…",
   essay: "اكتب السؤال المقالي هنا…", match: "صِل كل عنصر من العمود (أ) بما يناسبه من العمود (ب):", order: "رتّب ما يلي ترتيبًا صحيحًا:",
   math: "اكتب المسألة (المعادلات بين $ $)", image: "تأمل الشكل ثم أجب:", table: "أجب مستعينًا بالجدول:", custom: "اكتب السؤال هنا…",
@@ -180,6 +180,7 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
         tool(h("span", { class: "small" }, img.position === "side" ? "تحت" : "بجانب"), "مكان الصورة", () => { img.position = img.position === "side" ? "after" : "side"; changed(); draw(); }),
         tool(icons.close({ size: 14 }), "إزالة الصورة", () => { q.image = null; changed(); draw(); }),
       ] : tool(icons.image({ size: 16 }), "إضافة صورة", () => { imageFor = q; fileIn.click(); }),
+      tool(icons.play({ size: 16 }), q.media ? "صوت أو فيديو السؤال" : "إضافة صوت أو فيديو", () => advanced(q)),
       h("span", { class: "xs-bar-sep" }),
       tool(icons.up({ size: 16 }), "لأعلى", () => move(q, s, -1)),
       tool(icons.down({ size: 16 }), "لأسفل", () => move(q, s, 1)),
@@ -194,7 +195,7 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
   function questionEl(q, s, no, L) {
     const def = QTYPES[q.type];
     const el = h("div", { class: `xs-q xp-q t-${q.type}${active === q.id ? " active" : ""}`, "data-qid": q.id,
-      onfocusin: () => { if (active !== q.id) { const prev = active; active = q.id; if (prev && prune(prev)) { const k = focusKey; draw(); if (k) focusField(k); return; } touch(s); for (const x of sheet.querySelectorAll(".xs-q.active")) x.classList.remove("active"); el.classList.add("active"); mountBar(); } },
+      onfocusin: () => { if (active !== q.id) { const prev = active; active = q.id; if (prev && prune(prev)) { const k = focusKey; draw(); if (k) focusField(k); return; } touch(s); for (const x of sheet.querySelectorAll(".xs-q.active")) { x.classList.remove("active"); x.querySelector(".xs-bar-slot")?.replaceChildren(); } el.classList.add("active"); mountBar(); } },
       onclick: (e) => { if (e.target === el || e.target.classList.contains("xs-q-main")) el.querySelector(".xs-ed")?.focus(); },
       onkeydown: (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addQuestion(q.type, s, q); } } });
     const barSlot = h("div", { class: "xs-bar-slot" });
@@ -234,6 +235,8 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
       h("img", { src: `${base}/images/${q.image.id}?size=thumb`, alt: "", style: side ? "" : `width:${q.image.width || 30}%` })) : null;
     if (imgEl && q.image.position === "before") el.append(imgEl);
     main.append(head);
+    if (q.media) main.append(h("button", { type: "button", class: "xp-media-tag xs-media", disabled: ro, onclick: () => advanced(q), title: "اضغط لتغيير المقطع" },
+      `${q.media.kind === "audio" ? "سؤال استماع — فيه مقطع صوتي" : "سؤال فيديو"} — للاختبار الإلكتروني فقط ولا يُطبع`));
     if (imgEl && !side && q.image.position !== "before") main.append(imgEl);
     if (q.table) main.append(h("div", { class: "xs-table", onclick: () => !ro && advanced(q), title: "اضغط لتعديل الجدول" }, tableEl(q.table)));
     main.append(...typeBody(q, s));
@@ -255,6 +258,7 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
             else q.correct = [o.id];
             changed(); draw();
           } }, `${OPTION_LETTERS[i]})`),
+        o.image?.id ? h("img", { class: "xp-opt-img", src: `${base}/images/${o.image.id}?size=thumb`, alt: "" }) : null,
         editable(o.text, (v) => { o.text = v; changed(); }, {
           ph: `الخيار ${OPTION_LETTERS[i]}`, key: `${q.id}:opt:${i}`,
           onEnter: () => {

@@ -16,7 +16,7 @@ const schema = z.object({
   author_name: t.optText(120),
   author_title: t.optText(80),
   body: z.string().trim().min(10, "نص التقييم قصير").max(600, "نص التقييم طويل (600 حرف كحد أقصى)"),
-  rating: z.union([z.coerce.number().int().min(1).max(5), z.literal(""), z.null()]).optional().transform((v) => v || null),
+  rating: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(5)]).optional().transform((v) => v || null),
   logo: z.string().regex(/^data:image\/(png|jpeg|webp);base64,/, "صيغة الشعار غير مدعومة").max(400000, "الشعار كبير").nullable().optional(),
   consent: z.boolean().default(false),
   status: z.enum(["pending", "approved", "hidden"]).default("pending"),
