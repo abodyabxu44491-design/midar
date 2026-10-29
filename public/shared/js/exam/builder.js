@@ -258,7 +258,7 @@ export async function builder({ base, id, ctx, me, step = "info", onExit, autoPr
     const drawCheck = () => {
       const c = checkPaper(paper);
       mount(checkBox, !c.issues.length ? null : h("details", { class: "xb-check" },
-        h("summary", {}, `${c.blocking ? "⚠" : "•"} تنبيهات المراجعة (${c.issues.length})`),
+        h("summary", {}, `${c.blocking ? "مهم:" : "•"} تنبيهات المراجعة (${c.issues.length})`),
         c.issues.map((i) => notice(i.text, i.level === "error" ? "err" : "warn"))));
     };
 

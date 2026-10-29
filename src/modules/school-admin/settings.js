@@ -12,6 +12,7 @@ import * as payments from "../shared/payments.service.js";
 import { getSettings, updateSettings, settingsSchema } from "../shared/public-settings.service.js";
 import { getModules, updateModules, modulesSchema } from "../shared/modules.service.js";
 import { toOld, kindOld } from "../shared/subscription.service.js";
+import * as gen from "../shared/timetable-gen.service.js";
 import { termsOf, termsLayers, termsSchema, engineDefaults, ENGINE_TERMS } from "../shared/org-types.service.js";
 
 const r = Router();
@@ -78,6 +79,19 @@ r.get("/modules", handle(async (req, res) => {
 r.put("/modules", handle(async (req, res) => {
   const b = parse(modulesSchema, req.body);
   res.json(await inTenant(req, (q) => updateModules(q, b)));
+}));
+
+// Study days count for attendance even without the timetable section, so they are reached here, not under /timetable.
+r.get("/study-days", handle(async (req, res) => {
+  res.json(await inTenant(req, async (q) => ({ days: (await gen.getSettings(q)).days })));
+}));
+r.put("/study-days", handle(async (req, res) => {
+  const { days } = parse(z.object({ days: z.array(z.coerce.number().int().min(0).max(6)).min(1, "اختر يومًا واحدًا على الأقل").max(7) }), req.body);
+  res.json(await inTenant(req, async (q) => {
+    const cur = await gen.getSettings(q);
+    await gen.saveSettings(q, { ...cur, days: [...new Set(days)].sort() });
+    return { days: (await gen.getSettings(q)).days };
+  }));
 }));
 
 // The institution's own words over its type's (an empty one goes back to the type's word).

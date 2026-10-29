@@ -238,7 +238,7 @@ export async function students(q, { programId = null, search = "" } = {}) {
 
 /* ---------- registration ---------- */
 const gradedRows = (q, ids) => q(
-  `SELECT r.*, c.id AS course_id, c.code, c.name, c.credits, tr.id AS term_id, tr.name AS term, tr.starts_on
+  `SELECT r.*, c.id AS course_id, c.code, c.name, c.credits, tr.id AS term_id, tr.name AS term, tr.starts_on, s.grades_submitted_at
      FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id JOIN uni_courses c ON c.id = s.course_id JOIN uni_terms tr ON tr.id = s.term_id
     WHERE r.student_id = ANY($1) AND r.status = 'registered' ORDER BY tr.starts_on, c.code`, [ids]);
 const passed = (r) => r.points !== null && Number(r.points) > 0;
@@ -348,7 +348,9 @@ function summary(rows, settings) {
   const earned = counted.filter(passed).reduce((s, r) => s + r.credits, 0);
   return { cgpa, earned, attempted: credits, standing: cgpa === null ? null : cgpa < settings.probation_below ? "probation" : "good" };
 }
-export async function transcript(q, studentId) {
+// `published` keeps only marks the instructor has submitted: what the student sees, and what official documents and
+// the graduation check rest on. Marks still being entered count for nothing there.
+export async function transcript(q, studentId, { published = false } = {}) {
   const [s] = await q(`SELECT s.id, s.full_name AS name, s.student_no, sp.status, p.id AS program_id, p.name AS program, p.code AS program_code,
                               p.degree, p.total_credits, d.name AS department, c.name AS college
                          FROM students s LEFT JOIN uni_student_programs sp ON sp.student_id = s.id AND sp.status <> 'transferred'
@@ -356,7 +358,8 @@ export async function transcript(q, studentId) {
                          LEFT JOIN uni_colleges c ON c.id = d.college_id WHERE s.id = $1 ORDER BY sp.id DESC LIMIT 1`, [studentId]);
   if (!s) throw notFound("الطالب غير موجود");
   const settings = await getSettings(q);
-  const rows = await gradedRows(q, [studentId]);
+  const rows = (await gradedRows(q, [studentId]))
+    .map((r) => (published && !r.grades_submitted_at ? { ...r, mark: null, letter: null, points: null } : r));
   const termsOut = [];
   for (const r of rows) {
     let tr = termsOut.find((x) => x.term_id === r.term_id);
@@ -401,7 +404,7 @@ export async function dashboard(q) {
 // Graduation is checked against the record: the programme's credits earned, every required course passed, and the
 // minimum cumulative GPA. The registrar confirms; the final GPA and date are kept.
 export async function graduationAudit(q, studentId) {
-  const tr = await transcript(q, studentId);
+  const tr = await transcript(q, studentId, { published: true });
   const settings = await getSettings(q);
   const reasons = [];
   if (tr.student.status !== "active") reasons.push(`حالة القيد: ${STUDENT_STATUS[tr.student.status] || "بلا قيد"}`);
@@ -409,7 +412,7 @@ export async function graduationAudit(q, studentId) {
   if (tr.remaining.length) reasons.push(`مقررات إجبارية متبقية: ${tr.remaining.map((c) => c.code).join("، ")}`);
   if (tr.cgpa === null || tr.cgpa < settings.grad_min_cgpa) reasons.push(`المعدل التراكمي ${tr.cgpa ?? "—"} أقل من ${settings.grad_min_cgpa}`);
   const pending = tr.terms.flatMap((t) => t.courses).filter((c) => c.mark === null).length;
-  if (pending) reasons.push(`${pending} مقرر بلا درجة`);
+  if (pending) reasons.push(`${pending} مقرر لم تُسلَّم درجته`);
   return { eligible: !reasons.length, reasons, cgpa: tr.cgpa, earned: tr.earned };
 }
 export async function graduate(q, studentId) {
@@ -424,7 +427,7 @@ export async function graduate(q, studentId) {
 // An official copy of the record with a verification code. A new copy replaces the previous one (which the
 // verification page then shows as replaced).
 export async function issueTranscript(q, studentId, { actor }) {
-  const tr = await transcript(q, studentId);
+  const tr = await transcript(q, studentId, { published: true });
   if (!tr.terms.length) throw badRequest("لا يوجد سجل أكاديمي لإصداره");
   const [prev] = await q(`SELECT id FROM certificates WHERE student_id = $1 AND kind = 'custom' AND status = 'issued' AND data ->> 'uni' = 'transcript'
                            ORDER BY id DESC LIMIT 1`, [studentId]);
@@ -492,7 +495,7 @@ export async function termReport(q, termId) {
 /* ---------- the student's own view ---------- */
 // What a student (or parent) sees: the record, this term's timetable, and the sections open for self-registration.
 export async function studentView(q, studentId) {
-  const tr = await transcript(q, studentId);
+  const tr = await transcript(q, studentId, { published: true });
   const settings = await getSettings(q);
   const [open] = await q("SELECT * FROM uni_terms WHERE status = 'registration' ORDER BY starts_on DESC LIMIT 1");
   // The student's own current term: one running (or in grading) that they study in, else the one open for registration.

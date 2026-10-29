@@ -125,6 +125,15 @@ test("من الهيكل إلى المعدل التراكمي: متطلبات س�
   assert.equal((await reg(st2, s101b.id)).status, 201);
   await admin.patch(`${U}/terms/${t2.id}`, { status: "running" });
   const r2 = (await instructor.c.get(`/api/teacher/university/sections/${s101b.id}/roster`)).data;
+  // A mark saved but not yet submitted is the instructor's draft: the registrar sees it, the student does not.
+  await instructor.c.put(`/api/teacher/university/sections/${s101b.id}/marks`, { marks: [{ id: r2.students[0].id, mark: 85 }] });
+  assert.equal((await admin.get(`${U}/students/${st2}/transcript`)).data.cgpa, 2.36);
+  {
+    const [k] = await transaction({ tenantId: id }, (q) => q("SELECT access_key FROM students WHERE id = $1", [st2]));
+    const v = (await client(srv.base).post(`/api/public/${id}/student`, { student_id: st2, key: k.access_key })).data.features.university.transcript;
+    assert.equal(v.cgpa, 0.86, "المسودة لا تدخل في المعدل الذي يراه الطالب");
+    assert.equal(v.terms[1].courses[0].mark, null);
+  }
   await instructor.c.put(`/api/teacher/university/sections/${s101b.id}/marks`, { marks: [{ id: r2.students[0].id, mark: 85 }], submit: true });
   tr = (await admin.get(`${U}/students/${st2}/transcript`)).data;
   assert.equal(tr.terms.length, 2);

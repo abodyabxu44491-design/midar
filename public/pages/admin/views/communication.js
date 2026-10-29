@@ -179,12 +179,12 @@ async function schoolGateway(nav, active) {
   const d = await api(`${A}/communication/sms/gateway`);
   const g = d.gateway;
   const preset = select([["android", "جوال أندرويد بشريحة المدرسة"], ["custom", "مزوّد رسائل خاص بالمدرسة"]], { value: g.preset || "android" });
-  const user = input({ placeholder: "Username", autocomplete: "off", dir: "ltr" });
-  const pass = passwordInput({ placeholder: g.has_auth ? "محفوظة — اكتب للتغيير" : "Password", autocomplete: "new-password" });
+  const user = input({ placeholder: "اسم المستخدم", autocomplete: "off", dir: "ltr" });
+  const pass = passwordInput({ placeholder: g.has_auth ? "محفوظة — اكتب للتغيير" : "كلمة المرور", autocomplete: "new-password" });
   const custom = {
     url: input({ value: g.preset === "custom" ? g.url || "" : "", placeholder: "https://…", dir: "ltr" }),
     method: select([["POST", "POST"], ["GET", "GET"]], { value: g.method || "POST" }),
-    content_type: select([["json", "JSON"], ["form", "Form"]], { value: g.content_type || "json" }),
+    content_type: select([["json", "JSON"], ["form", "نموذج ويب (Form)"]], { value: g.content_type || "json" }),
     body_template: textarea({ rows: 3, dir: "ltr", value: g.preset === "custom" ? g.body_template || "" : "", placeholder: '{"to":"{to}","text":"{message}"}' }),
     headers: textarea({ rows: 2, dir: "ltr", placeholder: g.has_auth ? "محفوظة — اكتب JSON جديدًا للتغيير، أو - للحذف" : '{"Authorization":"Bearer …"}' }),
     sender: input({ value: g.sender || "", maxLength: 20 }),

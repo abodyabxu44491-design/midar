@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { MODULES } from "./modules.service.js";
 const FIELDS = {
   full_name: "الاسم", name: "الاسم", title: "العنوان", status: "الحالة", note: "ملاحظة", status_note: "سبب تغيير الحالة",
   class_id: "الشعبة", grade_id: "الصف", stage_id: "المرحلة", subject_id: "المادة", teacher_id: "المعلم", term_id: "الفصل الدراسي",
@@ -23,6 +24,20 @@ const FIELDS = {
   reports: "التقارير", analytics: "الإحصاءات", announcements: "الإعلانات", messaging: "الرسائل", admissions: "القبول",
   transfers: "التحويلات", donations: "التبرعات", exam_papers: "أوراق الاختبارات", grade_components: "توزيع الدرجات",
 };
+// Institution types, sections and terms; the Quran circles; the university.
+Object.assign(FIELDS, {
+  org_type: "طريقة التنظيم", org_type_key: "نوع المؤسسة", enabled: "مفعّل", key: "القسم", terms: "المصطلحات", default_features: "الأقسام الافتراضية",
+  level_id: "المستوى", halaqa_id: "الحلقة", daily_target: "الهدف اليومي", started_on: "تاريخ البدء", ended_on: "تاريخ الانتهاء", capacity: "السعة",
+  schedule: "الموعد", notes: "ملاحظات", on_date: "التاريخ", from_surah: "من سورة", from_ayah: "من آية", to_surah: "إلى سورة", to_ayah: "إلى آية",
+  from_index: "بداية المقطع", to_index: "نهاية المقطع", ayat: "عدد الآيات", grade: "التقدير", mistakes: "الأخطاء", juz: "الجزء", achieved_on: "تاريخ الإنجاز",
+  certificate_id: "الشهادة", student_id: "الطالب", code: "الرمز", dean: "العميد", head: "رئيس القسم", college_id: "الكلية", department_id: "القسم الأكاديمي",
+  program_id: "البرنامج", course_id: "المقرر", section_id: "الشعبة", degree: "الدرجة العلمية", total_credits: "ساعات التخرج", years: "السنوات",
+  credits: "الساعات المعتمدة", prerequisites: "المتطلبات السابقة", room: "القاعة", days: "أيام المحاضرة", starts_at: "يبدأ الساعة", ends_at: "ينتهي الساعة",
+  grades_submitted_at: "تسليم الدرجات", admitted_term_id: "فصل القبول", graduated_on: "تاريخ التخرج", final_cgpa: "المعدل النهائي", mark: "الدرجة",
+  letter: "التقدير", points: "النقاط", graded_by: "رصدها", graded_at: "تاريخ الرصد", grade_scale: "سلّم التقديرات", max_points: "المعدل من",
+  max_credits: "الحد الأعلى للساعات", min_credits: "الحد الأدنى للساعات", probation_below: "حد الإنذار الأكاديمي", credit_fee: "رسوم الساعة المعتمدة",
+  grad_min_cgpa: "المعدل الأدنى للتخرج", self_registration: "التسجيل الذاتي", invoice_id: "الفاتورة", level: "المستوى", sort: "الترتيب",
+});
 const SHOW = { show_admissions: "القبول", show_announcements: "الإعلانات", show_class_counts: "أعداد الشعب", show_classes: "الشعب",
   show_contact: "التواصل", show_search: "البحث", show_student_names: "أسماء الطلاب", show_teachers: "المعلمين", show_timetable: "الجدول",
   show_teacher_photos: "صور المعلمين", public_fee_badges: "شارات الرسوم", profile_show_timetable: "الجدول في ملف الطالب",
@@ -42,7 +57,16 @@ const VALUES = {
   admin: "إدارة", teacher: "معلم", accountant: "محاسب", income: "إيراد", expense: "مصروف",
   trial: "تجربة", expired: "منتهي", monthly: "شهري", yearly: "سنوي", termly: "فصلي",
   basic: "الأساسية", pro: "الاحترافية", enterprise: "المؤسسات", code: "برمز", public: "عامة", private: "خاصة",
+  primary: "ابتدائي", full: "كامل", international: "دولية", quran: "تحفيظ قرآن", other: "أخرى", school: "مدرسي", institute: "تدريبي", university: "جامعي",
+  new: "حفظ جديد", review: "مراجعة", test: "تسميع", excellent: "ممتاز", very_good: "جيد جدًا", good: "جيد", acceptable: "مقبول", weak: "ضعيف", repeat: "يُعاد",
+  registered: "مسجل", dropped: "محذوف", registration: "التسجيل مفتوح", running: "جارٍ", grading: "رصد الدرجات", planned: "مخطط",
+  private_school: "مدرسة أهلية", public_school: "مدرسة حكومية", international_school: "مدرسة دولية", kindergarten: "روضة أطفال",
+  specialized_school: "مدرسة متخصصة", quran_school: "مدرسة تحفيظ قرآن", training_institute: "معهد تدريبي", learning_center: "مركز تعليمي",
+  quran_institute: "معهد تحفيظ",
+  required: "إجباري", elective: "اختياري", bachelor: "بكالوريوس", master: "ماجستير", diploma: "دبلوم", doctorate: "دكتوراه", associate: "دبلوم مشارك",
 };
+
+for (const m of MODULES) VALUES[m.key] ??= m.name;
 
 const fmt = (v) => {
   if (v === null || v === undefined || v === "") return "—";

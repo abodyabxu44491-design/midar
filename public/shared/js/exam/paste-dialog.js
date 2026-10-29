@@ -12,8 +12,8 @@ import { rich, loadMath } from "./math.js";
 const EXAMPLE = "الصق أسئلتك هنا، أو ارفع ملف Word. مثال:\n\n1- أكبر كواكب المجموعة الشمسية هو:\nأ) المشتري *\nب) المريخ\nج) الأرض\n\n2- الشمس نجم (صح)\n3- يتكون الماء من الهيدروجين و ______ (الأكسجين)";
 
 function answerText(q) {
-  if (q.options) { const c = q.options.filter((o) => (q.correct || []).includes(o.id)).map((o) => o.text); return c.length ? `✓ ${c.join("، ")}` : "⚠ بدون إجابة صحيحة"; }
-  if (q.type === "truefalse") return q.correct === true ? "✓ صح" : q.correct === false ? "✓ خطأ" : "⚠ حدد صح أو خطأ";
+  if (q.options) { const c = q.options.filter((o) => (q.correct || []).includes(o.id)).map((o) => o.text); return c.length ? `✓ ${c.join("، ")}` : "تنبيه: بدون إجابة صحيحة"; }
+  if (q.type === "truefalse") return q.correct === true ? "✓ صح" : q.correct === false ? "✓ خطأ" : "تنبيه: حدد صح أو خطأ";
   if (q.type === "fill") return q.answers?.length ? `✓ ${q.answers.join("، ")}` : "";
   if (q.type === "match") return `${q.pairs.length} أزواج`;
   return q.answer ? `✓ ${q.answer}` : "";
@@ -31,7 +31,7 @@ export function pasteDialog({ title = "لصق أسئلة جاهزة", fields = n
     if (/\$/.test(ta.value)) await loadMath();
     let n = 0;
     const byType = parsed.sections.flatMap((x) => x.questions).reduce((a, q) => ({ ...a, [q.type]: (a[q.type] || 0) + 1 }), {});
-    const missing = parsed.sections.flatMap((x) => x.questions).filter((q) => /⚠/.test(answerText(q))).length;
+    const missing = parsed.sections.flatMap((x) => x.questions).filter((q) => /^تنبيه/.test(answerText(q))).length;
     mount(out, !parsed.count
       ? empty(ta.value.trim() ? "لم يُتعرّف على أسئلة. رقّم الأسئلة (1- 2- …) أو افصل بينها بسطر فارغ." : "المعاينة تظهر هنا أثناء اللصق.")
       : [h("div", { class: "xb-paste-sum" }, `تعرّفنا على ${parsed.count} سؤال`,
@@ -44,7 +44,7 @@ export function pasteDialog({ title = "لصق أسئلة جاهزة", fields = n
             h("span", { class: "xb-qno" }, ++n), h("span", { class: "xb-type" }, QTYPES[q.type].short),
             h("div", {}, h("div", {}, q.text ? rich(q.text, { blanks: true }) : q.type === "match" ? q.pairs.map((p) => `${p.left} ← ${p.right}`).join(" · ") : "—"),
               q.options ? h("div", { class: "small muted" }, q.options.map((o, i) => `${OPTION_LETTERS[i]}) ${o.text}`).join("   ")) : null,
-              h("div", { class: `small ${/⚠/.test(answerText(q)) ? "xb-warn-t" : "xb-ok-t"}` }, answerText(q))),
+              h("div", { class: `small ${/^تنبيه/.test(answerText(q)) ? "xb-warn-t" : "xb-ok-t"}` }, answerText(q))),
             h("span", { class: "small muted" }, `${fmtNum(q.marks)} د`))))),
         parsed.warnings.map((w) => notice(w, "warn"))]);
   };

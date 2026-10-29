@@ -28,7 +28,7 @@ export default async function distribution({ refresh }) {
   const teacherOptions = (subjectId) => {
     const related = teachers.filter((t) => t.load.some((l) => Number(l.subject_id) === Number(subjectId)));
     const others = teachers.filter((t) => !related.includes(t));
-    return [["", "— بدون —"], ...related.map((t) => [t.id, `${t.name} ★`]), ...others.map((t) => [t.id, t.name])];
+    return [["", "— بدون —"], ...related.map((t) => [t.id, `${t.name} (يدرّس المادة)`]), ...others.map((t) => [t.id, t.name])];
   };
 
   const draw = () => {
@@ -56,7 +56,7 @@ export default async function distribution({ refresh }) {
 
   return panel("توزيع المعلمين",
     btn("تصدير التوزيع", () => exportMatrix(stages, subjects, current, teachers), "ghost sm"),
-    sub("اختر الصف، ثم عيّن معلم كل مادة في كل شعبة. النجمة ★ بجانب من يدرّس المادة فعلًا."),
+    sub("اختر الصف، ثم عيّن معلم كل مادة في كل شعبة. وبجانب اسم المعلم «يدرّس المادة» إن كانت من مواده."),
     field("الصف", gradePick),
     box, msg,
     btn("حفظ التوزيع", async () => {
