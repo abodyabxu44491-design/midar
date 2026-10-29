@@ -12,6 +12,7 @@ import { handle } from "../../core/http/errors.js";
 import { schoolTotals } from "../shared/finance.service.js";
 import { current } from "../shared/academic.service.js";
 import { dayStatus } from "../shared/attendance.service.js";
+import { termsOf } from "../shared/org-types.service.js";
 
 const r = Router();
 
@@ -31,6 +32,7 @@ r.get("/me", handle(async (req, res) => {
     admin_scope: req.user.admin_scope || "full",
     org_type: req.tenant.org_type || "school",
     org_type_key: req.tenant.org_type_key || null,
+    terms: await inTenant(req, termsOf),
     staff_role: req.tenant.org_type === "institute" ? req.user.staff_role || "director" : null,
     must_change_password: req.user.must_change_password,
     account: account || null,

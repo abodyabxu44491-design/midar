@@ -118,24 +118,93 @@ test("المالك يضيف نوعًا تجريبيًا بلا كود، ويوق
   assert.ok(list.engines.find((e) => e.key === "university" && !e.live));
 });
 
-test("تغيير نوع مؤسسة: داخل نفس المحرك فقط، ويُسجَّل في ملفها، ولا يمس بياناتها", async () => {
+test("تغيير نوع مؤسسة: مراجعة الأثر أولًا، ولا يُحذف شيء، والانتقال بين مدرسة ومعهد بتأكيد ويُعاد", async () => {
   const id = `ot-${uid()}`;
-  assert.equal((await owner.post("/api/owner/tenants", { id, name: "مدرسة تتغير", org_type_key: "private_school" })).status, 201);
-  const [{ n: before }] = await transaction({ tenantId: id }, (q) => q("SELECT count(*)::int AS n FROM users"));
+  const made = await owner.post("/api/owner/tenants", { id, name: "مدرسة تتغير", org_type_key: "private_school" });
+  assert.equal(made.status, 201);
+  const admin = await setupAdmin(client(srv.base), made.data.setup.url);
+  await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false"));
+  const cls = (await admin.get("/api/admin/classes")).data;
+  const counts = () => transaction({ tenantId: id }, async (q) => (await q(
+    "SELECT (SELECT count(*)::int FROM users) AS users, (SELECT count(*)::int FROM classes) AS classes, (SELECT count(*)::int FROM subjects) AS subjects"))[0]);
+  const before = await counts();
+
+  // Same engine: words only.
   const ok = await owner.patch(`/api/owner/tenants/${id}/org-type`, { org_type_key: "public_school", reason: "سُجلت بالخطأ" });
   assert.equal(ok.status, 200, JSON.stringify(ok.data));
   assert.equal(ok.data.changed, true);
   assert.equal((await typeOf(id)).org_type_key, "public_school");
-  const cross = await owner.patch(`/api/owner/tenants/${id}/org-type`, { org_type_key: "training_institute" });
-  assert.equal(cross.status, 400);
-  assert.equal((await typeOf(id)).org_type, "school");
-  const [{ n: after }] = await transaction({ tenantId: id }, (q) => q("SELECT count(*)::int AS n FROM users"));
-  assert.equal(after, before);
+
+  // Between engines: the impact lists what hides, the change needs the code typed, and nothing is lost.
+  const pv = (await owner.get(`/api/owner/tenants/${id}/org-type/preview?to=training_institute&apply_sections=1`)).data;
+  assert.equal(pv.engine_change, true);
+  assert.equal(pv.deleted, 0);
+  if (cls.length) assert.ok(pv.hidden.some((x) => x.label === "الشعب" && x.count === cls.length), JSON.stringify(pv.hidden));
+  assert.ok(pv.terms.some((x) => x.from === "طالب" && x.to === "متدرب"));
+  assert.equal((await owner.patch(`/api/owner/tenants/${id}/org-type`, { org_type_key: "training_institute" })).status, 400, "بلا تأكيد يُرفض");
+  const moved = await owner.patch(`/api/owner/tenants/${id}/org-type`, { org_type_key: "training_institute", confirm: id, reason: "تحولت إلى معهد" });
+  assert.equal(moved.status, 200, JSON.stringify(moved.data));
+  assert.deepEqual(await typeOf(id), { org_type: "institute", org_type_key: "training_institute" });
+  const me = (await admin.get("/api/admin/me")).data;
+  assert.equal(me.org_type, "institute");
+  assert.equal(me.terms.student, "متدرب");
+  assert.equal((await admin.get("/api/admin/institute/meta")).status, 200, "إعدادات المعهد جاهزة");
+  assert.deepEqual(await counts(), before, "لم يُحذف شيء");
+
+  const back = await owner.patch(`/api/owner/tenants/${id}/org-type`, { org_type_key: "private_school", confirm: id });
+  assert.equal(back.status, 200, JSON.stringify(back.data));
+  assert.equal((await admin.get("/api/admin/me")).data.org_type, "school");
+  assert.deepEqual(await counts(), before);
+  assert.equal((await owner.patch(`/api/owner/tenants/${id}/org-type`, { org_type_key: "university", confirm: id })).status, 400);
+
   const file = (await owner.get(`/api/owner/files/${id}`)).data;
-  assert.equal(file.school.org_type_name, "مدرسة حكومية");
+  assert.equal(file.school.org_type_name, "مدرسة أهلية");
   assert.ok(file.events.some((e) => /مدرسة أهلية.*مدرسة حكومية.*سُجلت بالخطأ/.test(e.body)));
-  const listed = (await owner.get("/api/owner/files?org_type=public_school")).data.items;
-  assert.ok(listed.some((x) => x.id === id) && listed.every((x) => x.org_type_key === "public_school"));
+  const hist = (await owner.get(`/api/owner/tenants/${id}/org-type/history`)).data;
+  assert.deepEqual(hist.map((x) => x.to_key), ["private_school", "training_institute", "public_school"]);
+  const listed = (await owner.get("/api/owner/files?org_type=private_school")).data.items;
+  assert.ok(listed.some((x) => x.id === id) && listed.every((x) => x.org_type_key === "private_school"));
+});
+
+test("المؤسسة الجديدة تبدأ بأقسام نوعها ومصطلحاته، والمدرسة تعدّل مصطلحاتها، والأقسام تُحفظ في الجدولين", async () => {
+  const mk = async (key) => {
+    const id = `ot-${uid()}`;
+    const r = await owner.post("/api/owner/tenants", { id, name: `مؤسسة ${key}`, org_type_key: key });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const admin = await setupAdmin(client(srv.base), r.data.setup.url);
+    await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false"));
+    return { id, admin, me: (await admin.get("/api/admin/me")).data };
+  };
+  const priv = await mk("private_school");
+  const pub2 = await mk("public_school");
+  const kg = await mk("kindergarten");
+  const mods = async (a) => (await a.get("/api/admin/settings/modules")).data;
+  const p = await mods(priv.admin);
+  assert.equal(p.fees, true); assert.equal(p.donations, false, "المدرسة الأهلية الجديدة كما كانت قبل الأنواع");
+  const g = await mods(pub2.admin);
+  assert.equal(g.fees, false); assert.equal(g.finance, false); assert.equal(g.installments, false, "ما يعتمد على الرسوم يُوقف معها");
+  assert.equal(g.attendance, true);
+  const k = await mods(kg.admin);
+  assert.equal(k.timetable, false); assert.equal(k.substitutes, false);
+  assert.equal(kg.me.terms.student, "طفل");
+  assert.equal(priv.me.terms.student, "طالب");
+  const [{ school_type }] = await transaction({ tenantId: pub2.id }, (q) => q("SELECT school_type FROM school_profile"));
+  assert.equal(school_type, "public");
+
+  // The school's own words over its type's; an empty word goes back to the type's.
+  const put = await kg.admin.put("/api/admin/settings/terms", { terms: { student: "طالب الروضة", teachers: "" } });
+  assert.equal(put.status, 200, JSON.stringify(put.data));
+  assert.equal((await kg.admin.get("/api/admin/me")).data.terms.student, "طالب الروضة");
+  assert.equal((await kg.admin.get("/api/admin/me")).data.terms.teachers, "المعلمات");
+  await kg.admin.put("/api/admin/settings/terms", { terms: {} });
+  assert.equal((await kg.admin.get("/api/admin/me")).data.terms.student, "طفل");
+
+  // A switch is saved in the new table and mirrored in the old one.
+  assert.equal((await priv.admin.put("/api/admin/settings/modules", { library: false })).status, 200);
+  const [both] = await transaction({ tenantId: priv.id }, (q) => q(
+    "SELECT (SELECT enabled FROM tenant_modules WHERE key = 'library') AS new, (SELECT library FROM school_modules) AS old"));
+  assert.deepEqual(both, { new: false, old: false });
+  assert.equal((await priv.admin.get("/api/admin/me")).data.modules.library, false);
 });
 
 test("المدرسة لا تعدّل الأنواع", async () => {

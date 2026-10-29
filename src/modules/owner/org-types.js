@@ -7,19 +7,13 @@ import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
-import { ENGINES, STATUSES, LIVE_ENGINES, typeKey } from "../shared/org-types.service.js";
+import { ENGINES, STATUSES, LIVE_ENGINES, TERM_KEYS, termsSchema, typeKey } from "../shared/org-types.service.js";
 
 // The owner's list of institution types. A type is never deleted (institutions may use it); it is switched off instead.
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 
-// The words a type may rename. Screens adopt them gradually; a missing one keeps the platform's own word.
-export const TERM_KEYS = {
-  student: "طالب", students: "الطلاب", teacher: "معلم", teachers: "المعلمون", class: "شعبة", classes: "الشعب",
-  grade: "صف", grades: "الصفوف", subject: "مادة", subjects: "المواد", guardian: "ولي الأمر", guardians: "أولياء الأمور",
-};
-const terms = z.partialRecord(z.enum(Object.keys(TERM_KEYS)), z.string().trim().max(40)).optional()
-  .transform((v) => v && Object.fromEntries(Object.entries(v).filter(([, x]) => x)));
+const terms = termsSchema;
 const baseSchema = z.object({
   name: t.shortText("اسم النوع", 80),
   description: t.optText(400),

@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { T } from "../../shared/js/terms.js";
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { field, input, select, btn, empty, badge, line, sub, toast, dialog, notice, showCredentials, confirmAction, skeleton,
@@ -356,7 +357,7 @@ export default async function teachers({ me, refresh }) {
     const grid = (...k) => h("div", { class: "form-grid" }, ...k);
     const assignFold = formFold("clipboard", "المواد والفصول", "اختياري — يمكن تعديلها لاحقًا",
       sub("اختر الفصل ثم المواد التي يدرّسها فيه. تُدار لاحقًا من «توزيع المعلمين»."), picker.el);
-    const d = bigDialog("إضافة معلم", h("div", { class: "student-form tidy" },
+    const d = bigDialog(`إضافة ${T("teacher")}`, h("div", { class: "student-form tidy" },
       formCard("user", "البيانات الأساسية",
         h("div", { class: "photo-row" }, preview, h("div", {}, btn("إضافة صورة", () => file.click(), "ghost sm"), file)),
         grid(field("الاسم الكامل *", f.name), field("الاسم المختصر", f.short_name), field("الجنس", f.gender), field("تاريخ الميلاد", f.birth_date),
@@ -399,7 +400,7 @@ export default async function teachers({ me, refresh }) {
 
   return [
     h("div", { class: "panel s-head" },
-      h("div", { class: "section-head" }, h("h2", {}, "المعلمون"), sub(`${active} نشطًا من ${list.length}`)),
+      h("div", { class: "section-head" }, h("h2", {}, T("teachers")), sub(`${active} نشطًا من ${list.length}`)),
       statCards([["إجمالي المعلمين", list.length], ["النشطون", active], ["بدون إسناد", unassigned, unassigned ? "يحتاجون فصولًا ومواد" : ""],
         ["لم يفعّلوا حساباتهم", pending]]),
       actions),

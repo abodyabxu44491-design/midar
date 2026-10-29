@@ -15,6 +15,22 @@ export const LIVE_ENGINES = ["school", "institute"];
 export const PUBLIC_STATUSES = ["available", "beta"];
 export const typeKey = z.string().trim().regex(/^[a-z][a-z0-9_]{1,39}$/, "نوع المؤسسة غير صحيح");
 
+// The words a type (and then each institution) may rename. Screens adopt them gradually; a missing one keeps the platform's word.
+export const TERM_KEYS = {
+  student: "طالب", students: "الطلاب", teacher: "معلم", teachers: "المعلمون", class: "شعبة", classes: "الشعب",
+  grade: "صف", grades: "الصفوف", subject: "مادة", subjects: "المواد", guardian: "ولي الأمر", guardians: "أولياء الأمور",
+};
+export const termsSchema = z.partialRecord(z.enum(Object.keys(TERM_KEYS)), z.string().trim().max(40)).optional()
+  .transform((v) => v && Object.fromEntries(Object.entries(v).filter(([, x]) => x)));
+
+// An institution's words: the platform's, then its type's, then its own changes. Read inside the institution's scope.
+export async function termsOf(q) {
+  const [row] = await q(`SELECT o.terms AS type_terms, tt.terms AS own FROM tenants t JOIN org_types o ON o.key = t.org_type_key
+                           LEFT JOIN tenant_terms tt ON tt.tenant_id = t.id WHERE t.id = app_tenant()`);
+  const pick = (o) => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => TERM_KEYS[k] && typeof v === "string" && v));
+  return { ...TERM_KEYS, ...pick(row?.type_terms), ...pick(row?.own) };
+}
+
 // The request form used fixed values before the types list; those requests still read correctly.
 const LEGACY = { private: "private_school", public: "public_school", international: "international_school", institute: "training_institute", other: "other" };
 export const fromLegacy = (v) => (v ? LEGACY[v] || v : null);

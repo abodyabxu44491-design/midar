@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { setTerms, T } from "../shared/js/terms.js";
 import { $, mount, h } from "../shared/js/dom.js";
 import { mySubscription, accessBanner, lockScreen } from "./views/my-subscription.js";
 import { api } from "../shared/js/api.js";
@@ -52,6 +53,7 @@ export async function startAdmin() {
   }
   if (me.access?.locked) return lockScreen(me, app);
   setCurrency(me.school.currency);
+  setTerms(me.terms);
   if (me.org_type === "institute") return startInstitute(me);
   const on = (key) => me.modules?.[key] !== false;
   if (me.setup_completed === false) {
@@ -77,9 +79,9 @@ export async function startAdmin() {
   const enabled = (m) => [].concat(m).some((k) => me.modules?.[k]);
   const allTabs = [
     ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
-    [null, "الطلاب والأسر"], ["students", "الطلاب"], ["parents", "أولياء الأمور"], ["admissions", "طلبات التسجيل"],
+    [null, `${T("students")} والأسر`], ["students", T("students")], ["parents", T("guardians")], ["admissions", "طلبات التسجيل"],
     ["attendance", "الحضور"], ["behavior", "السلوك"],
-    [null, "التعليم"], ["teachers", "المعلمون"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
+    [null, "التعليم"], ["teachers", T("teachers")], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
     ["exams", "الدرجات"], ["papers", "أوراق الاختبارات"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"], ["sheets", "أوراق للطباعة"],
     [null, "المالية والموظفون"], ["finance", "الرسوم"], ["ledger", "المالية"], ["money-requests", "الطلبات المالية"], ["deposits", "تأمين الكتب"], ["staff", "شؤون الموظفين"],
     [null, "التواصل"], ["announcements", "التعاميم"], ["communication", "التواصل"],

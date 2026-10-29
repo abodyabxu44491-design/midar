@@ -5,7 +5,7 @@
  */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
-import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
+import { handle, notFound, conflict } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword, newDirectoryCode } from "../../core/auth/codes.js";
@@ -21,6 +21,8 @@ import { groupQuota } from "../shared/groups.service.js";
 import { addEvent as addSchoolEvent, issueLink } from "../shared/school-files.service.js";
 import { env } from "../../config/env.js";
 import { resolveType, typeKey } from "../shared/org-types.service.js";
+import { setAllModules, typeModules } from "../shared/modules.service.js";
+import { impactOf, applyChange, changesOf } from "../shared/org-type-change.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -95,6 +97,7 @@ export async function createTenant(req, b, { link = true } = {}) {
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);
+    await provisionFromType(q, b.org_type_key);
     const sub = b.subscription || {
       kind: "paid", features: (await q("SELECT key FROM features WHERE is_active ORDER BY sort")).map((f) => f.key),
       plan_name: "باقة مخصصة", billing_cycle: "yearly", ends_on: b.subscription_end ?? null,
@@ -113,6 +116,15 @@ export async function createTenant(req, b, { link = true } = {}) {
   // The manager's sign-in comes from the setup link (their own Midar account); no password is handed out.
   const setup = link ? await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, b.id, req.actor, linkBase(req))) : null;
   return { school: { id: b.id, name: b.name, org_type: b.org_type, org_type_key: b.org_type_key }, setup, login_url: `${linkBase(req)}/${b.id}/idara`, manager_email: b.manager_email || null, directory_code: directory };
+}
+// A new institution starts from its type: the type's sections, and for schools the school kind its profile records.
+async function provisionFromType(q, key) {
+  const [type] = await q("SELECT engine, default_features, settings FROM org_types WHERE key = $1", [key]);
+  await setAllModules(q, typeModules(type.default_features));
+  if (type.engine === "school" && type.settings?.school_type) {
+    await q(`INSERT INTO school_profile (tenant_id, school_type) VALUES (app_tenant(), $1)
+             ON CONFLICT (tenant_id) DO UPDATE SET school_type = EXCLUDED.school_type`, [type.settings.school_type]);
+  }
 }
 const linkBase = (req) => env.PUBLIC_URL || (req.protocol ? `${req.protocol}://${req.get("host")}` : "");
 
@@ -205,23 +217,20 @@ r.get("/:id/overview", handle(async (req, res) => {
   res.json({ school: data.t, staff: data.staff, subscription: sub, links: schoolLinks(req, id) });
 }));
 
-// Correcting an institution's type. Only between types of the same engine for now: moving a school to an institute
-// (or back) changes how its data is organised and needs the impact review that comes with the next phase.
+// Changing an institution's type: first the impact (what shows, what hides, which sections change), then the change.
+// Nothing is deleted; moving between a school and an institute needs the institution's code typed as confirmation.
+const changeSchema = z.object({ org_type_key: typeKey, reason: t.optText(300), apply_sections: z.boolean().prefault(false), confirm: z.string().max(40).optional() });
+r.get("/:id/org-type/preview", handle(async (req, res) => {
+  const id = parse(codeSchema, req.params.id);
+  const b = parse(z.object({ to: typeKey, apply_sections: z.enum(["0", "1"]).prefault("0") }), req.query);
+  res.json(await impactOf(req, id, b.to, { applySections: b.apply_sections === "1" }));
+}));
 r.patch("/:id/org-type", handle(async (req, res) => {
   const id = parse(codeSchema, req.params.id);
-  const b = parse(z.object({ org_type_key: typeKey, reason: t.optText(300) }), req.body);
-  res.json(await platform(req, async (q) => {
-    const [cur] = await q("SELECT t.org_type, t.org_type_key, o.name FROM tenants t JOIN org_types o ON o.key = t.org_type_key WHERE t.id = $1 FOR UPDATE OF t", [id]);
-    if (!cur) throw notFound("المدرسة غير موجودة");
-    const [to] = await q("SELECT key, name, engine, status FROM org_types WHERE key = $1", [b.org_type_key]);
-    if (!to) throw notFound("النوع غير موجود");
-    if (to.key === cur.org_type_key) return { ok: true, changed: false };
-    if (to.engine !== cur.org_type) throw badRequest("النقل بين مدرسة ومعهد يغيّر طريقة تنظيم البيانات، وسيتاح مع مراجعة الأثر في المرحلة القادمة");
-    if (to.status === "disabled") throw badRequest(`نوع «${to.name}» موقوف`);
-    await q("UPDATE tenants SET org_type_key = $2 WHERE id = $1", [id, to.key]);
-    await addSchoolEvent(q, id, { kind: "account", body: `تغيّر نوع المؤسسة من «${cur.name}» إلى «${to.name}»${b.reason ? `: ${b.reason}` : ""}` }, req.actor);
-    return { ok: true, changed: true, from: cur.org_type_key, to: to.key };
-  }));
+  res.json(await applyChange(req, id, parse(changeSchema, req.body)));
+}));
+r.get("/:id/org-type/history", handle(async (req, res) => {
+  res.json(await changesOf(parse(codeSchema, req.params.id)));
 }));
 
 // Restoring the manager's access: a new setup link (the manager links their own account again).

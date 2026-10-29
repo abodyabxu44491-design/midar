@@ -17,7 +17,7 @@ const TABLES = { students: "الطلاب", attendance: "الحضور", exams: "�
   stages: "المراحل", grades: "الصفوف", subject_grades: "ربط المواد بالصفوف", academic_years: "السنوات الدراسية",
   terms: "الفصول الدراسية", holidays: "الإجازات", school_profile: "ملف المدرسة والإعداد", timetable_slots: "الجدول الدراسي",
   finance_entries: "القيود المالية", payroll_items: "مسير الرواتب", payroll_runs: "دورات الرواتب", staff: "الموظفون",
-  school_modules: "أقسام المنصة المفعلة", school_public_settings: "إعدادات الصفحة العامة", assignments: "الواجبات",
+  school_modules: "أقسام المنصة المفعلة", tenant_modules: "أقسام المنصة المفعلة", tenant_terms: "مصطلحات المؤسسة", school_public_settings: "إعدادات الصفحة العامة", assignments: "الواجبات",
   student_alerts: "تنبيهات الطلاب", exam_papers: "أوراق الاختبارات", grade_components: "توزيع الدرجات", finance_accounts: "الحسابات المالية",
   admissions: "طلبات القبول", fee_plans: "خطط الرسوم", fee_adjustments: "تعديلات الرسوم", donations: "التبرعات",
   payment_claims: "إشعارات الدفع", custom_fields: "الحقول المخصصة", attachments: "المرفقات", subscriptions: "الاشتراك" };

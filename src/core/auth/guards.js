@@ -7,7 +7,7 @@ import { env } from "../../config/env.js";
 import { transaction } from "../db/pool.js";
 import { readSession, sessionRow, sessionHashOf } from "./sessions.js";
 import { AppError, unauthorized, forbidden, notFound } from "../http/errors.js";
-import { getModules, effectiveModules } from "../../modules/shared/modules.service.js";
+import { togglesFrom, effectiveModules } from "../../modules/shared/modules.service.js";
 import { accessOf, entitlements, LOCK_MESSAGE } from "../../modules/shared/subscription.service.js";
 import { staffWriteAllowed, demoReadonly } from "../../modules/shared/demo.service.js";
 
@@ -69,9 +69,9 @@ export const requireStaff = (role) => async (req, res, next) => {
                   WHERE id = ${Number(s.user_id)} AND role = ${client.escapeLiteral(role)}) u) AS "user",
                (SELECT row_to_json(x) FROM (SELECT sb.*, (SELECT trial_grace_days FROM platform_settings WHERE id) AS trial_grace
                   FROM tenants t JOIN subscriptions sb ON sb.id = t.subscription_id WHERE t.id = app_tenant()) x) AS sub,
-               (SELECT row_to_json(m) FROM school_modules m WHERE m.tenant_id = app_tenant()) AS modules`);
+               (SELECT jsonb_object_agg(m.key, m.enabled) FROM tenant_modules m WHERE m.tenant_id = app_tenant()) AS modules`);
       const row = res.rows[0];
-      const toggles = row.modules || await getModules(q);
+      const toggles = togglesFrom(row.modules);
       const sub = row.sub ? { ...row.sub, starts_on: row.sub.starts_on, ends_on: row.sub.ends_on } : null;
       const access = { sub, access: accessOf(sub, sub?.trial_grace || 0), entitled: entitlements(sub) };
       return { tenant: row.tenant, user: row.user, modules: effectiveModules(toggles, access.entitled), ...access };

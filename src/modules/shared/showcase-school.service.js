@@ -8,6 +8,7 @@ import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword, newStudentKey } from "../../core/auth/codes.js";
 import { sealCredential } from "../../core/auth/secret-box.js";
 import { logEvent } from "../../core/audit.js";
+import { updateModules } from "./modules.service.js";
 import * as S from "./structure.service.js";
 import * as academic from "./academic.service.js";
 import * as gen from "./timetable-gen.service.js";
@@ -67,8 +68,7 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     await S.applyCountry(q, "YE");
     await S.setSectionsMode(q, true);
     out.structure = await S.applyTemplate(q, { template: "full", sections_per_grade: 2, naming: "arabic", grade_set: "yemen" });
-    await q("INSERT INTO school_modules (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
-    await q("UPDATE school_modules SET donations = true, payroll = true, finance = true, transfers = true WHERE tenant_id = app_tenant()");
+    await updateModules(q, { finance: true, donations: true, payroll: true, transfers: true });
 
     await academic.configureYear(q, { name: `${y0}/${y0 + 1}`, start_date: yearStart, end_date: yearEnd, terms: 2 });
     const [year] = await q("SELECT id FROM academic_years WHERE is_current");

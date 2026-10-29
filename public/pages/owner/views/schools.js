@@ -169,21 +169,52 @@ function infoTab(d, types, reload) {
   ];
 }
 
-// Moving an institution to another type of the same engine. Nothing in its data changes; the change is logged in its file.
+// Changing an institution's type: the impact is shown first (from the server), and nothing is deleted.
 function changeType(d, types, reload) {
   const s = d.school;
-  const opts = typeOptions(types).filter(([k]) => typeOf(types, k)?.engine === s.org_type);
-  const to = select(opts, { value: s.org_type_key });
+  const to = select(typeOptions(types), { value: s.org_type_key });
   const reason = input({ placeholder: "مثال: المدرسة حكومية وسُجلت أهلية بالخطأ" });
-  const dd = dialog(`نوع «${s.name}»`, h("div", {},
-    notice(`النوع الحالي: ${s.org_type_name}. التغيير هنا بين أنواع نفس طريقة التنظيم فقط، ولا يحذف أي بيانات أو يغيّر أقسام المؤسسة. ويُسجَّل في ملفها.`, ""),
-    field("النوع الجديد", to), field("السبب (اختياري)", reason)),
-  [btn("حفظ", async () => {
+  const applySections = h("input", { type: "checkbox" });
+  const confirmIn = input({ class: "ltr", placeholder: s.id });
+  const impactBox = h("div");
+  let impact = null, seq = 0;
+  const list = (title, items) => (items?.length ? h("div", { class: "ot-imp" }, h("b", {}, title), h("ul", {}, items.map((x) => h("li", {}, x)))) : null);
+  const preview = async () => {
+    const n = ++seq;
+    mount(impactBox, skeleton(2));
     try {
-      const r = await api(`/api/owner/tenants/${s.id}/org-type`, { org_type_key: to.value, reason: reason.value.trim() || undefined }, "PATCH");
+      const r = await api(`/api/owner/tenants/${s.id}/org-type/preview?to=${encodeURIComponent(to.value)}&apply_sections=${applySections.checked ? 1 : 0}`);
+      if (n !== seq) return;
+      impact = r;
+      mount(impactBox, r.same ? notice("هذا هو نوعها الحالي.", "") : [
+        r.blockers.length ? notice(r.blockers.join("، "), "err") : null,
+        notice(r.engine_change ? `انتقال من ${r.from.engine_name} إلى ${r.to.engine_name}. لا يُحذف أي شيء.` : "التغيير داخل نفس طريقة التنظيم: لا تتغير البيانات ولا الشاشات إلا المصطلحات.", r.engine_change ? "warn" : ""),
+        list("ملاحظات", r.notes),
+        list("بيانات تُخفى وتبقى محفوظة (تعود إذا أُعيد النوع)", r.hidden.map((x) => `${x.label}: ${x.count}`)),
+        list("بيانات سابقة تعود للظهور", r.returning.map((x) => `${x.label}: ${x.count}`)),
+        list("المصطلحات التي تتغير", r.terms.map((x) => `${x.from} ← ${x.to}`)),
+        r.sections ? list("أقسام تُشغَّل", r.sections.turn_on) : null,
+        r.sections ? list("أقسام تُوقف (بياناتها تبقى)", r.sections.turn_off) : null,
+        r.sections && !r.sections.turn_on.length && !r.sections.turn_off.length ? sub("لا تتغير الأقسام.") : null,
+        r.engine_change ? field(`للتأكيد اكتب رمز المؤسسة: ${s.id}`, confirmIn) : null]);
+    } catch (e) { if (n === seq) mount(impactBox, notice(e.message, "err")); }
+  };
+  to.addEventListener("change", preview);
+  applySections.addEventListener("change", preview);
+  const dd = dialog(`نوع «${s.name}»`, h("div", {},
+    sub(`النوع الحالي: ${s.org_type_name}. راجع الأثر أدناه قبل الحفظ. يُسجَّل التغيير في ملف المؤسسة.`),
+    field("النوع الجديد", to),
+    h("label", { class: "row", style: "justify-content:flex-start;gap:8px;margin:6px 0" }, applySections, "تطبيق الأقسام الافتراضية للنوع الجديد (وإلا تبقى أقسامها كما هي)"),
+    impactBox, field("السبب (اختياري)", reason)),
+  [btn("تطبيق التغيير", async () => {
+    try {
+      const r = await api(`/api/owner/tenants/${s.id}/org-type`, { org_type_key: to.value, reason: reason.value.trim() || undefined,
+        apply_sections: applySections.checked, confirm: impact?.engine_change ? confirmIn.value.trim() : undefined }, "PATCH");
       dd.close(); toast(r.changed ? "تغيّر نوع المؤسسة" : "لم يتغير شيء"); reload();
     } catch (e) { toast(e.message, true); }
   })]);
+  dd.classList.add("xb-wide");
+  preview();
 }
 
 export const ACT_STATE = {

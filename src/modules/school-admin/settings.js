@@ -12,6 +12,7 @@ import * as payments from "../shared/payments.service.js";
 import { getSettings, updateSettings, settingsSchema } from "../shared/public-settings.service.js";
 import { getModules, updateModules, modulesSchema } from "../shared/modules.service.js";
 import { toOld, kindOld } from "../shared/subscription.service.js";
+import { termsOf, termsSchema, TERM_KEYS } from "../shared/org-types.service.js";
 
 const r = Router();
 
@@ -77,6 +78,25 @@ r.get("/modules", handle(async (req, res) => {
 r.put("/modules", handle(async (req, res) => {
   const b = parse(modulesSchema, req.body);
   res.json(await inTenant(req, (q) => updateModules(q, b)));
+}));
+
+// The institution's own words over its type's (an empty one goes back to the type's word).
+r.get("/terms", handle(async (req, res) => {
+  res.json(await inTenant(req, async (q) => {
+    const [own] = await q("SELECT terms FROM tenant_terms WHERE tenant_id = app_tenant()");
+    const [type] = await q("SELECT o.name, o.terms FROM tenants t JOIN org_types o ON o.key = t.org_type_key WHERE t.id = app_tenant()");
+    return { terms: await termsOf(q), own: own?.terms || {}, type: { name: type.name, terms: type.terms },
+      keys: Object.entries(TERM_KEYS).map(([key, name]) => ({ key, name })) };
+  }));
+}));
+
+r.put("/terms", handle(async (req, res) => {
+  const b = parse(z.object({ terms: termsSchema.prefault({}) }), req.body);
+  res.json(await inTenant(req, async (q) => {
+    await q(`INSERT INTO tenant_terms (tenant_id, terms) VALUES (app_tenant(), $1)
+             ON CONFLICT (tenant_id) DO UPDATE SET terms = EXCLUDED.terms`, [b.terms]);
+    return { terms: await termsOf(q), own: b.terms };
+  }));
 }));
 
 r.get("/currency", handle(async (req, res) => {
