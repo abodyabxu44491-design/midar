@@ -34,10 +34,12 @@ export default async function finance({ refresh }) {
 
   const plansPanel = await feePlansPanel(refresh, me2);
   const instPanel = me2.modules?.installments && A === "/api/admin" ? await installmentsPanel() : null;
+  const adjPanel = await optional(adjustmentsPanel(classes), null);
 
   return [
     plansPanel,
     instPanel,
+    adjPanel,
     stats([["إجمالي الفواتير", money(totals.fees_total)], ["المحصّل", money(totals.fees_paid)], ["المتبقي", money(totals.fees_remaining)],
       ["تحويلات بانتظار التأكيد", pending.length]]),
     panel(`إشعارات التحويل البنكي (${pending.length} بانتظار المراجعة)`, null,
@@ -259,6 +261,50 @@ function applyDialog(plan, grades, refresh) {
     } catch (e) { mount(msg, notice(e.message, "err")); }
   })]);
   preview();
+}
+
+// Per-student discounts, scholarships, full exemptions and extra fees. They are applied when a fee
+// template is applied to the student (already issued invoices do not change).
+const ADJ_KINDS = { discount: "خصم", scholarship: "منحة", exemption: "إعفاء كامل", extra: "رسوم إضافية" };
+async function adjustmentsPanel(classes) {
+  const box = h("div");
+  const load = async () => {
+    const list = await api(`${A}/finance/adjustments`);
+    mount(box, list.length ? list.map((a) => line(
+      h("div", {}, h("b", {}, a.student_name), " ", badge(ADJ_KINDS[a.kind], a.kind === "extra" ? "amber" : a.kind === "exemption" ? "" : "gray"),
+        sub([a.kind === "exemption" ? "لا يدفع رسوم القالب" : a.percent ? `${Number(a.percent)}%` : money(a.amount), a.note, a.created_by].filter(Boolean).join(" — "))),
+      btn("حذف", async () => {
+        if (!confirmAction(`حذف ${ADJ_KINDS[a.kind]} ${a.student_name}؟ لا يغيّر الفواتير الصادرة.`)) return;
+        await api(`${A}/finance/adjustments/${a.id}`, undefined, "DELETE"); toast("حُذف"); load();
+      }, "ghost sm"))) : empty("لا توجد خصومات أو منح أو إعفاءات."));
+  };
+  const cls = select([["", "اختر الفصل"], ...classes.map((c) => [c.id, c.name])]);
+  const student = select([["", "اختر الطالب"]]);
+  cls.addEventListener("change", async () => {
+    mount(student, h("option", { value: "" }, "اختر الطالب"));
+    if (!cls.value) return;
+    const list = await api(`${A}/students?class_id=${cls.value}&fields=basic&limit=500`);
+    student.append(...list.map((x) => h("option", { value: x.id }, x.name)));
+  });
+  const kind = select(Object.entries(ADJ_KINDS), { value: "discount" });
+  const how = select([["percent", "نسبة (%)"], ["amount", `مبلغ (${CURRENCIES[getCurrency()].symbol})`]]);
+  const value = input({ type: "number", min: 0.01, step: "0.01", class: "ltr" });
+  const note = input({ placeholder: "مثال: ابن معلم، تفوق دراسي" });
+  const sync = () => { const ex = kind.value === "exemption"; how.disabled = ex; value.disabled = ex; };
+  kind.addEventListener("change", sync); sync();
+  await load();
+  return panel("الخصومات والمنح والإعفاءات", null,
+    sub("لكل طالب خصم أو منحة بنسبة أو مبلغ، أو إعفاء كامل، أو رسوم إضافية. تُحتسب عند تطبيق قوالب الرسوم عليه، ولا تتغير الفواتير الصادرة قبلها."),
+    h("div", { class: "row" }, field("الفصل", cls), field("الطالب", student), field("النوع", kind)),
+    h("div", { class: "row" }, field("الحساب", how), field("القيمة", value), field("ملاحظة", note)),
+    btn("إضافة", async () => {
+      if (!student.value) return toast("اختر الطالب", true);
+      if (kind.value !== "exemption" && !(Number(value.value) > 0)) return toast("اكتب القيمة", true);
+      await api(`${A}/finance/adjustments`, { student_id: Number(student.value), kind: kind.value, note: note.value || undefined,
+        ...(kind.value === "exemption" ? {} : { [how.value]: Number(value.value) }) });
+      toast("أُضيف"); value.value = ""; note.value = ""; load();
+    }),
+    box);
 }
 
 async function installmentsPanel() {

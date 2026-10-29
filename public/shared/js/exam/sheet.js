@@ -207,10 +207,11 @@ export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, sch
     const blanks0 = countBlanks(q.text);
     const text = editable(q.text, (v) => { q.text = v; changed(); }, {
       ph: PH[q.type] || PH.custom, cls: "xs-qtext", key: `${q.id}:text`, multiline: true,
-      onBlur: q.type === "fill" ? () => { if (countBlanks(q.text) !== blanks0) setTimeout(() => { const k = focusKey; draw(); if (k && k !== `${q.id}:text`) focusField(k); }, 0); } : null,
+      // the marks field re-draws when it closes; drawing now would remove it as it opens
+      onBlur: q.type === "fill" ? () => { if (countBlanks(q.text) !== blanks0) setTimeout(() => { if (document.activeElement?.classList.contains("xs-marks-in")) return; const k = focusKey; draw(); if (k && k !== `${q.id}:text`) focusField(k); }, 0); } : null,
       onEnter: firstBody ? next(firstBody) : () => addQuestion(q.type, s, q),
     });
-    const marks = h("span", { class: "xp-marks xs-marks", title: "الدرجة — اضغط للتعديل" }, `(${fmtNum(q.marks)} ${marksWord(q.marks)})`);
+    const marks = h("span", { class: "xp-marks xs-marks", title: "الدرجة — اضغط للتعديل", onmousedown: (e) => e.preventDefault() }, `(${fmtNum(q.marks)} ${marksWord(q.marks)})`);
     if (!ro) marks.addEventListener("click", () => {
       const inp = h("input", { type: "number", min: 0.25, step: 0.25, value: q.marks, class: "xs-marks-in", "aria-label": "الدرجة" });
       const done = () => { const v = Number(inp.value); if (v > 0) q.marks = v; changed(); draw(); };
