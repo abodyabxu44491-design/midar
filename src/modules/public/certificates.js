@@ -20,7 +20,8 @@ verifyRouter.get("/verify/:code", limits.studentKey, handle(async (req, res) => 
   if (!row) throw notFound("لا توجد شهادة بهذا الرمز");
   // School certificates publish exactly what they always did; course fields appear only for institutes.
   const { org_type, kind, course, program, hours, completed_on, org_word, ...base } = row;
-  res.set("Cache-Control", "no-store").json(org_type === "institute" ? { ...base, org_type, org_word, kind, course, program, hours, completed_on } : base);
+  res.set("Cache-Control", "no-store").json(org_type === "institute" ? { ...base, org_type, org_word, kind, course, program, hours, completed_on }
+    : org_type === "university" ? { ...base, org_type, org_word } : base);
 }));
 
 export const schoolRouter = Router({ mergeParams: true });

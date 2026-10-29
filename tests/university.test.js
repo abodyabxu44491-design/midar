@@ -136,7 +136,9 @@ test("من الهيكل إلى المعدل التراكمي: متطلبات س�
   const [s] = await transaction({ tenantId: id }, (q) => q("SELECT access_key FROM students WHERE id = $1", [st1]));
   const pub = await client(srv.base).post(`/api/public/${id}/student`, { student_id: st1, key: s.access_key });
   assert.equal(pub.status, 200, JSON.stringify(pub.data));
-  assert.equal(pub.data.features.transcript.cgpa, 3.14);
+  assert.equal(pub.data.features.university.transcript.cgpa, 3.14);
+  assert.equal(pub.data.student.class_name, "بكالوريوس علوم الحاسب", "ملف الطالب يذكر برنامجه بدل الشعبة");
+  assert.equal(pub.data.settings.profile_show_attendance, false, "أقسام المدرسة لا تظهر لطالب الجامعة");
   const [{ n }] = await transaction({ tenantId: school.id }, (q) => q("SELECT count(*)::int AS n FROM uni_registrations"));
   assert.equal(n, 0);
 
@@ -145,4 +147,82 @@ test("من الهيكل إلى المعدل التراكمي: متطلبات س�
   assert.equal(list.find((x) => x.id === st1).cgpa, 3.14);
   const dash = (await admin.get(`${U}/dashboard`)).data;
   assert.equal(dash.counts.students, 3);
+});
+
+test("تشغيل الجامعة: تعارض المواعيد، التسجيل الذاتي، فواتير الساعات، التخرج، الكشف الرسمي وتقرير الفصل", async () => {
+  const col = (await admin.post(`${U}/colleges`, { code: "BUS", name: "كلية إدارة الأعمال" })).data;
+  const dep = (await admin.post(`${U}/departments`, { college_id: col.id, code: "ACC", name: "المحاسبة" })).data;
+  const prog = (await admin.post(`${U}/programs`, { department_id: dep.id, code: "DACC", name: "دبلوم المحاسبة", degree: "diploma", total_credits: 6, years: 1 })).data;
+  const a1 = (await admin.post(`${U}/courses`, { department_id: dep.id, code: "ACC101", name: "مبادئ المحاسبة", credits: 3 })).data;
+  const a2 = (await admin.post(`${U}/courses`, { department_id: dep.id, code: "ACC102", name: "محاسبة التكاليف", credits: 3 })).data;
+  const a3 = (await admin.post(`${U}/courses`, { department_id: dep.id, code: "ECO101", name: "مبادئ الاقتصاد", credits: 2 })).data;
+  await admin.put(`${U}/programs/${prog.id}/plan`, { courses: [{ course_id: a1.id }, { course_id: a2.id }] });
+  const term = (await admin.post(`${U}/terms`, { name: `فصل الدبلوم ${uid()}`, starts_on: "2027-09-01", ends_on: "2028-01-15", status: "registration" })).data;
+  assert.equal((await admin.post(`${U}/sections`, { term_id: term.id, course_id: a1.id, days: [0, 2], starts_at: "10:00" })).status, 400, "البداية والنهاية معًا");
+  const s1 = (await admin.post(`${U}/sections`, { term_id: term.id, course_id: a1.id, teacher_id: instructor.id, days: [0, 2], starts_at: "10:00", ends_at: "11:30", room: "A-1" })).data;
+  const s2 = (await admin.post(`${U}/sections`, { term_id: term.id, course_id: a2.id, teacher_id: instructor.id, days: [2], starts_at: "11:00", ends_at: "12:30" })).data;
+  const s3 = (await admin.post(`${U}/sections`, { term_id: term.id, course_id: a3.id, teacher_id: instructor.id, days: [1, 3], starts_at: "10:00", ends_at: "11:30" })).data;
+  const st = (await admin.post(`${U}/students`, { name: "ريم السبيعي", program_id: prog.id, admitted_term_id: term.id })).data.student_id;
+  const [k] = await transaction({ tenantId: id }, (q) => q("SELECT access_key FROM students WHERE id = $1", [st]));
+  const me = { student_id: st, key: k.access_key };
+  const P = `/api/public/${id}/student/university`;
+  const pub = client(srv.base);
+
+  // The student registers by themselves; a clash is refused, and the registrar may still override it.
+  let v = (await pub.post(P, me)).data;
+  assert.equal(v.registration.open, true);
+  assert.ok(v.registration.offered.some((x) => x.id === s1.id && x.meeting === "الأحد والثلاثاء 10:00–11:30"));
+  assert.equal((await pub.post(`${P}/register`, { ...me, section_id: s1.id })).status, 201);
+  const clash = await pub.post(`${P}/register`, { ...me, section_id: s2.id });
+  assert.equal(clash.status, 400); assert.match(clash.data.error, /يتعارض.*ACC101/);
+  v = (await pub.post(`${P}/register`, { ...me, section_id: s3.id })).data;
+  assert.deepEqual(v.schedule.map((x) => x.course_code).sort(), ["ACC101", "ECO101"]);
+  v = (await pub.post(`${P}/drop`, { ...me, registration_id: v.schedule.find((x) => x.course_code === "ECO101").registration_id })).data;
+  assert.equal(v.schedule.length, 1);
+  assert.equal((await admin.post(`${U}/registrations`, { student_id: st, section_id: s2.id, override: true })).status, 201, "القبول والتسجيل يتجاوز التعارض");
+  await admin.put(`${U}/settings`, { self_registration: false });
+  assert.equal((await pub.post(`${P}/register`, { ...me, section_id: s3.id })).status, 403, "التسجيل الذاتي موقوف");
+  await admin.put(`${U}/settings`, { self_registration: true });
+
+  // Credit-hour fees: an invoice for 6 hours, then only the difference after adding 2 more.
+  assert.equal((await admin.post(`${U}/terms/${term.id}/bill`, {})).status, 400, "حدد رسوم الساعة أولًا");
+  await admin.put(`${U}/settings`, { credit_fee: 150 });
+  let bill = (await admin.post(`${U}/terms/${term.id}/bill`, {})).data;
+  assert.deepEqual([bill.created, bill.total], [1, 900]);
+  assert.equal((await admin.post(`${U}/terms/${term.id}/bill`, {})).data.created, 0, "لا تتكرر الفاتورة");
+  const add = await pub.post(`${P}/register`, { ...me, section_id: s3.id });
+  assert.equal(add.status, 201, JSON.stringify(add.data));
+  bill = (await admin.post(`${U}/terms/${term.id}/bill`, {})).data;
+  assert.deepEqual([bill.created, bill.total], [1, 300]);
+  const inv = await transaction({ tenantId: id }, (q) => q("SELECT title, amount FROM invoices WHERE student_id = $1 ORDER BY id", [st]));
+  assert.deepEqual(inv.map((x) => Number(x.amount)), [900, 300]);
+  assert.match(inv[1].title, /فرق رسوم/);
+
+  // Graduation only when the record shows it; then the official transcript is verifiable.
+  await admin.patch(`${U}/terms/${term.id}`, { status: "running" });
+  let g = (await admin.get(`${U}/students/${st}/graduation`)).data;
+  assert.equal(g.eligible, false);
+  assert.equal((await admin.post(`${U}/students/${st}/graduate`, {})).status, 400);
+  for (const sec of [s1, s2, s3]) {
+    const ros = (await instructor.c.get(`/api/teacher/university/sections/${sec.id}/roster`)).data;
+    await instructor.c.put(`/api/teacher/university/sections/${sec.id}/marks`, { marks: ros.students.map((x) => ({ id: x.id, mark: 88 })), submit: true });
+  }
+  g = (await admin.get(`${U}/students/${st}/graduation`)).data;
+  assert.equal(g.eligible, true, JSON.stringify(g.reasons));
+  assert.equal((await admin.post(`${U}/students/${st}/graduate`, {})).status, 200);
+  const tr = (await admin.get(`${U}/students/${st}/transcript`)).data;
+  assert.equal(tr.student.status, "graduated");
+  const c1 = await admin.post(`${U}/students/${st}/transcript`, {});
+  assert.equal(c1.status, 201, JSON.stringify(c1.data));
+  const c2 = (await admin.post(`${U}/students/${st}/transcript`, {})).data;
+  const ver = (await client(srv.base).get(`/api/public/verify/${c2.code}`)).data;
+  assert.equal(ver.org_word, "الجامعة");
+  assert.equal(ver.class_name, "دبلوم المحاسبة");
+  assert.match(ver.result, /المعدل التراكمي 3\.50 من 4/);
+  assert.equal((await client(srv.base).get(`/api/public/verify/${c1.data.code}`)).data.status, "replaced", "النسخة السابقة مستبدلة");
+
+  const rep = (await admin.get(`${U}/terms/${term.id}/report`)).data;
+  assert.equal(rep.students, 1);
+  assert.deepEqual(rep.courses.find((c) => c.code === "ACC101").letters, { "B+": 1 });
+  assert.equal(rep.top[0].cgpa, 3.5);
 });

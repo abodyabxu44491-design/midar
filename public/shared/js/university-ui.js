@@ -59,3 +59,38 @@ export async function rosterDialog(sectionId, reload, { base, admin = false }) {
   d.classList.add("xb-wide");
 }
 
+
+// The student's own page: this term's timetable, self-registration while it is open, and the academic record.
+// `call` posts to the student API (with the student's key); without it the view is read-only (the registrar's preview).
+export function uniStudentView(view, call = null) {
+  const box = h("div");
+  const td = (x, cls) => h("td", cls ? { class: cls } : {}, x ?? "—");
+  const draw = (v) => {
+    const credits = v.schedule.reduce((n, s) => n + s.credits, 0);
+    const act = async (path, body, done) => {
+      try { draw(await call(path, body)); toast(done); } catch (e) { toast(e.message, true); }
+    };
+    box.replaceChildren(
+      v.term ? panel(`جدولي — ${v.term.name}`, null,
+        v.schedule.length ? h("div", { class: "table-wrap" }, h("table", { class: "grid" },
+          h("thead", {}, h("tr", {}, ["المقرر", "الشعبة", "الساعات", "الموعد", "القاعة", "المدرّس", ""].map((x) => h("th", {}, x)))),
+          h("tbody", {}, v.schedule.map((s) => h("tr", {}, td(`${s.course_code} ${s.course_name}`), td(s.code), td(String(s.credits)), td(s.meeting), td(s.room), td(s.teacher),
+            h("td", {}, call && v.registration?.open ? btn("حذف", () => { if (confirmAction(`حذف ${s.course_code} من جدولك؟`)) act("/student/university/drop", { registration_id: s.registration_id }, "حُذف المقرر"); }, "ghost sm") : null))))))
+          : empty("لا توجد مقررات مسجلة في هذا الفصل."),
+        sub(`مجموع الساعات ${credits}${v.registration ? ` من حد أعلى ${v.registration.max_credits}` : ""}`)) : null,
+      v.registration && call ? panel(`التسجيل — ${v.registration.term}`, null,
+        sub("تُطبق المتطلبات السابقة والسعة وحد الساعات وتعارض المواعيد. لأي استثناء راجع القبول والتسجيل."),
+        v.registration.registered?.length ? [h("h3", {}, "مسجّل لك في هذا الفصل"), v.registration.registered.map((s) => h("div", { class: "uni-row" },
+          h("div", {}, h("b", {}, `${s.course_code} ${s.course_name}`), sub([`شعبة ${s.code}`, `${s.credits} ساعات`, s.meeting].filter(Boolean).join(" · "))),
+          btn("حذف", () => { if (confirmAction(`حذف ${s.course_code}؟`)) act("/student/university/drop", { registration_id: s.registration_id }, "حُذف المقرر"); }, "ghost sm"))),
+          h("h3", {}, "الشعب المطروحة")] : null,
+        v.registration.offered.length ? v.registration.offered.map((s) => h("div", { class: "uni-row" },
+          h("div", {}, h("b", {}, `${s.course_code} ${s.course_name}`), " ", h("small", { class: "sub" }, `شعبة ${s.code} · ${s.credits} ساعات`),
+            sub([s.meeting, s.room, s.teacher].filter(Boolean).join(" · "))),
+          s.full ? badge("ممتلئة", "gray") : btn("تسجيل", () => act("/student/university/register", { section_id: s.id }, `سُجّل ${s.course_code}`), "sm")))
+          : empty("لا توجد شعب أخرى مطروحة.")) : null,
+      uniTranscript(v.transcript));
+  };
+  draw(view);
+  return box;
+}

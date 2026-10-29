@@ -6,6 +6,7 @@
 import { badRequest, conflict, forbidden, notFound } from "../../core/http/errors.js";
 import { t, z } from "../../core/http/validate.js";
 import { newStudentKey } from "../../core/auth/codes.js";
+import { writeCertificate } from "./certificates.service.js";
 
 // The university engine: colleges → departments → programmes and courses (credit hours, prerequisites) → terms → the
 // sections offered each term → students admitted to a programme register for sections under the university's rules →
@@ -25,10 +26,13 @@ export const settingsSchema = z.object({
   max_credits: z.coerce.number().int().min(1).max(40).optional(),
   min_credits: z.coerce.number().int().min(0).max(40).optional(),
   probation_below: z.coerce.number().min(0).max(5).optional(),
+  credit_fee: z.coerce.number().min(0).max(1_000_000).optional(),
+  grad_min_cgpa: z.coerce.number().min(0).max(5).optional(),
+  self_registration: z.boolean().optional(),
 });
 export async function getSettings(q) {
   const [s] = await q("SELECT * FROM uni_settings WHERE tenant_id = app_tenant()");
-  if (s) return { ...s, max_points: Number(s.max_points), probation_below: Number(s.probation_below) };
+  if (s) return { ...s, max_points: Number(s.max_points), probation_below: Number(s.probation_below), credit_fee: Number(s.credit_fee), grad_min_cgpa: Number(s.grad_min_cgpa) };
   await q("INSERT INTO uni_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
   return getSettings(q);
 }
@@ -40,8 +44,9 @@ export async function updateSettings(q, b) {
   if (new Set(scale.map((x) => x.min)).size !== scale.length) throw badRequest("لكل تقدير حد أدنى مختلف");
   if (scale.some((x) => x.points > v.max_points)) throw badRequest(`النقاط لا تتجاوز ${v.max_points}`);
   if (v.min_credits > v.max_credits) throw badRequest("الحد الأدنى للساعات أكبر من الأعلى");
-  await q(`UPDATE uni_settings SET grade_scale = $1, max_points = $2, max_credits = $3, min_credits = $4, probation_below = $5, updated_at = now()
-            WHERE tenant_id = app_tenant()`, [JSON.stringify(scale), v.max_points, v.max_credits, v.min_credits, v.probation_below]);
+  await q(`UPDATE uni_settings SET grade_scale = $1, max_points = $2, max_credits = $3, min_credits = $4, probation_below = $5,
+                   credit_fee = $6, grad_min_cgpa = $7, self_registration = $8, updated_at = now() WHERE tenant_id = app_tenant()`,
+    [JSON.stringify(scale), v.max_points, v.max_credits, v.min_credits, v.probation_below, v.credit_fee, v.grad_min_cgpa, v.self_registration]);
   return getSettings(q);
 }
 export const gradeOf = (scale, mark) => {
@@ -135,24 +140,44 @@ export async function setTermStatus(q, id, status) {
 export const terms = (q) => q(`SELECT tr.*, (SELECT count(*)::int FROM uni_sections s WHERE s.term_id = tr.id) AS sections
                                  FROM uni_terms tr ORDER BY tr.starts_on DESC`);
 
+// Meeting times: days of the week (0 Sunday … 6 Saturday) and a start and end time. Registration refuses a section that
+// overlaps one the student already has in the same term.
+export const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const hhmm = z.union([z.literal(""), z.null(), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "الوقت بصيغة 08:30")]).optional().transform((v) => v || null);
+const meeting = {
+  days: z.array(z.coerce.number().int().min(0).max(6)).max(7).optional(), starts_at: hhmm, ends_at: hhmm,
+};
+const checkMeeting = (b) => {
+  if (Boolean(b.starts_at) !== Boolean(b.ends_at)) throw badRequest("حدد وقت البداية والنهاية معًا");
+  if (b.starts_at && b.starts_at >= b.ends_at) throw badRequest("وقت النهاية قبل البداية");
+  if (b.starts_at && !b.days?.length) throw badRequest("حدد أيام المحاضرة");
+};
+const hm = (t) => (t ? String(t).slice(0, 5) : null);
+export const meetingText = (s) => (s.days?.length && s.starts_at ? `${s.days.map((d) => DAYS[d]).join(" و")} ${hm(s.starts_at)}–${hm(s.ends_at)}` : null);
+const overlaps = (a, b) => a.starts_at && b.starts_at && a.days.some((d) => b.days.includes(d)) && hm(a.starts_at) < hm(b.ends_at) && hm(b.starts_at) < hm(a.ends_at);
+
 export const sectionSchema = z.object({ term_id: t.id, course_id: t.id, code: z.string().trim().min(1).max(10).prefault("1"), teacher_id: t.optId,
-  capacity: z.coerce.number().int().min(1).max(1000).prefault(40), schedule: t.optText(200), room: t.optText(60) });
+  capacity: z.coerce.number().int().min(1).max(1000).prefault(40), schedule: t.optText(200), room: t.optText(60), ...meeting });
 export async function addSection(q, b) {
+  checkMeeting(b);
   try {
-    return await insert(q, "uni_sections", ["term_id", "course_id", "code", "teacher_id", "capacity", "schedule", "room"],
-      [b.term_id, b.course_id, b.code, b.teacher_id ?? null, b.capacity, b.schedule ?? null, b.room ?? null], "شعبة");
+    return await insert(q, "uni_sections", ["term_id", "course_id", "code", "teacher_id", "capacity", "schedule", "room", "days", "starts_at", "ends_at"],
+      [b.term_id, b.course_id, b.code, b.teacher_id ?? null, b.capacity, b.schedule ?? null, b.room ?? null, b.days ?? [], b.starts_at ?? null, b.ends_at ?? null], "شعبة");
   } catch (e) { if (e.status === 409) throw conflict("هذه الشعبة مطروحة لهذا المقرر في هذا الفصل"); throw e; }
 }
 export async function updateSection(q, id, b) {
   const [cur] = await q("SELECT * FROM uni_sections WHERE id = $1", [id]);
   if (!cur) throw notFound("الشعبة غير موجودة");
   const v = { ...cur, ...Object.fromEntries(Object.entries(b).filter(([, x]) => x !== undefined)) };
+  checkMeeting(v);
   const [{ n }] = await q("SELECT count(*)::int AS n FROM uni_registrations WHERE section_id = $1 AND status = 'registered'", [id]);
   if (v.capacity < n) throw badRequest(`في الشعبة ${n} طالب مسجل، فلا تقل السعة عنهم`);
-  return (await q("UPDATE uni_sections SET teacher_id = $2, capacity = $3, schedule = $4, room = $5 WHERE id = $1 RETURNING *",
-    [id, v.teacher_id, v.capacity, v.schedule, v.room]))[0];
+  return (await q("UPDATE uni_sections SET teacher_id = $2, capacity = $3, schedule = $4, room = $5, days = $6, starts_at = $7, ends_at = $8 WHERE id = $1 RETURNING *",
+    [id, v.teacher_id, v.capacity, v.schedule, v.room, v.days ?? [], v.starts_at ?? null, v.ends_at ?? null]))[0];
 }
-export const sections = (q, { termId = null, teacherId = null, sectionId = null } = {}) => q(
+export const sections = async (q, opts = {}) => (await sectionRows(q, opts)).map((s) => ({ ...s, starts_at: hm(s.starts_at), ends_at: hm(s.ends_at),
+  meeting: meetingText(s) || s.schedule || null }));
+const sectionRows = (q, { termId = null, teacherId = null, sectionId = null } = {}) => q(
   `SELECT s.*, c.code AS course_code, c.name AS course_name, c.credits, tc.full_name AS teacher, tr.name AS term, tr.status AS term_status,
           (SELECT count(*)::int FROM uni_registrations r WHERE r.section_id = s.id AND r.status = 'registered') AS registered
      FROM uni_sections s JOIN uni_courses c ON c.id = s.course_id JOIN uni_terms tr ON tr.id = s.term_id LEFT JOIN teachers tc ON tc.id = s.teacher_id
@@ -221,11 +246,13 @@ const passed = (r) => r.points !== null && Number(r.points) > 0;
 export const registerSchema = z.object({ student_id: t.id, section_id: t.id, override: z.boolean().prefault(false) });
 // The university's rules: an open term, an active programme, prerequisites passed, a course not already passed or taken
 // this term, a free seat and the credit limit. The registrar may override the seat and credit limits (never the rest).
-export async function register(q, b, { actor, admin = false }) {
+export async function register(q, b, { actor, admin = false, self = false }) {
   const [sec] = await q(`SELECT s.*, c.credits, c.prerequisites, c.name AS course_name, c.id AS cid, tr.status AS term_status
                            FROM uni_sections s JOIN uni_courses c ON c.id = s.course_id JOIN uni_terms tr ON tr.id = s.term_id WHERE s.id = $1 FOR UPDATE OF s`, [b.section_id]);
   if (!sec) throw notFound("الشعبة غير موجودة");
   if (!["registration", "running"].includes(sec.term_status)) throw badRequest("التسجيل في هذا الفصل غير مفتوح");
+  // A student registers by themselves only while registration is open, if the university allows it.
+  if (self && (sec.term_status !== "registration" || !(await getSettings(q)).self_registration)) throw forbidden("التسجيل الذاتي غير متاح الآن. راجع القبول والتسجيل.");
   const [prog] = await q("SELECT id FROM uni_student_programs WHERE student_id = $1 AND status = 'active'", [b.student_id]);
   if (!prog) throw badRequest("الطالب غير مقيد في برنامج فعّال");
   const mine = await gradedRows(q, [b.student_id]);
@@ -238,6 +265,13 @@ export async function register(q, b, { actor, admin = false }) {
     throw badRequest(`متطلبات سابقة لم يجتزها الطالب: ${names.map((x) => `${x.code} ${x.name}`).join("، ")}`);
   }
   const override = admin && b.override;
+  if (sec.starts_at) {
+    const busy = await q(`SELECT s.days, s.starts_at, s.ends_at, c.code, c.name FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id
+                            JOIN uni_courses c ON c.id = s.course_id WHERE r.student_id = $1 AND r.status = 'registered' AND s.term_id = $2 AND s.starts_at IS NOT NULL`,
+      [b.student_id, sec.term_id]);
+    const clash = busy.find((x) => overlaps(sec, x));
+    if (clash && !override) throw badRequest(`يتعارض موعدها مع ${clash.code} ${clash.name} (${meetingText(clash)})`);
+  }
   const [{ n }] = await q("SELECT count(*)::int AS n FROM uni_registrations WHERE section_id = $1 AND status = 'registered'", [b.section_id]);
   if (n >= sec.capacity && !override) throw badRequest(`الشعبة ممتلئة (${sec.capacity})`);
   const settings = await getSettings(q);
@@ -356,8 +390,139 @@ export async function dashboard(q) {
                               (SELECT count(*)::int FROM uni_programs WHERE status = 'active') AS programs,
                               (SELECT count(*)::int FROM uni_courses WHERE status = 'active') AS courses,
                               (SELECT count(*)::int FROM uni_colleges) AS colleges`);
-  const [cur] = await q("SELECT * FROM uni_terms WHERE status IN ('registration', 'running', 'grading') ORDER BY starts_on DESC LIMIT 1");
+  const [cur] = await q(`SELECT * FROM uni_terms WHERE status IN ('registration', 'running', 'grading')
+                          ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'grading' THEN 1 ELSE 2 END, starts_on DESC LIMIT 1`);
   const secs = cur ? await sections(q, { termId: cur.id }) : [];
   return { counts: c, term: cur || null, sections: secs.length, registrations: secs.reduce((n, s) => n + s.registered, 0),
     full: secs.filter((s) => s.registered >= s.capacity).length, pending_grades: secs.filter((s) => !s.grades_submitted_at && s.registered).length };
+}
+
+/* ---------- graduation ---------- */
+// Graduation is checked against the record: the programme's credits earned, every required course passed, and the
+// minimum cumulative GPA. The registrar confirms; the final GPA and date are kept.
+export async function graduationAudit(q, studentId) {
+  const tr = await transcript(q, studentId);
+  const settings = await getSettings(q);
+  const reasons = [];
+  if (tr.student.status !== "active") reasons.push(`حالة القيد: ${STUDENT_STATUS[tr.student.status] || "بلا قيد"}`);
+  if (tr.student.total_credits && tr.earned < tr.student.total_credits) reasons.push(`الساعات المكتسبة ${tr.earned} من ${tr.student.total_credits}`);
+  if (tr.remaining.length) reasons.push(`مقررات إجبارية متبقية: ${tr.remaining.map((c) => c.code).join("، ")}`);
+  if (tr.cgpa === null || tr.cgpa < settings.grad_min_cgpa) reasons.push(`المعدل التراكمي ${tr.cgpa ?? "—"} أقل من ${settings.grad_min_cgpa}`);
+  const pending = tr.terms.flatMap((t) => t.courses).filter((c) => c.mark === null).length;
+  if (pending) reasons.push(`${pending} مقرر بلا درجة`);
+  return { eligible: !reasons.length, reasons, cgpa: tr.cgpa, earned: tr.earned };
+}
+export async function graduate(q, studentId) {
+  const a = await graduationAudit(q, studentId);
+  if (!a.eligible) throw badRequest(`لا تنطبق شروط التخرج: ${a.reasons.join("؛ ")}`);
+  await q(`UPDATE uni_student_programs SET status = 'graduated', graduated_on = CURRENT_DATE, final_cgpa = $2 WHERE student_id = $1 AND status = 'active'`,
+    [studentId, a.cgpa]);
+  return a;
+}
+
+/* ---------- the official transcript ---------- */
+// An official copy of the record with a verification code. A new copy replaces the previous one (which the
+// verification page then shows as replaced).
+export async function issueTranscript(q, studentId, { actor }) {
+  const tr = await transcript(q, studentId);
+  if (!tr.terms.length) throw badRequest("لا يوجد سجل أكاديمي لإصداره");
+  const [prev] = await q(`SELECT id FROM certificates WHERE student_id = $1 AND kind = 'custom' AND status = 'issued' AND data ->> 'uni' = 'transcript'
+                           ORDER BY id DESC LIMIT 1`, [studentId]);
+  const result = tr.cgpa === null ? "لم تُرصد درجات بعد" : `المعدل التراكمي ${tr.cgpa.toFixed(2)} من ${tr.max_points}، والساعات المكتسبة ${tr.earned}`;
+  const data = { uni: "transcript", student: { name: tr.student.name, class_name: tr.student.program }, result, summary: { percent: null },
+    body: `${result}${tr.student.status === "graduated" ? "، متخرج" : ""}.`, record: tr };
+  return writeCertificate(q, { studentId, kind: "custom", title: "كشف درجات رسمي", data, actor, replaces: prev?.id ?? null,
+    reason: prev ? "صدرت نسخة أحدث من الكشف" : null });
+}
+
+/* ---------- tuition by credit hour ---------- */
+// One invoice per student for the credits registered in the term at the university's credit fee. Run again after
+// adds and drops: only the difference is invoiced (a reduction is listed for the accountant, never applied silently).
+export async function billTerm(q, termId, { actor }) {
+  const settings = await getSettings(q);
+  if (!settings.credit_fee) throw badRequest("حدد رسوم الساعة المعتمدة في اللائحة أولًا");
+  const [term] = await q("SELECT * FROM uni_terms WHERE id = $1", [termId]);
+  if (!term) throw notFound("الفصل غير موجود");
+  const rows = await q(`SELECT r.student_id, sum(c.credits)::int AS credits,
+                               COALESCE((SELECT sum(i.amount) FROM uni_term_invoices ti JOIN invoices i ON i.id = ti.invoice_id
+                                          WHERE ti.student_id = r.student_id AND ti.term_id = $1 AND i.status = 'open'), 0)::numeric AS billed
+                          FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id JOIN uni_courses c ON c.id = s.course_id
+                         WHERE s.term_id = $1 AND r.status = 'registered' GROUP BY r.student_id`, [termId]);
+  let created = 0, total = 0;
+  const reductions = [];
+  for (const r of rows) {
+    const due = Math.round(r.credits * settings.credit_fee * 100) / 100 - Number(r.billed);
+    if (due < 0) { reductions.push({ student_id: r.student_id, amount: -due }); continue; }
+    if (due === 0) continue;
+    const title = `${Number(r.billed) ? "فرق رسوم" : "رسوم"} ${term.name} (${r.credits} ساعة)`.slice(0, 120);
+    const [inv] = await q(`INSERT INTO invoices (tenant_id, student_id, title, amount, due_date, created_by, term_id)
+                           VALUES (app_tenant(), $1, $2, $3, $4, $5, NULL) RETURNING id`, [r.student_id, title, due, term.starts_on, actor]);
+    await q("INSERT INTO uni_term_invoices (tenant_id, student_id, term_id, invoice_id, credits, amount) VALUES (app_tenant(), $1, $2, $3, $4, $5)",
+      [r.student_id, termId, inv.id, r.credits, due]);
+    created++; total += due;
+  }
+  return { created, total: Math.round(total * 100) / 100, reductions };
+}
+
+/* ---------- reports ---------- */
+export async function termReport(q, termId) {
+  const [term] = await q("SELECT * FROM uni_terms WHERE id = $1", [termId]);
+  if (!term) throw notFound("الفصل غير موجود");
+  const secs = await sections(q, { termId });
+  const regs = await q(`SELECT r.*, s.course_id FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id WHERE s.term_id = $1 AND r.status = 'registered'`, [termId]);
+  const courses = [...new Map(secs.map((s) => [s.course_id, s])).values()].map((s) => {
+    const mine = regs.filter((r) => r.course_id === s.course_id);
+    const graded = mine.filter((r) => r.mark !== null);
+    const letters = {};
+    for (const r of graded) letters[r.letter] = (letters[r.letter] || 0) + 1;
+    return { code: s.course_code, name: s.course_name, sections: secs.filter((x) => x.course_id === s.course_id).length, registered: mine.length,
+      graded: graded.length, average: graded.length ? round2(graded.reduce((n, r) => n + Number(r.mark), 0) / graded.length) : null,
+      pass_rate: graded.length ? Math.round((graded.filter((r) => Number(r.points) > 0).length / graded.length) * 100) : null, letters };
+  });
+  const ids = [...new Set(regs.map((r) => r.student_id))];
+  const settings = await getSettings(q);
+  const all = ids.length ? await gradedRows(q, ids) : [];
+  const people = ids.length ? await q("SELECT id, full_name AS name, student_no FROM students WHERE id = ANY($1)", [ids]) : [];
+  const standing = people.map((p) => ({ ...p, ...summary(all.filter((r) => r.student_id === p.id), settings) }));
+  return { term, courses, students: ids.length, credits: regs.length ? regs.reduce((n, r) => n + (secs.find((s) => s.id === r.section_id)?.credits || 0), 0) : 0,
+    probation: standing.filter((s) => s.standing === "probation").map(({ id, name, student_no, cgpa }) => ({ id, name, student_no, cgpa })),
+    top: standing.filter((s) => s.cgpa !== null).sort((a, b) => b.cgpa - a.cgpa).slice(0, 10).map(({ id, name, student_no, cgpa }) => ({ id, name, student_no, cgpa })) };
+}
+
+/* ---------- the student's own view ---------- */
+// What a student (or parent) sees: the record, this term's timetable, and the sections open for self-registration.
+export async function studentView(q, studentId) {
+  const tr = await transcript(q, studentId);
+  const settings = await getSettings(q);
+  const [open] = await q("SELECT * FROM uni_terms WHERE status = 'registration' ORDER BY starts_on DESC LIMIT 1");
+  // The student's own current term: one running (or in grading) that they study in, else the one open for registration.
+  const [cur] = await q(`SELECT tr.* FROM uni_terms tr WHERE tr.status IN ('registration', 'running', 'grading')
+                          ORDER BY (tr.status <> 'registration' AND EXISTS (SELECT 1 FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id
+                                     WHERE r.student_id = $1 AND r.status = 'registered' AND s.term_id = tr.id)) DESC,
+                                   (tr.status = 'registration') DESC, tr.starts_on DESC LIMIT 1`, [studentId]);
+  const mine = cur ? await q(`SELECT r.id AS registration_id, s.id AS section_id FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id
+                                WHERE r.student_id = $1 AND r.status = 'registered' AND s.term_id = $2`, [studentId, cur.id]) : [];
+  const curSecs = cur ? await sections(q, { termId: cur.id }) : [];
+  const schedule = mine.map((m) => ({ ...curSecs.find((s) => s.id === m.section_id), registration_id: m.registration_id }))
+    .map(({ id, course_code, course_name, credits, code, teacher, meeting, room, registration_id }) => ({ id, course_code, course_name, credits, code, teacher, meeting, room, registration_id }));
+  const openSecs = open ? (open.id === cur?.id ? curSecs : await sections(q, { termId: open.id })) : [];
+  // Sections already taken in the registration term, when it is not the term being studied now.
+  const upcoming = open && open.id !== cur?.id ? await q(`SELECT r.id AS registration_id, s.id AS section_id FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id
+                                                          WHERE r.student_id = $1 AND r.status = 'registered' AND s.term_id = $2`, [studentId, open.id]) : [];
+  const taken = [...mine, ...upcoming];
+  const offered = open && settings.self_registration && tr.student.status === "active"
+    ? openSecs.filter((s) => !taken.some((m) => m.section_id === s.id))
+      .map(({ id, course_code, course_name, credits, code, teacher, meeting, room, registered, capacity }) => ({ id, course_code, course_name, credits, code, teacher, meeting, room, full: registered >= capacity }))
+    : [];
+  return { transcript: tr, term: cur ? { id: cur.id, name: cur.name, status: cur.status } : null, schedule,
+    registration: open && settings.self_registration ? { term: open.name, open: open.id === cur?.id, offered, max_credits: settings.max_credits,
+      registered: upcoming.map((m) => ({ ...openSecs.find((x) => x.id === m.section_id), registration_id: m.registration_id }))
+        .map(({ course_code, course_name, credits, code, meeting, registration_id }) => ({ course_code, course_name, credits, code, meeting, registration_id })) } : null };
+}
+export async function selfDrop(q, studentId, registrationId) {
+  const [r] = await q(`SELECT r.id, tr.status FROM uni_registrations r JOIN uni_sections s ON s.id = r.section_id JOIN uni_terms tr ON tr.id = s.term_id
+                        WHERE r.id = $1 AND r.student_id = $2 AND r.status = 'registered'`, [registrationId, studentId]);
+  if (!r) throw notFound("التسجيل غير موجود");
+  if (r.status !== "registration" || !(await getSettings(q)).self_registration) throw forbidden("الحذف متاح أثناء فترة التسجيل فقط");
+  await drop(q, registrationId);
 }

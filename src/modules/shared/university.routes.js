@@ -24,7 +24,7 @@ export function universityRouter(role) {
 
   r.get("/meta", handle(async (req, res) => {
     res.json(await inTenant(req, async (q) => ({
-      settings: await uni.getSettings(q), terms: await uni.terms(q), labels: { degrees: uni.DEGREES, term_status: uni.TERM_STATUS, student_status: uni.STUDENT_STATUS },
+      settings: await uni.getSettings(q), terms: await uni.terms(q), labels: { degrees: uni.DEGREES, term_status: uni.TERM_STATUS, student_status: uni.STUDENT_STATUS, days: uni.DAYS },
     })));
   }));
   r.get("/sections", handle(async (req, res) => {
@@ -107,6 +107,21 @@ export function universityRouter(role) {
       const { withdraw } = parse(z.object({ withdraw: z.enum(["0", "1"]).prefault("0") }), req.query);
       await inTenant(req, (q) => uni.drop(q, parse(t.id, req.params.id), { withdraw: withdraw === "1" }));
       res.json({ ok: true });
+    }));
+    r.get("/students/:id/graduation", handle(async (req, res) => {
+      res.json(await inTenant(req, (q) => uni.graduationAudit(q, parse(t.id, req.params.id))));
+    }));
+    r.post("/students/:id/graduate", handle(async (req, res) => {
+      res.json(await inTenant(req, (q) => uni.graduate(q, parse(t.id, req.params.id))));
+    }));
+    r.post("/students/:id/transcript", handle(async (req, res) => {
+      res.status(201).json(await inTenant(req, (q) => uni.issueTranscript(q, parse(t.id, req.params.id), { actor: req.actor })));
+    }));
+    r.post("/terms/:id/bill", handle(async (req, res) => {
+      res.json(await inTenant(req, (q) => uni.billTerm(q, parse(t.id, req.params.id), { actor: req.actor })));
+    }));
+    r.get("/terms/:id/report", handle(async (req, res) => {
+      res.json(await inTenant(req, (q) => uni.termReport(q, parse(t.id, req.params.id))));
     }));
     r.get("/instructors", handle(async (req, res) => {
       res.json(await inTenant(req, (q) => q(`SELECT tc.id, tc.full_name AS name, tc.specialty, u.username,

@@ -132,18 +132,35 @@ export async function terms({ refresh }) {
     const [secs, s, inst] = await Promise.all([api(`${U}/sections?term_id=${t.id}`), api(`${U}/structure`), api(`${U}/instructors`)]);
     const status = select(Object.entries(meta.labels.term_status), { value: t.status });
     status.addEventListener("change", async () => { await api(`${U}/terms/${t.id}`, { status: status.value }, "PATCH"); toast("تغيّرت حالة الفصل"); await loadMeta(); });
-    mount(box, panel(t.name, h("div", { class: "row", style: "gap:6px" }, status, btn("+ طرح شعبة", () => {
+    mount(box, panel(t.name, h("div", { class: "row", style: "gap:6px;flex-wrap:wrap" }, status,
+      btn("تقرير الفصل", () => termReport(t), "ghost sm"),
+      btn("فواتير الساعات", async () => {
+        if (!confirmAction(`إصدار فواتير «${t.name}» بعدد ساعات كل طالب ورسوم الساعة في اللائحة؟ تُصدر الفروق فقط إن كانت صدرت من قبل.`)) return;
+        try {
+          const r = await api(`${U}/terms/${t.id}/bill`, {});
+          toast(`صدرت ${r.created} فاتورة بمجموع ${r.total}${r.reductions.length ? `، و${r.reductions.length} طالب نقصت ساعاته (راجع فواتيره يدويًا)` : ""}`);
+        } catch (e) { toast(e.message, true); }
+      }, "ghost sm"),
+      btn("+ طرح شعبة", () => {
       const f = { course: select(s.courses.filter((c) => c.status === "active").map((c) => [c.id, `${c.code} ${c.name}`])), code: input({ value: "1" }),
-        teacher: select([["", "بلا مدرّس الآن"], ...inst.map((x) => [x.id, x.name])]), capacity: input({ type: "number", min: 1, value: 40 }), schedule: input({ placeholder: "مثال: أحد وثلاثاء 8:00–9:30" }), room: input() };
+        teacher: select([["", "بلا مدرّس الآن"], ...inst.map((x) => [x.id, x.name])]), capacity: input({ type: "number", min: 1, value: 40 }),
+        from: input({ type: "time", value: "08:00" }), to: input({ type: "time", value: "09:30" }), room: input() };
+      const days = new Set();
+      const dayBox = h("div", { class: "xb-chips" }, meta.labels.days.map((name, i) => {
+        const cb = h("input", { type: "checkbox", onchange: () => (cb.checked ? days.add(i) : days.delete(i)) });
+        return h("label", { class: "xb-chip" }, cb, " ", name);
+      }));
       form("طرح شعبة", [field("المقرر", f.course), h("div", { class: "form-grid" }, field("رقم الشعبة", f.code), field("السعة", f.capacity)),
-        field("المدرّس", f.teacher), h("div", { class: "form-grid" }, field("الموعد", f.schedule), field("القاعة", f.room))], async () => {
-        await api(`${U}/sections`, { term_id: t.id, course_id: Number(f.course.value), code: f.code.value, teacher_id: f.teacher.value || null, capacity: f.capacity.value, schedule: f.schedule.value, room: f.room.value });
+        field("المدرّس", f.teacher), field("أيام المحاضرة", dayBox), h("div", { class: "form-grid" }, field("من", f.from), field("إلى", f.to), field("القاعة", f.room)),
+        sub("المواعيد تمنع تسجيل الطالب في شعبتين متعارضتين. اترك الأيام فارغة إن لم يُحدد الموعد بعد.")], async () => {
+        await api(`${U}/sections`, { term_id: t.id, course_id: Number(f.course.value), code: f.code.value, teacher_id: f.teacher.value || null, capacity: f.capacity.value,
+          days: [...days].sort(), starts_at: days.size ? f.from.value : null, ends_at: days.size ? f.to.value : null, room: f.room.value });
         load();
       });
     }, "sm")),
     sub(`${fmtDate(t.starts_on)} إلى ${fmtDate(t.ends_on)}. التسجيل يعمل والفصل «التسجيل مفتوح» أو «جارٍ»، ورصد الدرجات بعد بدئه.`),
     secs.length ? table(["المقرر", "الشعبة", "المدرّس", "المسجلون", "الموعد", "الدرجات", ""], secs.map((x) => h("tr", {},
-      td(`${x.course_code} ${x.course_name}`), td(x.code), td(x.teacher), td(`${x.registered} / ${x.capacity}`), td(x.schedule),
+      td(`${x.course_code} ${x.course_name}`), td(x.code), td(x.teacher), td(`${x.registered} / ${x.capacity}`), td([x.meeting, x.room].filter(Boolean).join(" · ") || null),
       h("td", {}, x.grades_submitted_at ? badge("سُلّمت", "") : x.registered ? badge("لم تُسلَّم", "amber") : "—"),
       h("td", {}, btn("الطلاب والدرجات", () => rosterDialog(x.id, load, { base: U, admin: true }), "ghost sm"))))) : empty("لم تُطرح شعب في هذا الفصل.")));
   };
@@ -189,7 +206,7 @@ export async function students({ refresh }) {
 }
 
 async function studentDialog(id, reload) {
-  const [tr, open] = [await api(`${U}/students/${id}/transcript`), meta.terms.filter((t) => ["registration", "running"].includes(t.status))];
+  const [tr, grad, open] = [await api(`${U}/students/${id}/transcript`), await api(`${U}/students/${id}/graduation`), meta.terms.filter((t) => ["registration", "running"].includes(t.status))];
   const secBox = h("div");
   if (open.length) {
     const term = select(open.map((t) => [t.id, t.name]));
@@ -211,8 +228,17 @@ async function studentDialog(id, reload) {
     h("div", { class: "row", style: "gap:6px" },
       btn("حذف التسجيل", async () => { if (!confirmAction("حذف تسجيل المقرر؟")) return; try { await api(`${U}/registrations/${c.registration_id}`, undefined, "DELETE"); d.close(); studentDialog(id, reload); } catch (e) { toast(e.message, true); } }, "ghost sm"),
       btn("انسحاب", async () => { if (!confirmAction("تسجيل انسحاب من المقرر؟")) return; try { await api(`${U}/registrations/${c.registration_id}?withdraw=1`, undefined, "DELETE"); d.close(); studentDialog(id, reload); } catch (e) { toast(e.message, true); } }, "ghost sm")))));
-  const d = dialog(tr.student.name, h("div", {}, secBox, drops.length ? panel("مقررات بلا درجة (يمكن حذفها أو الانسحاب منها)", null, drops) : null, uniTranscript(tr)),
-    [btn("طباعة السجل", () => window.print(), "ghost")]);
+  const gradBox = tr.student.status === "graduated" ? notice("متخرج.", "")
+    : panel("التخرج", null, grad.eligible ? sub("استوفى الطالب شروط التخرج في السجل: الساعات والمقررات الإجبارية والمعدل الأدنى.")
+      : h("ul", {}, grad.reasons.map((r) => h("li", {}, r))),
+    grad.eligible ? btn("اعتماد التخرج", async () => {
+      if (!confirmAction("اعتماد تخرج الطالب؟ يُحفظ المعدل النهائي وتاريخ التخرج.")) return;
+      try { await api(`${U}/students/${id}/graduate`, {}); toast("اعتُمد التخرج"); d.close(); studentDialog(id, reload); } catch (e) { toast(e.message, true); }
+    }) : null);
+  const d = dialog(tr.student.name, h("div", {}, secBox, drops.length ? panel("مقررات بلا درجة (يمكن حذفها أو الانسحاب منها)", null, drops) : null, gradBox, uniTranscript(tr)),
+    [btn("إصدار كشف رسمي برمز تحقق", async () => {
+      try { const c = await api(`${U}/students/${id}/transcript`, {}); toast(`صدر الكشف ${c.serial}. رمز التحقق ${c.code}`); } catch (e) { toast(e.message, true); }
+    }, "ghost"), btn("طباعة السجل", () => window.print(), "ghost")]);
   d.classList.add("xb-wide");
   d.addEventListener("close", () => reload?.());
 }
@@ -235,16 +261,34 @@ export async function settings() {
   const S = meta.settings;
   const rows = S.grade_scale.map((g) => ({ letter: input({ value: g.letter, style: "max-width:80px" }), min: input({ type: "number", value: g.min, style: "max-width:90px" }), points: input({ type: "number", step: "0.25", value: g.points, style: "max-width:90px" }) }));
   const f = { max: select([["4", "من 4"], ["5", "من 5"]], { value: String(S.max_points) }), maxc: input({ type: "number", value: S.max_credits }), minc: input({ type: "number", value: S.min_credits }),
-    prob: input({ type: "number", step: "0.05", value: S.probation_below }) };
+    prob: input({ type: "number", step: "0.05", value: S.probation_below }), fee: input({ type: "number", min: 0, value: S.credit_fee }),
+    grad: input({ type: "number", step: "0.05", value: S.grad_min_cgpa }), self: h("input", { type: "checkbox", checked: S.self_registration }) };
   return [panel("سلّم التقديرات", null, sub("الدرجة من 100. كل تقدير يبدأ من حده الأدنى، وأدنى تقدير يبدأ من الصفر. تحدده الجامعة بحسب لائحتها."),
     table(["التقدير", "من درجة", "النقاط"], rows.map((r) => h("tr", {}, h("td", {}, r.letter), h("td", {}, r.min), h("td", {}, r.points))))),
   panel("القواعد", null, h("div", { class: "form-grid" }, field("المعدل", f.max), field("الحد الأعلى للساعات في الفصل", f.maxc), field("الحد الأدنى", f.minc),
-    field("الإنذار الأكاديمي إذا قل المعدل التراكمي عن", f.prob))),
+    field("الإنذار الأكاديمي إذا قل المعدل التراكمي عن", f.prob), field("المعدل الأدنى للتخرج", f.grad), field("رسوم الساعة المعتمدة", f.fee)),
+    h("label", { class: "row", style: "justify-content:flex-start;gap:8px;margin-top:8px" }, f.self, "الطالب يسجل مقرراته بنفسه من صفحته أثناء فترة التسجيل")),
   btn("حفظ", async () => {
     try {
       await api(`${U}/settings`, { grade_scale: rows.map((r) => ({ letter: r.letter.value, min: r.min.value, points: r.points.value })), max_points: Number(f.max.value),
-        max_credits: f.maxc.value, min_credits: f.minc.value, probation_below: f.prob.value }, "PUT");
+        max_credits: f.maxc.value, min_credits: f.minc.value, probation_below: f.prob.value, credit_fee: f.fee.value, grad_min_cgpa: f.grad.value,
+        self_registration: f.self.checked }, "PUT");
       toast("حُفظت الإعدادات");
     } catch (e) { toast(e.message, true); }
   })];
+}
+
+async function termReport(t) {
+  const r = await api(`${U}/terms/${t.id}/report`);
+  const d = dialog(`تقرير ${t.name}`, h("div", {},
+    sub(`${r.students} طالب مسجل · ${r.courses.length} مقرر مطروح`),
+    panel("المقررات", null, r.courses.length ? table(["المقرر", "الشعب", "المسجلون", "رُصدت", "متوسط الدرجة", "نسبة النجاح", "التقديرات"], r.courses.map((c) => h("tr", {},
+      td(`${c.code} ${c.name}`), td(String(c.sections)), td(String(c.registered)), td(String(c.graded)), td(c.average === null ? "—" : String(c.average)),
+      td(c.pass_rate === null ? "—" : `${c.pass_rate}%`), td(Object.entries(c.letters).map(([k, v]) => `${k}: ${v}`).join("، ") || "—")))) : empty("لا مقررات.")),
+    panel(`إنذار أكاديمي (${r.probation.length})`, null, r.probation.length ? table(["الرقم الجامعي", "الطالب", "المعدل"], r.probation.map((s) => h("tr", {}, td(s.student_no, "ltr"), td(s.name), td(s.cgpa.toFixed(2)))))
+      : empty("لا يوجد طلاب تحت الإنذار.")),
+    panel("أعلى المعدلات", null, r.top.length ? table(["الرقم الجامعي", "الطالب", "المعدل"], r.top.map((s) => h("tr", {}, td(s.student_no, "ltr"), td(s.name), td(s.cgpa.toFixed(2)))))
+      : empty("لم تُرصد درجات بعد."))),
+  [btn("طباعة", () => window.print(), "ghost")]);
+  d.classList.add("xb-wide");
 }

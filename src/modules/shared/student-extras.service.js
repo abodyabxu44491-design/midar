@@ -21,7 +21,7 @@ export async function studentExtras(q, s, { admin = false } = {}) {
     out.behavior = await behavior.forStudent(q, s.id);
   }
   const [{ org_type: engine }] = await q("SELECT org_type FROM tenants WHERE id = app_tenant()");
-  if (engine === "university") out.transcript = await uni.transcript(q, s.id);
+  if (engine === "university") out.university = await uni.studentView(q, s.id);
   if (mods.quran) {
     const qd = await quran.forParent(q, s.id);
     if (qd.membership || qd.records.length || qd.achievements.length) out.quran = qd;

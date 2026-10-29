@@ -20,6 +20,7 @@ import demo from "./demo.js";
 import parent from "./parent.js";
 import chat from "./chat.js";
 import quran from "./quran.js";
+import university from "./university.js";
 import { publicDemoGuard } from "../shared/demo.service.js";
 
 const r = Router();
@@ -40,5 +41,6 @@ r.use("/:school", onlineExams);
 r.use("/:school", engagement);
 r.use("/:school", chat);
 r.use("/:school", quran);
+r.use("/:school", university);
 r.use("/:school", certificatesRouter);
 export default r;

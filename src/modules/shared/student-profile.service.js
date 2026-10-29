@@ -20,9 +20,15 @@ const ALL_ON = { profile_show_grades: true, profile_show_attendance: true, profi
   profile_show_timetable: true, profile_show_homework: true };
 
 export async function buildProfile(q, tenant, s, { admin = false } = {}) {
+  const [{ org_type: engine }] = await q("SELECT org_type FROM tenants WHERE id = app_tenant()");
   const parentSettings = await getSettings(q);
-  const settings = admin ? { ...parentSettings, ...ALL_ON } : parentSettings;
-  const [cls] = s.class_id ? await q("SELECT name FROM classes WHERE id = $1", [s.class_id]) : [];
+  // A university student's file is built from the academic record; the school sections (class grades, daily attendance,
+  // the class timetable and homework) do not apply.
+  const settings = engine === "university" ? { ...parentSettings, profile_show_grades: false, profile_show_attendance: false, profile_show_timetable: false, profile_show_homework: false }
+    : admin ? { ...parentSettings, ...ALL_ON } : parentSettings;
+  const [cls] = engine === "university"
+    ? await q(`SELECT p.name FROM uni_student_programs sp JOIN uni_programs p ON p.id = sp.program_id WHERE sp.student_id = $1 ORDER BY (sp.status = 'active') DESC, sp.id DESC LIMIT 1`, [s.id])
+    : s.class_id ? await q("SELECT name FROM classes WHERE id = $1", [s.class_id]) : [];
   const attendance = settings.profile_show_attendance
     ? await q(`SELECT day::text AS day, status, excuse, parent_excuse, parent_excuse_state, first_in_at, minutes_late,
                       (SELECT g.name FROM gates g WHERE g.id = attendance.gate_id) AS gate_name,
