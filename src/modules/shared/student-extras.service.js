@@ -12,6 +12,7 @@ import * as calendar from "./calendar.service.js";
 import * as services from "./services.service.js";
 import * as engagement from "./engagement.service.js";
 import * as quran from "./quran.service.js";
+import * as uni from "./university.service.js";
 
 export async function studentExtras(q, s, { admin = false } = {}) {
   const mods = await activeModules(q);
@@ -19,6 +20,8 @@ export async function studentExtras(q, s, { admin = false } = {}) {
   if (mods.behavior && (admin || (await featureSettings(q, "behavior")).show_parent)) {
     out.behavior = await behavior.forStudent(q, s.id);
   }
+  const [{ org_type: engine }] = await q("SELECT org_type FROM tenants WHERE id = app_tenant()");
+  if (engine === "university") out.transcript = await uni.transcript(q, s.id);
   if (mods.quran) {
     const qd = await quran.forParent(q, s.id);
     if (qd.membership || qd.records.length || qd.achievements.length) out.quran = qd;

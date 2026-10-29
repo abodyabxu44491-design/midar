@@ -46,6 +46,7 @@ export async function startTeacher(offlineMe = null) {
     return passwordChangeScreen({ endpoint: "/api/teacher/password", logoutEndpoint: "/api/teacher/logout", school: me.school.name, name: me.name });
   }
   if (me.school.org_type === "institute") return startTrainer(me);
+  if (me.school.org_type === "university") return startInstructor(me);
   const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
     homework: "homework", announcements: "announcements", papers: "exam_papers",
     behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat", quran: "quran" };
@@ -79,6 +80,19 @@ export async function startTeacher(offlineMe = null) {
   });
   mount(app, bar, h("main", {}, t.el), footer());
   t.start("home");
+}
+
+// University instructors: their sections this term and past ones, and the marks for each.
+async function startInstructor(me) {
+  const { sections } = await import("./views/instructor.js");
+  const list = [["sections", "شعبي"], ["account", "حسابي"]];
+  const ctx = { me };
+  const t = tabs(list, { sections, account }, ctx, { primary: ["sections", "account"] });
+  ctx.goTo = (key) => t.show(key);
+  const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `هيئة التدريس — ${me.name}`,
+    onLogout: async () => { try { await api("/api/teacher/logout", {}); } catch { /* ignore */ } location.reload(); } });
+  mount(app, bar, h("main", {}, t.el), footer());
+  t.start("sections");
 }
 
 // Institute trainers: their sessions, attendance and assessments for their own courses only.

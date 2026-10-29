@@ -60,7 +60,7 @@ function editor(t, d, refresh) {
   const f = {
     name: input({ value: t?.name || "" }),
     key: input({ class: "ltr", placeholder: "quran_center" }),
-    engine: select(d.engines.map((e) => [e.key, e.live ? e.name : `${e.name} (قيد التطوير)`]), { value: t?.engine || "school" }),
+    engine: select(d.engines.map((e) => [e.key, e.public ? e.name : `${e.name} (قيد التطوير، للتجربة فقط)`]), { value: t?.engine || "school" }),
     status: select(d.statuses.map((s) => [s.key, s.name]), { value: t?.status || "planned" }),
     sort: input({ type: "number", value: t?.sort ?? 150 }),
     description: textarea({ rows: 2, value: t?.description || "" }),

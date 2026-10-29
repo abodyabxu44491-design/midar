@@ -27,7 +27,7 @@ r.get("/me", handle(async (req, res) => {
       WHERE s.tenant_id = $1 AND s.user_id = $2 AND s.revoked_at IS NULL AND a.disabled_at IS NULL`, [req.tenant.id, req.user.id]));
   res.json({
     modules: req.modules,
-    setup_completed: isInstitute(req.tenant) || Boolean(p?.setup_completed_at),
+    setup_completed: engineOf(req.tenant) !== "school" || Boolean(p?.setup_completed_at),
     name: req.user.full_name,
     admin_scope: req.user.admin_scope || "full",
     org_type: engineOf(req.tenant),

@@ -49,7 +49,7 @@ export const CATEGORIES = {
 };
 const SETTINGS_TABLES = ["school_public_settings", "exam_paper_settings", "timetable_settings", "school_messages"];
 const REINIT = ["students", "grades", "homework", "announcements", "alerts", "admissions"];
-const KEEP_ON_RESET = ["school_modules", "tenant_modules", "tenant_terms"];
+const KEEP_ON_RESET = ["school_modules", "tenant_modules", "tenant_terms", "uni_settings"];
 
 const ALWAYS_SAFE = "سجل العمليات (لا يُحذف أبدًا)، والاشتراك والباقة والفواتير والتجديدات";
 
@@ -177,6 +177,9 @@ const TABLE_LABEL = {
   meeting_slots: "فترات المواعيد", meeting_bookings: "حجوزات المواعيد", reminder_log: "سجل التذكيرات",
   renewal_requests: "طلبات التجديد", subscription_events: "سجل أحداث الاشتراك", leads: "طلبات الاهتمام", sms_ledger: "رصيد الرسائل النصية",
   tenant_prices: "أسعار المدرسة الخاصة",
+  uni_settings: "لائحة الجامعة", uni_colleges: "الكليات", uni_departments: "الأقسام الأكاديمية", uni_programs: "البرامج الجامعية",
+  uni_courses: "المقررات", uni_program_courses: "خطط البرامج", uni_terms: "الفصول الجامعية", uni_sections: "الشعب المطروحة",
+  uni_student_programs: "قيد الطلاب في البرامج", uni_registrations: "تسجيل المقررات والدرجات",
   quran_levels: "مستويات الحفظ", halaqat: "حلقات التحفيظ", halaqa_members: "أعضاء الحلقات", quran_records: "سجل الحفظ والمراجعة والتسميع",
   quran_achievements: "إنجازات الحفظ",   institute_settings: "إعدادات المعهد", programs: "البرامج التدريبية", courses: "الدورات", course_groups: "المجموعات التدريبية",
   enrollments: "تسجيلات المتدربين في الدورات", training_log: "سجل مسار التدريب", training_sessions: "الجلسات التدريبية",

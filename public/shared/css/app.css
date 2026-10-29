@@ -3070,3 +3070,11 @@ dialog .student-form.tidy { background: var(--bg); margin: 0 -18px; padding: 12p
   .qr-juz { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 .qr-who > .badge { align-self: flex-start; }
+
+/* University */
+.uni-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+.uni-kpi { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.uni-kpi small { color: var(--muted); }
+.uni-kpi b { color: var(--navy); font-size: 17px; }
+.uni-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.uni-marks input { max-width: 90px; }

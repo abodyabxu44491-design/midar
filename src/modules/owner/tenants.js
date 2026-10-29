@@ -82,7 +82,7 @@ export async function createTenant(req, b, { link = true } = {}) {
   b = { ...b, org_type: type.engine, org_type_key: type.key };
   // An institute's (or a centre's) manager, in the type's own word.
   const org = { ...engineDefaults(type.engine), ...(type.terms || {}) }.org;
-  if (b.org_type === "institute" && (!b.admin_name || b.admin_name === "مدير المدرسة")) b = { ...b, admin_name: `مدير ${org}` };
+  if (b.org_type !== "school" && (!b.admin_name || b.admin_name === "مدير المدرسة")) b = { ...b, admin_name: `مدير ${org}` };
   const password = newTempPassword();
   const hash = await hashPassword(password);
   const directory = newDirectoryCode();
@@ -96,6 +96,7 @@ export async function createTenant(req, b, { link = true } = {}) {
       [b.id, b.name, b.plan ?? "basic", b.max_students ?? 200, b.subscription_end ?? null, directory,
        b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER", b.group_id ?? null, b.org_type, b.org_type_key]);
     if (b.org_type === "institute") await q("INSERT INTO institute_settings (tenant_id) VALUES ($1) ON CONFLICT DO NOTHING", [b.id]);
+    if (b.org_type === "university") await q("INSERT INTO uni_settings (tenant_id) VALUES ($1) ON CONFLICT DO NOTHING", [b.id]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
     await ensureDefaults(q);
@@ -113,7 +114,7 @@ export async function createTenant(req, b, { link = true } = {}) {
     if (b.manager_email) {
       await q("UPDATE tenants SET profile = profile || jsonb_build_object('email', $2::text, 'contact_name', $3::text) WHERE id = $1", [b.id, b.manager_email, b.admin_name]);
     }
-    await addSchoolEvent(q, b.id, { kind: "account", body: b.org_type === "institute" ? `أُنشئ ${org} وحساب مديره` : "أُنشئت المدرسة وحساب مديرها" }, req.actor);
+    await addSchoolEvent(q, b.id, { kind: "account", body: { school: "أُنشئت المدرسة وحساب مديرها", institute: `أُنشئ ${org} وحساب مديره` }[b.org_type] || `أُنشئت ${org} وحساب مديرها` }, req.actor);
   });
   // The manager's sign-in comes from the setup link (their own Midar account); no password is handed out.
   const setup = link ? await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, b.id, req.actor, linkBase(req))) : null;

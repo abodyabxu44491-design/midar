@@ -56,6 +56,7 @@ export async function startAdmin() {
   setCurrency(me.school.currency);
   setTerms(me.terms);
   if (me.org_type === "institute") return startInstitute(me);
+  if (me.org_type === "university") return startUniversity(me);
   const on = (key) => me.modules?.[key] !== false;
   if (me.setup_completed === false) {
     mount(app,
@@ -116,6 +117,27 @@ export async function startAdmin() {
     if (!tab || !allTabs.some(([k]) => k === tab || (tab === "finance" && k === "ledger"))) return false;
     ctx.goTo(tab); return true;
   });
+  mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
+  t.start("dashboard");
+}
+
+// Universities: the registrar's office (structure, terms and sections, admission and registration, grades and records).
+async function startUniversity(me) {
+  const V = await import("./views/university.js");
+  await V.loadMeta();
+  const list = [
+    ["dashboard", "الرئيسية"],
+    [null, "الشؤون الأكاديمية"], ["ustructure", "الهيكل الأكاديمي"], ["uterms", "الفصول والشعب"], ["uinstructors", T("teachers")],
+    [null, "القبول والتسجيل"], ["ustudents", T("students")],
+    [null, "الإدارة"], ["usettings", "اللائحة والتقديرات"], ["subscription", "اشتراكي"], ["audit", "السجل"],
+  ];
+  const ctx = { me };
+  const t = tabs(list, { dashboard: V.dashboard, ustructure: V.structure, uterms: V.terms, uinstructors: V.instructors, ustudents: V.students,
+    usettings: V.settings, subscription: mySubscription, audit }, ctx, { primary: ["dashboard", "ustudents", "uterms", "ustructure"] });
+  ctx.goTo = (key) => t.show(key);
+  const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `القبول والتسجيل — ${me.name}`,
+    onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } });
+  attachBell(bar, "/api/admin", () => false);
   mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
   t.start("dashboard");
 }

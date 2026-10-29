@@ -44,6 +44,7 @@ import communication from "./communication.js";
 import chatAdmin from "./chat.js";
 import { behaviorRouter } from "../shared/behavior.routes.js";
 import { quranRouter } from "../shared/quran.routes.js";
+import { universityRouter } from "../shared/university.routes.js";
 import certificates from "./certificates.js";
 import { staff as staffAffairs, calendar } from "./staff-affairs.js";
 import services from "./services.js";
@@ -67,6 +68,7 @@ r.use((req, res, next) => (isInstitute(req.tenant) && req.user.staff_role && req
   && !STAFF_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`)) ? next(forbidden("هذا القسم خارج صلاحيات دورك في المعهد.")) : next()));
 r.post("/password", changePassword);
 r.use("/institute", instituteRouter());
+r.use("/university", universityRouter("admin"));
 r.use(dashboard);
 r.use("/structure", structure);
 r.use("/teachers", teachers);

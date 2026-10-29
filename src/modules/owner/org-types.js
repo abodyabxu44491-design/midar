@@ -7,7 +7,7 @@ import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
-import { ENGINES, STATUSES, LIVE_ENGINES, TERM_KEYS, ENGINE_TERMS, engineDefaults, termsSchema, typeKey } from "../shared/org-types.service.js";
+import { ENGINES, STATUSES, LIVE_ENGINES, PUBLIC_ENGINES, TERM_KEYS, ENGINE_TERMS, engineDefaults, termsSchema, typeKey } from "../shared/org-types.service.js";
 
 // The owner's list of institution types. A type is never deleted (institutions may use it); it is switched off instead.
 const r = Router();
@@ -45,7 +45,7 @@ r.get("/", handle(async (req, res) => {
                            (SELECT count(*)::int FROM tenants t WHERE t.org_type_key = o.key AND t.status = 'active') AS active_tenants
                       FROM org_types o ORDER BY o.sort, o.key`),
     features: await q("SELECT key, name, category, kind FROM features WHERE is_active ORDER BY sort, key"),
-    engines: Object.entries(ENGINES).map(([key, name]) => ({ key, name, live: LIVE_ENGINES.includes(key) })),
+    engines: Object.entries(ENGINES).map(([key, name]) => ({ key, name, live: LIVE_ENGINES.includes(key), public: PUBLIC_ENGINES.includes(key) })),
     statuses: Object.entries(STATUSES).map(([key, name]) => ({ key, name })),
     term_keys: Object.entries(TERM_KEYS).map(([key, name]) => ({ key, name })),
     engine_terms: Object.fromEntries(Object.keys(ENGINES).map((e) => [e, ENGINE_TERMS[e].map((key) => ({ key, name: engineDefaults(e)[key] }))])),
@@ -54,7 +54,7 @@ r.get("/", handle(async (req, res) => {
 
 r.post("/", handle(async (req, res) => {
   const b = parse(createSchema, req.body);
-  if (!LIVE_ENGINES.includes(b.engine) && ["available", "beta"].includes(b.status)) {
+  if (!PUBLIC_ENGINES.includes(b.engine) && ["available", "beta"].includes(b.status)) {
     throw badRequest(`المحرك ${ENGINES[b.engine]} قيد التطوير، فيبقى النوع «قيد التطوير» حتى يكتمل`);
   }
   res.status(201).json(await platform(req, async (q) => {
@@ -76,7 +76,7 @@ r.patch("/:key", handle(async (req, res) => {
   res.json(await platform(req, async (q) => {
     const [cur] = await q("SELECT * FROM org_types WHERE key = $1 FOR UPDATE", [key]);
     if (!cur) throw notFound("النوع غير موجود");
-    if (b.status && !LIVE_ENGINES.includes(cur.engine) && ["available", "beta"].includes(b.status)) {
+    if (b.status && !PUBLIC_ENGINES.includes(cur.engine) && ["available", "beta"].includes(b.status)) {
       throw badRequest(`المحرك ${ENGINES[cur.engine]} قيد التطوير، فيبقى النوع «قيد التطوير» حتى يكتمل`);
     }
     await checkFeatures(q, b.default_features);

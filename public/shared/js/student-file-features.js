@@ -10,6 +10,7 @@ import { certificateSheet, printCertificateSheet } from "./cert-render.js";
 import { eventList } from "./calendar-view.js";
 import { fmtDate, fmtDateTime } from "./format.js";
 import { progressBlock } from "./quran-board.js";
+import { uniTranscript } from "./university-ui.js";
 
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 
@@ -54,6 +55,10 @@ export function featureSections(d, actions = {}) {
       void reopen;
       return [list, box];
     } });
+  }
+  if (f.transcript) {
+    const tr = f.transcript;
+    out.push({ key: "transcript", name: "السجل الأكاديمي", note: tr.cgpa === null ? "" : `المعدل ${tr.cgpa.toFixed(2)}`, view: () => uniTranscript(tr) });
   }
   if (f.quran) {
     const qd = f.quran;

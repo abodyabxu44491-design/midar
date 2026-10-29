@@ -61,9 +61,10 @@ test("الإنشاء من النوع: المحرك يُشتق من النوع، 
   assert.equal((await owner.post("/api/owner/tenants", { id: oldId, name: "معهد بالطريقة القديمة", org_type: "institute" })).status, 201);
   assert.deepEqual(await typeOf(oldId), { org_type: "institute", org_type_key: "training_institute" });
 
-  const uni = await owner.post("/api/owner/tenants", { id: `ot-${uid()}`, name: "جامعة", org_type_key: "university" });
-  assert.equal(uni.status, 400);
-  assert.match(uni.data.error, /قيد التطوير/);
+  // The university engine is under development: the owner may create a trial university, the public may not ask for one.
+  const uniId = `ot-${uid()}`;
+  assert.equal((await owner.post("/api/owner/tenants", { id: uniId, name: "جامعة تجريبية", org_type_key: "university" })).status, 201);
+  assert.deepEqual(await typeOf(uniId), { org_type: "university", org_type_key: "university" });
   assert.equal((await owner.post("/api/owner/tenants", { id: `ot-${uid()}`, name: "نوع غير موجود", org_type_key: "no_such_type" })).status, 400);
 });
 
@@ -116,7 +117,7 @@ test("المالك يضيف نوعًا تجريبيًا بلا كود، ويوق
   const list = (await owner.get(T)).data;
   const mine = list.types.find((t) => t.key === key);
   assert.equal(mine.tenants, 1);
-  assert.ok(list.engines.find((e) => e.key === "university" && !e.live));
+  assert.ok(list.engines.find((e) => e.key === "university" && e.live && !e.public));
 });
 
 test("تغيير نوع مؤسسة: مراجعة الأثر أولًا، ولا يُحذف شيء، والانتقال بين مدرسة ومعهد بتأكيد ويُعاد", async () => {

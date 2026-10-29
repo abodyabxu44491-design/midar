@@ -10,11 +10,14 @@ import { z } from "../../core/http/validate.js";
 // and carries its own terms, default sections and settings; the owner manages the list.
 export const ENGINES = { school: "مدرسي", institute: "تدريبي", university: "جامعي" };
 export const STATUSES = { available: "متاح", beta: "تجريبي", planned: "قيد التطوير", disabled: "موقوف" };
-// Engines the platform can run today. A type on another engine stays visible to the owner only.
-export const LIVE_ENGINES = ["school", "institute"];
+// Engines an institution can be created on (by the owner), and engines that may be offered to the public. The university
+// engine runs for the owner's trials only until it is complete: its types cannot be made available or beta.
+export const LIVE_ENGINES = ["school", "institute", "university"];
+export const PUBLIC_ENGINES = ["school", "institute"];
 export const PUBLIC_STATUSES = ["available", "beta"];
 // The one place that decides which engine an institution runs on (its tenants row, as loaded with the session).
-export const engineOf = (tenant) => (tenant?.org_type === "institute" ? "institute" : "school");
+export const engineOf = (tenant) => (ENGINES[tenant?.org_type] ? tenant.org_type : "school");
+export const isUniversity = (tenant) => engineOf(tenant) === "university";
 export const isInstitute = (tenant) => engineOf(tenant) === "institute";
 export const typeKey = z.string().trim().regex(/^[a-z][a-z0-9_]{1,39}$/, "نوع المؤسسة غير صحيح");
 
@@ -30,9 +33,12 @@ export const ENGINE_TERMS = {
   school: ["student", "students", "teacher", "teachers", "class", "classes", "grade", "grades", "subject", "subjects", "guardian", "guardians"],
   institute: ["org", "student", "students", "teacher", "teachers", "course", "courses", "program", "programs", "group", "groups", "session", "sessions"],
 };
-ENGINE_TERMS.university = ENGINE_TERMS.school;
+ENGINE_TERMS.university = ["org", "student", "students", "teacher", "teachers", "course", "courses", "program", "programs"];
 // What an institute calls things when neither its type nor the institute changed them.
-const ENGINE_DEFAULTS = { institute: { org: "المعهد", student: "متدرب", students: "المتدربون", teacher: "مدرب", teachers: "المدربون" } };
+const ENGINE_DEFAULTS = {
+  institute: { org: "المعهد", student: "متدرب", students: "المتدربون", teacher: "مدرب", teachers: "المدربون" },
+  university: { org: "الجامعة", teacher: "عضو هيئة التدريس", teachers: "هيئة التدريس", course: "مقرر", courses: "المقررات", program: "برنامج", programs: "البرامج" },
+};
 export const engineDefaults = (engine) => ({ ...TERM_KEYS, ...(ENGINE_DEFAULTS[engine] || {}) });
 // The institute screens name trainees and trainers with their own keys; the general words map onto them.
 export const INSTITUTE_KEY = { student: "trainee", students: "trainees", teacher: "trainer", teachers: "trainers" };
@@ -61,7 +67,7 @@ export const fromLegacy = (v) => (v ? LEGACY[v] || v : null);
 
 export async function publicTypes(q) {
   return q(`SELECT key, name, description, engine, status FROM org_types
-             WHERE status = ANY($1) AND engine = ANY($2) ORDER BY sort, key`, [PUBLIC_STATUSES, LIVE_ENGINES]);
+             WHERE status = ANY($1) AND engine = ANY($2) ORDER BY sort, key`, [PUBLIC_STATUSES, PUBLIC_ENGINES]);
 }
 
 export async function allTypes(q) {

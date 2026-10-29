@@ -5,7 +5,7 @@
  */
 import { transaction } from "../../core/db/pool.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
-import { ENGINES, LIVE_ENGINES, TERM_KEYS } from "./org-types.service.js";
+import { ENGINES, LIVE_ENGINES, PUBLIC_ENGINES, TERM_KEYS } from "./org-types.service.js";
 import { MODULES, getModules, setAllModules, typeModules } from "./modules.service.js";
 import { addEvent } from "./school-files.service.js";
 
@@ -14,6 +14,8 @@ import { addEvent } from "./school-files.service.js";
 const ENGINE_DATA = {
   school: [["stages", "المراحل"], ["grades", "الصفوف"], ["classes", "الشعب"], ["subjects", "المواد"], ["timetable_slots", "حصص الجدول"],
     ["exams", "الاختبارات"], ["assignments", "الواجبات"], ["attendance", "سجلات الحضور اليومي"]],
+  university: [["uni_colleges", "الكليات"], ["uni_programs", "البرامج"], ["uni_courses", "المقررات"], ["uni_sections", "الشعب المطروحة"],
+    ["uni_registrations", "تسجيلات المقررات"]],
   institute: [["programs", "البرامج"], ["courses", "الدورات"], ["course_groups", "المجموعات"], ["enrollments", "التسجيلات"],
     ["training_sessions", "الجلسات"], ["assessments", "التقييمات"]],
 };
@@ -36,7 +38,9 @@ export async function impactOf(ctx, id, toKey, { applySections = false } = {}) {
   const { cur, to } = await load(id, toKey);
   const blockers = [];
   if (to.status === "disabled") blockers.push(`نوع «${to.name}» موقوف`);
-  if (!LIVE_ENGINES.includes(to.engine)) blockers.push(`المحرك ${ENGINES[to.engine]} قيد التطوير، ولا تُنقل إليه مؤسسة بعد`);
+  if (!LIVE_ENGINES.includes(to.engine) || (to.engine !== cur.org_type && !PUBLIC_ENGINES.includes(to.engine))) {
+    blockers.push(`المحرك ${ENGINES[to.engine]} قيد التطوير، فلا تُنقل إليه مؤسسة قائمة. أنشئ مؤسسة جديدة منه للتجربة.`);
+  }
   const engineChange = to.engine !== cur.org_type;
   const data = await inSchool(ctx, id, async (q) => {
     const count = async (list) => {
@@ -82,6 +86,7 @@ export async function applyChange(ctx, id, b) {
   await inSchool(ctx, id, async (q) => {
     await q("UPDATE tenants SET org_type = $2, org_type_key = $3 WHERE id = $1", [id, impact.to.engine, impact.to.key]);
     if (impact.to.engine === "institute") await q("INSERT INTO institute_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+    if (impact.to.engine === "university") await q("INSERT INTO uni_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
     // The school kind its profile records follows the new type (a Quran school, a public school...).
     const [type] = await q("SELECT engine, settings FROM org_types WHERE key = $1", [impact.to.key]);
     if (type.engine === "school" && type.settings?.school_type) {
