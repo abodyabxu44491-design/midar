@@ -3,6 +3,8 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { universityRouter } from "../shared/university.routes.js";
+import { engineOf } from "../shared/org-types.service.js";
 import { Router } from "express";
 import { logoId } from "../shared/school-logo.service.js";
 import { accessSummary } from "../shared/subscription.service.js";
@@ -31,7 +33,7 @@ r.get("/me", handle(async (req, res) => {
     role: "accountant",
     access: accessSummary(req),
     must_change_password: req.user.must_change_password,
-    school: { id: req.tenant.id, name: req.tenant.name, logo: await inTenant(req, logoId), org_type: req.tenant.org_type },
+    school: { id: req.tenant.id, name: req.tenant.name, logo: await inTenant(req, logoId), org_type: engineOf(req.tenant) },
     currency: req.tenant.currency,
     modules: req.modules,
     permissions: { approve: req.user.can_approve_finance, payroll: req.user.can_manage_payroll, accounts: req.user.can_manage_accounts },
@@ -69,5 +71,6 @@ r.use("/ledger", requireModule("finance"), ledger);
 r.use("/finance-requests", financeRequests);
 r.use("/book-deposits", requireModule("finance"), bookDeposits);
 r.use("/finance", requireModule("fees"), fees);
+r.use("/university", universityRouter("accountant"));
 
 export default r;

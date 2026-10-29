@@ -24,6 +24,7 @@ import { subscriptions, requests } from "./subscriptions.js";
 import danger from "./danger.js";
 import sms from "./sms.js";
 import security from "./security.js";
+import orgTypes from "./org-types.js";
 
 const r = Router();
 r.use(ownerNetwork);
@@ -34,6 +35,7 @@ r.get("/network", (req, res) => res.json({
   trust_proxy: env.TRUST_PROXY, ip_allowlist_enabled: env.ownerIps.length > 0,
 }));
 r.use("/tenants", tenants);
+r.use("/org-types", orgTypes);
 r.use("/jobs", jobsRouter("owner"));
 r.use("/leads", leads);
 r.use("/renewals", renewals);

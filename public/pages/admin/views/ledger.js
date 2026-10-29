@@ -15,7 +15,8 @@ import { fundField } from "../../shared/js/fund-picker.js";
 
 const METHODS = { cash: "نقدًا", transfer: "تحويل بنكي", card: "شبكة / بطاقة", online: "دفع إلكتروني" };
 const KINDS = { cash: "صندوق نقدي", bank: "حساب بنكي", online: "محفظة إلكترونية", donations: "صندوق تبرعات", other: "أخرى" };
-const SOURCES = { manual: "قيد يدوي", fee: "رسوم", refund: "استرداد", donation: "تبرع", salary: "رواتب", expense: "مصروف", withdrawal: "سحب" };
+const SOURCES = { manual: "قيد يدوي", fee: "رسوم", refund: "استرداد", donation: "تبرع", salary: "رواتب", expense: "مصروف", withdrawal: "سحب",
+  transfer: "تحويل بين الحسابات", request: "طلب مالي", book_deposit: "تأمين الكتب" };
 const STATUS = { pending: ["بانتظار الاعتماد", "amber"], approved: ["معتمدة", ""], rejected: ["مرفوضة", "gray"], void: ["ملغاة", "gray"] };
 const monthName = (ym) => new Date(`${ym}-15`).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn", { month: "short", year: "2-digit" });
 const monthStart = () => today().slice(0, 8) + "01";

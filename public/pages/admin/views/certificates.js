@@ -151,7 +151,7 @@ export default async function certificates(ctx = {}) {
     const out = h("div");
     return [panel("شهادة مخصصة لطالب", null,
       h("div", { class: "row" }, classPick(() => nav.show()), field("الطالب", st)),
-      field("عنوان الشهادة", title), field("نص الشهادة", text, "يظهر مكان الحقل {{body}} في التصميم"), field("تصميم الشهادة", picker.el),
+      field("عنوان الشهادة", title), field("نص الشهادة", text, "يظهر في مكان «نص الشهادة المخصصة» في التصميم المختار"), field("تصميم الشهادة", picker.el),
       canApprove ? null : notice("إصدار الشهادات لإدارة المدرسة العامة.", ""),
       canApprove && btn("إصدار وطباعة", async () => {
         if (!st.value) return toast("اختر الطالب", true);

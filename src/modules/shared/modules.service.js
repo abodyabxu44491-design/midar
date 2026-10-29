@@ -40,6 +40,7 @@ export const MODULES = [
   { key: "inventory", name: "العهد والمخزون", note: "الأصناف والعهد" },
   { key: "clinic", name: "العيادة المدرسية", note: "الملف الصحي والزيارات" },
   { key: "ai_assistant", name: "المساعد الذكي", note: "اسأل عن بيانات مدرستك" },
+  { key: "quran", name: "حلقات التحفيظ", note: "الحلقات ومستويات الحفظ وسجل الحفظ والمراجعة والتسميع" },
 ];
 
 export const REQUIRES = {
@@ -49,16 +50,48 @@ export const REQUIRES = {
 const NAME = (k) => MODULES.find((m) => m.key === k)?.name || k;
 export const KEYS = MODULES.map((m) => m.key);
 
-export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, k !== "donations"]));
+// Off unless chosen: donations, and the Quran circles (on by default only for the Quran types).
+const OFF_BY_DEFAULT = new Set(["donations", "quran"]);
+export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, !OFF_BY_DEFAULT.has(k)]));
 
 export const modulesSchema = z.object(Object.fromEntries(KEYS.map((k) => [k, z.boolean()]))).partial();
 
+// Each section's switch is one row in tenant_modules (a missing row means the platform default), so a new section needs no
+// table change. The older one-column-per-section table is kept in step until the switch-over is confirmed, so going back
+// loses nothing; sections added after it exist only in tenant_modules.
+const MIRRORED = ["attendance", "timetable", "exams", "reports", "exam_papers", "homework", "announcements", "admissions", "analytics",
+  "messaging", "fees", "finance", "donations", "payroll", "transfers", "installments", "notifications", "sms", "surveys", "meetings",
+  "chat", "calendar", "behavior", "certificates", "online_exams", "lesson_plans", "staff_attendance", "substitutes", "transport",
+  "library", "inventory", "clinic", "ai_assistant"];
+
+export const togglesFrom = (rows) => ({ ...DEFAULTS, ...Object.fromEntries(KEYS.filter((k) => rows?.[k] !== undefined).map((k) => [k, Boolean(rows[k])])) });
+
 export async function getModules(q) {
-  const [row] = await q(`SELECT ${KEYS.join(", ")} FROM school_modules WHERE tenant_id = app_tenant()`);
-  if (row) return row;
-  await q("INSERT INTO school_modules (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
-  const [created] = await q(`SELECT ${KEYS.join(", ")} FROM school_modules WHERE tenant_id = app_tenant()`);
-  return created || { ...DEFAULTS };
+  const rows = await q("SELECT key, enabled FROM tenant_modules WHERE tenant_id = app_tenant()");
+  return togglesFrom(Object.fromEntries(rows.map((r) => [r.key, r.enabled])));
+}
+
+// Turning a section off also turns off the sections that cannot work without it.
+export function withRequirements(state) {
+  const out = { ...state };
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [child, parents] of Object.entries(REQUIRES)) {
+      if (out[child] && parents.some((p) => !out[p])) { out[child] = false; changed = true; }
+    }
+  }
+  return out;
+}
+
+async function save(q, state, keys) {
+  if (!keys.length) return;
+  await q(`INSERT INTO tenant_modules (tenant_id, key, enabled)
+           SELECT app_tenant(), k, v FROM unnest($1::text[], $2::boolean[]) AS x(k, v)
+           ON CONFLICT (tenant_id, key) DO UPDATE SET enabled = EXCLUDED.enabled WHERE tenant_modules.enabled IS DISTINCT FROM EXCLUDED.enabled`,
+    [keys, keys.map((k) => state[k])]);
+  await q(`INSERT INTO school_modules (tenant_id, ${MIRRORED.join(", ")}) VALUES (app_tenant(), ${MIRRORED.map((_, i) => `$${i + 1}`).join(", ")})
+           ON CONFLICT (tenant_id) DO UPDATE SET ${MIRRORED.map((k) => `${k} = EXCLUDED.${k}`).join(", ")}`, MIRRORED.map((k) => state[k]));
 }
 
 export async function updateModules(q, patch) {
@@ -73,11 +106,23 @@ export async function updateModules(q, patch) {
     if (off.length) throw badRequest(`«${NAME(child)}» يحتاج تشغيل: ${off.map(NAME).join("، ")}`);
   }
   const keys = KEYS.filter((k) => patch[k] !== undefined);
-  if (!keys.length) return getModules(q);
-  const [row] = await q(
-    `UPDATE school_modules SET ${keys.map((k, i) => `${k} = $${i + 1}`).join(", ")}
-      WHERE tenant_id = app_tenant() RETURNING ${KEYS.join(", ")}`, keys.map((k) => patch[k]));
-  return row;
+  if (!keys.length) return cur;
+  const next = { ...cur, ...Object.fromEntries(keys.map((k) => [k, patch[k]])) };
+  await save(q, next, keys);
+  return next;
+}
+
+// The sections a new institution starts with: its type's list, or the platform defaults when the type sets none.
+export function typeModules(defaultFeatures) {
+  const list = defaultFeatures?.length ? new Set(defaultFeatures) : null;
+  return withRequirements(Object.fromEntries(KEYS.map((k) => [k, list ? list.has(k) : DEFAULTS[k]])));
+}
+
+// Writes every section's switch at once (a new institution, or applying a type's sections on a type change).
+export async function setAllModules(q, state) {
+  const full = withRequirements({ ...DEFAULTS, ...state });
+  await save(q, full, KEYS);
+  return full;
 }
 
 export const effectiveModules = (toggles, entitled) => Object.fromEntries(KEYS.map((k) => [k, Boolean(toggles[k]) && entitled.has(k)]));

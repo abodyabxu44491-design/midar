@@ -16,7 +16,8 @@ async function start() {
   let body;
   try {
     const c = await api(`/api/public/verify/${encodeURIComponent(code)}`);
-    const inst = c.org_type === "institute", org = inst ? "المعهد" : "المدرسة";
+    const inst = c.org_type === "institute", uni = c.org_type === "university";
+    const org = c.org_word || (inst ? "المعهد" : uni ? "الجامعة" : "المدرسة");
     const st = c.status || (c.revoked ? "revoked" : "issued");
     const tr = String(c.title || "").startsWith("كشف درجات");
     const head = tr
@@ -29,10 +30,10 @@ async function start() {
     body = h("section", { class: `panel verify-card ${st === "issued" ? "valid" : "revoked"}` },
       h("div", { class: "verify-head" }, (st === "issued" ? icons.shield : icons.close)({ size: 34 }),
         h("div", {}, h("h1", {}, head[0]), h("p", {}, head[1]))),
-      ...(inst ? [row("المعهد", c.school), row("الاسم", c.student), row("الدورة", c.course), c.program ? row("البرنامج", c.program) : null,
+      ...(inst ? [row(org, c.school), row("الاسم", c.student), row("الدورة", c.course), c.program ? row("البرنامج", c.program) : null,
         c.hours != null ? row(c.kind === "attendance" ? "الساعات المحضورة" : "عدد الساعات", String(Number(c.hours))) : null,
         c.completed_on ? row("تاريخ الإكمال", fmtDate(c.completed_on)) : null]
-        : [row("المدرسة", c.school), row("الطالب", c.student), row("الفصل", c.class_name)]),
+        : [row(uni ? org : "المدرسة", c.school), row("الطالب", c.student), row(uni ? "البرنامج" : "الفصل", c.class_name)]),
       row(tr ? "المستند" : "الشهادة", c.title), c.result ? row("النتيجة", c.result) : null, c.percent !== null && !inst ? row("النسبة", `${c.percent}%`) : null,
       c.serial ? row(tr ? "رقم الكشف" : "رقم الشهادة", h("bdi", { dir: "ltr" }, c.serial)) : null,
       row("تاريخ الإصدار", fmtDate(c.issued_at)),

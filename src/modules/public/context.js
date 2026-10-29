@@ -18,7 +18,7 @@ export async function inSchool(req, actor, fn) {
   const r = schoolParam.safeParse(req.params.school);
   if (!r.success) throw notFound("المدرسة غير موجودة");
   return transaction({ tenantId: r.data, actor, ip: req.ip }, async (q) => {
-    const [tenant] = await q("SELECT id, name, status, currency, emergency_locked_at FROM tenants WHERE id = $1", [r.data]);
+    const [tenant] = await q("SELECT id, name, status, currency, emergency_locked_at, org_type FROM tenants WHERE id = $1", [r.data]);
     if (!tenant || tenant.status !== "active" || tenant.emergency_locked_at) throw notFound("المدرسة غير متاحة");
     if ((await accessContext(q)).access.locked) throw notFound("المدرسة غير متاحة");
     return fn(q, tenant);

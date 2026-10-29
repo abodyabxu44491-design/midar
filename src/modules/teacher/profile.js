@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { engineOf } from "../shared/org-types.service.js";
 import { Router } from "express";
 import { logoId } from "../shared/school-logo.service.js";
 import { accessSummary } from "../shared/subscription.service.js";
@@ -33,7 +34,7 @@ r.get("/me", handle(async (req, res) => {
     prefs: await teacherPrefs(q, req.user.teacher_id),
   }));
   res.json({ access: accessSummary(req), modules: req.modules, name: req.user.full_name, user_id: req.user.id, must_change_password: req.user.must_change_password,
-    school: { id: req.tenant.id, name: req.tenant.name, logo: school, org_type: req.tenant.org_type || "school" },
+    school: { id: req.tenant.id, name: req.tenant.name, logo: school, org_type: engineOf(req.tenant) },
     photo: photo?.has ? `/api/teacher/photo?v=${photo.v}` : null, ...data });
 }));
 

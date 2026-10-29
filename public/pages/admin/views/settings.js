@@ -20,6 +20,7 @@ import { dangerZone } from "../../shared/js/danger-zone.js";
 const SECTIONS = [
   { key: "identity", name: "هوية المدرسة", note: "الشعار واسم المدرسة وبيانات التواصل" },
   { key: "modules", name: "أقسام المنصة", note: "شغّل وأوقف أقسام اللوحة" },
+  { key: "terms", name: "المصطلحات", note: "الكلمات التي تظهر في اللوحة، مثل طالب ومعلم" },
   { key: "teachers", name: "المعلمون وطريقة العمل", note: "من يعتمد الدرجات، ومن يسجل الحضور، وما يظهر لكل معلم" },
   { key: "academic", name: "السجل الأكاديمي", note: "المراحل والصفوف والشعب والمواد والسنة والفصول والإجازات" },
   { key: "fields", name: "الحقول المخصصة", note: "أضف أي معلومة تحتاجها مدرستك" },
@@ -37,7 +38,7 @@ const SECTIONS = [
 ];
 
 export default function settings(ctx) {
-  const views = { identity: schoolIdentity, modules: modulesView, teachers: teacherControl, academic: () => academicRecord(), fields: customFieldsView, page: pageView, payment: paymentView,
+  const views = { identity: schoolIdentity, modules: modulesView, terms: termsView, teachers: teacherControl, academic: () => academicRecord(), fields: customFieldsView, page: pageView, payment: paymentView,
     messages: messagesView, users: usersView, passwords: passwordRequestsView, money: moneyView,
     access: accessView, data: dataView,
     subscription: mySubscription, sync: syncView,
@@ -63,6 +64,7 @@ const MODULE_GROUPS = [
     ["behavior", "السلوك والانضباط", "المخالفات والإنجازات بالنقاط لكل طالب"],
     ["lesson_plans", "تحضير الدروس", "خطط المعلمين الأسبوعية واعتمادها"],
     ["calendar", "التقويم المدرسي", "الاختبارات والإجازات والفعاليات في تقويم واحد"],
+    ["quran", "حلقات التحفيظ", "الحلقات ومستويات الحفظ وسجل الحفظ والمراجعة والتسميع وشهادات إتمام الأجزاء"],
   ]],
   ["الموظفون", [
     ["staff_attendance", "حضور الموظفين والإجازات", "حضور المعلمين والموظفين وطلبات الإجازة وخصم الغياب من الراتب"],
@@ -120,6 +122,21 @@ async function modulesView() {
         : switchBtn(mods[key], name, (next) => save({ [key]: next })))))));
   draw();
   return [msg, box];
+}
+
+// The words the panel shows. The institution type sets them; the school may change any of them for itself.
+async function termsView() {
+  const d = await api(`${A}/settings/terms`);
+  const ins = Object.fromEntries(d.keys.map((k) => [k.key, input({ value: d.own[k.key] || "", placeholder: d.type.terms[k.key] || k.name })]));
+  return [panel("المصطلحات", null,
+    sub(`الكلمات الافتراضية من نوع مؤسستك (${d.type.name}). اكتب كلمة لتستبدلها، أو اترك الخانة فارغة لتبقى الكلمة الظاهرة في الخانة. تُطبَّق على الشاشات الرئيسية بعد تحديث الصفحة، وتتوسع لبقية الشاشات تدريجيًا.`),
+    h("div", { class: "form-grid" }, d.keys.map((k) => field(k.name, ins[k.key]))),
+    btn("حفظ المصطلحات", async () => {
+      try {
+        await api(`${A}/settings/terms`, { terms: Object.fromEntries(Object.entries(ins).map(([k, el]) => [k, el.value.trim()])) }, "PUT");
+        toast("حُفظت المصطلحات. حدّث الصفحة لتظهر.");
+      } catch (e) { toast(e.message, true); }
+    }))];
 }
 
 const FIELD_TYPES = { text: "نص", number: "رقم", date: "تاريخ", select: "قائمة", boolean: "نعم / لا" };

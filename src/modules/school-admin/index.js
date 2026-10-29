@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { isInstitute } from "../shared/org-types.service.js";
 import { Router } from "express";
 import { forbidden } from "../../core/http/errors.js";
 import { requireStaff, requireModule } from "../../core/auth/guards.js";
@@ -42,6 +43,8 @@ import admissions from "./admissions.js";
 import communication from "./communication.js";
 import chatAdmin from "./chat.js";
 import { behaviorRouter } from "../shared/behavior.routes.js";
+import { quranRouter } from "../shared/quran.routes.js";
+import { universityRouter } from "../shared/university.routes.js";
 import certificates from "./certificates.js";
 import { staff as staffAffairs, calendar } from "./staff-affairs.js";
 import services from "./services.js";
@@ -61,10 +64,11 @@ r.use((req, res, next) => (req.user.admin_scope === "school" && FULL_ONLY.some((
   ? next(forbidden("هذا القسم للإدارة العامة. قدّم ما تحتاجه من «الطلبات المالية».")) : next()));
 // Institute staff other than the director reach only the institute section (plus their own account).
 const STAFF_OPEN = ["/me", "/password", "/institute", "/notifications"];
-r.use((req, res, next) => (req.tenant.org_type === "institute" && req.user.staff_role && req.user.staff_role !== "director"
+r.use((req, res, next) => (isInstitute(req.tenant) && req.user.staff_role && req.user.staff_role !== "director"
   && !STAFF_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`)) ? next(forbidden("هذا القسم خارج صلاحيات دورك في المعهد.")) : next()));
 r.post("/password", changePassword);
 r.use("/institute", instituteRouter());
+r.use("/university", universityRouter("admin"));
 r.use(dashboard);
 r.use("/structure", structure);
 r.use("/teachers", teachers);
@@ -93,6 +97,7 @@ r.use("/reports", requireModule("exams", "reports"), reports);
 r.use("/messaging", requireModule("messaging"), messaging);
 r.use("/homework", requireModule("homework"), homework);
 r.use("/behavior", requireModule("behavior"), behaviorRouter("admin"));
+r.use("/quran", requireModule("quran"), quranRouter("admin"));
 r.use("/certificates", requireModule("certificates"), certificates);
 r.use("/staff-affairs", staffAffairs);
 r.use("/calendar", requireModule("calendar"), calendar);

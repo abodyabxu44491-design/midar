@@ -9,6 +9,8 @@ import { mount } from "./dom.js";
 import { certificateSheet, printCertificateSheet } from "./cert-render.js";
 import { eventList } from "./calendar-view.js";
 import { fmtDate, fmtDateTime } from "./format.js";
+import { progressBlock } from "./quran-board.js";
+import { uniStudentView } from "./university-ui.js";
 
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 
@@ -53,6 +55,22 @@ export function featureSections(d, actions = {}) {
       void reopen;
       return [list, box];
     } });
+  }
+  if (f.university) {
+    const tr = f.university.transcript;
+    out.push({ key: "transcript", name: "السجل الأكاديمي", note: tr.cgpa === null ? "" : `المعدل ${tr.cgpa.toFixed(2)}`,
+      view: () => uniStudentView(f.university, actions.api && !d.admin ? (path, body) => actions.api(path, body) : null) });
+  }
+  if (f.quran) {
+    const qd = f.quran;
+    out.push({ key: "quran", name: "الحفظ", note: `${qd.progress.percent}%`, view: () => [
+      progressBlock(qd.progress, qd.total, qd.membership),
+      qd.achievements.length ? section("الإنجازات", qd.achievements.map((a) => line(h("b", {}, a.title), h("small", { class: "muted" }, fmtDate(a.achieved_on))))) : null,
+      section("آخر ما سُجّل", qd.records.length ? qd.records.map((r) => line(
+        h("div", {}, h("b", {}, r.kind_name), r.passage ? ` ${r.passage}` : "", r.grade_name ? [" ", badge(r.grade_name, r.grade === "repeat" || r.grade === "weak" ? "red" : "")] : null,
+          sub([r.ayat ? `${r.ayat} آية` : null, r.mistakes ? `${r.mistakes} أخطاء` : null, r.teacher, r.notes].filter(Boolean).join(" — "))),
+        h("small", { class: "muted" }, fmtDate(r.on_date)))) : empty("لا يوجد سجل بعد.")),
+    ] });
   }
   if (f.certificates?.length) {
     out.push({ key: "certificates", name: "الشهادات", note: `${f.certificates.length}`, view: () => {

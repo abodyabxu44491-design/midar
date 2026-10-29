@@ -6,7 +6,8 @@ import { h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { icons } from "../shared/js/icons.js";
 
-const ORG_TYPES = [["private", "مدرسة أهلية"], ["public", "مدرسة حكومية"], ["international", "مدرسة دولية"], ["institute", "معهد تدريبي"], ["other", "أخرى"]];
+// The institution types on offer come from the platform (the owner manages them); this list is only a fallback.
+const ORG_TYPES = [["private_school", "مدرسة أهلية"], ["public_school", "مدرسة حكومية"], ["international_school", "مدرسة دولية"], ["training_institute", "معهد تدريبي"], ["other", "نوع آخر"]];
 const STAGES = [["kg", "رياض الأطفال"], ["primary", "المرحلة الابتدائية"], ["middle", "المرحلة المتوسطة"], ["secondary", "المرحلة الثانوية"]];
 const CONTACT = [["whatsapp", "واتساب"], ["call", "اتصال"], ["email", "البريد الإلكتروني"]];
 const PHONE_RE = /^\+?[0-9 ]{6,20}$/, EMAIL_RE = /^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$/;
@@ -41,11 +42,12 @@ export function registerDialog(site, { kind = "trial", plan = null, cycle = "yea
     ? [...(site.trial_without_plan || !trialPlans.length ? [{ id: "", name: "تجربة المنصة", note: "بدون تحديد باقة الآن" }] : []), ...trialPlans.map((p) => ({ id: String(p.id), name: p.name, note: p.tagline || "" }))]
     : plans.map((p) => ({ id: String(p.id), name: p.name, note: p.tagline || "" }));
   let chosen = plan ? String(plan.id) : choices[0]?.id ?? "";
+  const orgTypes = site.org_types?.length ? site.org_types.map((t) => [t.key, t.name]) : ORG_TYPES;
 
   const c = {
     school_name: control("input", { autocomplete: "organization", placeholder: "كما في الترخيص" }),
     short_name: control("input", { placeholder: "يظهر في التطبيق" }),
-    org_type: control("select", { options: ORG_TYPES }),
+    org_type: control("select", { options: orgTypes }),
     country: control("input", { autocomplete: "country-name" }),
     city: control("input", { autocomplete: "address-level2" }),
     region: control("input", { autocomplete: "address-level1" }),
@@ -120,7 +122,7 @@ export function registerDialog(site, { kind = "trial", plan = null, cycle = "yea
         }))) : null,
         group("ملخص الطلب", h("dl", { class: "rg-sum wide" },
           sum("المدرسة", v("school_name")), sum("الموقع", [v("city"), v("country")].filter(Boolean).join("، ")),
-          sum("نوع المؤسسة", ORG_TYPES.find(([k]) => k === c.org_type.value)?.[1]),
+          sum("نوع المؤسسة", orgTypes.find(([k]) => k === c.org_type.value)?.[1]),
           sum("المراحل", STAGES.filter(([k]) => stages.has(k)).map(([, t]) => t).join("، ")),
           sum("عدد الطلاب", v("students_count")), sum("المدير", managerName()), sum("الجوال", v("phone"), true), sum("البريد", v("email"), true))),
         group("", F.note),

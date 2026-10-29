@@ -84,7 +84,10 @@ test("المعلم يبدأ محادثة مع ولي أمر طالب من فصل
   assert.equal((await pub("/student/chat", p2)).data.teachers[0].unread, 1);
 
   assert.equal((await S.admin.put("/api/admin/settings/modules", { chat: false })).status, 200);
-  assert.equal((await pub("/student/chat", p2)).status, 404);
+  const off = await pub("/student/chat", p2);
+  assert.equal(off.status, 200, "صفحة الطالب لا تتلقى خطأ، بل «لا مراسلة»");
+  assert.equal(off.data, null);
+  assert.equal((await pub("/student/chat/thread", { ...p2, teacher_id: S.otherId })).status, 404, "المحادثات نفسها مغلقة");
   assert.equal((await S.teacher.get("/api/teacher/chat")).status, 404, "القسم الموقوف غير متاح للمعلم");
   await S.admin.put("/api/admin/settings/modules", { chat: true });
   assert.equal((await pub("/student/chat", p2)).status, 200);

@@ -35,7 +35,7 @@ const big = (title, body, actions = []) => { const d = dialog(title, body, actio
 export async function dashboard({ goTo }) {
   const d = await api(`${I()}/dashboard`);
   return [
-    h("section", { class: "in-hero" }, h("div", {}, h("h2", {}, `مرحبًا بك في لوحة المعهد`), sub(`${fmtDate(today())} · ${d.sessions_today} ${T("session")} اليوم`))),
+    h("section", { class: "in-hero" }, h("div", {}, h("h2", {}, `مرحبًا بك في لوحة ${T("org")}`), sub(`${fmtDate(today())} · ${d.sessions_today} ${T("session")} اليوم`))),
     kpiGrid(
       kpiCard({ icon: "users", label: T("trainees"), value: num(d.trainees), note: `النشطون ${num(d.active_trainees)}`, onClick: () => goTo("trainees") }),
       kpiCard({ icon: "clipboard", tone: "violet", label: `${T("courses")} الجارية`, value: num(d.running), note: `القادمة ${num(d.upcoming)} · المكتملة ${num(d.completed)}`, onClick: () => goTo("courses") }),
@@ -100,7 +100,7 @@ function traineeForm(s, onSaved) {
     h("h4", { class: "in-h" }, "المؤهل والتواصل الإضافي"),
     fields([[mark("qualification", "المؤهل العلمي السابق"), f.qualification], [mark("prior_specialty", "التخصص السابق"), f.prior_specialty], ["المنطقة", f.area],
       ["جهة اتصال للطوارئ", f.guardian_name], ["جوال الطوارئ", f.guardian_phone]]),
-    sub("الحقول المعلّمة بـ * مطلوبة حسب إعدادات المعهد. لا تجمع إلا ما تحتاجه فعلًا.")), [
+    sub(`الحقول المعلّمة بـ * مطلوبة حسب إعدادات ${T("org")}. لا تجمع إلا ما تحتاجه فعلًا.`)), [
     btn("حفظ", async () => {
       const b = collect(f);
       try {
@@ -402,8 +402,8 @@ async function courseForm(c, progs, onSaved) {
     schedule: input({ value: c?.schedule || "", placeholder: "مثل: الأحد والثلاثاء 4–7 مساءً" }), fee: input({ type: "number", min: 0, value: c?.fee ?? 0, inputmode: "decimal" }),
     mode: select(Object.entries(inst.meta.labels.modes), { value: c?.mode || "onsite" }), status: select(Object.entries(inst.meta.labels.course_status), { value: c?.status || "planned" }),
     grading: select([["score", "درجات رقمية موزونة"], ["pass_fail", "اجتياز / عدم اجتياز"]], { value: c?.grading || "score" }),
-    pass_mark: input({ type: "number", min: 0, max: 100, value: c?.pass_mark ?? "", placeholder: `افتراضي المعهد ${S.pass_mark}%` }),
-    min_attendance: input({ type: "number", min: 0, max: 100, value: c?.min_attendance ?? "", placeholder: `افتراضي المعهد ${S.min_attendance}%` }),
+    pass_mark: input({ type: "number", min: 0, max: 100, value: c?.pass_mark ?? "", placeholder: `افتراضي ${T("org")} ${S.pass_mark}%` }),
+    min_attendance: input({ type: "number", min: 0, max: 100, value: c?.min_attendance ?? "", placeholder: `افتراضي ${T("org")} ${S.min_attendance}%` }),
     reason: input({ placeholder: "سبب تغيير المدرب أو الحالة (يُحفظ في السجل)" }),
   };
   const [desc, descF] = textareaField("الوصف", c?.description, 2000);
@@ -745,15 +745,15 @@ function staffForm(refresh) {
 export async function settings({ refresh }) {
   const S = inst.meta.settings;
   const termInputs = Object.fromEntries(Object.entries(S.terms).map(([k, v]) => [k, input({ value: v })]));
-  const TL = { trainee: "المفرد: متدرب", trainees: "الجمع: المتدربون", course: "المفرد: دورة", courses: "الجمع: الدورات", program: "المفرد: برنامج", programs: "الجمع: البرامج",
+  const TL = { org: "اسم المؤسسة في اللوحة: المعهد أو المركز…", trainee: "المفرد: متدرب", trainees: "الجمع: المتدربون", course: "المفرد: دورة", courses: "الجمع: الدورات", program: "المفرد: برنامج", programs: "الجمع: البرامج",
     trainer: "المفرد: مدرب", trainers: "الجمع: المدربون", group: "المفرد: مجموعة", groups: "الجمع: المجموعات", session: "المفرد: جلسة", sessions: "الجمع: الجلسات" };
   const req = Object.entries(inst.meta.labels.trainee_fields).map(([k, label]) => { const cb = h("input", { type: "checkbox", value: k, checked: S.required_fields.includes(k) }); return { k, cb, el: h("label", { class: "chk" }, cb, label) }; });
   const f = { min_attendance: input({ type: "number", min: 0, max: 100, value: S.min_attendance }), pass_mark: input({ type: "number", min: 0, max: 100, value: S.pass_mark }),
     late_counts_as: select([["1", "يُحتسب حضورًا كاملًا"], ["0.5", "نصف حضور"], ["0", "لا يُحتسب"]], { value: String(S.late_counts_as) }),
-    registration_fee: input({ type: "number", min: 0, value: S.registration_fee }), signer_title: input({ value: S.signer_title || "", placeholder: "مدير المعهد" }),
+    registration_fee: input({ type: "number", min: 0, value: S.registration_fee }), signer_title: input({ value: S.signer_title || "", placeholder: `مدير ${T("org")}` }),
     signer_name: input({ value: S.signer_name || "" }), certificate_note: input({ value: S.certificate_note || "" }) };
   return [
-    panel("المصطلحات", null, sub("غيّر التسميات لتناسب معهدك: «طالب» بدل «متدرب»، أو «مقرر» بدل «دورة»…"),
+    panel("المصطلحات", null, sub(`غيّر التسميات لتناسب ${T("org")}: «طالب» بدل «${T("trainee")}»، أو «مقرر» بدل «${T("course")}»…`),
       h("div", { class: "form-grid" }, Object.entries(termInputs).map(([k, el]) => field(TL[k] || k, el)))),
     panel(`بيانات ${T("trainee")} المطلوبة`, null, sub("اختر ما يلزم فقط؛ الباقي اختياري. لا تجمع بيانات لا تحتاجها."), h("div", { class: "in-checks" }, req.map((x) => x.el))),
     panel("قواعد الإكمال والرسوم", null, fields([["الحد الأدنى للحضور %", f.min_attendance, `افتراضي لكل ${T("course")}، ويمكن تغييره في كل ${T("course")}`],

@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { setTerms, T } from "../shared/js/terms.js";
 import { $, mount, h } from "../shared/js/dom.js";
 import { mySubscription, accessBanner, lockScreen } from "./views/my-subscription.js";
 import { api } from "../shared/js/api.js";
@@ -34,6 +35,7 @@ const papers = lazy(() => import("./views/papers.js"), new URL("./views/papers.j
 const communication = lazy(() => import("./views/communication.js"), new URL("./views/communication.js", import.meta.url).pathname);
 const staffAffairs = lazy(() => import("./views/staff-affairs.js"), new URL("./views/staff-affairs.js", import.meta.url).pathname);
 const behavior = lazy(() => import("./views/behavior.js"), new URL("./views/behavior.js", import.meta.url).pathname);
+const quran = lazy(() => import("./views/quran.js"), new URL("./views/quran.js", import.meta.url).pathname);
 const calendar = lazy(() => import("./views/calendar.js"), new URL("./views/calendar.js", import.meta.url).pathname);
 const certificates = lazy(() => import("./views/certificates.js"), new URL("./views/certificates.js", import.meta.url).pathname);
 const services = lazy(() => import("./views/services.js"), new URL("./views/services.js", import.meta.url).pathname);
@@ -52,7 +54,9 @@ export async function startAdmin() {
   }
   if (me.access?.locked) return lockScreen(me, app);
   setCurrency(me.school.currency);
+  setTerms(me.terms);
   if (me.org_type === "institute") return startInstitute(me);
+  if (me.org_type === "university") return startUniversity(me);
   const on = (key) => me.modules?.[key] !== false;
   if (me.setup_completed === false) {
     mount(app,
@@ -70,16 +74,16 @@ export async function startAdmin() {
     announcements: "announcements", papers: "exam_papers",
     communication: ["notifications", "messaging", "sms", "surveys", "meetings", "chat"], staff: ["staff_attendance", "substitutes", "lesson_plans"],
     behavior: "behavior", calendar: "calendar", certificates: "certificates",
-    services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant", deposits: "finance",
+    services: ["transport", "library", "inventory", "clinic"], ai: "ai_assistant", deposits: "finance", quran: "quran",
   };
   const schoolScope = me.admin_scope === "school";
   const FULL_ONLY = new Set(["finance", "ledger", "deposits", "subscription"]);
   const enabled = (m) => [].concat(m).some((k) => me.modules?.[k]);
   const allTabs = [
     ["dashboard", "الرئيسية"], ["ai", "المساعد الذكي"],
-    [null, "الطلاب والأسر"], ["students", "الطلاب"], ["parents", "أولياء الأمور"], ["admissions", "طلبات التسجيل"],
+    [null, `${T("students")} والأسر`], ["students", T("students")], ["parents", T("guardians")], ["admissions", "طلبات التسجيل"],
     ["attendance", "الحضور"], ["behavior", "السلوك"],
-    [null, "التعليم"], ["teachers", "المعلمون"], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
+    [null, "التعليم"], ["quran", "حلقات التحفيظ"], ["teachers", T("teachers")], ["timetable", "الجدول"], ["distribution", "توزيع المعلمين"],
     ["exams", "الدرجات"], ["papers", "أوراق الاختبارات"], ["reports", "كشف الدرجات"], ["certificates", "الشهادات"], ["sheets", "أوراق للطباعة"],
     [null, "المالية والموظفون"], ["finance", "الرسوم"], ["ledger", "المالية"], ["money-requests", "الطلبات المالية"], ["deposits", "تأمين الكتب"], ["staff", "شؤون الموظفين"],
     [null, "التواصل"], ["announcements", "التعاميم"], ["communication", "التواصل"],
@@ -93,8 +97,9 @@ export async function startAdmin() {
   const ctx = { me, sections: allTabs.filter(([key]) => key && key !== "dashboard") };
   const t = tabs(allTabs,
     { dashboard, setup: setupWizard, students, parents, teachers, academic, attendance, distribution, timetable, exams, papers, reports, sheets, analytics, finance, ledger, admissions, announcements, subscription: mySubscription, settings, audit,
-      communication, staff: staffAffairs, behavior, calendar, certificates, services, ai: aiAssistant, "money-requests": financeRequests, deposits: bookDeposits }, ctx,
-    { primary: schoolScope ? ["dashboard", "students", "attendance", "money-requests"] : ["dashboard", "students", "attendance", "ledger", "finance"] });
+      communication, staff: staffAffairs, behavior, quran, calendar, certificates, services, ai: aiAssistant, "money-requests": financeRequests, deposits: bookDeposits }, ctx,
+    { primary: [...(me.modules?.quran ? ["dashboard", "quran"] : ["dashboard"]),
+      ...(schoolScope ? ["students", "attendance", "money-requests"] : ["students", "attendance", "ledger", "finance"])] });
   ctx.goTo = (key) => {
     if (key === "finance" && me.modules?.finance) {
       try { sessionStorage.setItem("midar_finance_part", "fees"); } catch { /* ignore */ }
@@ -116,6 +121,28 @@ export async function startAdmin() {
   t.start("dashboard");
 }
 
+// Universities: the registrar's office (structure, terms and sections, admission and registration, grades and records).
+async function startUniversity(me) {
+  const V = await import("./views/university.js");
+  await V.loadMeta();
+  const list = [
+    ["dashboard", "الرئيسية"],
+    [null, "الشؤون الأكاديمية"], ["ustructure", "الهيكل الأكاديمي"], ["uterms", "الفصول والشعب"], ["uinstructors", T("teachers")],
+    [null, "القبول والتسجيل"], ["ustudents", T("students")], me.modules?.fees ? ["utuition", "الرسوم"] : null, ["ureports", "التقارير"],
+    [null, "الإدارة"], ["usettings", "اللائحة والتقديرات"], me.modules?.announcements ? ["announcements", "التعاميم"] : null,
+    ["subscription", "اشتراكي"], ["audit", "السجل"],
+  ].filter(Boolean);
+  const ctx = { me };
+  const t = tabs(list, { dashboard: V.dashboard, ustructure: V.structure, uterms: V.terms, uinstructors: V.instructors, ustudents: V.students,
+    utuition: V.tuition, ureports: V.reports, usettings: V.settings, announcements, subscription: mySubscription, audit }, ctx, { primary: ["dashboard", "ustudents", "uterms", "ustructure"] });
+  ctx.goTo = (key) => t.show(key);
+  const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `القبول والتسجيل — ${me.name}`,
+    onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } });
+  attachBell(bar, "/api/admin", () => false);
+  mount(app, bar, h("main", {}, accessBanner(me.access, ctx.goTo), t.el), footer());
+  t.start("dashboard");
+}
+
 // Institutes get their own sections; school sections stay hidden (and closed on the server for non-director roles).
 async function startInstitute(me) {
   const [{ loadMeta, inst, T }, V] = await Promise.all([import("../shared/js/institute-ui.js"), import("./views/institute.js")]);
@@ -127,17 +154,18 @@ async function startInstitute(me) {
     ["dashboard", "الرئيسية"],
     [null, "التدريب"], ["trainees", T("trainees")], ["courses", T("courses")], ["programs", T("programs")], ["sessions", "الجدول والحضور"],
     can("catalog") || director ? ["trainers", T("trainers")] : null,
+    director && me.modules?.quran ? ["quran", "حلقات التحفيظ"] : null,
     [null, "النتائج والشهادات"], can("reports") ? ["ireports", "التقارير"] : null, ["icerts", "الشهادات"],
     [null, "المالية"], can("finance") ? ["ifees", "الرسوم والمدفوعات"] : null, director && me.modules?.finance ? ["ledger", "المالية"] : null,
-    [null, "الإدارة"], director ? ["istaff", "الموظفون والصلاحيات"] : null, director ? ["isettings", "إعدادات المعهد"] : null,
+    [null, "الإدارة"], director ? ["istaff", "الموظفون والصلاحيات"] : null, director ? ["isettings", `إعدادات ${T("org")}`] : null,
     director ? ["subscription", "اشتراكي"] : null, director ? ["audit", "السجل"] : null,
   ].filter(Boolean);
   const ctx = { me };
   const t = tabs(list, { dashboard: V.dashboard, trainees: V.trainees, courses: V.courses, programs: V.programs, sessions: V.sessions, trainers: V.trainers,
-    ireports: V.reports, icerts: V.certificates, ifees: V.fees, ledger, istaff: V.staff, isettings: V.settings, subscription: mySubscription, audit }, ctx,
+    ireports: V.reports, icerts: V.certificates, ifees: V.fees, ledger, quran, istaff: V.staff, isettings: V.settings, subscription: mySubscription, audit }, ctx,
   { primary: ["dashboard", "trainees", "courses", "sessions", can("finance") ? "ifees" : "icerts"] });
   ctx.goTo = (key) => t.show(key);
-  const roleName = meta.labels.staff_roles[meta.staff_role] || "إدارة المعهد";
+  const roleName = meta.labels.staff_roles[meta.staff_role] || `إدارة ${T("org")}`;
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `${roleName} — ${me.name}`,
     onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } });
   attachBell(bar, "/api/admin", () => false);

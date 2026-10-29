@@ -11,14 +11,15 @@ import { fmtDate, fmtDateTime } from "/shared/js/format.js";
 import { icons } from "/shared/js/icons.js";
 import { waLink } from "/shared/js/whatsapp.js";
 import { SUB_STATUS, KIND, limitText } from "./sub-form.js";
+import { loadOrgTypes, typeOf, typeOptions } from "./org-types.js";
 
 const F = "/api/owner/files";
 const STATUS = { active: ["فعّال", ""], suspended: ["موقوف", "red"], archived: ["مؤرشف", "gray"] };
 const DELIV = { sent: ["تم التسليم", ""], pending: ["بانتظار التأكيد", "amber"], failed: ["فشل الإرسال", "red"] };
 const STAGE_TONE = { received: "amber", review: "amber", approved: "violet", account: "violet", delivered: "", first_login: "" };
-const ORG = { private: "أهلية", public: "حكومية", international: "دولية", institute: "معهد تعليمي", other: "أخرى" };
 const STAGE_NAMES = { kg: "رياض الأطفال", primary: "الابتدائية", middle: "المتوسطة", secondary: "الثانوية" };
-const filters = { q: "", stage: "", delivery: "", status: "", sort: "newest" };
+const filters = { q: "", stage: "", delivery: "", status: "", org_type: "", sort: "newest" };
+export const filterByType = (key) => { filters.org_type = key; };
 
 let latestRefresh = null, lastHash = "";
 window.addEventListener("hashchange", () => {
@@ -41,7 +42,7 @@ export default async function schools({ refresh, go }) {
 
 async function listPage(root, refresh, go) {
   const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v));
-  const d = await api(`${F}?${qs}`);
+  const [d, types] = await Promise.all([api(`${F}?${qs}`), loadOrgTypes()]);
   const c = d.counts;
   const chosen = new Set();
   const q = input({ type: "search", placeholder: "ابحث باسم المدرسة أو رمزها أو جوال المسؤول", value: filters.q });
@@ -63,7 +64,7 @@ async function listPage(root, refresh, go) {
         h("span", { class: "sub" }, [x.contact_name, x.phone].filter(Boolean).join(" · ") || "—")),
       h("div", { class: "sf-stage" }, badge(Object.fromEntries(d.stages)[x.stage], STAGE_TONE[x.stage]),
         h("div", { class: "sf-steps", "aria-hidden": "true" }, d.stages.map((_, i) => h("i", { class: i <= step ? "on" : "" })))),
-      h("div", { class: "sf-meta" }, badge(...(STATUS[x.status] || [x.status, "gray"])),
+      h("div", { class: "sf-meta" }, badge(x.org_type_name, "violet"), badge(...(STATUS[x.status] || [x.status, "gray"])),
         x.delivery ? badge(...DELIV[x.delivery]) : x.activated_at ? null : badge("لم تُسلَّم البيانات", "gray")),
       h("div", { class: "sf-dates" }, h("small", {}, `سُجلت ${fmtDate(x.created_at)}`), h("small", {}, `تحديث ${fmtDate(x.updated_at)}`)),
       h("span", { class: "go", "aria-hidden": "true" }, "‹"));
@@ -79,6 +80,7 @@ async function listPage(root, refresh, go) {
     panel(`ملفات المدارس (${d.items.length}${d.items.length >= 1000 ? "+" : ""})`, h("div", { class: "row", style: "flex:none;gap:6px" },
       btn([icons.download ? icons.download({ size: 15 }) : null, "تصدير CSV"], exportCsv, "ghost sm")),
       h("div", { class: "sf-filters" }, q,
+        sel("org_type", [["", "كل الأنواع"], ...types.types.map((x) => [x.key, x.name])]),
         sel("stage", [["", "كل المراحل"], ...d.stages]),
         sel("delivery", [["", "كل حالات التسليم"], ["none", "لم تُسلَّم"], ["pending", "بانتظار التأكيد"], ["sent", "تم التسليم"], ["failed", "فشل الإرسال"]]),
         sel("status", [["", "كل الحسابات"], ["active", "فعّال"], ["suspended", "موقوف"], ["archived", "مؤرشف"]]),
@@ -99,7 +101,7 @@ async function listPage(root, refresh, go) {
 // ---------- School file ----------
 async function filePage(id, root, back, openHandover = false) {
   mount(root, skeleton(8));
-  const [d, ov] = await Promise.all([api(`${F}/${id}`), api(`/api/owner/tenants/${id}/overview`).catch(() => null)]);
+  const [d, ov, types] = await Promise.all([api(`${F}/${id}`), api(`/api/owner/tenants/${id}/overview`).catch(() => null), loadOrgTypes().catch(() => null)]);
   const s = d.school, p = d.profile;
   const reload = () => filePage(id, root, back);
   const tabs = [["info", "المعلومات الأساسية"], ["activation", "الاعتماد والتفعيل"], ["deliveries", "سجل الإرسال"], ["notes", "الملاحظات والتعديلات"], ["account", "الاشتراك والروابط"]];
@@ -118,7 +120,7 @@ async function filePage(id, root, back, openHandover = false) {
     act("grid", "المزيد", () => moreMenu(d, reload)));
 
   const VIEWS = {
-    info: () => infoTab(d),
+    info: () => infoTab(d, types, reload),
     activation: () => activationTab(d, reload),
     deliveries: () => deliveriesTab(d, reload),
     notes: () => notesTab(d, reload),
@@ -150,10 +152,11 @@ const NEXT = {
 };
 
 const dl = (rows) => h("dl", { class: "file-dl" }, rows.filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
-function infoTab(d) {
+function infoTab(d, types, reload) {
   const p = d.profile, m = p.manager || {};
   return [
-    panel("بيانات المدرسة", null, dl([["اسم المدرسة", d.school.name], ["الاسم المختصر", p.short_name], ["نوع المؤسسة", ORG[p.org_type] || p.org_type],
+    panel("بيانات المدرسة", types ? btn("تغيير النوع", () => changeType(d, types, reload), "ghost sm") : null, dl([["اسم المدرسة", d.school.name], ["الاسم المختصر", p.short_name], ["نوع المؤسسة", d.school.org_type_name],
+      ["النوع المطلوب في الطلب", p.org_type && types && typeOf(types, p.org_type)?.key !== d.school.org_type_key ? typeOf(types, p.org_type)?.name || p.org_type : null],
       ["المراحل", (p.stages || []).map((x) => STAGE_NAMES[x] || x).join("، ")], ["عدد الطلاب", p.students_count], ["عدد الفصول", p.classes_count],
       ["العام الدراسي", p.academic_year], ["رقم الترخيص", p.license_no], ["الموقع الإلكتروني", p.website]])),
     panel("المسؤول والتواصل", null, dl([["المسؤول", p.contact_name || [m.first, m.second, m.third, m.family].filter(Boolean).join(" ")], ["المسمى", m.title],
@@ -164,6 +167,54 @@ function infoTab(d) {
     p.note ? panel("ملاحظة المدرسة عند التسجيل", null, h("p", {}, p.note)) : null,
     !Object.keys(p).length ? notice("هذه المدرسة أُنشئت يدويًا بدون طلب تسجيل. أضف بياناتها من «تعديل المعلومات».", "") : null,
   ];
+}
+
+// Changing an institution's type: the impact is shown first (from the server), and nothing is deleted.
+function changeType(d, types, reload) {
+  const s = d.school;
+  const to = select(typeOptions(types), { value: s.org_type_key });
+  const reason = input({ placeholder: "مثال: المدرسة حكومية وسُجلت أهلية بالخطأ" });
+  const applySections = h("input", { type: "checkbox" });
+  const confirmIn = input({ class: "ltr", placeholder: s.id });
+  const impactBox = h("div");
+  let impact = null, seq = 0;
+  const list = (title, items) => (items?.length ? h("div", { class: "ot-imp" }, h("b", {}, title), h("ul", {}, items.map((x) => h("li", {}, x)))) : null);
+  const preview = async () => {
+    const n = ++seq;
+    mount(impactBox, skeleton(2));
+    try {
+      const r = await api(`/api/owner/tenants/${s.id}/org-type/preview?to=${encodeURIComponent(to.value)}&apply_sections=${applySections.checked ? 1 : 0}`);
+      if (n !== seq) return;
+      impact = r;
+      mount(impactBox, r.same ? notice("هذا هو نوعها الحالي.", "") : [
+        r.blockers.length ? notice(r.blockers.join("، "), "err") : null,
+        notice(r.engine_change ? `انتقال من ${r.from.engine_name} إلى ${r.to.engine_name}. لا يُحذف أي شيء.` : "التغيير داخل نفس طريقة التنظيم: لا تتغير البيانات ولا الشاشات إلا المصطلحات.", r.engine_change ? "warn" : ""),
+        list("ملاحظات", r.notes),
+        list("بيانات تُخفى وتبقى محفوظة (تعود إذا أُعيد النوع)", r.hidden.map((x) => `${x.label}: ${x.count}`)),
+        list("بيانات سابقة تعود للظهور", r.returning.map((x) => `${x.label}: ${x.count}`)),
+        list("المصطلحات التي تتغير", r.terms.map((x) => `${x.from} ← ${x.to}`)),
+        r.sections ? list("أقسام تُشغَّل", r.sections.turn_on) : null,
+        r.sections ? list("أقسام تُوقف (بياناتها تبقى)", r.sections.turn_off) : null,
+        r.sections && !r.sections.turn_on.length && !r.sections.turn_off.length ? sub("لا تتغير الأقسام.") : null,
+        r.engine_change ? field(`للتأكيد اكتب رمز المؤسسة: ${s.id}`, confirmIn) : null]);
+    } catch (e) { if (n === seq) mount(impactBox, notice(e.message, "err")); }
+  };
+  to.addEventListener("change", preview);
+  applySections.addEventListener("change", preview);
+  const dd = dialog(`نوع «${s.name}»`, h("div", {},
+    sub(`النوع الحالي: ${s.org_type_name}. راجع الأثر أدناه قبل الحفظ. يُسجَّل التغيير في ملف المؤسسة.`),
+    field("النوع الجديد", to),
+    h("label", { class: "row", style: "justify-content:flex-start;gap:8px;margin:6px 0" }, applySections, "تطبيق الأقسام الافتراضية للنوع الجديد (وإلا تبقى أقسامها كما هي)"),
+    impactBox, field("السبب (اختياري)", reason)),
+  [btn("تطبيق التغيير", async () => {
+    try {
+      const r = await api(`/api/owner/tenants/${s.id}/org-type`, { org_type_key: to.value, reason: reason.value.trim() || undefined,
+        apply_sections: applySections.checked, confirm: impact?.engine_change ? confirmIn.value.trim() : undefined }, "PATCH");
+      dd.close(); toast(r.changed ? "تغيّر نوع المؤسسة" : "لم يتغير شيء"); reload();
+    } catch (e) { toast(e.message, true); }
+  })]);
+  dd.classList.add("xb-wide");
+  preview();
 }
 
 export const ACT_STATE = {

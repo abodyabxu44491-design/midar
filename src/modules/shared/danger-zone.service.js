@@ -49,7 +49,7 @@ export const CATEGORIES = {
 };
 const SETTINGS_TABLES = ["school_public_settings", "exam_paper_settings", "timetable_settings", "school_messages"];
 const REINIT = ["students", "grades", "homework", "announcements", "alerts", "admissions"];
-const KEEP_ON_RESET = ["school_modules"];
+const KEEP_ON_RESET = ["school_modules", "tenant_modules", "tenant_terms", "uni_settings"];
 
 const ALWAYS_SAFE = "سجل العمليات (لا يُحذف أبدًا)، والاشتراك والباقة والفواتير والتجديدات";
 
@@ -160,7 +160,7 @@ const TABLE_LABEL = {
   custom_fields: "الحقول المخصصة", custom_values: "قيم الحقول المخصصة", exam_types: "أنواع الاختبارات",
   subject_grades: "ربط المواد بالصفوف", finance_accounts: "الحسابات المالية", finance_categories: "تصنيفات المالية",
   finance_method_accounts: "ربط طرق الدفع بالحسابات", payment_accounts: "حسابات التحويل البنكي", school_profile: "ملف المدرسة",
-  school_modules: "الأقسام المفعّلة", tenant_counters: "عدادات الأرقام", jobs: "العمليات الطويلة", password_requests: "طلبات استعادة كلمة المرور",
+  school_modules: "الأقسام المفعّلة", tenant_modules: "الأقسام المفعّلة", tenant_terms: "مصطلحات المؤسسة", tenant_counters: "عدادات الأرقام", jobs: "العمليات الطويلة", password_requests: "طلبات استعادة كلمة المرور",
   sync_changes: "تغييرات المزامنة", sync_devices: "أجهزة المزامنة", sync_operations: "عمليات المزامنة",
   notifications: "الإشعارات", push_subscriptions: "اشتراكات الإشعار الفوري", school_notify: "إعدادات الإشعارات",
   notification_prefs: "اختيارات الإشعارات", notification_deliveries: "سجل تسليم الإشعارات",
@@ -177,7 +177,11 @@ const TABLE_LABEL = {
   meeting_slots: "فترات المواعيد", meeting_bookings: "حجوزات المواعيد", reminder_log: "سجل التذكيرات",
   renewal_requests: "طلبات التجديد", subscription_events: "سجل أحداث الاشتراك", leads: "طلبات الاهتمام", sms_ledger: "رصيد الرسائل النصية",
   tenant_prices: "أسعار المدرسة الخاصة",
-  institute_settings: "إعدادات المعهد", programs: "البرامج التدريبية", courses: "الدورات", course_groups: "المجموعات التدريبية",
+  uni_settings: "لائحة الجامعة", uni_colleges: "الكليات", uni_departments: "الأقسام الأكاديمية", uni_programs: "البرامج الجامعية",
+  uni_courses: "المقررات", uni_program_courses: "خطط البرامج", uni_terms: "الفصول الجامعية", uni_sections: "الشعب المطروحة",
+  uni_student_programs: "قيد الطلاب في البرامج", uni_registrations: "تسجيل المقررات والدرجات", uni_term_invoices: "فواتير الساعات الجامعية",
+  quran_levels: "مستويات الحفظ", halaqat: "حلقات التحفيظ", halaqa_members: "أعضاء الحلقات", quran_records: "سجل الحفظ والمراجعة والتسميع",
+  quran_achievements: "إنجازات الحفظ",   institute_settings: "إعدادات المعهد", programs: "البرامج التدريبية", courses: "الدورات", course_groups: "المجموعات التدريبية",
   enrollments: "تسجيلات المتدربين في الدورات", training_log: "سجل مسار التدريب", training_sessions: "الجلسات التدريبية",
   session_attendance: "حضور الجلسات", assessments: "تقييمات الدورات", assessment_scores: "درجات التقييمات", score_changes: "سجل تعديل الدرجات",
   school_ai: "مفتاح المساعد الذكي", school_sms_gateway: "بوابة رسائل المدرسة", wa_outbox: "قائمة إرسال واتساب",

@@ -19,7 +19,9 @@ async function student(req, q, tenant) {
 }
 
 r.post("/student/chat", limits.studentKey, handle(async (req, res) => {
+  // The student page asks on every load; with messaging off it gets «none» rather than an error.
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
+    if (!(await activeModules(q)).chat) { await verifyStudent(req, tenant, q, req.body); return null; }
     const s = await student(req, q, tenant);
     return { teachers: await teachersOfStudent(q, s) };
   }));

@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { T } from "../../shared/js/terms.js";
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { personAvatar, formCard, formFold } from "../../shared/js/ui.js";
@@ -55,7 +56,7 @@ export default async function students({ me, refresh }) {
     } }, o.name, h("b", {}, n))));
 
   const statsBox = h("div", {},
-    statCards([["إجمالي الطلاب", st.total], ["الطلاب النشطون", st.active], ["الطلاب الجدد", st.new_30d, "آخر 30 يومًا"]]),
+    statCards([[`إجمالي ${T("students")}`, st.total], [`${T("students")} النشطون`, st.active], [`${T("students")} الجدد`, st.new_30d, "آخر 30 يومًا"]]),
     byStage.some(([, n]) => n) ? h("details", { class: "more-stats" }, h("summary", {}, "حسب المرحلة والصف"),
       h("div", { class: "sub" }, "حسب المرحلة"), chips(byStage, "stage"),
       h("div", { class: "sub" }, "حسب الصف"), chips(byGrade, "grade")) : null);
@@ -234,7 +235,7 @@ export default async function students({ me, refresh }) {
 
   return [
     h("div", { class: "panel s-head" },
-      h("div", { class: "section-head" }, h("h2", {}, "الطلاب"),
+      h("div", { class: "section-head" }, h("h2", {}, T("students")),
         sub(me.school.max_students >= 100000 ? `${st.active} طالبًا` : `${st.active} من ${me.school.max_students}`)),
       statsBox, actions),
     h("div", { class: "panel" },
@@ -350,7 +351,7 @@ function studentForm({ student = null, classes, structure, sectionsOn, onSaved }
     h("label", { class: "fcard fees-line" }, f.fees, h("span", {}, h("b", {}, "تفعيل الرسوم لهذا الطالب"), h("small", {}, "تصدر له فواتير الرسوم حسب خطة صفه"))),
     extra);
 
-  const d = bigDialog(editing ? `تعديل: ${s.name}` : "إضافة طالب", body, [btn(editing ? "حفظ التعديلات" : "حفظ الطالب", async () => {
+  const d = bigDialog(editing ? `تعديل: ${s.name}` : `إضافة ${T("student")}`, body, [btn(editing ? "حفظ التعديلات" : `حفظ ال${T("student")}`, async () => {
     if (!f.name.value.trim()) return toast("اسم الطالب مطلوب", true);
     const classId = f.section.value || null;
     const common = { name: f.name.value, class_id: classId, guardian_name: f.gname.value, guardian_phone: f.gphone.value,

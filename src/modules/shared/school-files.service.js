@@ -59,16 +59,18 @@ export async function list(q, f = {}) {
           OR t.profile->>'contact_name' ILIKE '%' || ? || '%' OR t.profile->>'email' ILIKE '%' || ? || '%')`, f.q);
   }
   if (f.status) add("t.status = ?", f.status);
+  if (f.org_type) add("t.org_type_key = ?", f.org_type);
   const order = f.sort === "updated" ? "t.updated_at DESC" : f.sort === "oldest" ? "t.created_at ASC" : "t.created_at DESC";
   const rows = await q(
     `SELECT t.id, t.name, t.status, t.created_at, t.updated_at, t.approved_at, t.activated_at, t.is_demo, t.lead_id,
+            t.org_type_key, o.name AS org_type_name,
             t.profile->>'contact_name' AS contact_name, t.profile->>'phone' AS phone, t.profile->>'email' AS email,
             l.status AS lead_status, s.plan_name, s.status AS sub_status, s.kind AS sub_kind,
             (SELECT count(*) FROM school_events e WHERE e.tenant_id = t.id AND e.kind IN ('account', 'activation_link', 'password')) > 0
               OR t.activated_at IS NOT NULL OR t.lead_id IS NULL AS admin_id,
             ${deliveryState} AS delivery,
             (SELECT max(e.created_at) FROM school_events e WHERE e.tenant_id = t.id AND e.kind = 'delivery') AS last_delivery_at
-       FROM tenants t LEFT JOIN leads l ON l.id = t.lead_id LEFT JOIN subscriptions s ON s.id = t.subscription_id
+       FROM tenants t JOIN org_types o ON o.key = t.org_type_key LEFT JOIN leads l ON l.id = t.lead_id LEFT JOIN subscriptions s ON s.id = t.subscription_id
       WHERE ${where.join(" AND ")} ORDER BY ${order} LIMIT 1000`, params);
   for (const r of rows) r.stage = stageOf(r);
   const pick = f.delivery ? rows.filter((r) => (f.delivery === "none" ? !r.delivery : r.delivery === f.delivery)) : rows;
@@ -109,7 +111,7 @@ async function currentLink(q, tenantId, baseUrl) {
 
 export async function getFile(q, id, baseUrl) {
   const [t] = await q(
-    `SELECT t.*, s.plan_name, s.kind AS sub_kind, s.status AS sub_status, s.ends_on, s.starts_on, p.name AS lead_plan,
+    `SELECT t.*, (SELECT name FROM org_types WHERE key = t.org_type_key) AS org_type_name, s.plan_name, s.kind AS sub_kind, s.status AS sub_status, s.ends_on, s.starts_on, p.name AS lead_plan,
             l.status AS lead_status, l.kind AS lead_kind, l.created_at AS requested_at, l.details AS lead_details, l.handled_by
        FROM tenants t LEFT JOIN subscriptions s ON s.id = t.subscription_id LEFT JOIN leads l ON l.id = t.lead_id
        LEFT JOIN plans p ON p.id = l.plan_id WHERE t.id = $1`, [id]);
@@ -136,7 +138,8 @@ export async function getFile(q, id, baseUrl) {
   return {
     school: { id: t.id, name: t.name, status: t.status, created_at: t.created_at, updated_at: t.updated_at, approved_at: t.approved_at,
       approved_by: t.approved_by, activated_at: t.activated_at, is_demo: t.is_demo, directory_code: t.directory_code, currency: t.currency,
-      lead_id: t.lead_id, requested_at: t.requested_at || t.created_at, lead_status: t.lead_status, lead_kind: t.lead_kind, handled_by: t.handled_by },
+      lead_id: t.lead_id, requested_at: t.requested_at || t.created_at, lead_status: t.lead_status, lead_kind: t.lead_kind, handled_by: t.handled_by,
+      org_type: t.org_type, org_type_key: t.org_type_key, org_type_name: t.org_type_name },
     profile: { ...(t.lead_details || {}), ...t.profile },
     subscription: t.plan_name ? { plan_name: t.plan_name, kind: t.sub_kind, status: t.sub_status, starts_on: t.starts_on, ends_on: t.ends_on } : null,
     admin, activation, activation_state: activationState, account: account || null,

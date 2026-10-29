@@ -12,6 +12,7 @@ import { handle } from "../../core/http/errors.js";
 import { schoolTotals } from "../shared/finance.service.js";
 import { current } from "../shared/academic.service.js";
 import { dayStatus } from "../shared/attendance.service.js";
+import { termsOf, engineOf, isInstitute } from "../shared/org-types.service.js";
 
 const r = Router();
 
@@ -26,11 +27,13 @@ r.get("/me", handle(async (req, res) => {
       WHERE s.tenant_id = $1 AND s.user_id = $2 AND s.revoked_at IS NULL AND a.disabled_at IS NULL`, [req.tenant.id, req.user.id]));
   res.json({
     modules: req.modules,
-    setup_completed: req.tenant.org_type === "institute" || Boolean(p?.setup_completed_at),
+    setup_completed: engineOf(req.tenant) !== "school" || Boolean(p?.setup_completed_at),
     name: req.user.full_name,
     admin_scope: req.user.admin_scope || "full",
-    org_type: req.tenant.org_type || "school",
-    staff_role: req.tenant.org_type === "institute" ? req.user.staff_role || "director" : null,
+    org_type: engineOf(req.tenant),
+    org_type_key: req.tenant.org_type_key || null,
+    terms: await inTenant(req, termsOf),
+    staff_role: isInstitute(req.tenant) ? req.user.staff_role || "director" : null,
     must_change_password: req.user.must_change_password,
     account: account || null,
     access: accessSummary(req),

@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { T } from "../../shared/js/terms.js";
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, notice, line, sub, input, empty, badge, btn, keyText, linkRow, copyRow, schoolLogoUrl, kpiCard, kpiGrid, personAvatar } from "../../shared/js/ui.js";
@@ -74,11 +75,11 @@ export default async function dashboard({ me, goTo, sections = [] }) {
       h("span", { class: "ann-items" }, d.recent_announcements.slice(0, 3).map((a) => h("span", {}, a.title)))) : null,
 
     kpiGrid(
-      kpiCard({ icon: "users", tone: "teal", label: "الطلاب", value: String(d.students), ratio: me.school.max_students ? d.students / me.school.max_students : null,
+      kpiCard({ icon: "users", tone: "teal", label: T("students"), value: String(d.students), ratio: me.school.max_students ? d.students / me.school.max_students : null,
         note: me.school.max_students ? `من ${me.school.max_students} في الباقة · ${d.classes} فصل` : `${d.classes} فصل`, onClick: () => go("students") }),
       me.modules?.attendance === false ? null : kpiCard({ icon: "check", tone: "teal", label: "حضور اليوم", value: rate === null ? "—" : `${rate}%`, ratio: rate === null ? null : rate / 100,
         note: d.recorded_today ? `${d.absent_today} غائبًا من ${d.recorded_today}` : todayText || "لم يُسجل الحضور بعد", onClick: () => go("attendance") }),
-      kpiCard({ icon: "user", tone: "violet", label: "المعلمون", value: String(d.teachers), note: d.pending_exams ? `${d.pending_exams} اختبار بانتظار الاعتماد` : "فريق المدرسة", onClick: () => go("teachers") }),
+      kpiCard({ icon: "user", tone: "violet", label: T("teachers"), value: String(d.teachers), note: d.pending_exams ? `${d.pending_exams} اختبار بانتظار الاعتماد` : "فريق المدرسة", onClick: () => go("teachers") }),
       me.modules?.fees === false || me.admin_scope === "school" ? null : kpiCard({ icon: "wallet", tone: "amber", label: "الرسوم المحصّلة", value: money(d.fees_paid), ratio: feesTotal ? Number(d.fees_paid || 0) / feesTotal : null,
         note: `المتبقي ${money(d.fees_remaining)}`, onClick: () => go(me.modules?.finance ? "ledger" : "finance") })),
 
@@ -155,7 +156,7 @@ function stagesPanel(rows, go) {
     st.grades.push(r);
   }
   const tones = ["teal", "amber", "violet", "navy"];
-  return panel("الطلاب حسب المرحلة", null, h("div", { class: "stage-list" }, stages.map((st, i) => {
+  return panel(`${T("students")} حسب المرحلة`, null, h("div", { class: "stage-list" }, stages.map((st, i) => {
     const total = st.grades.reduce((n, g) => n + g.students, 0), classes = st.grades.reduce((n, g) => n + g.classes, 0);
     return h("div", { class: `stage-card ${tones[i % tones.length]}` },
       h("div", { class: "stage-head" },

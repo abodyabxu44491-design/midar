@@ -28,7 +28,7 @@ const stateBadge = (states, s) => badge(states?.[s] || s, STATE_COLOR[s] ?? "gra
 export async function daysParts({ refresh }) {
   const [holidays, ttSettings] = await Promise.all([
     holidaysPanel(refresh),
-    api(`${A}/timetable/settings`).then((r) => r.settings).catch(() => null),
+    api(`${A}/settings/study-days`).catch(() => null),
   ]);
   return [ttSettings ? studyDaysPanel(ttSettings, refresh) : null, holidays];
 }
@@ -229,7 +229,7 @@ function studyDaysPanel(settings, refresh) {
     btn("حفظ أيام الدراسة", async () => {
       const days = boxes.map(([cb], i) => (cb.checked ? i : -1)).filter((i) => i >= 0);
       if (!days.length) return toast("اختر يومًا واحدًا على الأقل");
-      await api(`${A}/timetable/settings`, { ...settings, days }, "PUT");
+      await api(`${A}/settings/study-days`, { days }, "PUT");
       toast("تم الحفظ"); refresh();
     }, "soft"));
 }

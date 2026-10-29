@@ -12,10 +12,11 @@ import { normalizePhone, cleanName } from "./students.service.js";
 import { writeCertificate } from "./certificates.service.js";
 import * as results from "./results.service.js";
 import * as design from "./cert-design.service.js";
+import { termsLayers, toInstitute } from "./org-types.service.js";
 
 // ---------- Terms, settings and permissions ----------
 export const DEFAULT_TERMS = {
-  trainee: "متدرب", trainees: "المتدربون", course: "دورة", courses: "الدورات", program: "برنامج تدريبي", programs: "البرامج التدريبية",
+  org: "المعهد", trainee: "متدرب", trainees: "المتدربون", course: "دورة", courses: "الدورات", program: "برنامج تدريبي", programs: "البرامج التدريبية",
   trainer: "مدرب", trainers: "المدربون", group: "مجموعة", groups: "المجموعات", session: "جلسة", sessions: "الجلسات",
 };
 export const TRAINEE_FIELDS = { national_id: "رقم الهوية أو الإقامة", student_phone: "رقم الجوال", email: "البريد الإلكتروني", birth_date: "تاريخ الميلاد",
@@ -40,11 +41,17 @@ export const can = (user, cap) => capsOf(user).includes(cap);
 export const requireCap = (cap) => (req, res, next) => (can(req.user, cap) ? next()
   : next(forbidden("ليست لديك صلاحية لهذا الإجراء.")));
 
+// The institute's words start from its type (a learning centre's «دارس», a Quran institute's «معهد»), and the institute's
+// own settings change them further. Only the changes against that starting point are stored.
+async function baseTerms(q) {
+  const { base } = await termsLayers(q);
+  return { ...DEFAULT_TERMS, ...Object.fromEntries(Object.entries(toInstitute(base)).filter(([k]) => k in DEFAULT_TERMS)) };
+}
 export async function getSettings(q) {
   const [s] = await q("SELECT * FROM institute_settings WHERE tenant_id = app_tenant()");
   const row = s || { terms: {}, required_fields: [], min_attendance: 75, pass_mark: 60, registration_fee: 0, late_counts_as: 1 };
   return { ...row, min_attendance: Number(row.min_attendance), pass_mark: Number(row.pass_mark), registration_fee: Number(row.registration_fee),
-    late_counts_as: Number(row.late_counts_as), terms: { ...DEFAULT_TERMS, ...row.terms } };
+    late_counts_as: Number(row.late_counts_as), terms: { ...(await baseTerms(q)), ...row.terms } };
 }
 export const settingsSchema = z.object({
   terms: z.partialRecord(z.enum(Object.keys(DEFAULT_TERMS)), z.string().trim().min(2).max(40)).optional(),
@@ -57,13 +64,14 @@ export const settingsSchema = z.object({
 });
 export async function updateSettings(q, b) {
   const cur = await getSettings(q);
-  const terms = b.terms ? Object.fromEntries(Object.entries({ ...cur.terms, ...b.terms }).filter(([k, v]) => DEFAULT_TERMS[k] !== v)) : undefined;
+  const base = await baseTerms(q);
+  const terms = b.terms ? Object.fromEntries(Object.entries({ ...cur.terms, ...b.terms }).filter(([k, v]) => base[k] !== v)) : undefined;
   const v = { ...cur, ...Object.fromEntries(Object.entries(b).filter(([, x]) => x !== undefined)) };
   await q(`INSERT INTO institute_settings (tenant_id, terms, required_fields, min_attendance, pass_mark, registration_fee, late_counts_as, signer_title, signer_name, certificate_note)
            VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT (tenant_id) DO UPDATE SET terms = $1, required_fields = $2, min_attendance = $3, pass_mark = $4, registration_fee = $5,
              late_counts_as = $6, signer_title = $7, signer_name = $8, certificate_note = $9`,
-  [JSON.stringify(terms ?? Object.fromEntries(Object.entries(cur.terms).filter(([k, x]) => DEFAULT_TERMS[k] !== x))),
+  [JSON.stringify(terms ?? Object.fromEntries(Object.entries(cur.terms).filter(([k, x]) => base[k] !== x))),
     v.required_fields, v.min_attendance, v.pass_mark, v.registration_fee, v.late_counts_as, v.signer_title ?? null, v.signer_name ?? null, v.certificate_note ?? null]);
   return getSettings(q);
 }
@@ -218,7 +226,7 @@ const traineeVals = (b) => [cleanName(b.name), b.student_no, b.national_id, norm
 async function checkRequired(q, b) {
   const { required_fields: req } = await getSettings(q);
   const missing = req.filter((f) => !b[f]);
-  if (missing.length) throw badRequest(`حقول مطلوبة في إعدادات المعهد: ${missing.map((f) => TRAINEE_FIELDS[f]).join("، ")}`);
+  if (missing.length) throw badRequest(`حقول مطلوبة في الإعدادات: ${missing.map((f) => TRAINEE_FIELDS[f]).join("، ")}`);
 }
 const dupGuard = (e) => {
   if (e.code === "23505" && /national/.test(e.constraint || "")) throw conflict("رقم الهوية مسجل لمتدرب آخر");
