@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { universityRouter } from "../shared/university.routes.js";
 import { engineOf } from "../shared/org-types.service.js";
 import { Router } from "express";
 import { logoId } from "../shared/school-logo.service.js";
@@ -70,5 +71,6 @@ r.use("/ledger", requireModule("finance"), ledger);
 r.use("/finance-requests", financeRequests);
 r.use("/book-deposits", requireModule("finance"), bookDeposits);
 r.use("/finance", requireModule("fees"), fees);
+r.use("/university", universityRouter("accountant"));
 
 export default r;

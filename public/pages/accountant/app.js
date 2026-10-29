@@ -38,20 +38,23 @@ export async function startAccountant() {
     inst.school = me.school.name;
     ifees = V.fees; ireports = V.reports;
   }
+  const university = me.school.org_type === "university";
+  const utuition = university ? async () => (await import("../shared/js/university-ui.js")).uniTuition({ base: "/api/accountant/university", financeBase: "/api/accountant/finance" }) : null;
   const list = [
     ...(institute ? [["ifees", "رسوم الدورات"], ["ireports", "التقارير"]] : []),
+    ...(university && me.modules?.fees ? [["utuition", "رسوم الساعات"]] : []),
     ...(me.modules?.finance ? [["ledger", "المالية"]] : []),
     ...(me.modules?.fees && !me.modules?.finance ? [["fees", "الرسوم"]] : []),
     ["money-requests", "الطلبات المالية"],
     ...(me.modules?.finance ? [["deposits", "تأمين الكتب"]] : []),
     ["account", "حسابي"],
   ];
-  const t = tabs(list, { ifees, ireports, ledger, fees, "money-requests": financeRequests, deposits: bookDeposits, account }, { me }, { top: true });
+  const t = tabs(list, { ifees, ireports, utuition, ledger, fees, "money-requests": financeRequests, deposits: bookDeposits, account }, { me }, { top: true });
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `المحاسب — ${me.name}`,
     onLogout: async () => { await api("/api/accountant/logout", {}); location.reload(); } });
   attachBell(bar, "/api/accountant", (n) => (n.link === "finance-requests" ? (t.show("money-requests"), true) : false));
   mount(app, bar, h("main", {}, t.el), footer());
-  t.start(institute ? "ifees" : me.modules?.finance ? "ledger" : "fees");
+  t.start(institute ? "ifees" : university && me.modules?.fees ? "utuition" : me.modules?.finance ? "ledger" : "fees");
 }
 
 function account({ me }) {

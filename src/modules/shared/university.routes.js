@@ -16,6 +16,15 @@ export const requireUniversity = (req, res, next) => (isUniversity(req.tenant) ?
 export function universityRouter(role) {
   const r = Router();
   r.use(requireUniversity);
+  // The accountant reaches the term list and the tuition collection only.
+  if (role === "accountant") {
+    r.get("/meta", handle(async (req, res) => res.json(await inTenant(req, async (q) => ({ terms: await uni.terms(q) })))));
+    r.get("/tuition", handle(async (req, res) => {
+      const f = parse(z.object({ term_id: t.id, q: z.string().trim().max(80).prefault("") }), req.query);
+      res.json(await inTenant(req, (q) => uni.tuition(q, f.term_id, f.q)));
+    }));
+    return r;
+  }
   const teacherId = (req) => {
     if (role !== "teacher") return null;
     if (!req.user.teacher_id) throw forbidden("الحساب غير مرتبط بعضو هيئة تدريس");
@@ -122,6 +131,20 @@ export function universityRouter(role) {
     }));
     r.get("/terms/:id/report", handle(async (req, res) => {
       res.json(await inTenant(req, (q) => uni.termReport(q, parse(t.id, req.params.id))));
+    }));
+    r.get("/tuition", handle(async (req, res) => {
+      const f = parse(z.object({ term_id: t.id, q: z.string().trim().max(80).prefault("") }), req.query);
+      res.json(await inTenant(req, (q) => uni.tuition(q, f.term_id, f.q)));
+    }));
+    r.get("/reports/programs", handle(async (req, res) => res.json(await inTenant(req, uni.programsReport))));
+    r.patch("/items/:kind/:id", handle(async (req, res) => {
+      const kind = parse(z.enum(uni.ITEM_KINDS), req.params.kind);
+      res.json(await inTenant(req, (q) => uni.editItem(q, kind, parse(t.id, req.params.id), parse(uni.editSchema, req.body))));
+    }));
+    r.delete("/items/:kind/:id", handle(async (req, res) => {
+      const kind = parse(z.enum(uni.ITEM_KINDS), req.params.kind);
+      await inTenant(req, (q) => uni.removeItem(q, kind, parse(t.id, req.params.id)));
+      res.json({ ok: true });
     }));
     r.get("/instructors", handle(async (req, res) => {
       res.json(await inTenant(req, (q) => q(`SELECT tc.id, tc.full_name AS name, tc.specialty, u.username,

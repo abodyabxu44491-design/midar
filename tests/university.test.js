@@ -226,3 +226,52 @@ test("تشغيل الجامعة: تعارض المواعيد، التسجيل ا
   assert.deepEqual(rep.courses.find((c) => c.code === "ACC101").letters, { "B+": 1 });
   assert.equal(rep.top[0].cgpa, 3.5);
 });
+
+test("الرسوم يحصّلها المحاسب، وتعديل الهيكل وحذفه محميان، وتقرير البرامج", async () => {
+  const acc = await admin.post("/api/admin/users", { name: "محاسب الجامعة", username: `acc${uid()}` });
+  assert.equal(acc.status, 201, JSON.stringify(acc.data));
+  await transaction({ tenantId: id }, (q) => q("UPDATE users SET must_change_password = false WHERE role = 'accountant'"));
+  const ac = client(srv.base);
+  assert.equal((await ac.post("/api/staff/login", { school: id, username: acc.data.credentials.username, password: acc.data.credentials.password })).status, 200);
+  const terms = (await ac.get("/api/accountant/university/meta")).data.terms;
+  const billed = [];
+  for (const tr of terms) {
+    const r = (await ac.get(`/api/accountant/university/tuition?term_id=${tr.id}`)).data;
+    billed.push(...r.invoices);
+  }
+  assert.ok(billed.length >= 2, "فواتير الساعات تظهر للمحاسب");
+  const inv = billed.find((i) => i.remaining > 0);
+  const pay = await ac.post(`/api/accountant/finance/invoices/${inv.invoice_id}/payments`, { amount: inv.remaining, method: "cash", idempotency_key: `uni${uid()}${uid()}` });
+  assert.equal(pay.status, 201, JSON.stringify(pay.data));
+  const again = (await Promise.all(terms.map((t) => ac.get(`/api/accountant/university/tuition?term_id=${t.id}`)))).flatMap((r) => r.data.invoices);
+  assert.equal(again.find((i) => i.invoice_id === inv.invoice_id).remaining, 0);
+  assert.equal((await ac.get(`/api/accountant/university/sections`)).status, 404, "المحاسب لا يصل للشعب والدرجات");
+
+  // Editing keeps codes; removal only when nothing depends on it.
+  const s = (await admin.get(`${U}/structure`)).data;
+  const col = s.colleges[0];
+  assert.equal((await admin.patch(`${U}/items/college/${col.id}`, { name: "كلية الهندسة والعلوم", dean: "د. علي" })).status, 200);
+  const del = await admin.del(`${U}/items/college/${col.id}`);
+  assert.equal(del.status, 400); assert.match(del.data.error, /فيها أقسام/);
+  const prog = s.programs[0];
+  assert.match((await admin.del(`${U}/items/program/${prog.id}`)).data.error, /قُبل فيه طلاب/);
+  const empty = (await admin.post(`${U}/colleges`, { code: `X${uid().slice(0, 4)}`, name: "كلية مؤقتة" })).data;
+  assert.equal((await admin.del(`${U}/items/college/${empty.id}`)).status, 200);
+  const course = s.courses.find((c) => c.code === "CS101");
+  assert.match((await admin.del(`${U}/items/course/${course.id}`)).data.error, /شعب|متطلب/);
+
+  const rep = (await admin.get(`${U}/reports/programs`)).data;
+  const dip = rep.find((p) => p.code === "DACC");
+  assert.equal(dip.graduated, 1);
+  const bcs = rep.find((p) => p.code === "BCS");
+  assert.equal(bcs.active, 3);
+  assert.ok(bcs.average_cgpa > 0);
+});
+
+test("الجامعة الجديدة تبدأ بأقسام تناسبها", async () => {
+  const uid2 = `un-${uid()}`;
+  const r = await owner.post("/api/owner/tenants", { id: uid2, name: "كلية تجريبية", org_type_key: "university" });
+  assert.equal(r.status, 201);
+  const mods = Object.fromEntries((await transaction({ tenantId: uid2 }, (q) => q("SELECT key, enabled FROM tenant_modules"))).map((m) => [m.key, m.enabled]));
+  assert.equal(mods.fees, true); assert.equal(mods.attendance, false); assert.equal(mods.homework, false); assert.equal(mods.chat, false);
+});

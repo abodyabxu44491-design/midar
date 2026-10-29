@@ -5,7 +5,8 @@
  */
 import { h } from "./dom.js";
 import { api } from "./api.js";
-import { panel, sub, badge, empty, input, btn, dialog, notice, toast, confirmAction } from "./ui.js";
+import { panel, sub, badge, empty, input, btn, dialog, notice, toast, confirmAction, field, select } from "./ui.js";
+import { money } from "./format.js";
 
 // The academic record of a university student: one table per term with its GPA, then the cumulative GPA, the credits
 // earned against the programme, the standing and the required courses still to take. Used by the registrar and the student.
@@ -93,4 +94,46 @@ export function uniStudentView(view, call = null) {
   };
   draw(view);
   return box;
+}
+
+// Tuition by credit hour for one term: what each student was invoiced and paid, and recording a payment on an invoice.
+// `base` is the university API of the role; `financeBase` its invoice payments API.
+export async function uniTuition({ base, financeBase }) {
+  const meta = await api(`${base}/meta`);
+  if (!meta.terms.length) return empty("لا توجد فصول بعد.");
+  const term = select(meta.terms.map((t) => [t.id, t.name]));
+  const q = input({ type: "search", placeholder: "ابحث بالاسم أو الرقم الجامعي" });
+  const box = h("div");
+  const td = (x, cls) => h("td", cls ? { class: cls } : {}, x ?? "—");
+  let timer;
+  const load = async () => {
+    const r = await api(`${base}/tuition?term_id=${term.value}&q=${encodeURIComponent(q.value.trim())}`);
+    box.replaceChildren(
+      h("div", { class: "uni-kpis" }, h("div", { class: "uni-kpi" }, h("small", {}, "المطلوب"), h("b", {}, money(r.totals.amount))),
+        h("div", { class: "uni-kpi" }, h("small", {}, "المحصّل"), h("b", {}, money(r.totals.paid))),
+        h("div", { class: "uni-kpi" }, h("small", {}, "المتبقي"), h("b", {}, money(r.totals.remaining)))),
+      r.invoices.length ? h("div", { class: "table-wrap" }, h("table", { class: "grid" },
+        h("thead", {}, h("tr", {}, ["الرقم الجامعي", "الطالب", "الفاتورة", "الساعات", "المبلغ", "المدفوع", "المتبقي", ""].map((x) => h("th", {}, x)))),
+        h("tbody", {}, r.invoices.map((i) => h("tr", {}, td(i.student_no, "ltr"), td(i.name), td(i.title), td(String(i.credits)), td(money(i.amount)), td(money(i.paid)),
+          h("td", {}, i.status !== "open" ? badge("ملغاة", "gray") : i.remaining ? money(i.remaining) : badge("مسددة")),
+          h("td", {}, i.status === "open" && i.remaining ? btn("تسجيل دفعة", () => pay(i), "sm") : null))))))
+        : empty("لا توجد فواتير ساعات لهذا الفصل. تصدرها الإدارة من «الفصول والشعب» ← «فواتير الساعات»."));
+  };
+  const pay = (i) => {
+    const amount = input({ type: "number", min: 0.01, step: "0.01", value: i.remaining, inputMode: "decimal" });
+    const method = select([["cash", "نقدًا"], ["transfer", "تحويل بنكي"], ["card", "شبكة / بطاقة"]]);
+    const note = input({ placeholder: "رقم الحوالة أو ملاحظة (اختياري)" });
+    const key = `uni${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    const d = dialog(`دفعة: ${i.name}`, h("div", {}, sub(`${i.title} · المتبقي ${money(i.remaining)}`), field("المبلغ", amount), field("طريقة الدفع", method), field("ملاحظة", note)),
+      [btn("تسجيل", async () => {
+        try {
+          await api(`${financeBase}/invoices/${i.invoice_id}/payments`, { amount: Number(amount.value), method: method.value, note: note.value, idempotency_key: key });
+          d.close(); toast("سُجلت الدفعة"); load();
+        } catch (e) { toast(e.message, true); }
+      })]);
+  };
+  term.addEventListener("change", load);
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(load, 300); });
+  load();
+  return [h("div", { class: "row", style: "gap:8px;flex-wrap:wrap;margin-bottom:8px" }, field("الفصل", term), q), box];
 }

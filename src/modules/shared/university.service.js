@@ -526,3 +526,78 @@ export async function selfDrop(q, studentId, registrationId) {
   if (r.status !== "registration" || !(await getSettings(q)).self_registration) throw forbidden("الحذف متاح أثناء فترة التسجيل فقط");
   await drop(q, registrationId);
 }
+
+/* ---------- tuition collection ---------- */
+// The term's tuition invoices with what was paid; payments are recorded through the platform's invoice payments.
+export async function tuition(q, termId, search = "") {
+  const rows = await q(
+    `SELECT i.id AS invoice_id, i.title, i.amount, i.status, invoice_net_paid(i.id) AS paid, ti.credits, s.id AS student_id, s.full_name AS name, s.student_no
+       FROM uni_term_invoices ti JOIN invoices i ON i.id = ti.invoice_id JOIN students s ON s.id = ti.student_id
+      WHERE ti.term_id = $1 AND ($2 = '' OR s.full_name ILIKE '%' || $2 || '%' OR s.student_no ILIKE '%' || $2 || '%')
+      ORDER BY s.full_name, i.id`, [termId, search]);
+  const list = rows.map((r) => ({ ...r, amount: Number(r.amount), paid: Number(r.paid), remaining: r.status === "open" ? Math.max(0, Number(r.amount) - Number(r.paid)) : 0 }));
+  const open = list.filter((r) => r.status === "open");
+  return { invoices: list, totals: { amount: round2(open.reduce((n, r) => n + r.amount, 0)), paid: round2(open.reduce((n, r) => n + r.paid, 0)),
+    remaining: round2(open.reduce((n, r) => n + r.remaining, 0)) } };
+}
+
+/* ---------- editing and removing the structure ---------- */
+// Names and details can always change; codes stay (they appear on records). Removal only when nothing depends on it.
+const KINDS_OF = {
+  college: { table: "uni_colleges", label: "الكلية", fields: ["name", "dean"], uses: "SELECT 1 FROM uni_departments WHERE college_id = $1 LIMIT 1", why: "فيها أقسام" },
+  department: { table: "uni_departments", label: "القسم", fields: ["name", "head"],
+    uses: "SELECT 1 FROM uni_programs WHERE department_id = $1 UNION ALL SELECT 1 FROM uni_courses WHERE department_id = $1 LIMIT 1", why: "له برامج أو مقررات" },
+  program: { table: "uni_programs", label: "البرنامج", fields: ["name", "degree", "total_credits", "years", "status"],
+    uses: "SELECT 1 FROM uni_student_programs WHERE program_id = $1 LIMIT 1", why: "قُبل فيه طلاب (أرشفه بدل حذفه)" },
+  course: { table: "uni_courses", label: "المقرر", fields: [],
+    uses: "SELECT 1 FROM uni_sections WHERE course_id = $1 UNION ALL SELECT 1 FROM uni_courses WHERE $1 = ANY(prerequisites) LIMIT 1", why: "طُرحت له شعب أو هو متطلب لمقرر آخر (أرشفه بدل حذفه)" },
+  term: { table: "uni_terms", label: "الفصل", fields: ["name", "starts_on", "ends_on"], uses: "SELECT 1 FROM uni_sections WHERE term_id = $1 LIMIT 1", why: "طُرحت فيه شعب" },
+  section: { table: "uni_sections", label: "الشعبة", fields: [], uses: "SELECT 1 FROM uni_registrations WHERE section_id = $1 LIMIT 1", why: "سُجل فيها طلاب" },
+};
+export const editSchema = z.object({
+  name: t.shortText("الاسم", 150).optional(), dean: t.optText(120), head: t.optText(120), degree: z.enum(Object.keys(DEGREES)).optional(),
+  total_credits: z.coerce.number().int().min(1).max(400).optional(), years: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(10)]).optional().transform((v) => (v === "" ? null : v)),
+  status: z.enum(["active", "archived"]).optional(), starts_on: t.date.optional(), ends_on: t.date.optional(),
+});
+export async function editItem(q, kind, id, b) {
+  const k = KINDS_OF[kind];
+  const keys = k.fields.filter((f) => b[f] !== undefined);
+  if (!keys.length) return { ok: true };
+  if (kind === "term") {
+    const [cur] = await q("SELECT starts_on, ends_on FROM uni_terms WHERE id = $1", [id]);
+    if (cur && (b.ends_on ?? String(cur.ends_on)) <= (b.starts_on ?? String(cur.starts_on))) throw badRequest("نهاية الفصل قبل بدايته");
+  }
+  try {
+    const rows = await q(`UPDATE ${k.table} SET ${keys.map((f, i) => `${f} = $${i + 2}`).join(", ")} WHERE id = $1 RETURNING id`, [id, ...keys.map((f) => b[f])]);
+    if (!rows.length) throw notFound(`${k.label} غير موجود`);
+  } catch (e) { if (e.code === "23505") throw conflict("الاسم مستخدم"); throw e; }
+  return { ok: true };
+}
+export async function removeItem(q, kind, id) {
+  const k = KINDS_OF[kind];
+  if ((await q(k.uses, [id])).length) throw badRequest(`لا يُحذف ${k.label} لأنه ${k.why}`);
+  if (kind === "program") await q("DELETE FROM uni_program_courses WHERE program_id = $1", [id]);
+  const rows = await q(`DELETE FROM ${k.table} WHERE id = $1 RETURNING id`, [id]);
+  if (!rows.length) throw notFound(`${k.label} غير موجود`);
+}
+export const ITEM_KINDS = Object.keys(KINDS_OF);
+
+/* ---------- programmes report ---------- */
+export async function programsReport(q) {
+  const settings = await getSettings(q);
+  const progs = await q(`SELECT p.id, p.code, p.name, p.degree, p.total_credits, d.name AS department, c.name AS college
+                           FROM uni_programs p JOIN uni_departments d ON d.id = p.department_id JOIN uni_colleges c ON c.id = d.college_id ORDER BY c.code, p.code`);
+  const members = await q("SELECT student_id, program_id, status, final_cgpa FROM uni_student_programs WHERE status <> 'transferred'");
+  const active = members.filter((m) => m.status === "active").map((m) => m.student_id);
+  const rows = active.length ? await gradedRows(q, active) : [];
+  return progs.map((p) => {
+    const mine = members.filter((m) => m.program_id === p.id);
+    const sums = mine.filter((m) => m.status === "active").map((m) => summary(rows.filter((r) => r.student_id === m.student_id), settings));
+    const gpas = sums.map((x) => x.cgpa).filter((x) => x !== null);
+    return { ...p, degree_name: DEGREES[p.degree], active: sums.length, graduated: mine.filter((m) => m.status === "graduated").length,
+      withdrawn: mine.filter((m) => ["withdrawn", "suspended"].includes(m.status)).length,
+      average_cgpa: gpas.length ? round2(gpas.reduce((a, b) => a + b, 0) / gpas.length) : null,
+      probation: sums.filter((x) => x.standing === "probation").length,
+      average_progress: sums.length && p.total_credits ? Math.round(sums.reduce((n, x) => n + Math.min(100, (x.earned / p.total_credits) * 100), 0) / sums.length) : null };
+  });
+}

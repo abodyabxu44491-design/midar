@@ -128,12 +128,13 @@ async function startUniversity(me) {
   const list = [
     ["dashboard", "الرئيسية"],
     [null, "الشؤون الأكاديمية"], ["ustructure", "الهيكل الأكاديمي"], ["uterms", "الفصول والشعب"], ["uinstructors", T("teachers")],
-    [null, "القبول والتسجيل"], ["ustudents", T("students")],
-    [null, "الإدارة"], ["usettings", "اللائحة والتقديرات"], ["subscription", "اشتراكي"], ["audit", "السجل"],
-  ];
+    [null, "القبول والتسجيل"], ["ustudents", T("students")], me.modules?.fees ? ["utuition", "الرسوم"] : null, ["ureports", "التقارير"],
+    [null, "الإدارة"], ["usettings", "اللائحة والتقديرات"], me.modules?.announcements ? ["announcements", "التعاميم"] : null,
+    ["subscription", "اشتراكي"], ["audit", "السجل"],
+  ].filter(Boolean);
   const ctx = { me };
   const t = tabs(list, { dashboard: V.dashboard, ustructure: V.structure, uterms: V.terms, uinstructors: V.instructors, ustudents: V.students,
-    usettings: V.settings, subscription: mySubscription, audit }, ctx, { primary: ["dashboard", "ustudents", "uterms", "ustructure"] });
+    utuition: V.tuition, ureports: V.reports, usettings: V.settings, announcements, subscription: mySubscription, audit }, ctx, { primary: ["dashboard", "ustudents", "uterms", "ustructure"] });
   ctx.goTo = (key) => t.show(key);
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `القبول والتسجيل — ${me.name}`,
     onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } });

@@ -8,7 +8,7 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, empty, sub, toast, notice, confirmAction, dialog, badge, kpiCard, kpiGrid, showCredentials } from "../../shared/js/ui.js";
 import { fmtDate } from "../../shared/js/format.js";
 import { partsView } from "../../shared/js/parts.js";
-import { uniTranscript, rosterDialog } from "../../shared/js/university-ui.js";
+import { uniTranscript, rosterDialog, uniTuition } from "../../shared/js/university-ui.js";
 
 // The registrar's office of a university: structure, terms and sections, admission and registration, grades and records.
 const U = "/api/admin/university";
@@ -26,6 +26,19 @@ const form = (title, fields, save, d0 = null) => {
   void d0;
   return d;
 };
+
+// Edit (name and details) and remove (only when nothing depends on it) for colleges, departments, programmes and terms.
+const editBtn = (kind, item, fields, nav) => btn("تعديل", () => {
+  const ins = fields.map(([key, label, type = "text", opts]) => [key, label, type === "select" ? select(opts, { value: item[key] }) : input({ type, value: item[key] ?? "" })]);
+  form("تعديل", ins.map(([, label, el]) => field(label, el)), async () => {
+    await api(`${U}/items/${kind}/${item.id}`, Object.fromEntries(ins.map(([key, , el]) => [key, el.value])), "PATCH");
+    nav.show();
+  });
+}, "ghost sm");
+const removeBtn = (kind, item, label, nav) => btn("حذف", async () => {
+  if (!confirmAction(`حذف ${label}؟`)) return;
+  try { await api(`${U}/items/${kind}/${item.id}`, undefined, "DELETE"); toast("حُذف"); nav.show(); } catch (e) { toast(e.message, true); }
+}, "danger sm");
 
 /* ---------- home ---------- */
 export async function dashboard({ goTo }) {
@@ -62,9 +75,11 @@ export function structure() {
         s.colleges.length ? btn("+ قسم", () => { const f = { college: select(s.colleges.map((c) => [c.id, c.name])), code: input({ class: "ltr" }), name: input(), head: input() };
           form("قسم جديد", [field("الكلية", f.college), h("div", { class: "form-grid" }, field("الرمز", f.code), field("الاسم", f.name)), field("رئيس القسم (اختياري)", f.head)],
             async () => { await api(`${U}/departments`, { college_id: Number(f.college.value), code: f.code.value, name: f.name.value, head: f.head.value }); nav.show(); }); }, "soft") : null),
-        s.colleges.length ? s.colleges.map((c) => panel(`${c.name} (${c.code})`, null, c.dean ? sub(`العميد: ${c.dean}`) : null,
-          s.departments.filter((d) => d.college_id === c.id).map((d) => h("div", { class: "uni-row" }, h("span", {}, h("b", {}, d.name), " ", h("small", { class: "sub ltr" }, d.code)),
-            h("small", { class: "sub" }, `${s.programs.filter((p) => p.department_id === d.id).length} برنامج · ${s.courses.filter((x) => x.department_id === d.id).length} مقرر`)))))
+        s.colleges.length ? s.colleges.map((c) => panel(`${c.name} (${c.code})`, h("div", { class: "row", style: "gap:6px" },
+            editBtn("college", c, [["name", "اسم الكلية"], ["dean", "العميد"]], nav), removeBtn("college", c, c.name, nav)), c.dean ? sub(`العميد: ${c.dean}`) : null,
+          s.departments.filter((d) => d.college_id === c.id).map((d) => h("div", { class: "uni-row" }, h("span", {}, h("b", {}, d.name), " ", h("small", { class: "sub ltr" }, d.code),
+            h("small", { class: "sub" }, ` · ${s.programs.filter((p) => p.department_id === d.id).length} برنامج · ${s.courses.filter((x) => x.department_id === d.id).length} مقرر`)),
+            h("div", { class: "row", style: "gap:6px" }, editBtn("department", d, [["name", "اسم القسم"], ["head", "رئيس القسم"]], nav), removeBtn("department", d, d.name, nav))))))
           : empty("ابدأ بإضافة كلية.")];
     }
     if (part === "programs") {
@@ -80,13 +95,19 @@ export function structure() {
         const plan = s.plan.filter((x) => x.program_id === p.id);
         return h("tr", {}, td(p.code, "ltr"), td(p.name), td(s.degrees[p.degree]), td(depName(p.department_id)), td(String(p.total_credits)), td(String(p.students)),
           td(`${plan.length} مقرر · ${plan.reduce((n, x) => n + (s.courses.find((c) => c.id === x.course_id)?.credits || 0), 0)} ساعة`),
-          h("td", {}, btn("الخطة", () => planDialog(p, s, nav), "ghost sm")));
+          h("td", {}, h("div", { class: "row", style: "gap:6px;justify-content:flex-start" }, btn("الخطة", () => planDialog(p, s, nav), "ghost sm"),
+            editBtn("program", p, [["name", "اسم البرنامج"], ["degree", "الدرجة", "select", Object.entries(s.degrees)], ["total_credits", "ساعات التخرج", "number"], ["years", "السنوات", "number"],
+              ["status", "الحالة", "select", [["active", "فعّال"], ["archived", "مؤرشف (لا يُقبل فيه جدد)"]]]], nav),
+            removeBtn("program", p, p.name, nav))));
       })) : empty("لا توجد برامج.")];
     }
     return [s.departments.length ? h("div", { class: "row", style: "justify-content:flex-end;margin-bottom:8px" }, btn("+ مقرر", () => courseDialog(null, s, nav))) : notice("أضف قسمًا أولًا.", "warn"),
       s.courses.length ? table(["الرمز", "المقرر", "الساعات", "القسم", "المتطلبات السابقة", ""], s.courses.map((c) => h("tr", {}, td(c.code, "ltr"), td(c.name), td(String(c.credits)),
         td(depName(c.department_id)), td(c.prerequisites.map((p) => s.courses.find((x) => x.id === p)?.code).filter(Boolean).join("، ") || "—"),
-        h("td", {}, btn("تعديل", () => courseDialog(c, s, nav), "ghost sm"))))) : empty("لا توجد مقررات.")];
+        h("td", {}, h("div", { class: "row", style: "gap:6px;justify-content:flex-start" }, btn("تعديل", () => courseDialog(c, s, nav), "ghost sm"),
+          c.status === "active" ? btn("أرشفة", async () => { await api(`${U}/courses/${c.id}`, { status: "archived" }, "PATCH"); nav.show(); }, "ghost sm")
+            : btn("تفعيل", async () => { await api(`${U}/courses/${c.id}`, { status: "active" }, "PATCH"); nav.show(); }, "ghost sm"),
+          removeBtn("course", c, c.code, nav)))))) : empty("لا توجد مقررات.")];
   });
 }
 
@@ -132,7 +153,10 @@ export async function terms({ refresh }) {
     const [secs, s, inst] = await Promise.all([api(`${U}/sections?term_id=${t.id}`), api(`${U}/structure`), api(`${U}/instructors`)]);
     const status = select(Object.entries(meta.labels.term_status), { value: t.status });
     status.addEventListener("change", async () => { await api(`${U}/terms/${t.id}`, { status: status.value }, "PATCH"); toast("تغيّرت حالة الفصل"); await loadMeta(); });
+    const termNav = { show: async () => { await loadMeta(); refresh(); } };
     mount(box, panel(t.name, h("div", { class: "row", style: "gap:6px;flex-wrap:wrap" }, status,
+      editBtn("term", t, [["name", "اسم الفصل"], ["starts_on", "يبدأ", "date"], ["ends_on", "ينتهي", "date"]], termNav),
+      removeBtn("term", t, t.name, termNav),
       btn("تقرير الفصل", () => termReport(t), "ghost sm"),
       btn("فواتير الساعات", async () => {
         if (!confirmAction(`إصدار فواتير «${t.name}» بعدد ساعات كل طالب ورسوم الساعة في اللائحة؟ تُصدر الفروق فقط إن كانت صدرت من قبل.`)) return;
@@ -162,7 +186,8 @@ export async function terms({ refresh }) {
     secs.length ? table(["المقرر", "الشعبة", "المدرّس", "المسجلون", "الموعد", "الدرجات", ""], secs.map((x) => h("tr", {},
       td(`${x.course_code} ${x.course_name}`), td(x.code), td(x.teacher), td(`${x.registered} / ${x.capacity}`), td([x.meeting, x.room].filter(Boolean).join(" · ") || null),
       h("td", {}, x.grades_submitted_at ? badge("سُلّمت", "") : x.registered ? badge("لم تُسلَّم", "amber") : "—"),
-      h("td", {}, btn("الطلاب والدرجات", () => rosterDialog(x.id, load, { base: U, admin: true }), "ghost sm"))))) : empty("لم تُطرح شعب في هذا الفصل.")));
+      h("td", {}, h("div", { class: "row", style: "gap:6px;justify-content:flex-start" }, btn("الطلاب والدرجات", () => rosterDialog(x.id, load, { base: U, admin: true }), "ghost sm"),
+        x.registered ? null : removeBtn("section", x, `شعبة ${x.course_code}`, { show: load })))))) : empty("لم تُطرح شعب في هذا الفصل.")));
   };
   termSel.addEventListener("change", load);
   load();
@@ -291,4 +316,18 @@ async function termReport(t) {
       : empty("لم تُرصد درجات بعد."))),
   [btn("طباعة", () => window.print(), "ghost")]);
   d.classList.add("xb-wide");
+}
+
+export const tuition = () => uniTuition({ base: U, financeBase: "/api/admin/finance" });
+
+export async function reports() {
+  await loadMeta();
+  const rows = await api(`${U}/reports/programs`);
+  const termSel = select(meta.terms.map((t) => [t.id, t.name]));
+  return [panel("البرامج", btn("طباعة", () => window.print(), "ghost sm"),
+    rows.length ? table(["البرنامج", "الكلية", "الدرجة", "المنتظمون", "المتخرجون", "المنسحبون والموقوفون", "متوسط المعدل", "تحت الإنذار", "متوسط الإنجاز"], rows.map((p) => h("tr", {},
+      td(`${p.code} ${p.name}`), td(p.college), td(p.degree_name), td(String(p.active)), td(String(p.graduated)), td(String(p.withdrawn)),
+      td(p.average_cgpa === null ? "—" : p.average_cgpa.toFixed(2)), td(String(p.probation)), td(p.average_progress === null ? "—" : `${p.average_progress}%`)))) : empty("لا توجد برامج.")),
+  meta.terms.length ? panel("تقرير فصل", null, h("div", { class: "row", style: "gap:8px" }, termSel,
+    btn("عرض", () => termReport(meta.terms.find((t) => t.id === Number(termSel.value))), "sm"))) : null];
 }
