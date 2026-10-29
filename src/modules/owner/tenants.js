@@ -20,7 +20,7 @@ import { forgetDemoCache } from "../shared/demo.service.js";
 import { groupQuota } from "../shared/groups.service.js";
 import { addEvent as addSchoolEvent, issueLink } from "../shared/school-files.service.js";
 import { env } from "../../config/env.js";
-import { resolveType, typeKey } from "../shared/org-types.service.js";
+import { resolveType, typeKey, engineDefaults } from "../shared/org-types.service.js";
 import { setAllModules, typeModules } from "../shared/modules.service.js";
 import { impactOf, applyChange, changesOf } from "../shared/org-type-change.service.js";
 
@@ -80,7 +80,9 @@ r.get("/stats", handle(async (req, res) => {
 export async function createTenant(req, b, { link = true } = {}) {
   const type = await transaction({ platform: true }, (q) => resolveType(q, b.org_type_key, b.org_type_key ? null : b.org_type));
   b = { ...b, org_type: type.engine, org_type_key: type.key };
-  if (b.org_type === "institute" && (!b.admin_name || b.admin_name === "مدير المدرسة")) b = { ...b, admin_name: "مدير المعهد" };
+  // An institute's (or a centre's) manager, in the type's own word.
+  const org = { ...engineDefaults(type.engine), ...(type.terms || {}) }.org;
+  if (b.org_type === "institute" && (!b.admin_name || b.admin_name === "مدير المدرسة")) b = { ...b, admin_name: `مدير ${org}` };
   const password = newTempPassword();
   const hash = await hashPassword(password);
   const directory = newDirectoryCode();
@@ -111,7 +113,7 @@ export async function createTenant(req, b, { link = true } = {}) {
     if (b.manager_email) {
       await q("UPDATE tenants SET profile = profile || jsonb_build_object('email', $2::text, 'contact_name', $3::text) WHERE id = $1", [b.id, b.manager_email, b.admin_name]);
     }
-    await addSchoolEvent(q, b.id, { kind: "account", body: b.org_type === "institute" ? "أُنشئ المعهد وحساب مديره" : "أُنشئت المدرسة وحساب مديرها" }, req.actor);
+    await addSchoolEvent(q, b.id, { kind: "account", body: b.org_type === "institute" ? `أُنشئ ${org} وحساب مديره` : "أُنشئت المدرسة وحساب مديرها" }, req.actor);
   });
   // The manager's sign-in comes from the setup link (their own Midar account); no password is handed out.
   const setup = link ? await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, b.id, req.actor, linkBase(req))) : null;

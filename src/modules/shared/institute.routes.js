@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { isInstitute } from "./org-types.service.js";
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, notFound } from "../../core/http/errors.js";
@@ -18,7 +19,7 @@ import { hashPassword } from "../../core/auth/password.js";
 import { conflict } from "../../core/http/errors.js";
 
 const { requireCap } = svc;
-export const requireInstitute = (req, res, next) => (req.tenant?.org_type === "institute" ? next() : next(notFound("هذا القسم للمعاهد التدريبية")));
+export const requireInstitute = (req, res, next) => (isInstitute(req.tenant) ? next() : next(notFound("هذا القسم للمعاهد التدريبية")));
 const id = (req, k = "id") => parse(t.id, req.params[k]);
 const audit = (q, req, action) => logEvent(q, { tenantId: req.tenantId, actor: req.actor, action });
 const originOf = (req) => `${req.protocol}://${req.get("host")}`;
@@ -30,16 +31,19 @@ export function instituteRouter() {
   r.use(requireInstitute);
 
   r.get("/meta", handle(async (req, res) => {
-    res.json(await inTenant(req, async (q) => ({
-      settings: await svc.getSettings(q), caps: svc.capsOf(req.user), staff_role: req.user.role === "accountant" ? "accountant" : req.user.staff_role || "director",
+    res.json(await inTenant(req, async (q) => {
+      const settings = await svc.getSettings(q);
+      return {
+      settings, caps: svc.capsOf(req.user), staff_role: req.user.role === "accountant" ? "accountant" : req.user.staff_role || "director",
       labels: { course_status: svc.COURSE_STATUS, enroll_status: svc.ENROLL_STATUS, trainee_status: svc.TRAINEE_STATUS, modes: svc.MODES,
-        assess_kind: svc.ASSESS_KIND, trainee_fields: svc.TRAINEE_FIELDS, staff_roles: svc.STAFF_ROLES },
+        assess_kind: svc.ASSESS_KIND, trainee_fields: svc.TRAINEE_FIELDS, staff_roles: { ...svc.STAFF_ROLES, director: `مدير ${settings.terms.org}` } },
       reports: Object.entries(svc.REPORTS).filter(([, v]) => svc.can(req.user, v.cap)).map(([key, v]) => ({ key, label: v.label, needs: v.needs || null })),
-    })));
+      };
+    }));
   }));
   r.put("/settings", requireCap("settings"), handle(async (req, res) => {
     const b = parse(svc.settingsSchema, req.body);
-    res.json(await inTenant(req, async (q) => { const s = await svc.updateSettings(q, b); await audit(q, req, "تعديل إعدادات المعهد"); return s; }));
+    res.json(await inTenant(req, async (q) => { const s = await svc.updateSettings(q, b); await audit(q, req, "تعديل الإعدادات"); return s; }));
   }));
   r.get("/dashboard", requireCap("view"), handle(async (req, res) => {
     res.json(await inTenant(req, (q) => svc.dashboard(q, { finance: svc.can(req.user, "finance") })));

@@ -7,7 +7,7 @@ import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
-import { ENGINES, STATUSES, LIVE_ENGINES, TERM_KEYS, termsSchema, typeKey } from "../shared/org-types.service.js";
+import { ENGINES, STATUSES, LIVE_ENGINES, TERM_KEYS, ENGINE_TERMS, engineDefaults, termsSchema, typeKey } from "../shared/org-types.service.js";
 
 // The owner's list of institution types. A type is never deleted (institutions may use it); it is switched off instead.
 const r = Router();
@@ -48,6 +48,7 @@ r.get("/", handle(async (req, res) => {
     engines: Object.entries(ENGINES).map(([key, name]) => ({ key, name, live: LIVE_ENGINES.includes(key) })),
     statuses: Object.entries(STATUSES).map(([key, name]) => ({ key, name })),
     term_keys: Object.entries(TERM_KEYS).map(([key, name]) => ({ key, name })),
+    engine_terms: Object.fromEntries(Object.keys(ENGINES).map((e) => [e, ENGINE_TERMS[e].map((key) => ({ key, name: engineDefaults(e)[key] }))])),
   })));
 }));
 

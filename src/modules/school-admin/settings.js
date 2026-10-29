@@ -12,7 +12,7 @@ import * as payments from "../shared/payments.service.js";
 import { getSettings, updateSettings, settingsSchema } from "../shared/public-settings.service.js";
 import { getModules, updateModules, modulesSchema } from "../shared/modules.service.js";
 import { toOld, kindOld } from "../shared/subscription.service.js";
-import { termsOf, termsSchema, TERM_KEYS } from "../shared/org-types.service.js";
+import { termsOf, termsLayers, termsSchema, engineDefaults, ENGINE_TERMS } from "../shared/org-types.service.js";
 
 const r = Router();
 
@@ -85,8 +85,10 @@ r.get("/terms", handle(async (req, res) => {
   res.json(await inTenant(req, async (q) => {
     const [own] = await q("SELECT terms FROM tenant_terms WHERE tenant_id = app_tenant()");
     const [type] = await q("SELECT o.name, o.terms FROM tenants t JOIN org_types o ON o.key = t.org_type_key WHERE t.id = app_tenant()");
-    return { terms: await termsOf(q), own: own?.terms || {}, type: { name: type.name, terms: type.terms },
-      keys: Object.entries(TERM_KEYS).map(([key, name]) => ({ key, name })) };
+    const { engine, terms } = await termsLayers(q);
+    const words = engineDefaults(engine);
+    return { terms, own: own?.terms || {}, type: { name: type.name, terms: { ...words, ...type.terms } },
+      keys: ENGINE_TERMS[engine].map((key) => ({ key, name: words[key] })) };
   }));
 }));
 

@@ -3,7 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
-import { h } from "/shared/js/dom.js";
+import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { filterByType } from "./schools.js";
 import { panel, field, input, textarea, select, btn, badge, sub, notice, toast, dialog, empty } from "/shared/js/ui.js";
@@ -65,7 +65,16 @@ function editor(t, d, refresh) {
     sort: input({ type: "number", value: t?.sort ?? 150 }),
     description: textarea({ rows: 2, value: t?.description || "" }),
   };
-  const termIn = Object.fromEntries(d.term_keys.map((k) => [k.key, input({ value: t?.terms?.[k.key] || "", placeholder: k.name })]));
+  // The words shown are those of the type's engine (a school's classes and subjects, an institute's courses and sessions).
+  const termIn = {};
+  const termsBox = h("div", { class: "form-grid" });
+  const drawTerms = () => {
+    const keys = d.engine_terms[isNew ? f.engine.value : t.engine] || d.term_keys;
+    for (const k of Object.keys(termIn)) if (!keys.some((x) => x.key === k)) delete termIn[k];
+    mount(termsBox, keys.map((k) => field(k.name, termIn[k.key] ||= input({ value: t?.terms?.[k.key] || "", placeholder: k.name }))));
+  };
+  f.engine.addEventListener("change", drawTerms);
+  drawTerms();
   const chosen = new Set(t?.default_features || d.features.map((x) => x.key));
   const feats = h("div", { class: "xb-chips" }, d.features.map((x) => {
     const cb = h("input", { type: "checkbox", checked: chosen.has(x.key), onchange: () => (cb.checked ? chosen.add(x.key) : chosen.delete(x.key)) });
@@ -79,7 +88,7 @@ function editor(t, d, refresh) {
     field("الوصف", f.description),
     h("h3", {}, "المصطلحات"),
     sub("الكلمات التي تظهر لمؤسسات هذا النوع بدل كلمات المنصة. اترك الخانة فارغة لتبقى الكلمة الأصلية. تُطبَّق على الشاشات تدريجيًا."),
-    h("div", { class: "form-grid" }, d.term_keys.map((k) => field(k.name, termIn[k.key]))),
+    termsBox,
     h("h3", {}, "الأقسام الافتراضية"),
     sub("الأقسام التي تُشغَّل للمؤسسة الجديدة من هذا النوع. لا تتغير أقسام المؤسسات القائمة."),
     feats),

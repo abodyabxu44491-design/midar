@@ -134,7 +134,7 @@ async function startInstitute(me) {
     director && me.modules?.quran ? ["quran", "حلقات التحفيظ"] : null,
     [null, "النتائج والشهادات"], can("reports") ? ["ireports", "التقارير"] : null, ["icerts", "الشهادات"],
     [null, "المالية"], can("finance") ? ["ifees", "الرسوم والمدفوعات"] : null, director && me.modules?.finance ? ["ledger", "المالية"] : null,
-    [null, "الإدارة"], director ? ["istaff", "الموظفون والصلاحيات"] : null, director ? ["isettings", "إعدادات المعهد"] : null,
+    [null, "الإدارة"], director ? ["istaff", "الموظفون والصلاحيات"] : null, director ? ["isettings", `إعدادات ${T("org")}`] : null,
     director ? ["subscription", "اشتراكي"] : null, director ? ["audit", "السجل"] : null,
   ].filter(Boolean);
   const ctx = { me };
@@ -142,7 +142,7 @@ async function startInstitute(me) {
     ireports: V.reports, icerts: V.certificates, ifees: V.fees, ledger, quran, istaff: V.staff, isettings: V.settings, subscription: mySubscription, audit }, ctx,
   { primary: ["dashboard", "trainees", "courses", "sessions", can("finance") ? "ifees" : "icerts"] });
   ctx.goTo = (key) => t.show(key);
-  const roleName = meta.labels.staff_roles[meta.staff_role] || "إدارة المعهد";
+  const roleName = meta.labels.staff_roles[meta.staff_role] || `إدارة ${T("org")}`;
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `${roleName} — ${me.name}`,
     onLogout: async () => { await api("/api/admin/logout", {}); await api("/api/account/logout", {}).catch(() => {}); location.reload(); } });
   attachBell(bar, "/api/admin", () => false);

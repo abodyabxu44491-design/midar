@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { isInstitute } from "../shared/org-types.service.js";
 import { Router } from "express";
 import { forbidden } from "../../core/http/errors.js";
 import { requireStaff, requireModule } from "../../core/auth/guards.js";
@@ -62,7 +63,7 @@ r.use((req, res, next) => (req.user.admin_scope === "school" && FULL_ONLY.some((
   ? next(forbidden("هذا القسم للإدارة العامة. قدّم ما تحتاجه من «الطلبات المالية».")) : next()));
 // Institute staff other than the director reach only the institute section (plus their own account).
 const STAFF_OPEN = ["/me", "/password", "/institute", "/notifications"];
-r.use((req, res, next) => (req.tenant.org_type === "institute" && req.user.staff_role && req.user.staff_role !== "director"
+r.use((req, res, next) => (isInstitute(req.tenant) && req.user.staff_role && req.user.staff_role !== "director"
   && !STAFF_OPEN.some((p) => req.path === p || req.path.startsWith(`${p}/`)) ? next(forbidden("هذا القسم خارج صلاحيات دورك في المعهد.")) : next()));
 r.post("/password", changePassword);
 r.use("/institute", instituteRouter());
