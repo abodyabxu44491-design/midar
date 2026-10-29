@@ -30,6 +30,7 @@ r.get("/me", handle(async (req, res) => {
     name: req.user.full_name,
     admin_scope: req.user.admin_scope || "full",
     org_type: req.tenant.org_type || "school",
+    org_type_key: req.tenant.org_type_key || null,
     staff_role: req.tenant.org_type === "institute" ? req.user.staff_role || "director" : null,
     must_change_password: req.user.must_change_password,
     account: account || null,

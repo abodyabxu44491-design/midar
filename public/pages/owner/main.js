@@ -23,6 +23,7 @@ import danger from "./views/danger.js";
 import sms from "./views/sms.js";
 import signin from "./views/signin.js";
 import security from "./views/security.js";
+import orgTypes from "./views/org-types.js";
 
 const app = $("#app");
 export const API = "/api/owner";
@@ -84,10 +85,10 @@ async function start() {
   }
   const ownerCtx = {};
   const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
-    [null, "المدارس والاشتراكات"], ["schools", "ملفات المدارس"], ["create", "إضافة مدرسة"], ["groups", "مجموعات المدارس"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
+    [null, "المدارس والاشتراكات"], ["schools", "ملفات المدارس"], ["create", "إضافة مدرسة"], ["types", "أنواع المؤسسات"], ["groups", "مجموعات المدارس"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
     [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
     [null, "المنصة"], ["security", "الأمان"], ["signin", "الدخول والبريد"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "آراء العملاء"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, groups, billing, passwords: passwordRequests, sms, security, signin, settings, testimonials, audit, danger }, ownerCtx,
+    { overview, requests, subscriptions, plans, schools, create, types: orgTypes, groups, billing, passwords: passwordRequests, sms, security, signin, settings, testimonials, audit, danger }, ownerCtx,
     { primary: ["overview", "requests", "schools", "subscriptions"] });
   ownerCtx.go = (k) => t.show(k);
   let lastUnseen = null;

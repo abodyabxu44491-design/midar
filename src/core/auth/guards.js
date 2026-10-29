@@ -62,7 +62,7 @@ export const requireStaff = (role) => async (req, res, next) => {
       const s = await sessionRow(q, hash, role);
       if (!s) return null;
       const [, res] = await client.query(`SELECT set_config('app.tenant_id', ${client.escapeLiteral(s.tenant_id)}, true);
-        SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency, emergency_locked_at, is_demo, org_type
+        SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency, emergency_locked_at, is_demo, org_type, org_type_key
                   FROM tenants WHERE id = app_tenant()) t) AS tenant,
                (SELECT row_to_json(u) FROM (SELECT id, full_name, role, teacher_id, is_active, must_change_password,
                   can_approve_finance, can_manage_payroll, can_manage_accounts, admin_scope, staff_role FROM users

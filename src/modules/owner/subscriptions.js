@@ -11,6 +11,14 @@ import { activate, activateSchema, act, actionSchema, trialHistory, STATUS_LABEL
 import { createTenant } from "./tenants.js";
 import * as files from "../shared/school-files.service.js";
 import { baseUrl } from "../../core/links.js";
+import { fromLegacy, typeKey, LIVE_ENGINES } from "../shared/org-types.service.js";
+
+async function requestedType(lead) {
+  const key = fromLegacy(lead.details?.org_type);
+  if (!key) return undefined;
+  const [t] = await transaction({ platform: true }, (q) => q("SELECT key, engine, status FROM org_types WHERE key = $1", [key]));
+  return t && t.status !== "disabled" && LIVE_ENGINES.includes(t.engine) ? t.key : undefined;
+}
 
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
 const tenantParam = z.string().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/);
@@ -164,6 +172,7 @@ const convertSchema = z.object({
   currency: z.enum(["SAR", "YER", "USD"]).prefault("SAR"),
   subscription: activateSchema,
   org_type: z.enum(["school", "institute"]).optional(),
+  org_type_key: typeKey.optional(),
 });
 requests.post("/:id/convert", handle(async (req, res) => {
   const id = parse(t.id, req.params.id);
@@ -183,6 +192,8 @@ requests.post("/:id/convert", handle(async (req, res) => {
   try {
     created = await createTenant(req, {
       id: b.id, name: b.name, admin_name: b.admin_name, currency: b.currency, max_students: b.subscription.max_students || 200,
+      // The type the owner picked, else the one the request asked for (if it is still on offer), else the engine's base type.
+      org_type_key: b.org_type_key || (b.org_type ? undefined : await requestedType(lead)),
       org_type: b.org_type || (lead.details?.org_type === "institute" ? "institute" : "school"),
       subscription: { ...b.subscription, lead_id: id },
     }, { link: false });

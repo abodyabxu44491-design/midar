@@ -5,7 +5,7 @@
  */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
-import { handle, notFound, conflict } from "../../core/http/errors.js";
+import { handle, notFound, conflict, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { hashPassword } from "../../core/auth/password.js";
 import { newTempPassword, newDirectoryCode } from "../../core/auth/codes.js";
@@ -20,6 +20,7 @@ import { forgetDemoCache } from "../shared/demo.service.js";
 import { groupQuota } from "../shared/groups.service.js";
 import { addEvent as addSchoolEvent, issueLink } from "../shared/school-files.service.js";
 import { env } from "../../config/env.js";
+import { resolveType, typeKey } from "../shared/org-types.service.js";
 
 const r = Router();
 const platform = (req, fn) => transaction({ actor: req.actor, ip: req.ip, platform: true }, fn);
@@ -41,6 +42,8 @@ const createSchema = z.object({
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
   subscription: activateSchema.optional(),
   org_type: z.enum(["school", "institute"]).prefault("school"),
+  // The institution type; when given, it decides org_type (the engine).
+  org_type_key: typeKey.optional(),
 });
 const updateSchema = z.object({
   name: t.shortText("اسم المدرسة", 150).optional(),
@@ -56,9 +59,9 @@ const updateSchema = z.object({
 r.get("/", handle(async (req, res) => {
   res.json(await platform(req, (q) => q(
     `SELECT t.id, t.name, t.status, t.plan, t.max_students, t.subscription_end, t.subscription_price, t.grace_days,
-            t.auto_suspended_at, t.created_at, t.is_demo,
+            t.auto_suspended_at, t.created_at, t.is_demo, t.org_type, t.org_type_key, o.name AS org_type_name,
             u.students, u.teachers, u.open_sessions
-       FROM tenants t JOIN platform_tenant_usage() u ON u.tenant_id = t.id
+       FROM tenants t JOIN platform_tenant_usage() u ON u.tenant_id = t.id JOIN org_types o ON o.key = t.org_type_key
       ORDER BY t.created_at DESC`)));
 }));
 
@@ -73,6 +76,8 @@ r.get("/stats", handle(async (req, res) => {
 }));
 
 export async function createTenant(req, b, { link = true } = {}) {
+  const type = await transaction({ platform: true }, (q) => resolveType(q, b.org_type_key, b.org_type_key ? null : b.org_type));
+  b = { ...b, org_type: type.engine, org_type_key: type.key };
   if (b.org_type === "institute" && (!b.admin_name || b.admin_name === "مدير المدرسة")) b = { ...b, admin_name: "مدير المعهد" };
   const password = newTempPassword();
   const hash = await hashPassword(password);
@@ -82,10 +87,10 @@ export async function createTenant(req, b, { link = true } = {}) {
     if (exists) throw conflict("هذا الرمز مستخدم لمدرسة أخرى");
     if (b.group_id) await groupQuota(q, b.group_id);
     await q(`INSERT INTO tenants (id, name, plan, max_students, subscription_end, directory_code,
-               subscription_price, grace_days, currency, group_id, org_type)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+               subscription_price, grace_days, currency, group_id, org_type, org_type_key)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [b.id, b.name, b.plan ?? "basic", b.max_students ?? 200, b.subscription_end ?? null, directory,
-       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER", b.group_id ?? null, b.org_type ?? "school"]);
+       b.subscription_price ?? 0, b.grace_days ?? 14, b.currency ?? "YER", b.group_id ?? null, b.org_type, b.org_type_key]);
     if (b.org_type === "institute") await q("INSERT INTO institute_settings (tenant_id) VALUES ($1) ON CONFLICT DO NOTHING", [b.id]);
     await q(`INSERT INTO users (tenant_id, role, full_name, username, password_hash, must_change_password, can_danger_zone) VALUES ($1, 'admin', $2, 'admin', $3, true, true)`,
       [b.id, b.admin_name, hash]);
@@ -107,7 +112,7 @@ export async function createTenant(req, b, { link = true } = {}) {
   });
   // The manager's sign-in comes from the setup link (their own Midar account); no password is handed out.
   const setup = link ? await transaction({ actor: req.actor, ip: req.ip, platform: true }, (q) => issueLink(q, b.id, req.actor, linkBase(req))) : null;
-  return { school: { id: b.id, name: b.name }, setup, login_url: `${linkBase(req)}/${b.id}/idara`, manager_email: b.manager_email || null, directory_code: directory };
+  return { school: { id: b.id, name: b.name, org_type: b.org_type, org_type_key: b.org_type_key }, setup, login_url: `${linkBase(req)}/${b.id}/idara`, manager_email: b.manager_email || null, directory_code: directory };
 }
 const linkBase = (req) => env.PUBLIC_URL || (req.protocol ? `${req.protocol}://${req.get("host")}` : "");
 
@@ -182,6 +187,7 @@ r.get("/:id/overview", handle(async (req, res) => {
   const data = await inSchool(req, id, async (q) => {
     const [t] = await q(
       `SELECT t.id, t.name, t.status, t.directory_code, t.created_at, t.currency, t.is_demo,
+              t.org_type, t.org_type_key, (SELECT name FROM org_types WHERE key = t.org_type_key) AS org_type_name,
               (SELECT count(*) FROM students WHERE status = 'active')::int AS students,
               (SELECT count(*) FROM teachers)::int AS teachers,
               (SELECT count(*) FROM classes)::int AS sections
@@ -197,6 +203,25 @@ r.get("/:id/overview", handle(async (req, res) => {
             (SELECT count(*)::int FROM subscriptions x WHERE x.tenant_id = $1 AND x.kind = 'trial') AS trials
        FROM tenants t JOIN subscriptions s ON s.id = t.subscription_id WHERE t.id = $1`, [id]))[0] || null);
   res.json({ school: data.t, staff: data.staff, subscription: sub, links: schoolLinks(req, id) });
+}));
+
+// Correcting an institution's type. Only between types of the same engine for now: moving a school to an institute
+// (or back) changes how its data is organised and needs the impact review that comes with the next phase.
+r.patch("/:id/org-type", handle(async (req, res) => {
+  const id = parse(codeSchema, req.params.id);
+  const b = parse(z.object({ org_type_key: typeKey, reason: t.optText(300) }), req.body);
+  res.json(await platform(req, async (q) => {
+    const [cur] = await q("SELECT t.org_type, t.org_type_key, o.name FROM tenants t JOIN org_types o ON o.key = t.org_type_key WHERE t.id = $1 FOR UPDATE OF t", [id]);
+    if (!cur) throw notFound("المدرسة غير موجودة");
+    const [to] = await q("SELECT key, name, engine, status FROM org_types WHERE key = $1", [b.org_type_key]);
+    if (!to) throw notFound("النوع غير موجود");
+    if (to.key === cur.org_type_key) return { ok: true, changed: false };
+    if (to.engine !== cur.org_type) throw badRequest("النقل بين مدرسة ومعهد يغيّر طريقة تنظيم البيانات، وسيتاح مع مراجعة الأثر في المرحلة القادمة");
+    if (to.status === "disabled") throw badRequest(`نوع «${to.name}» موقوف`);
+    await q("UPDATE tenants SET org_type_key = $2 WHERE id = $1", [id, to.key]);
+    await addSchoolEvent(q, id, { kind: "account", body: `تغيّر نوع المؤسسة من «${cur.name}» إلى «${to.name}»${b.reason ? `: ${b.reason}` : ""}` }, req.actor);
+    return { ok: true, changed: true, from: cur.org_type_key, to: to.key };
+  }));
 }));
 
 // Restoring the manager's access: a new setup link (the manager links their own account again).

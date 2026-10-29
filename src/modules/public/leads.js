@@ -5,9 +5,10 @@
  */
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
-import { handle } from "../../core/http/errors.js";
+import { handle, badRequest } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
+import { publicTypes, fromLegacy } from "../shared/org-types.service.js";
 
 const r = Router();
 const leadSchema = z.object({
@@ -26,7 +27,8 @@ const leadSchema = z.object({
   addon_keys: z.array(z.string().max(40)).max(30).nullable().optional().transform((v) => v ?? []),
   details: z.object({
     short_name: t.optText(60),
-    org_type: z.enum(["private", "public", "international", "institute", "other"]).optional(),
+    // A type key from the list the form shows (older forms sent private/public/international/institute/other).
+    org_type: z.string().trim().regex(/^[a-z][a-z0-9_]{1,39}$/, "نوع المؤسسة غير صحيح").optional(),
     country: z.string().trim().max(60).optional(),
     region: t.optText(60), address: t.optText(200),
     school_phone: z.string().trim().regex(/^[0-9+ ]{6,20}$/, "هاتف المدرسة غير صحيح").optional().or(z.literal("")).transform((v) => v || null),
@@ -60,7 +62,15 @@ r.post("/", limits.login, handle(async (req, res) => {
   const b = normalize(parse(leadSchema, req.body));
   const m = b.details.manager;
   if (m && (m.first || m.family)) b.contact_name = [m.first, m.second, m.third, m.family].filter(Boolean).join(" ") || b.contact_name;
-  const [{ id }] = await transaction({ actor: "زائر", ip: req.ip }, (q) => q("SELECT submit_lead($1::jsonb) AS id", [JSON.stringify(b)]));
+  const [{ id }] = await transaction({ actor: "زائر", ip: req.ip }, async (q) => {
+    if (b.details.org_type) {
+      const key = fromLegacy(b.details.org_type);
+      const offered = await publicTypes(q);
+      if (!offered.some((x) => x.key === key)) throw badRequest("نوع المؤسسة المختار غير متاح");
+      b.details.org_type = key;
+    }
+    return q("SELECT submit_lead($1::jsonb) AS id", [JSON.stringify(b)]);
+  });
   res.status(201).json({ ok: true, id: Number(id), status: "new", status_label: STATUS.new });
 }));
 

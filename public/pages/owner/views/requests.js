@@ -10,6 +10,9 @@ import { fmtDateTime } from "/shared/js/format.js";
 import { waLink } from "/shared/js/whatsapp.js";
 import { loadRefs, subForm, REQ_KINDS, REQ_STATUS } from "./sub-form.js";
 import { detail } from "./subscriptions.js";
+import { loadOrgTypes, typeOf, typeOptions } from "./org-types.js";
+
+let typesCache = null;
 
 export const KINDS = REQ_KINDS;
 export const RSTATUS = REQ_STATUS;
@@ -17,7 +20,8 @@ let kind = "";
 let status = "open";
 
 export default async function requests({ refresh }) {
-  const list = await api(`/api/owner/requests?kind=${kind}&status=${status}`);
+  const [list, types] = await Promise.all([api(`/api/owner/requests?kind=${kind}&status=${status}`), loadOrgTypes().catch(() => null)]);
+  typesCache = types;
   api("/api/owner/requests/seen", {}).then(() => document.dispatchEvent(new Event("owner-badge"))).catch(() => {});
   const chip = (cur, set, k, l) => h("button", { type: "button", class: `xb-chip${cur === k ? " on" : ""}`, onclick: () => { set(k); refresh(); } }, l);
   const root = h("div");
@@ -64,7 +68,9 @@ function row(r, refresh, root) {
 async function convert(r, refresh) {
   const refs = await loadRefs();
   const name = input({ value: r.school_name });
-  const org = select([["school", "مدرسة"], ["institute", "معهد تدريبي"]], { value: r.details?.org_type === "institute" ? "institute" : "school" });
+  const types = await loadOrgTypes();
+  const asked = typeOf(types, r.details?.org_type);
+  const org = select(typeOptions(types), { value: asked && typeOptions(types).some(([k]) => k === asked.key) ? asked.key : "private_school" });
   // The school code is derived from the name on the server (unique, readable); the owner may still adjust it.
   const id = input({ class: "ltr", dir: "ltr", placeholder: "alnoor", "aria-label": "رمز المدرسة" });
   let touched = false, seq = 0;
@@ -92,7 +98,7 @@ async function convert(r, refresh) {
   [btn("إنشاء وتفعيل", async (e) => {
     const b = e?.currentTarget; if (b) b.disabled = true;
     try {
-      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value || undefined, org_type: org.value, name: name.value, admin_name: admin.value, subscription: form.value() });
+      const res = await api(`/api/owner/requests/${r.id}/convert`, { id: id.value || undefined, org_type_key: org.value, name: name.value, admin_name: admin.value, subscription: form.value() });
       d.close(); toast("اعتُمدت المدرسة وأُنشئ حسابها");
       location.hash = `#/schools?school=${res.tenant_id}&handover=1`;
     } catch (err) {
@@ -124,7 +130,6 @@ function note(r, refresh) {
     [btn("حفظ", async () => { await api(`/api/owner/requests/${r.id}`, { owner_note: t.value }, "PATCH"); d.close(); refresh(); })]);
 }
 
-const ORG = { private: "أهلية", public: "حكومية", international: "دولية", institute: "معهد تدريبي", other: "أخرى" };
 const COUNTRY = { YE: "اليمن", SA: "السعودية", OTHER: "دولة أخرى" };
 const STAGE = { kg: "رياض الأطفال", primary: "ابتدائي/أساسي", middle: "متوسط", secondary: "ثانوي" };
 const PREF = { whatsapp: "واتساب", call: "اتصال", email: "البريد" };
@@ -132,7 +137,7 @@ function leadDetails(d) {
   if (!d || !Object.keys(d).length) return null;
   const m = d.manager || {};
   const rows = [
-    ["الاسم المختصر", d.short_name], ["نوع المؤسسة", ORG[d.org_type]], ["الدولة", COUNTRY[d.country] || d.country], ["المنطقة", d.region], ["العنوان", d.address],
+    ["الاسم المختصر", d.short_name], ["نوع المؤسسة", d.org_type && typesCache ? typeOf(typesCache, d.org_type)?.name || d.org_type : null], ["الدولة", COUNTRY[d.country] || d.country], ["المنطقة", d.region], ["العنوان", d.address],
     ["هاتف المدرسة", d.school_phone], ["بريد المدرسة", d.school_email], ["الموقع", d.website], ["رقم الترخيص", d.license_no],
     ["المراحل", (d.stages || []).map((x) => STAGE[x]).join("، ")], ["عدد الفصول", d.classes_count], ["العام الدراسي", d.academic_year],
     ["مدير المدرسة", [m.first, m.second, m.third, m.family].filter(Boolean).join(" ")], ["المسمى", m.title], ["التواصل المفضل", PREF[m.preferred]],

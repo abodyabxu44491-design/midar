@@ -24,6 +24,7 @@ const listQuery = z.object({
   stage: z.enum(sf.STAGES.map(([k]) => k)).optional().or(z.literal("")),
   delivery: z.enum(["sent", "failed", "pending", "none"]).optional().or(z.literal("")),
   sort: z.enum(["newest", "oldest", "updated"]).prefault("newest"),
+  org_type: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/).optional().or(z.literal("")),
 });
 
 r.get("/", handle(async (req, res) => {
@@ -42,8 +43,8 @@ r.get("/export.csv", handle(async (req, res) => {
   const rows = (await platform(req, (q) => sf.list(q, f))).filter((x) => !wanted || wanted.has(x.id));
   const stage = Object.fromEntries(sf.STAGES);
   const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const lines = [["رمز المدرسة", "اسم المدرسة", "المسؤول", "الجوال", "البريد", "تاريخ التسجيل", "المرحلة", "حالة الحساب", "تسليم البيانات", "الباقة", "آخر تحديث"]]
-    .concat(rows.map((x) => [x.id, x.name, x.contact_name, x.phone, x.email, x.created_at?.toISOString?.().slice(0, 10) ?? x.created_at,
+  const lines = [["رمز المدرسة", "اسم المدرسة", "نوع المؤسسة", "المسؤول", "الجوال", "البريد", "تاريخ التسجيل", "المرحلة", "حالة الحساب", "تسليم البيانات", "الباقة", "آخر تحديث"]]
+    .concat(rows.map((x) => [x.id, x.name, x.org_type_name, x.contact_name, x.phone, x.email, x.created_at?.toISOString?.().slice(0, 10) ?? x.created_at,
       stage[x.stage], x.status === "active" ? "فعال" : x.status === "suspended" ? "موقوف" : "مؤرشف", sf.DELIVERY[x.delivery] || "لم يُرسل",
       x.plan_name, x.updated_at?.toISOString?.().slice(0, 10) ?? x.updated_at]));
   await platform(req, (q) => logEvent(q, { actor: req.actor, action: `تصدير بيانات ${rows.length} مدرسة` }));

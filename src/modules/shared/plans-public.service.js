@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { publicTypes } from "./org-types.service.js";
 import { transaction } from "../../core/db/pool.js";
 import { demoSchool } from "./demo.service.js";
 
@@ -67,5 +68,6 @@ export async function siteData() {
   const testimonials = await transaction({}, (q) => q(
     `SELECT id, school_name, author_name, author_title, body, rating, logo FROM testimonials
       WHERE status = 'approved' AND consent ORDER BY sort, id LIMIT 12`));
-  return { ...s, plans: await publicPlans(), features, testimonials, demo: Boolean(await demoSchool()) };
+  const org_types = await transaction({}, publicTypes);
+  return { ...s, plans: await publicPlans(), features, testimonials, org_types, demo: Boolean(await demoSchool()) };
 }
