@@ -19,6 +19,7 @@ import { trainerRouter } from "../shared/institute.routes.js";
 import { behaviorRouter } from "../shared/behavior.routes.js";
 import { onlineExamsRouter } from "../shared/online-exams.routes.js";
 import { teacherStaffRoutes } from "./staff.js";
+import { quranRouter } from "../shared/quran.routes.js";
 
 const r = Router();
 r.use(logoutRouter("teacher"));
@@ -35,6 +36,7 @@ r.use("/chat", requireModule("chat"), chat);
 r.use("/behavior", requireModule("behavior"), behaviorRouter("teacher"));
 r.use("/papers", requireModule("exam_papers"), papersRouter("teacher"));
 r.use("/online-exams", requireModule("online_exams"), onlineExamsRouter("teacher"));
+r.use("/quran", requireModule("quran"), quranRouter("teacher"));
 teacherStaffRoutes(r);
 r.use("/sync", teacherSyncRouter());
 export default r;

@@ -82,6 +82,12 @@ export async function applyChange(ctx, id, b) {
   await inSchool(ctx, id, async (q) => {
     await q("UPDATE tenants SET org_type = $2, org_type_key = $3 WHERE id = $1", [id, impact.to.engine, impact.to.key]);
     if (impact.to.engine === "institute") await q("INSERT INTO institute_settings (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
+    // The school kind its profile records follows the new type (a Quran school, a public school...).
+    const [type] = await q("SELECT engine, settings FROM org_types WHERE key = $1", [impact.to.key]);
+    if (type.engine === "school" && type.settings?.school_type) {
+      await q(`INSERT INTO school_profile (tenant_id, school_type) VALUES (app_tenant(), $1)
+               ON CONFLICT (tenant_id) DO UPDATE SET school_type = EXCLUDED.school_type`, [type.settings.school_type]);
+    }
     if (b.apply_sections) {
       const [to] = await q("SELECT default_features FROM org_types WHERE key = $1", [impact.to.key]);
       await setAllModules(q, typeModules(to.default_features));

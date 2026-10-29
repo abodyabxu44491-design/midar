@@ -71,7 +71,8 @@ test("نموذج الطلب: الأنواع المتاحة فقط، والقيم
   const site = (await pub.get("/api/site")).data;
   const keys = site.org_types.map((t) => t.key);
   assert.ok(keys.includes("private_school") && keys.includes("training_institute"));
-  assert.ok(!keys.includes("university") && !keys.includes("quran_school"), "الأنواع قيد التطوير لا تظهر للعامة");
+  assert.ok(!keys.includes("university"), "الأنواع قيد التطوير لا تظهر للعامة");
+  assert.equal(site.org_types.find((t) => t.key === "quran_school")?.status, "beta", "مدرسة التحفيظ متاحة تجريبيًا بعد بناء قسم الحلقات");
 
   const uni = await lead("university");
   assert.equal(uni.status, 400);

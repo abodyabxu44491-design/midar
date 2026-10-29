@@ -40,6 +40,7 @@ export const MODULES = [
   { key: "inventory", name: "العهد والمخزون", note: "الأصناف والعهد" },
   { key: "clinic", name: "العيادة المدرسية", note: "الملف الصحي والزيارات" },
   { key: "ai_assistant", name: "المساعد الذكي", note: "اسأل عن بيانات مدرستك" },
+  { key: "quran", name: "حلقات التحفيظ", note: "الحلقات ومستويات الحفظ وسجل الحفظ والمراجعة والتسميع" },
 ];
 
 export const REQUIRES = {
@@ -49,7 +50,9 @@ export const REQUIRES = {
 const NAME = (k) => MODULES.find((m) => m.key === k)?.name || k;
 export const KEYS = MODULES.map((m) => m.key);
 
-export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, k !== "donations"]));
+// Off unless chosen: donations, and the Quran circles (on by default only for the Quran types).
+const OFF_BY_DEFAULT = new Set(["donations", "quran"]);
+export const DEFAULTS = Object.fromEntries(KEYS.map((k) => [k, !OFF_BY_DEFAULT.has(k)]));
 
 export const modulesSchema = z.object(Object.fromEntries(KEYS.map((k) => [k, z.boolean()]))).partial();
 

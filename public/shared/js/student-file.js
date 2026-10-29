@@ -192,7 +192,7 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
   const ICON = { overview: icons.home, grades: icons.chart, attendance: icons.calendar, fees: icons.wallet, alerts: icons.alert, homework: icons.clipboard,
     timetable: icons.grid, teachers: icons.users, news: icons.megaphone, inbox: icons.bell, chat: icons.message,
     "online-exams": icons.monitor, certificates: icons.award, calendar: icons.calendar, transport: icons.bus, health: icons.heart,
-    library: icons.book, surveys: icons.poll, meetings: icons.clock, behavior: icons.star };
+    library: icons.book, surveys: icons.poll, meetings: icons.clock, behavior: icons.star, quran: icons.book };
   let current = null, elRef = null;
   const open = (key, stay = false) => {
     current = key;

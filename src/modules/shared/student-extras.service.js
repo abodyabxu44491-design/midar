@@ -11,12 +11,17 @@ import * as onlineExams from "./online-exams.service.js";
 import * as calendar from "./calendar.service.js";
 import * as services from "./services.service.js";
 import * as engagement from "./engagement.service.js";
+import * as quran from "./quran.service.js";
 
 export async function studentExtras(q, s, { admin = false } = {}) {
   const mods = await activeModules(q);
   const out = {};
   if (mods.behavior && (admin || (await featureSettings(q, "behavior")).show_parent)) {
     out.behavior = await behavior.forStudent(q, s.id);
+  }
+  if (mods.quran) {
+    const qd = await quran.forParent(q, s.id);
+    if (qd.membership || qd.records.length || qd.achievements.length) out.quran = qd;
   }
   if (mods.certificates) out.certificates = await certificates.forStudent(q, s.id);
   if (mods.online_exams && s.class_id) out.online_exams = await onlineExams.forStudent(q, s);

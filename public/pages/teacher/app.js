@@ -25,6 +25,7 @@ const calendar = lazy(() => import("./views/calendar.js"), new URL("./views/cale
 const meetings = lazy(() => import("./views/meetings.js"), new URL("./views/meetings.js", import.meta.url).pathname);
 const surveys = lazy(() => import("./views/surveys.js"), new URL("./views/surveys.js", import.meta.url).pathname);
 const mine = lazy(() => import("./views/mine.js"), new URL("./views/mine.js", import.meta.url).pathname);
+const quran = lazy(() => import("./views/quran.js"), new URL("./views/quran.js", import.meta.url).pathname);
 const chat = lazy(() => import("./views/chat.js"), new URL("./views/chat.js", import.meta.url).pathname);
 
 import { teacherHides } from "./prefs.js";
@@ -47,9 +48,9 @@ export async function startTeacher(offlineMe = null) {
   if (me.school.org_type === "institute") return startTrainer(me);
   const MODULE_OF = { timetable: "timetable", attendance: "attendance", exams: "exams",
     homework: "homework", announcements: "announcements", papers: "exam_papers",
-    behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat" };
+    behavior: "behavior", lessons: "lesson_plans", calendar: "calendar", meetings: "meetings", surveys: "surveys", me: "staff_attendance", chat: "chat", quran: "quran" };
   const list = [["home", "الرئيسية"], ["attendance", "الحضور"], ["exams", "رصد الدرجات"], ["chat", "الرسائل"],
-    [null, "طلابي وفصولي"], ["students", "طلابي"], ["behavior", "السلوك"], ["homework", "الواجبات"], ["timetable", "جدولي"],
+    [null, "طلابي وفصولي"], ["quran", "حلقاتي"], ["students", "طلابي"], ["behavior", "السلوك"], ["homework", "الواجبات"], ["timetable", "جدولي"],
     [null, "الاختبارات والدروس"], ["papers", "أوراق الاختبارات"], ["lessons", "تحضير الدروس"],
     [null, "المدرسة"], ["announcements", "التعاميم"], ["calendar", "التقويم"], ["meetings", "المواعيد"], ["surveys", "الاستبيانات"],
     [null, "حسابي"], ["me", "حضوري وإجازاتي"], ["account", "حسابي"]]
@@ -65,8 +66,8 @@ export async function startTeacher(offlineMe = null) {
     location.reload();
   };
   const ctx = { me, sections: list.filter(([key]) => key && key !== "home") };
-  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine, chat }, ctx,
-    { primary: ["home", "attendance", "exams", "chat", "students", "homework", "timetable"] });
+  const t = tabs(list, { home, students, timetable, attendance, papers, exams, homework, announcements, account, behavior, lessons, calendar, meetings, surveys, me: mine, chat, quran }, ctx,
+    { primary: me.modules?.quran ? ["home", "quran", "attendance", "chat", "students", "exams"] : ["home", "attendance", "exams", "chat", "students", "homework", "timetable"] });
   ctx.goTo = (key, params) => { ctx.params = params; t.show(key); };
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `بوابة المعلم — ${me.name}`, onLogout: logout });
   bar.querySelector(".in")?.insertBefore(syncIndicator(), bar.querySelector(".in").lastElementChild);
@@ -84,9 +85,9 @@ export async function startTeacher(offlineMe = null) {
 async function startTrainer(me) {
   const [{ loadMeta, T }, V] = await Promise.all([import("../shared/js/institute-ui.js"), import("./views/trainer.js")]);
   await loadMeta("/api/teacher/institute");
-  const list = [["home", "الرئيسية"], ["mycourses", `${T("courses")}ي`], ["sessions", T("sessions")], ["account", "حسابي"]];
+  const list = [["home", "الرئيسية"], ["mycourses", `${T("courses")}ي`], ["sessions", T("sessions")], me.modules?.quran ? ["quran", "حلقاتي"] : null, ["account", "حسابي"]].filter(Boolean);
   const ctx = { me };
-  const t = tabs(list, { home: V.home, mycourses: V.courses, sessions: V.sessions, account }, ctx, { primary: ["home", "mycourses", "sessions", "account"] });
+  const t = tabs(list, { home: V.home, mycourses: V.courses, sessions: V.sessions, account, quran }, ctx, { primary: ["home", "mycourses", "sessions", "account"] });
   ctx.goTo = (key) => t.show(key);
   const bar = topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: `${T("trainer")} — ${me.name}`,
     onLogout: async () => { try { await api("/api/teacher/logout", {}); } catch { /* ignore */ } location.reload(); } });
