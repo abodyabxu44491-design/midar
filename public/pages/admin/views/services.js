@@ -187,7 +187,7 @@ async function library(nav) {
       generalBox,
       field("الطبعة", source.el),
       h("div", { class: "row" }, field("عدد النسخ", f.copies), field("رقم الرف", f.shelf)),
-      h("div", { class: "row" }, field("المؤلف / الجهة", f.author), field("ISBN", f.isbn)),
+      h("div", { class: "row" }, field("المؤلف / الجهة", f.author), field("ردمك (الرقم الدولي)", f.isbn)),
       h("div", { class: "lb-cover-row" }, preview, h("div", {}, h("b", {}, "صورة الغلاف"), sub("اختيارية — تساعد على التعرف على الكتاب بسرعة."),
         btn(b?.has_cover || cover ? "تغيير الصورة" : "إرفاق صورة الغلاف", () => fileIn.click(), "ghost sm"), fileIn))),
     [b ? btn("حذف", async () => { if (!confirmAction("حذف الكتاب؟")) return; await api(`${S()}/library/books/${b.id}`, undefined, "DELETE"); d.close(); nav.show(); }, "danger") : null,

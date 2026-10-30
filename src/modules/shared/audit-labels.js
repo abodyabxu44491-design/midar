@@ -5,6 +5,10 @@
  */
 import { MODULES } from "./modules.service.js";
 const FIELDS = {
+  exam_type: "نوع الاختبار", duration_min: "مدة الاختبار (دقيقة)", total_marks: "مجموع الدرجات", computed_marks: "الدرجات المحسوبة",
+  question_count: "عدد الأسئلة", instructions: "التعليمات", expected_pages: "عدد الصفحات المتوقع", content: "محتوى الورقة", layout: "تنسيق الورقة",
+  versions: "عدد النماذج", isbn: "ردمك", shuffle_questions: "خلط الأسئلة", shuffle_options: "خلط الخيارات", is_template: "قالب", template_name: "اسم القالب",
+  printed_at: "تاريخ الطباعة", print_count: "عدد مرات الطباعة",
   full_name: "الاسم", name: "الاسم", title: "العنوان", status: "الحالة", note: "ملاحظة", status_note: "سبب تغيير الحالة",
   class_id: "الشعبة", grade_id: "الصف", stage_id: "المرحلة", subject_id: "المادة", teacher_id: "المعلم", term_id: "الفصل الدراسي",
   exam_date: "تاريخ الاختبار", max_score: "الدرجة العظمى", score: "الدرجة", published_at: "تاريخ النشر",
@@ -47,7 +51,7 @@ for (const [k, v] of Object.entries(SHOW)) FIELDS[k] = `إظهار: ${v}`;
 
 const HIDDEN = new Set(["id", "tenant_id", "updated_at", "created_at", "created_by", "version", "access_key", "photo_type", "photo",
   "password_hash", "initial_password_enc", "password_changed_at", "username_changed_at", "status_changed_at", "archived_at",
-  "snapshot", "addons", "source_lead_id", "plan_id", "run_id", "entry_id", "staff_id", "approved_by", "setup_completed_at", "ended_at"]);
+  "snapshot", "addons", "seed", "archived_from", "source_paper_id", "source_lead_id", "plan_id", "run_id", "entry_id", "staff_id", "approved_by", "setup_completed_at", "ended_at"]);
 
 const VALUES = {
   active: "نشط", inactive: "غير نشط", transferred: "منقول", withdrawn: "منسحب", graduated: "متخرج", suspended: "موقوف", archived: "مؤرشف",
@@ -82,6 +86,6 @@ const fmt = (v) => {
 export function describeChanges(oldData, newData) {
   return Object.keys(newData)
     .filter((k) => !HIDDEN.has(k) && JSON.stringify(oldData[k]) !== JSON.stringify(newData[k]))
-    .map((k) => ({ field: FIELDS[k] || k.replace(/_/g, " "), from: fmt(oldData[k]), to: fmt(newData[k]) }));
+    .map((k) => ({ field: FIELDS[k] || "بيان آخر", from: fmt(oldData[k]), to: fmt(newData[k]) }));
 }
 export const valueLabel = fmt;
