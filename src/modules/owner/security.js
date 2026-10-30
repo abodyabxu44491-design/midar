@@ -16,6 +16,7 @@ import { ownerMfa } from "./auth.js";
 import { checkOwnerFactor, newRecoveryCodes, recoveryLeft } from "../../core/auth/owner-mfa.js";
 import { pushPublicKey } from "../shared/notify.service.js";
 import { keySource, effectiveKey } from "../../core/auth/secret-box.js";
+import { testOwnerPush } from "../shared/alerts.service.js";
 import { subscriptionSchema } from "../shared/notifications.routes.js";
 
 const r = Router();
@@ -89,6 +90,7 @@ r.post("/push", handle(async (req, res) => {
     [sub.endpoint, sub.keys.p256dh, sub.keys.auth, String(req.get("user-agent") || "").slice(0, 300) || null]));
   res.json({ ok: true });
 }));
+r.post("/push/test", handle(async (req, res) => res.json(await testOwnerPush())));
 r.post("/push/remove", handle(async (req, res) => {
   const { endpoint } = parse(z.object({ endpoint: z.string().max(1000) }), req.body);
   await transaction(platform(req), (q) => q("DELETE FROM owner_push_subscriptions WHERE endpoint = $1", [endpoint]));

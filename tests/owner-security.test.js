@@ -207,3 +207,28 @@ test("إشعارات المالك على الجوال: التنبيه المهم
     setTransport(null);
   }
 });
+
+test("طلب تجربة جديد يصل لجوال المالك فورًا دون انتظار، والإشعار التجريبي يصل لكل أجهزته", async () => {
+  const { dispatchOwnerPush } = await import("../src/modules/shared/alerts.service.js");
+  const { setTransport } = await import("../src/modules/shared/notify.service.js");
+  const a = client(srv.base);
+  assert.equal((await a.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code: currentTotp(SECRET) }, ua("Windows NT 10.0; Win64"))).status, 200);
+  const endpoint = `https://push.example.test/owner-now-${Date.now()}`;
+  assert.equal((await a.post("/api/owner/security/push", { endpoint, keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) } })).status, 200);
+  const sent = [];
+  setTransport({ push: async () => {} });
+  try {
+    await dispatchOwnerPush();
+    setTransport({ push: async (sub, payload) => { if (sub.endpoint === endpoint) sent.push(payload); } });
+    const lead = await client(srv.base).post("/api/public/leads", { kind: "contact", school_name: "مدرسة الاختبار الفوري", contact_name: "سالم", phone: "0555000111", note: "استفسار" });
+    assert.equal(lead.status, 201, JSON.stringify(lead.data));
+    for (let i = 0; i < 40 && !sent.length; i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(sent.some((p) => p.title === "رسالة تواصل جديدة" && p.body === "مدرسة الاختبار الفوري"), "وصل خلال ثوانٍ دون انتظار المؤقت");
+    const t = await a.post("/api/owner/security/push/test", {});
+    assert.equal(t.status, 200);
+    assert.ok(t.data.sent >= 1);
+    assert.ok(sent.some((p) => p.title === "إشعار تجريبي من مدار"));
+  } finally {
+    setTransport(null);
+  }
+});

@@ -37,6 +37,13 @@ export default async function security({ refresh }) {
       sub("تصلك التنبيهات الأمنية المهمة والطلبات الجديدة على هذا الجهاز فورًا، حتى ولوحة المالك مغلقة."),
       d.push.devices ? sub(`مفعّلة على ${d.push.devices === 1 ? "جهاز واحد" : `${d.push.devices} أجهزة`}.`) : null,
       pushToggle({ key: d.push.key, save: (s) => api(`${API}/push`, s), remove: (endpoint) => api(`${API}/push/remove`, { endpoint }) }),
+      d.push.devices ? btn("إرسال إشعار تجريبي", async () => {
+        try {
+          const r = await api(`${API}/push/test`, {});
+          toast(r.sent ? `أُرسل إلى ${r.sent} ${r.sent === 1 ? "جهاز" : "أجهزة"}. إن لم يظهر خلال دقيقة فأعد تفعيل الإشعارات على الجهاز.` : "لم يصل لأي جهاز. فعّل الإشعارات من جديد على جوالك.", !r.sent);
+          refresh();
+        } catch (e) { toast(e.message, true); }
+      }, "ghost sm") : null,
       needsInstallFirst() ? notice("على الآيفون: ثبّت لوحة المالك على الشاشة الرئيسية من زر المشاركة، ثم افتحها من الأيقونة وفعّل الإشعارات.", "") : null),
     panel("مفتاح التشفير", null,
       d.key_source === "CREDENTIAL_KEY"
