@@ -7,7 +7,7 @@
 // session in one step), and the security alerts raised across the platform.
 import { h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, btn, empty, badge, sub, toast, notice, confirmAction, dialog, field, input } from "/shared/js/ui.js";
+import { panel, btn, empty, badge, sub, toast, notice, confirmAction, dialog, field, input, copyRow } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
 import { pushToggle } from "/shared/js/inbox.js";
 import { needsInstallFirst } from "/shared/js/push.js";
@@ -37,7 +37,22 @@ export default async function security({ refresh }) {
       sub("تصلك التنبيهات الأمنية المهمة والطلبات الجديدة على هذا الجهاز فورًا، حتى ولوحة المالك مغلقة."),
       d.push.devices ? sub(`مفعّلة على ${d.push.devices === 1 ? "جهاز واحد" : `${d.push.devices} أجهزة`}.`) : null,
       pushToggle({ key: d.push.key, save: (s) => api(`${API}/push`, s), remove: (endpoint) => api(`${API}/push/remove`, { endpoint }) }),
+      d.push.devices ? btn("إرسال إشعار تجريبي", async () => {
+        try {
+          const r = await api(`${API}/push/test`, {});
+          toast(r.sent ? `أُرسل إلى ${r.sent} ${r.sent === 1 ? "جهاز" : "أجهزة"}. إن لم يظهر خلال دقيقة فأعد تفعيل الإشعارات على الجهاز.` : "لم يصل لأي جهاز. فعّل الإشعارات من جديد على جوالك.", !r.sent);
+          refresh();
+        } catch (e) { toast(e.message, true); }
+      }, "ghost sm") : null,
       needsInstallFirst() ? notice("على الآيفون: ثبّت لوحة المالك على الشاشة الرئيسية من زر المشاركة، ثم افتحها من الأيقونة وفعّل الإشعارات.", "") : null),
+    usagePanel(d.db_usage, refresh),
+    panel("مفتاح التشفير", null,
+      d.key_source === "CREDENTIAL_KEY"
+        ? notice("المفتاح مثبّت في إعدادات الخادم (CREDENTIAL_KEY). إشعارات الجوال وبيانات الدخول المحفوظة لا تتأثر بتغيير رابط قاعدة البيانات.")
+        : d.key_source === "derived"
+          ? [notice("المفتاح الحالي مشتق من رابط قاعدة البيانات. إن تغيّر الرابط (مثل تغيير كلمة مرور القاعدة) تتوقف إشعارات الجوال حتى يفتح كل مستخدم التطبيق، ولا تُقرأ بيانات الدخول المحفوظة. ثبّته مرة واحدة الآن.", "warn"),
+            btn("إظهار المفتاح لتثبيته", () => showKey(), "sm")]
+          : notice("لا يوجد مفتاح تشفير: إشعارات الجوال متوقفة. أضف CREDENTIAL_KEY في إعدادات الخادم.", "err")),
     panel("الرموز الاحتياطية", null,
       sub("للدخول عندما لا يكون جوال تطبيق المصادقة معك: اكتب رمزًا منها بدل الأرقام الستة. كل رمز يعمل مرة واحدة."),
       d.recovery_left
@@ -68,6 +83,51 @@ export default async function security({ refresh }) {
 }
 
 // A new set replaces the old one; confirmed with the current code from the authenticator app.
+// This month's database usage against the plan's limits (from Neon), with the pace toward the end of the month.
+function usagePanel(u, refresh) {
+  if (!u?.configured) {
+    return panel("استهلاك قاعدة البيانات", null,
+      notice("المراقبة غير مفعّلة. فعّلها لتعرف استهلاك الشهر ويصلك تنبيه على جوالك قبل بلوغ حد الخطة (70% ثم 85% ثم 95%)، فلا تتوقف المنصة فجأة.", "warn"),
+      h("ol", { class: "sec-steps" },
+        h("li", {}, "في Neon: Account settings ← API keys ← Create new API key، وانسخ المفتاح."),
+        h("li", {}, "في Neon: افتح مشروعك ← Settings، وانسخ Project ID."),
+        h("li", {}, "في Render: خدمة midar ← Environment ← أضف NEON_API_KEY و NEON_PROJECT_ID، ثم احفظ.")));
+  }
+  if (!u.ok) return panel("استهلاك قاعدة البيانات", btn("تحديث", async () => { await api(`${API}/db-usage`, {}).catch(() => {}); refresh(); }, "ghost sm"), notice(u.error, "err"));
+  const tone = (x) => (Math.max(x.pct, x.projected) >= 95 ? "red" : Math.max(x.pct, x.projected) >= 70 ? "amber" : "green");
+  return panel("استهلاك قاعدة البيانات", btn("تحديث", async () => { await api(`${API}/db-usage`, {}).catch(() => {}); refresh(); }, "ghost sm"),
+    sub(`الشهر الحالي${u.period_start ? ` من ${fmtDateTime(u.period_start)}` : ""}${u.period_end ? ` إلى ${fmtDateTime(u.period_end)}` : ""} · آخر تحديث ${fmtDateTime(u.checked_at)}`),
+    h("div", { class: "sec-rows" }, u.items.map((x) => h("div", { class: "sec-row" },
+      h("div", { style: "flex:1" },
+        h("b", {}, x.label), " ", badge(`${x.pct}%`, tone(x)),
+        h("div", { class: "bar", style: "height:8px;border-radius:6px;background:var(--line, #e5e7eb);margin:8px 0;overflow:hidden" },
+          h("span", { style: `display:block;height:100%;width:${Math.min(100, x.pct)}%;background:${tone(x) === "red" ? "#C0392B" : tone(x) === "amber" ? "#E6A23C" : "#12A39B"}` })),
+        h("small", {}, `${x.used} من ${x.limit} ${x.unit}${x.key !== "storage" ? ` · المتوقع آخر الشهر بهذه الوتيرة ${x.projected}%` : ""}`))))),
+    u.items.some((x) => Math.max(x.pct, x.projected) >= 85)
+      ? notice("الاستهلاك قريب من حد الخطة. عند بلوغه تتوقف قاعدة البيانات وتدخل المنصة في الصيانة حتى بداية الشهر التالي أو ترقية الخطة في Neon.", "err") : null);
+}
+
+function showKey() {
+  const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 9, placeholder: "000000" });
+  const d = dialog("تثبيت مفتاح التشفير", h("div", {},
+    sub("للتأكيد اكتب الأرقام الستة الظاهرة الآن في تطبيق المصادقة."), field("الرمز من التطبيق", code)), [
+    btn("إظهار", async () => {
+      try {
+        const r = await api(`${API}/credential-key`, { code: code.value.trim() });
+        d.close();
+        dialog("انسخه إلى إعدادات الخادم", h("div", {},
+          notice("هذا المفتاح سري كأي كلمة مرور. لا ترسله لأحد ولا تحفظه مع نسخ قاعدة البيانات.", "warn"),
+          copyRow("CREDENTIAL_KEY", r.key, { secret: true }),
+          h("ol", { class: "sec-steps" },
+            h("li", {}, "افتح Render ← خدمة midar ← Environment."),
+            h("li", {}, "أضف متغيرًا جديدًا اسمه CREDENTIAL_KEY وقيمته المفتاح أعلاه، ثم احفظ."),
+            h("li", {}, "بعد إعادة التشغيل يظهر هنا «المفتاح مثبّت». لا يتغير شيء على المستخدمين.")),
+          sub("احفظ نسخة منه في مدير كلمات المرور كذلك.")));
+      } catch (e) { toast(e.message, true); }
+    })]);
+  code.focus();
+}
+
 function newCodes(refresh) {
   const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 9, placeholder: "000000" });
   const d = dialog("رموز احتياطية جديدة", h("div", {},

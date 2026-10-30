@@ -56,6 +56,14 @@ test("لوحة المالك: لا دخول بكلمة المرور وحدها، 
   assert.equal((await a.post("/api/owner/security/alerts/seen", {})).status, 200);
   assert.equal((await a.get("/api/owner/security/badge")).data.unseen, 0);
   assert.equal((await client(srv.base).get("/api/owner/security")).status, 401, "صفحة الأمان للمالك فقط");
+
+  // The encryption key is shown only with the authenticator code, so the owner can pin it in the server settings.
+  assert.ok(["derived", "CREDENTIAL_KEY"].includes(sec.key_source));
+  assert.equal((await a.post("/api/owner/security/credential-key", { code: "000000" })).status, 401);
+  const k = await a.post("/api/owner/security/credential-key", { code: currentTotp(SECRET) });
+  assert.equal(k.status, 200);
+  assert.match(k.data.key, /^[0-9a-f]{64}$/);
+  assert.equal((await client(srv.base).post("/api/owner/security/credential-key", { code: currentTotp(SECRET) })).status, 401);
 });
 
 test("التنبيهات: حذف كبير، وطلبات مرفوضة متكررة من حساب مدرسة، وتصدير نسخة كاملة", async () => {
@@ -195,6 +203,31 @@ test("إشعارات المالك على الجوال: التنبيه المهم
     await dispatchOwnerPush();
     const [{ n }] = await transaction({ platform: true }, (q) => q("SELECT count(*)::int AS n FROM owner_push_subscriptions WHERE endpoint = $1", [endpoint]));
     assert.equal(n, 0, "الجهاز الذي ألغى الاشتراك يُزال");
+  } finally {
+    setTransport(null);
+  }
+});
+
+test("طلب تجربة جديد يصل لجوال المالك فورًا دون انتظار، والإشعار التجريبي يصل لكل أجهزته", async () => {
+  const { dispatchOwnerPush } = await import("../src/modules/shared/alerts.service.js");
+  const { setTransport } = await import("../src/modules/shared/notify.service.js");
+  const a = client(srv.base);
+  assert.equal((await a.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code: currentTotp(SECRET) }, ua("Windows NT 10.0; Win64"))).status, 200);
+  const endpoint = `https://push.example.test/owner-now-${Date.now()}`;
+  assert.equal((await a.post("/api/owner/security/push", { endpoint, keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) } })).status, 200);
+  const sent = [];
+  setTransport({ push: async () => {} });
+  try {
+    await dispatchOwnerPush();
+    setTransport({ push: async (sub, payload) => { if (sub.endpoint === endpoint) sent.push(payload); } });
+    const lead = await client(srv.base).post("/api/public/leads", { kind: "contact", school_name: "مدرسة الاختبار الفوري", contact_name: "سالم", phone: "0555000111", note: "استفسار" });
+    assert.equal(lead.status, 201, JSON.stringify(lead.data));
+    for (let i = 0; i < 40 && !sent.length; i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(sent.some((p) => p.title === "رسالة تواصل جديدة" && p.body === "مدرسة الاختبار الفوري"), "وصل خلال ثوانٍ دون انتظار المؤقت");
+    const t = await a.post("/api/owner/security/push/test", {});
+    assert.equal(t.status, 200);
+    assert.ok(t.data.sent >= 1);
+    assert.ok(sent.some((p) => p.title === "إشعار تجريبي من مدار"));
   } finally {
     setTransport(null);
   }

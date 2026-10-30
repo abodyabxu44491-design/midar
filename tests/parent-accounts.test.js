@@ -297,3 +297,52 @@ test("إضافة عدة أبناء دفعة واحدة من الحساب، وا�
   assert.equal((await c.post(`${P(A)}/parent/me`)).data.children.length, 3);
   assert.equal((await c.post(`${P(A)}/parent/children/add`, { keys: [B.students[0].access_key] })).status, 400);
 });
+
+const freshLogin = async () => login(A, DAD, (await A.admin.post(`/api/admin/parents/${dad.id}/reset-password`)).data.password);
+
+test("الأجهزة: ابن يُربط لاحقًا تصله إشعاراته فورًا على جوال الأب، والخروج من جهاز يوقف إشعاراته وحده", async () => {
+  const { c, r } = await freshLogin();
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const sub = (n) => ({ endpoint: `https://push.example.com/send/dad-${n}`, keys: { p256dh: "B".repeat(87), auth: "a".repeat(22) } });
+  for (const n of [1, 2]) assert.equal((await c.post(`${P(A)}/parent/push`, { subscription: sub(n) })).status, 200);
+  const late = await addStudent(A, "يوسف عبدالله سالم", DAD);
+  const rows = (sid) => transaction({ tenantId: A.id }, (q) => q("SELECT endpoint FROM push_subscriptions WHERE student_id = $1 AND parent_id = $2 ORDER BY endpoint", [sid, dad.id]));
+  const linked = (await transaction({ tenantId: A.id }, (q) => q("SELECT 1 FROM parent_students WHERE student_id = $1 AND parent_id = $2 AND removed_at IS NULL", [late.id, dad.id]))).length;
+  assert.equal(linked, 1, "رُبط تلقائيًا برقم الجوال");
+  assert.deepEqual((await rows(late.id)).map((x) => x.endpoint), [sub(1).endpoint, sub(2).endpoint], "جهازا الأب يستقبلان إشعارات الابن الجديد");
+  const out = await c.post(`${P(A)}/parent/logout`, { endpoint: sub(1).endpoint });
+  assert.equal(out.status, 200);
+  const left = await transaction({ tenantId: A.id }, (q) => q("SELECT DISTINCT endpoint FROM push_subscriptions WHERE parent_id = $1", [dad.id]));
+  assert.deepEqual(left.map((x) => x.endpoint), [sub(2).endpoint], "الجهاز الذي خرج لم يعد يستقبل، والآخر باقٍ");
+});
+
+test("الجلسة تبقى ما دام التطبيق مستخدمًا: الكوكي يتجدد ولا ينتهي بعد مدة ثابتة", async () => {
+  const { c, r } = await freshLogin();
+  assert.equal(r.status, 200);
+  await transaction({ platform: true }, (q) => q("UPDATE sessions SET last_seen_at = now() - interval '7 hours' WHERE parent_id = $1", [dad.id]));
+  const res = await fetch(`${srv.base}${P(A)}/parent/me`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: [...c.jar].map(([k, v]) => `${k}=${v}`).join("; ") }, body: "{}" });
+  assert.equal(res.status, 200);
+  const set = res.headers.getSetCookie().find((x) => x.includes(`midar_p_${A.id}=`));
+  assert.ok(set, "أُعيد إصدار الكوكي");
+  const age = Number(/Max-Age=(\d+)/.exec(set)?.[1]);
+  assert.ok(age > 170 * 86400, `مدة طويلة: ${age}`);
+});
+
+test("ولي أمر له أبناء في مدرستين: يبقى داخلًا في الاثنتين على الجهاز نفسه", async () => {
+  await addStudent(B, "نورة عبدالله سالم", DAD, B.c1.id);
+  await B.admin.post("/api/admin/parents/auto-create");
+  const bDad = (await B.admin.get(`/api/admin/parents?search=${DAD}`)).data[0];
+  const passB = (await B.admin.post(`/api/admin/parents/${bDad.id}/reset-password`)).data.password;
+  const passA = (await A.admin.post(`/api/admin/parents/${dad.id}/reset-password`)).data.password;
+  const c = client(srv.base);
+  assert.equal((await c.post(`${P(A)}/parent/login`, { phone: DAD, password: passA })).status, 200);
+  assert.equal((await c.post(`${P(B)}/parent/login`, { phone: DAD, password: passB })).status, 200);
+  const a = await c.post(`${P(A)}/parent/me`), b = await c.post(`${P(B)}/parent/me`);
+  assert.equal(a.status, 200, "ما زال داخلًا في المدرسة الأولى");
+  assert.equal(b.status, 200);
+  assert.ok(a.data.children.length >= 5);
+  assert.equal(b.data.children.length, 1);
+  assert.equal((await c.post(`${P(B)}/parent/logout`)).status, 200);
+  assert.equal((await c.post(`${P(B)}/parent/me`)).status, 401);
+  assert.equal((await c.post(`${P(A)}/parent/me`)).status, 200, "الخروج من مدرسة لا يخرجه من الأخرى");
+});

@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { kickOwnerPush } from "../shared/alerts.service.js";
 import { Router } from "express";
 import { inTenant, transaction } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";
@@ -97,6 +98,7 @@ r.post("/requests", handle(async (req, res) => {
        b.plan_id ?? null, b.billing_cycle ?? null, b.months ?? null, req.actor]);
     return created;
   });
+  kickOwnerPush();
   res.status(201).json(row);
 }));
 

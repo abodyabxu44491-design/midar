@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { kickOwnerPush } from "../shared/alerts.service.js";
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";
@@ -71,6 +72,7 @@ r.post("/", limits.login, handle(async (req, res) => {
     }
     return q("SELECT submit_lead($1::jsonb) AS id", [JSON.stringify(b)]);
   });
+  kickOwnerPush();
   res.status(201).json({ ok: true, id: Number(id), status: "new", status_label: STATUS.new });
 }));
 

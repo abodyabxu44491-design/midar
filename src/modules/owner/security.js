@@ -15,6 +15,9 @@ import { env } from "../../config/env.js";
 import { ownerMfa } from "./auth.js";
 import { checkOwnerFactor, newRecoveryCodes, recoveryLeft } from "../../core/auth/owner-mfa.js";
 import { pushPublicKey } from "../shared/notify.service.js";
+import { keySource, effectiveKey } from "../../core/auth/secret-box.js";
+import { testOwnerPush } from "../shared/alerts.service.js";
+import { dbUsage } from "../shared/db-usage.service.js";
 import { subscriptionSchema } from "../shared/notifications.routes.js";
 
 const r = Router();
@@ -36,7 +39,8 @@ r.get("/", handle(async (req, res) => {
     return { mfa: mfa ? { source: mfa.source, enrolled_at: mfa.enrolled_at || null } : null, recovery_left: await recoveryLeft(q), sessions, devices, alerts, unseen,
       push: { key: pushPublicKey(), devices: pushDevices } };
   });
-  res.json({ ...out, ip_allowlist: env.ownerIps.length > 0, alert_email: Boolean(env.OWNER_ALERT_EMAIL) });
+  res.json({ ...out, ip_allowlist: env.ownerIps.length > 0, alert_email: Boolean(env.OWNER_ALERT_EMAIL),
+    key_source: keySource(), vapid_pinned: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY), db_usage: await dbUsage() });
 }));
 
 r.get("/badge", handle(async (req, res) => {
@@ -65,6 +69,18 @@ r.post("/recovery-codes", handle(async (req, res) => {
   res.json({ recovery_codes: codes });
 }));
 
+// The encryption key in effect, shown once to the owner (with the authenticator code) to pin it as CREDENTIAL_KEY.
+// Pinning the same value changes nothing for users: push keys and saved credentials stay valid.
+r.post("/credential-key", handle(async (req, res) => {
+  const { code } = parse(z.object({ code: z.string().max(20) }), req.body);
+  const key = await transaction(platform(req), async (q) => {
+    if (!(await checkOwnerFactor(q, await ownerMfa(q), code, req.ip))) throw unauthorized("الرمز غير صحيح. اكتب الرقم الظاهر الآن في تطبيق المصادقة.");
+    await logEvent(q, { actor: req.actor, action: "عرض مفتاح التشفير لتثبيته في إعدادات الخادم" });
+    return effectiveKey();
+  });
+  res.json({ source: keySource(), key });
+}));
+
 // Phone notifications on this device for the owner (security alerts and new requests).
 r.get("/push", handle(async (req, res) => res.json({ key: pushPublicKey() })));
 r.post("/push", handle(async (req, res) => {
@@ -75,6 +91,8 @@ r.post("/push", handle(async (req, res) => {
     [sub.endpoint, sub.keys.p256dh, sub.keys.auth, String(req.get("user-agent") || "").slice(0, 300) || null]));
   res.json({ ok: true });
 }));
+r.post("/db-usage", handle(async (req, res) => res.json(await dbUsage({ fresh: true }))));
+r.post("/push/test", handle(async (req, res) => res.json(await testOwnerPush())));
 r.post("/push/remove", handle(async (req, res) => {
   const { endpoint } = parse(z.object({ endpoint: z.string().max(1000) }), req.body);
   await transaction(platform(req), (q) => q("DELETE FROM owner_push_subscriptions WHERE endpoint = $1", [endpoint]));

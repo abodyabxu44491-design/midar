@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { currentEndpoint } from "../shared/js/push.js";
 import { h, $, mount } from "../shared/js/dom.js";
 import { api, idempotencyKey } from "../shared/js/api.js";
 import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl, teacherCards } from "../shared/js/ui.js";
@@ -40,6 +41,7 @@ async function load() {
 
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
+const CLAIM = { pending: ["بانتظار تأكيد المدرسة", "amber"], confirmed: ["تم التأكيد", ""], rejected: ["مرفوض", "red"] };
 
 function render(d, inbox, chat) {
   if (d.currency) setCurrency(d.currency);
@@ -49,7 +51,8 @@ function render(d, inbox, chat) {
 
   const who = whoOf();
   const remember = () => rememberChild(school, { id: creds.id, key: creds.key, name: s.name, class_name: s.class_name });
-  if (isRemembered(school, creds.id)) remember();
+  // The device keeps the child once the key opens the file, so the app never asks for it again (sign out forgets it).
+  if (creds.key) remember();
   const extra = inbox ? [{ key: "inbox", name: "الإشعارات", note: inbox.unread ? `${inbox.unread} جديد` : `${inbox.items.length}`,
     view: ({ reopen }) => inboxSection(inbox, who, remember, reopen, (k) => file.open(k)) }] : [];
   const unread = chat ? chat.teachers.reduce((n, x) => n + x.unread, 0) : 0;
@@ -73,8 +76,9 @@ function render(d, inbox, chat) {
 
   mount(app,
     topbar({ logo: schoolLogoUrl(d.school_id, d.school_logo), school: d.school, subtitle: "ملف الطالب",
-      onLogout: viaParent() ? async () => { await api(`${P}/parent/logout`, {}).catch(() => {}); setParentSignedIn(school, false); closeChild(school); back(); }
-        : () => { closeChild(school); back(); } }),
+      onLogout: viaParent() ? async () => { await api(`${P}/parent/logout`, { endpoint: await currentEndpoint() }).catch(() => {}); setParentSignedIn(school, false); closeChild(school); back(); }
+        : async () => { const endpoint = await currentEndpoint(); if (endpoint && creds.key) await api(`${P}/student/push/remove`, { student_id: creds.id, key: creds.key, endpoint }).catch(() => {});
+          closeChild(school); forgetChild(school, creds.id); back(); } }),
     h("main", { class: "profile-page" },
       viaParent() ? kidSwitcher(s) : null,
       h("div", { class: "toolbar sf-toolbar" }, viaParent() ? btn("أبنائي", family, "ghost sm") : btn("قائمة الطلاب", back, "ghost sm"),

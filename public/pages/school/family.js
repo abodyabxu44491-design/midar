@@ -3,13 +3,14 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { currentEndpoint } from "../shared/js/push.js";
 import { h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { field, input, btn, notice, dialog, sub, badge, toast, passwordInput, empty, toAsciiDigits, personAvatar } from "../shared/js/ui.js";
 import { ATTENDANCE, fmtDateTime } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { pushInvite } from "../shared/js/inbox.js";
-import { setParentSignedIn, parentSignedIn, openChild, rememberedChildren } from "../shared/js/children.js";
+import { setParentSignedIn, parentSignedIn, openChild, rememberedChildren, setOnlyChild } from "../shared/js/children.js";
 
 const school = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
 const P = `/api/public/${encodeURIComponent(school)}`;
@@ -195,6 +196,7 @@ export async function familyPage(shell) {
   const welcome = sessionStorage.getItem(`midar_parent_welcome_${school}`);
   if (welcome) { sessionStorage.removeItem(`midar_parent_welcome_${school}`); queueMicrotask(() => toast(welcome)); }
   const active = d.children.filter((k) => k.active), old = d.children.filter((k) => !k.active);
+  setOnlyChild(school, active.length === 1 ? active[0].id : null);
   const statusOf = (k) => (k.today_status ? STATUS[k.today_status] || [ATTENDANCE[k.today_status]?.[0] || k.today_status, "gray"] : ["لم يُسجَّل بعد", "gray"]);
 
   const card = (k) => {
@@ -250,7 +252,7 @@ export async function familyPage(shell) {
         btn([icons.plus({ size: 16 }), "إضافة ابن"], () => addChildDialog(d, () => familyPage(shell)), "primary sm"),
         btn("كلمة المرور", () => passwordDialog(d), "ghost sm"),
         btn("تسجيل الخروج", async () => {
-          await api(`${P}/parent/logout`, {}).catch(() => {});
+          await api(`${P}/parent/logout`, { endpoint: await currentEndpoint() }).catch(() => {});
           setParentSignedIn(school, false); sessionStorage.removeItem(`midar_family_${school}`);
           location.hash = "#/";
         }, "ghost sm"))),

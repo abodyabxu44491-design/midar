@@ -31,4 +31,6 @@ export async function clearLoginFailures(q, tenantId, username) {
 // function stores it without giving the caller read access, and folds a repeat of the same alert within 10 minutes.
 export async function raiseAlert(q, { kind, severity = "medium", title, detail = null, tenantId = null }) {
   await q("SELECT raise_security_alert($1, $2, $3, $4, $5)", [kind, severity, title, detail, tenantId]);
+  // A high alert reaches the owner's phone right away (after this transaction commits).
+  if (severity === "high") import("../modules/shared/alerts.service.js").then((m) => m.kickOwnerPush()).catch(() => {});
 }

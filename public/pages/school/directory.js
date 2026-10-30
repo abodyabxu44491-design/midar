@@ -10,7 +10,7 @@ import { fmtDate } from "../shared/js/format.js";
 import { icons } from "../shared/js/icons.js";
 import { timetableGrid } from "../shared/js/timetable.js";
 import { detectPhone } from "../shared/js/phone.js";
-import { rememberedChildren, openChild, parentSignedIn } from "../shared/js/children.js";
+import { rememberedChildren, rememberChild, openChild, parentSignedIn, onlyChild } from "../shared/js/children.js";
 import { accountButton, accountPage, familyPage } from "./family.js";
 import { rememberSchool } from "../shared/js/recent.js";
 
@@ -37,7 +37,18 @@ function shell(content, { crumbs = [] } = {}) {
 const emptyState = (icon, title, text) => h("div", { class: "ss-empty" }, icon, h("b", {}, title), text ? h("p", {}, text) : null);
 
 async function route() {
-  if (!location.hash && parentSignedIn(school) && !new URLSearchParams(location.search).get("k")) { location.replace("#/family"); return; }
+  // Opening the app (no page chosen yet): a signed-in parent goes to their family, or straight to the file of their
+  // only child; a device that has kept one child's key opens that file without asking for it again.
+  if (!location.hash && !new URLSearchParams(location.search).get("k")) {
+    const toFile = (id) => location.replace(`/${encodeURIComponent(school)}/student?s=${id}`);
+    if (parentSignedIn(school)) {
+      const one = onlyChild(school);
+      if (one) { openChild(school, { id: one, key: null }); return toFile(one); }
+      location.replace("#/family"); return;
+    }
+    const kept = rememberedChildren(school);
+    if (kept.length === 1) { openChild(school, kept[0]); return toFile(kept[0].id); }
+  }
   const [, page, a, b] = (location.hash || "#/").split("/");
   try {
     if (!home) { home = await api(`${P}/home`, {}); rememberSchool({ id: school, name: home.school.name, role: "parent" }); }
@@ -104,6 +115,7 @@ function findByKey() {
     try {
       const r = await api(`${P}/find`, { key: k });
       sessionStorage.setItem(`midar_student_${school}`, JSON.stringify({ id: r.student_id, key: k }));
+      rememberChild(school, { id: r.student_id, key: k });
       location.href = `/${encodeURIComponent(school)}/student`;
     } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "primary");
@@ -249,6 +261,7 @@ function askKey(student) {
     try {
       await api(`${P}/student`, { student_id: student.id, key: key.value });
       sessionStorage.setItem(`midar_student_${school}`, JSON.stringify({ id: student.id, key: key.value.trim().toUpperCase() }));
+      rememberChild(school, { id: student.id, key: key.value.trim().toUpperCase(), name: student.name });
       location.href = `/${encodeURIComponent(school)}/student`;
     } catch (e) { mount(msg, notice(e.message, "err")); }
   }, "primary");

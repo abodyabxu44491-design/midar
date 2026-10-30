@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { kickOwnerPush } from "../shared/alerts.service.js";
 import { Router } from "express";
 import { inTenant, transaction } from "../../core/db/pool.js";
 import { handle, badRequest } from "../../core/http/errors.js";
@@ -69,6 +70,7 @@ r.post("/subscription/renew", handle(async (req, res) => {
        b.students_wanted ?? null, req.actor]);
     return { ...created, kind: b.kind, status: toOld(created.status) };
   });
+  kickOwnerPush();
   res.status(201).json(row);
 }));
 

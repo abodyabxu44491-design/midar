@@ -8,7 +8,7 @@ import { transaction } from "../../core/db/pool.js";
 import { AppError, handle, unauthorized, forbidden, badRequest } from "../../core/http/errors.js";
 import { parse, z, t } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
-import { createSession, destroySession } from "../../core/auth/sessions.js";
+import { createSession, destroySession, readSession } from "../../core/auth/sessions.js";
 import { inSchool } from "./context.js";
 import * as parents from "../shared/parents.service.js";
 import { activeModules } from "../shared/notify.service.js";
@@ -67,6 +67,12 @@ r.post("/parent/activate", limits.parentLogin, handle(async (req, res) => {
 }));
 
 r.post("/parent/logout", handle(async (req, res) => {
+  // Signing out of this device also stops its notifications (the parent's other devices keep theirs).
+  const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint.slice(0, 1000) : null;
+  if (endpoint) {
+    const s = await readSession(req, "parent");
+    if (s?.parent_id) await inSchool(req, ACTOR, (q) => q("DELETE FROM push_subscriptions WHERE parent_id = $1 AND endpoint = $2", [s.parent_id, endpoint]));
+  }
   await destroySession(req, res, "parent");
   res.json({ ok: true });
 }));
