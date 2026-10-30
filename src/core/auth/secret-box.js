@@ -39,6 +39,9 @@ function resolveKey(env = process.env) {
   if (!env.DATABASE_URL) return null;
   return Buffer.from(crypto.hkdfSync("sha256", env.DATABASE_URL, "midar", "initial-credentials-v1", 32)).toString("hex");
 }
+// The key in effect now (set, or derived from the database address). The owner pins a derived one as CREDENTIAL_KEY so
+// that a change of database address never changes it (and with it, push keys and saved credentials).
+export const effectiveKey = (env = process.env) => resolveKey(env);
 export const keySource = (env = process.env) => (parseKey(env.CREDENTIAL_KEY) ? "CREDENTIAL_KEY" : env.DATABASE_URL ? "derived" : "none");
 const box = createBox(resolveKey());
 export const credentialsEnabled = box.enabled;

@@ -56,6 +56,14 @@ test("لوحة المالك: لا دخول بكلمة المرور وحدها، 
   assert.equal((await a.post("/api/owner/security/alerts/seen", {})).status, 200);
   assert.equal((await a.get("/api/owner/security/badge")).data.unseen, 0);
   assert.equal((await client(srv.base).get("/api/owner/security")).status, 401, "صفحة الأمان للمالك فقط");
+
+  // The encryption key is shown only with the authenticator code, so the owner can pin it in the server settings.
+  assert.ok(["derived", "CREDENTIAL_KEY"].includes(sec.key_source));
+  assert.equal((await a.post("/api/owner/security/credential-key", { code: "000000" })).status, 401);
+  const k = await a.post("/api/owner/security/credential-key", { code: currentTotp(SECRET) });
+  assert.equal(k.status, 200);
+  assert.match(k.data.key, /^[0-9a-f]{64}$/);
+  assert.equal((await client(srv.base).post("/api/owner/security/credential-key", { code: currentTotp(SECRET) })).status, 401);
 });
 
 test("التنبيهات: حذف كبير، وطلبات مرفوضة متكررة من حساب مدرسة، وتصدير نسخة كاملة", async () => {

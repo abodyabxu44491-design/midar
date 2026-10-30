@@ -322,8 +322,27 @@ test("الجلسة تبقى ما دام التطبيق مستخدمًا: الك�
   await transaction({ platform: true }, (q) => q("UPDATE sessions SET last_seen_at = now() - interval '7 hours' WHERE parent_id = $1", [dad.id]));
   const res = await fetch(`${srv.base}${P(A)}/parent/me`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: [...c.jar].map(([k, v]) => `${k}=${v}`).join("; ") }, body: "{}" });
   assert.equal(res.status, 200);
-  const set = res.headers.getSetCookie().find((x) => x.includes("midar_p="));
+  const set = res.headers.getSetCookie().find((x) => x.includes(`midar_p_${A.id}=`));
   assert.ok(set, "أُعيد إصدار الكوكي");
   const age = Number(/Max-Age=(\d+)/.exec(set)?.[1]);
   assert.ok(age > 170 * 86400, `مدة طويلة: ${age}`);
+});
+
+test("ولي أمر له أبناء في مدرستين: يبقى داخلًا في الاثنتين على الجهاز نفسه", async () => {
+  await addStudent(B, "نورة عبدالله سالم", DAD, B.c1.id);
+  await B.admin.post("/api/admin/parents/auto-create");
+  const bDad = (await B.admin.get(`/api/admin/parents?search=${DAD}`)).data[0];
+  const passB = (await B.admin.post(`/api/admin/parents/${bDad.id}/reset-password`)).data.password;
+  const passA = (await A.admin.post(`/api/admin/parents/${dad.id}/reset-password`)).data.password;
+  const c = client(srv.base);
+  assert.equal((await c.post(`${P(A)}/parent/login`, { phone: DAD, password: passA })).status, 200);
+  assert.equal((await c.post(`${P(B)}/parent/login`, { phone: DAD, password: passB })).status, 200);
+  const a = await c.post(`${P(A)}/parent/me`), b = await c.post(`${P(B)}/parent/me`);
+  assert.equal(a.status, 200, "ما زال داخلًا في المدرسة الأولى");
+  assert.equal(b.status, 200);
+  assert.ok(a.data.children.length >= 5);
+  assert.equal(b.data.children.length, 1);
+  assert.equal((await c.post(`${P(B)}/parent/logout`)).status, 200);
+  assert.equal((await c.post(`${P(B)}/parent/me`)).status, 401);
+  assert.equal((await c.post(`${P(A)}/parent/me`)).status, 200, "الخروج من مدرسة لا يخرجه من الأخرى");
 });

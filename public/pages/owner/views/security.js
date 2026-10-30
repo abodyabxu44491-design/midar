@@ -7,7 +7,7 @@
 // session in one step), and the security alerts raised across the platform.
 import { h } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
-import { panel, btn, empty, badge, sub, toast, notice, confirmAction, dialog, field, input } from "/shared/js/ui.js";
+import { panel, btn, empty, badge, sub, toast, notice, confirmAction, dialog, field, input, copyRow } from "/shared/js/ui.js";
 import { fmtDateTime } from "/shared/js/format.js";
 import { pushToggle } from "/shared/js/inbox.js";
 import { needsInstallFirst } from "/shared/js/push.js";
@@ -38,6 +38,13 @@ export default async function security({ refresh }) {
       d.push.devices ? sub(`مفعّلة على ${d.push.devices === 1 ? "جهاز واحد" : `${d.push.devices} أجهزة`}.`) : null,
       pushToggle({ key: d.push.key, save: (s) => api(`${API}/push`, s), remove: (endpoint) => api(`${API}/push/remove`, { endpoint }) }),
       needsInstallFirst() ? notice("على الآيفون: ثبّت لوحة المالك على الشاشة الرئيسية من زر المشاركة، ثم افتحها من الأيقونة وفعّل الإشعارات.", "") : null),
+    panel("مفتاح التشفير", null,
+      d.key_source === "CREDENTIAL_KEY"
+        ? notice("المفتاح مثبّت في إعدادات الخادم (CREDENTIAL_KEY). إشعارات الجوال وبيانات الدخول المحفوظة لا تتأثر بتغيير رابط قاعدة البيانات.")
+        : d.key_source === "derived"
+          ? [notice("المفتاح الحالي مشتق من رابط قاعدة البيانات. إن تغيّر الرابط (مثل تغيير كلمة مرور القاعدة) تتوقف إشعارات الجوال حتى يفتح كل مستخدم التطبيق، ولا تُقرأ بيانات الدخول المحفوظة. ثبّته مرة واحدة الآن.", "warn"),
+            btn("إظهار المفتاح لتثبيته", () => showKey(), "sm")]
+          : notice("لا يوجد مفتاح تشفير: إشعارات الجوال متوقفة. أضف CREDENTIAL_KEY في إعدادات الخادم.", "err")),
     panel("الرموز الاحتياطية", null,
       sub("للدخول عندما لا يكون جوال تطبيق المصادقة معك: اكتب رمزًا منها بدل الأرقام الستة. كل رمز يعمل مرة واحدة."),
       d.recovery_left
@@ -68,6 +75,27 @@ export default async function security({ refresh }) {
 }
 
 // A new set replaces the old one; confirmed with the current code from the authenticator app.
+function showKey() {
+  const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 9, placeholder: "000000" });
+  const d = dialog("تثبيت مفتاح التشفير", h("div", {},
+    sub("للتأكيد اكتب الأرقام الستة الظاهرة الآن في تطبيق المصادقة."), field("الرمز من التطبيق", code)), [
+    btn("إظهار", async () => {
+      try {
+        const r = await api(`${API}/credential-key`, { code: code.value.trim() });
+        d.close();
+        dialog("انسخه إلى إعدادات الخادم", h("div", {},
+          notice("هذا المفتاح سري كأي كلمة مرور. لا ترسله لأحد ولا تحفظه مع نسخ قاعدة البيانات.", "warn"),
+          copyRow("CREDENTIAL_KEY", r.key, { secret: true }),
+          h("ol", { class: "sec-steps" },
+            h("li", {}, "افتح Render ← خدمة midar ← Environment."),
+            h("li", {}, "أضف متغيرًا جديدًا اسمه CREDENTIAL_KEY وقيمته المفتاح أعلاه، ثم احفظ."),
+            h("li", {}, "بعد إعادة التشغيل يظهر هنا «المفتاح مثبّت». لا يتغير شيء على المستخدمين.")),
+          sub("احفظ نسخة منه في مدير كلمات المرور كذلك.")));
+      } catch (e) { toast(e.message, true); }
+    })]);
+  code.focus();
+}
+
 function newCodes(refresh) {
   const code = input({ class: "ltr", inputMode: "numeric", autocomplete: "one-time-code", maxLength: 9, placeholder: "000000" });
   const d = dialog("رموز احتياطية جديدة", h("div", {},
