@@ -516,7 +516,7 @@ export function kickDeliveries() {
 export function startDeliveryWorker(everyMs = 15_000) {
   // Retries and scheduled messages: every tick while the platform is in use, every half hour while idle
   // (new notifications are sent right away by kickDeliveries from the request that made them).
-  const t = setInterval(gated(() => { kickDeliveries(); }, { idleEveryMs: 30 * 60_000 }), everyMs);
+  const t = setInterval(gated(() => { kickDeliveries(); }), Math.min(everyMs, 60_000));
   t.unref?.();
   return () => clearInterval(t);
 }

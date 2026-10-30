@@ -4,7 +4,8 @@
 name: مراقبة الموقع
 on:
   schedule:
-    - cron: "7 * * * *"
+    # Every 3 hours: each check wakes the database, which on the free tier is billed by the time it is awake.
+    - cron: "7 */3 * * *"
   workflow_dispatch:
 
 permissions: {}
