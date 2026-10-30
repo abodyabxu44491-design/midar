@@ -318,7 +318,7 @@ async function queuePush(q, ids, { event, e, rule, priority }) {
 export async function queueWhatsApp(q, studentIds, text, kind, { perStudent = null } = {}) {
   const [{ dial, school }] = await q(`SELECT COALESCE((SELECT country_code FROM school_messages WHERE tenant_id = app_tenant()), '967') AS dial,
                                              (SELECT name FROM tenants WHERE id = app_tenant()) AS school`);
-  const rows = await q(`SELECT s.id, s.full_name, s.guardian_phone, c.name AS class_name FROM students s LEFT JOIN classes c ON c.id = s.class_id
+  const rows = await q(`SELECT s.id, s.full_name, s.guardian_phone, s.access_key, c.name AS class_name FROM students s LEFT JOIN classes c ON c.id = s.class_id
                          WHERE s.id = ANY($1) AND s.guardian_phone IS NOT NULL AND s.archived_at IS NULL ORDER BY c.name, s.full_name`, [studentIds]);
   const seen = new Set();
   let added = 0;

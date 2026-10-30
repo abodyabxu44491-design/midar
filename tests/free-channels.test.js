@@ -86,6 +86,19 @@ test("قائمة واتساب: تجهيز بمتغيرات، رقم واحد ل�
   assert.equal((await B.admin.post(`${C}/wa/${w.pending[0].id}/done`, { status: "sent" })).status, 404);
   assert.equal((await A.admin.post(`${C}/wa/clear`, { scope: "pending" })).data.removed, r.data.added - 1);
   assert.equal((await A.admin.post(`${C}/wa/compose`, { target: "absent_today", message: "غياب" })).status, 400, "لا غياب اليوم");
+  // {الرابط}: each guardian gets their own child's link, which opens the file with the child's key.
+  const link = await A.admin.post(`${C}/wa/compose`, { target: "all", message: "ملف {الطالب}: {الرابط}" });
+  assert.equal(link.status, 200, JSON.stringify(link.data));
+  const msgs = (await A.admin.get(`${C}/wa`)).data.pending.filter((m) => m.body.startsWith("ملف "));
+  assert.ok(msgs.length >= 1);
+  for (const m of msgs) {
+    const st = A.students.find((x) => m.body.includes(x.name || x.full_name));
+    const key = /\?k=([A-Z0-9-]+)/.exec(m.body)?.[1];
+    assert.ok(key, m.body);
+    assert.match(m.body, new RegExp(`/${A.id}\\?k=`));
+    if (st?.access_key) assert.equal(key, st.access_key);
+  }
+  await A.admin.post(`${C}/wa/clear`, { scope: "pending" });
 });
 
 test("واتساب تلقائي من الأحداث: الغياب يضيف رسالة للقائمة عند تفعيله، والإيقاف يحجبه", async () => {

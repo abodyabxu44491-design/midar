@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { env } from "../../config/env.js";
 import { Router } from "express";
 import { inTenant } from "../../core/db/pool.js";
 import { handle, badRequest, notFound } from "../../core/http/errors.js";
@@ -201,8 +202,11 @@ r.post("/wa/compose", handle(async (req, res) => {
     const ids = rows.map((x) => x.id);
     const owed = new Map((await q(`SELECT student_id, SUM(amount - invoice_net_paid(id)) AS rem FROM invoices WHERE status = 'open' AND student_id = ANY($1) GROUP BY student_id`, [ids]))
       .map((x) => [Number(x.student_id), Math.max(0, Number(x.rem))]));
-    const [{ currency }] = await q("SELECT currency FROM tenants WHERE id = app_tenant()");
-    const fill = (s) => b.message.replace(/\{(الطالب|الفصل|المبلغ|التاريخ)\}/g, (_, k) => ({
+    const [{ currency, id: tenant }] = await q("SELECT id, currency FROM tenants WHERE id = app_tenant()");
+    // {الرابط} opens the child's file straight from the message and keeps it on the parent's phone: no key to type.
+    const site = env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
+    const fill = (s) => b.message.replace(/\{(الطالب|الفصل|المبلغ|التاريخ|الرابط)\}/g, (_, k) => ({
+      "الرابط": s.access_key ? `${site}/${encodeURIComponent(tenant)}?k=${s.access_key}` : "",
       "الطالب": s.full_name, "الفصل": s.class_name || "", "التاريخ": new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" }),
       "المبلغ": `${(owed.get(Number(s.id)) || 0).toLocaleString("en-US")} ${currency || ""}`.trim() }[k]));
     const added = await queueWhatsApp(q, ids, b.message, "manual", { perStudent: fill });

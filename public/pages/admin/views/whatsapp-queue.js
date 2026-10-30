@@ -5,12 +5,14 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, select, textarea, btn, empty, badge, sub, stats, toast, confirmAction } from "../../shared/js/ui.js";
+import { panel, field, select, textarea, btn, empty, badge, sub, stats, toast, confirmAction, line } from "../../shared/js/ui.js";
 import { A } from "./common.js";
 
 const TARGETS = [["all", "كل أولياء الأمور"], ["class", "شعبة محددة"], ["absent_today", "أولياء أمور الغائبين اليوم"], ["overdue", "من عليهم رسوم متأخرة"]];
 const KINDS = { manual: "رسالة يدوية", absence: "غياب", late: "تأخر", grades: "درجات", invoice: "رسوم", payment: "دفعة", announcement: "تعميم" };
-const VARS = ["{الطالب}", "{الفصل}", "{المبلغ}", "{التاريخ}"];
+const VARS = ["{الطالب}", "{الفصل}", "{المبلغ}", "{التاريخ}", "{الرابط}"];
+// One message per child with a link that opens the child's file and keeps it on the parent's phone.
+const LINK_MSG = "ولي أمر الطالب {الطالب}: هذا رابط ملف ابنكم في مدار. افتحوه مرة واحدة من جوالكم ويبقى محفوظًا عليه، وفيه الحضور والدرجات والواجبات والرسوم، وتصلكم منه الإشعارات. {الرابط}";
 const SAMPLES = {
   absent_today: "ولي أمر الطالب {الطالب}: نفيدكم بغياب ابنكم اليوم {التاريخ}. نأمل التواصل مع المدرسة لمعرفة السبب.",
   overdue: "ولي أمر الطالب {الطالب}: نذكّركم بالرسوم المتأخرة وقدرها {المبلغ}. شاكرين تعاونكم.",
@@ -34,6 +36,8 @@ export default async function whatsappQueue({ nav }) {
     h("div", { class: "row" }, field("إلى", target), clsField),
     field("الرسالة", text),
     h("div", { class: "wa-vars" }, VARS.map((v) => h("button", { type: "button", class: "chip", onclick: () => insertVar(v) }, v))),
+    line(h("div", {}, h("b", {}, "رابط ملف الطالب لكل ولي أمر"), sub("أسهل طريقة لدخول أولياء الأمور: يضغط الرابط فيفتح ملف ابنه ويبقى محفوظًا على جواله، بلا معرّف ولا كلمة مرور.")),
+      btn("استخدم هذه الرسالة", () => { text.value = LINK_MSG; text.focus(); }, "ghost sm")),
     btn("أضف إلى قائمة الإرسال", async () => {
       try {
         const r = await api(`${A}/communication/wa/compose`, { target: target.value, class_id: target.value === "class" ? Number(cls.value) : undefined, message: text.value.trim() });

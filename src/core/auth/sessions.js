@@ -18,7 +18,8 @@ export const SESSION = {
   admin:      { cookie: "midar_a", path: "/api/admin",      idleMin: 120, maxHours: 12 },
   teacher:    { cookie: "midar_t", path: "/api/teacher",    idleMin: 180, maxHours: 12 },
   accountant: { cookie: "midar_f", path: "/api/accountant", idleMin: 120, maxHours: 12 },
-  parent:     { cookie: "midar_p", path: "/api/public",     idleMin: 30 * 24 * 60, maxHours: 30 * 24 },
+  // A parent stays signed in on their phone until they sign out or leave it unused for half a year (a whole summer).
+  parent:     { cookie: "midar_p", path: "/api/public",     idleMin: 180 * 24 * 60, maxHours: 180 * 24, rememberDays: 180 },
   group:      { cookie: "midar_g", path: "/api/group",      idleMin: 120, maxHours: 12 },
   // A school manager's Midar account on this device (who they are); school access is a separate admin session.
   account:    { cookie: "midar_ac", path: "/api/account",   idleMin: 30 * 24 * 60, maxHours: 30 * 24 },
@@ -50,8 +51,8 @@ function tokenOf(req, kind) {
 export async function createSession(res, kind, { userId = null, parentId = null, groupId = null, accountId = null, tenantId = null, ip, userAgent, remember = false }, q) {
   const cfg = SESSION[kind];
   const token = newToken();
-  const maxHours = remember ? REMEMBER_HOURS : cfg.maxHours;
-  const idleMinutes = remember ? REMEMBER_IDLE_MIN : null;
+  const maxHours = remember ? (cfg.rememberDays ? cfg.rememberDays * 24 : REMEMBER_HOURS) : cfg.maxHours;
+  const idleMinutes = remember ? (cfg.rememberDays ? cfg.rememberDays * 24 * 60 : REMEMBER_IDLE_MIN) : null;
   await q(
     `INSERT INTO sessions (token_hash, kind, user_id, tenant_id, ip, user_agent, expires_at, idle_minutes, parent_id, group_id, account_id)
      VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7), $8, $9, $10, $11)`,
@@ -78,13 +79,27 @@ export async function readSession(req, kind) {
   const token = tokenOf(req, kind);
   if (!token || token.length > 100) return null;
   const hash = sha256(token);
-  return transaction({ sessionHash: hash }, (q) => sessionRow(q, hash, kind));
+  const s = await transaction({ sessionHash: hash }, (q) => sessionRow(q, hash, kind));
+  keepCookie(req, kind, s);
+  return s;
+}
+
+// A remembered session stays alive while it is used: the server extends it on each use, and the browser cookie is
+// re-issued with the same lifetime (at most every few hours), so an app used daily never asks to sign in again.
+export function keepCookie(req, kind, s) {
+  const res = req?.res;
+  if (!s?.idle_minutes || !s.renew || !res || res.headersSent || single()) return;
+  const token = tokenOf(req, kind);
+  if (!token) return;
+  res.cookie(prefix() + SESSION[kind].cookie, token, {
+    httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "strict", path: SESSION[kind].path, maxAge: s.idle_minutes * 60_000,
+  });
 }
 
 export async function sessionRow(q, hash, kind) {
   const [s] = await q(
     `WITH s AS (
-       SELECT user_id, parent_id, group_id, account_id, tenant_id, last_seen_at FROM sessions
+       SELECT user_id, parent_id, group_id, account_id, tenant_id, last_seen_at, idle_minutes FROM sessions
         WHERE token_hash = $1 AND kind = $2 AND expires_at > now()
           AND last_seen_at > now() - make_interval(mins => COALESCE(idle_minutes, $3))
      ), touch AS (
@@ -93,7 +108,8 @@ export async function sessionRow(q, hash, kind) {
               expires_at = CASE WHEN idle_minutes IS NOT NULL THEN GREATEST(expires_at, now() + make_interval(mins => idle_minutes)) ELSE expires_at END
         WHERE token_hash = $1 AND EXISTS (SELECT 1 FROM s) AND last_seen_at < now() - interval '60 seconds'
      )
-     SELECT user_id, parent_id, group_id, account_id, tenant_id FROM s`,
+     SELECT user_id, parent_id, group_id, account_id, tenant_id, idle_minutes,
+            last_seen_at < now() - interval '6 hours' AS renew FROM s`,
     [hash, kind, SESSION[kind].idleMin]);
   return s || null;
 }
