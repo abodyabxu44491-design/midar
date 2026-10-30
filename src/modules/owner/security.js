@@ -17,6 +17,7 @@ import { checkOwnerFactor, newRecoveryCodes, recoveryLeft } from "../../core/aut
 import { pushPublicKey } from "../shared/notify.service.js";
 import { keySource, effectiveKey } from "../../core/auth/secret-box.js";
 import { testOwnerPush } from "../shared/alerts.service.js";
+import { dbUsage } from "../shared/db-usage.service.js";
 import { subscriptionSchema } from "../shared/notifications.routes.js";
 
 const r = Router();
@@ -39,7 +40,7 @@ r.get("/", handle(async (req, res) => {
       push: { key: pushPublicKey(), devices: pushDevices } };
   });
   res.json({ ...out, ip_allowlist: env.ownerIps.length > 0, alert_email: Boolean(env.OWNER_ALERT_EMAIL),
-    key_source: keySource(), vapid_pinned: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) });
+    key_source: keySource(), vapid_pinned: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY), db_usage: await dbUsage() });
 }));
 
 r.get("/badge", handle(async (req, res) => {
@@ -90,6 +91,7 @@ r.post("/push", handle(async (req, res) => {
     [sub.endpoint, sub.keys.p256dh, sub.keys.auth, String(req.get("user-agent") || "").slice(0, 300) || null]));
   res.json({ ok: true });
 }));
+r.post("/db-usage", handle(async (req, res) => res.json(await dbUsage({ fresh: true }))));
 r.post("/push/test", handle(async (req, res) => res.json(await testOwnerPush())));
 r.post("/push/remove", handle(async (req, res) => {
   const { endpoint } = parse(z.object({ endpoint: z.string().max(1000) }), req.body);

@@ -58,7 +58,17 @@ export async function publicPlans() {
   });
 }
 
+// The public site's data changes only when the owner edits it, but each visit (bots included) would wake the
+// database: it is kept in memory for a few minutes, and dropped at once after any change in the owner panel.
+let siteCache = null;
+export const clearSiteCache = () => { siteCache = null; };
 export async function siteData() {
+  if (siteCache && siteCache.until > Date.now()) return siteCache.data;
+  const data = await loadSiteData();
+  siteCache = { data, until: Date.now() + 5 * 60_000 };
+  return data;
+}
+async function loadSiteData() {
   const [s] = await transaction({}, (q) => q(
     `SELECT landing_mode, brand_phone, brand_email, brand_instagram, support_whatsapp, trial_enabled, trial_days, trial_without_plan,
             site_headline, site_subheadline FROM platform_settings WHERE id`));

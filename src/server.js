@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { checkDbUsage } from "./modules/shared/db-usage.service.js";
 import path from "node:path";
 import { env } from "./config/env.js";
 import { createApp } from "./app.js";
@@ -73,6 +74,10 @@ const gateTimer = setInterval(gated(() => {
   dispatchAlertEmails().catch((e) => console.error("[تنبيه أمني]", e.message));
 }, { activeEveryMs: 5 * 60 * 1000 }), 60 * 1000);
 gateTimer.unref();
+// Database usage against the plan's limits (asks Neon's API, not the database): every few hours.
+const usageTimer = setInterval(gated(() => checkDbUsage().catch((e) => console.error("[استهلاك القاعدة]", e.message)),
+  { activeEveryMs: 3 * 60 * 60 * 1000 }), 60 * 1000);
+usageTimer.unref();
 const ownerPushTimer = setInterval(gated(() => dispatchOwnerPush().catch((e) => console.error("[إشعار المالك]", e.message))), 60 * 1000);
 ownerPushTimer.unref();
 

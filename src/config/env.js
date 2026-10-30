@@ -31,6 +31,13 @@ const schema = z.object({
   OWNER_ALLOWED_IPS: z.string().prefault(""),
   // Where high-severity security alerts are emailed (through the platform mail gateway). Optional.
   OWNER_ALERT_EMAIL: z.string().trim().email().optional().or(z.literal("")),
+  // Database usage watch (Neon): a read-only API key and the project id let the owner panel show this month's usage
+  // and warn on the owner's phone well before a free-plan limit stops the database. The limits follow the plan.
+  NEON_API_KEY: z.string().trim().regex(/^[A-Za-z0-9_-]{20,200}$/, "NEON_API_KEY غير صحيح").optional().or(z.literal("")),
+  NEON_PROJECT_ID: z.string().trim().regex(/^[a-z0-9-]{4,60}$/, "NEON_PROJECT_ID غير صحيح").optional().or(z.literal("")),
+  NEON_CU_HOURS_LIMIT: z.coerce.number().positive().prefault(100),
+  NEON_STORAGE_GB_LIMIT: z.coerce.number().positive().prefault(0.5),
+  NEON_TRANSFER_GB_LIMIT: z.coerce.number().positive().prefault(5),
   CREDENTIAL_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "CREDENTIAL_KEY يجب أن يكون 64 خانة hex (npm run credential:key)").optional().or(z.literal("")),
   VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/).optional().or(z.literal("")),
   VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/).optional().or(z.literal("")),
