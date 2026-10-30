@@ -41,6 +41,7 @@ async function load() {
 
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
 const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
+const CLAIM = { pending: ["بانتظار تأكيد المدرسة", "amber"], confirmed: ["تم التأكيد", ""], rejected: ["مرفوض", "red"] };
 
 function render(d, inbox, chat) {
   if (d.currency) setCurrency(d.currency);
