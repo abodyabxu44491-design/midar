@@ -29,7 +29,7 @@ async function cards(q, rows, settings) {
 }
 
 r.post("/home", limits.publicApi, handle(async (req, res) => {
-  const b = parse(base, req.body);
+  parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
     const [profile] = settings.show_contact
@@ -49,7 +49,7 @@ r.post("/home", limits.publicApi, handle(async (req, res) => {
 }));
 
 r.post("/structure", limits.publicApi, handle(async (req, res) => {
-  const b = parse(base, req.body);
+  parse(base, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
     if (!settings.show_classes) throw forbidden("قائمة الصفوف غير معروضة في هذه المدرسة");
@@ -133,7 +133,6 @@ r.post("/section", limits.publicApi, handle(async (req, res) => {
 r.post("/find", limits.studentKey, handle(async (req, res) => {
   const b = parse(base.extend({ key: t.studentKey }), req.body);
   res.json(await inSchool(req, "ولي أمر", async (q, tenant) => {
-    const settings = await getSettings(q);
     const ipSubject = `${tenant.id}:find:${req.ip || "unknown"}`;
     if ((await recentFailures(q, "student_key_failed_ip", ipSubject, 30)) >= 10) {
       throw unauthorized("تم إيقاف المحاولة مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد 30 دقيقة.");

@@ -17,7 +17,7 @@ const params = new URLSearchParams(location.search);
 const accountPage = location.pathname.replace(/\/$/, "") === "/account";
 const KEY = "midar_setup";
 const store = (fn) => { try { return fn(); } catch { return null; } };
-let token = params.get("token") || (params.get("resume") ? store(() => sessionStorage.getItem(KEY)) : "") || "";
+const token = params.get("token") || (params.get("resume") ? store(() => sessionStorage.getItem(KEY)) : "") || "";
 if (params.get("token")) store(() => sessionStorage.setItem(KEY, token));
 // The secret link leaves the address bar (and history); a refresh resumes from this tab's storage.
 if (params.has("token") || params.has("oauth") || params.has("email")) history.replaceState(null, "", location.pathname + (token && !accountPage ? "?resume=1" : params.get("forgot") ? `?forgot=1${params.get("school") ? `&school=${encodeURIComponent(params.get("school"))}` : ""}` : !accountPage && params.get("school") ? `?school=${encodeURIComponent(params.get("school"))}` : ""));

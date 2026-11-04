@@ -6,7 +6,7 @@
 import { h, mount } from "../shared/js/dom.js";
 
 async function contact() {
-  let s = {};
+  let s;
   try { s = await (await fetch("/api/site")).json(); } catch { return; }
   const phone = s.support_whatsapp || s.brand_phone;
   const parts = [

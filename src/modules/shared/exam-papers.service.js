@@ -525,7 +525,7 @@ export async function createFromSpec(q, who, b, actor) {
   let mi = 0;
   const sections = [];
   let filled = 0;
-  for (const [i, s] of b.spec.entries()) {
+  for (const s of b.spec) {
     const got = (byType.get(s.type) || []).splice(0, s.count);
     while (b.fill_missing !== false && got.length < s.count) { got.push({ ...newQuestion(s.type), id: newItemId("q") }); filled++; }
     if (!got.length) continue;

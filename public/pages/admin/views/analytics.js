@@ -52,7 +52,7 @@ export default async function analytics() {
 
       panel("متوسط الدرجات حسب المادة", null,
         d.grades_by_subject.length
-          ? barChart(d.grades_by_subject.map((s) => ({ label: s.subject, value: Number(s.average) ?? 0 })), { max: 100, suffix: "%" })
+          ? barChart(d.grades_by_subject.map((s) => ({ label: s.subject, value: Number(s.average) || 0 })), { max: 100, suffix: "%" })
           : empty("لا توجد درجات منشورة.")),
 
       panel("الأوائل", null,

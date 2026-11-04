@@ -57,7 +57,6 @@ export async function startAdmin() {
   setTerms(me.terms);
   if (me.org_type === "institute") return startInstitute(me);
   if (me.org_type === "university") return startUniversity(me);
-  const on = (key) => me.modules?.[key] !== false;
   if (me.setup_completed === false) {
     mount(app,
       topbar({ logo: schoolLogoUrl(me.school.id, me.school.logo), school: me.school.name, subtitle: "إعداد المدرسة",

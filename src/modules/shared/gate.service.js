@@ -617,7 +617,7 @@ export async function processScan(q, device, ev, { school, actor, ip = null }) {
     }
   }
 
-  let result = "rejected", attendanceId = null, notifyKind = null, minutesLate = null, newStatus = null;
+  let result = "rejected", attendanceId = null, notifyKind = null, minutesLate = null, newStatus;
   if (!reason && direction === "out") {
     const [prev] = await q("SELECT id, status, last_out_at FROM attendance WHERE student_id = $1 AND day = $2 FOR UPDATE", [student, day]);
     if (!prev || prev.status === "absent") reason = "no_arrival";

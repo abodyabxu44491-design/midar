@@ -9,7 +9,7 @@ import { panel, field, input, select, textarea, btn, empty, badge, line, sub, st
   dialog, notice, confirmAction, docLogo, kpiCard, kpiGrid } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { barChart } from "../../shared/js/charts.js";
-import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
+import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, today } from "../../shared/js/format.js";
 import { A } from "./common.js";
 import { fundField } from "../../shared/js/fund-picker.js";
 
@@ -181,7 +181,7 @@ function printReport(d) {
 }
 
 async function entries({ show }) {
-  const [accounts, categories] = await Promise.all([api(`${A}/ledger/accounts`), api(`${A}/ledger/categories`)]);
+  const accounts = await api(`${A}/ledger/accounts`);
   const from = input({ type: "date", value: monthStart() });
   const to = input({ type: "date", value: today() });
   const direction = select([["", "الكل"], ["income", "إيرادات"], ["expense", "مصروفات"]]);
@@ -421,7 +421,6 @@ let staffFilter = "all";
 async function staffView({ show }) {
   const { staff, summary, categories } = await api(`${A}/ledger/staff`);
   const CAT = Object.fromEntries(Object.entries(categories).map(([k, v]) => [k, v[0]]));
-  const counts = Object.fromEntries(summary.types.map((x) => [x.key, x.count]));
   const shown = staff.filter((s) => (staffFilter === "all" ? s.is_active : staffFilter === "off" ? !s.is_active : s.is_active && s.category === staffFilter));
   const filters = [["all", `الكل (${summary.count})`], ...summary.types.map((x) => [x.key, `${x.name} (${x.count})`]),
     ...(staff.some((s) => !s.is_active) ? [["off", "الموقوفون"]] : [])];

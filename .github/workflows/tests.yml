@@ -48,6 +48,9 @@ jobs:
       # A known high or critical vulnerability in a production dependency stops the merge.
       - name: فحص ثغرات المكتبات
         run: npm audit --omit=dev --audit-level=high
+      # Code checks: undefined names, unused code, unsafe patterns. Any finding stops the merge.
+      - name: فحص جودة الكود
+        run: npm run lint
       - name: تجهيز قاعدة البيانات
         run: |
           psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \

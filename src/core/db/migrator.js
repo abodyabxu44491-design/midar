@@ -34,7 +34,7 @@ export async function migrate({ connectionString, dir, ssl = false, log = consol
         count++;
       } catch (e) {
         await client.query("ROLLBACK");
-        throw new Error(`فشل ${file}: ${e.message}`);
+        throw new Error(`فشل ${file}: ${e.message}`, { cause: e });
       }
     }
     log(count ? `✓ تم تطبيق ${count} ترحيل` : "✓ قاعدة البيانات محدّثة");

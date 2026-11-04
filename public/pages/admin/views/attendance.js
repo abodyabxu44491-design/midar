@@ -21,7 +21,7 @@ const PARTS = [["today", "متابعة اليوم"], ["record", "تسجيل ال
 const SECTIONS = [["att", "الحضور والغياب", "متابعة اليوم والتسجيل والتقارير", "check"], ["gate", "البوابة الذكية", "المسح بالبطاقة والأجهزة والأوقات", "scan"]];
 const shift = (d, days) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + days); return x.toISOString().slice(0, 10); };
 const plural = (n, one, few, many) => (n === 1 ? one : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
-let state = { section: "att", part: "today", date: null, classId: null };
+const state = { section: "att", part: "today", date: null, classId: null };
 
 export default async function attendance({ me }) {
   const [classes, templates] = await Promise.all([loadClasses(), optional(api(`${A}/messaging/templates`), null)]);

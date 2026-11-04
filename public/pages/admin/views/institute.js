@@ -7,7 +7,7 @@
 // sessions, assessments, results), trainers, schedule, certificates, fees, reports, staff and settings.
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, empty, badge, sub, toast, dialog, notice, kpiCard, kpiGrid, skeleton, confirmAction, copyRow, passwordInput, askReason } from "../../shared/js/ui.js";
+import { panel, field, input, select, btn, empty, badge, sub, toast, dialog, notice, kpiCard, kpiGrid, skeleton, confirmAction, copyRow, askReason } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { resultsApproval } from "../../shared/js/results-approval.js";
 import { designsView } from "../../shared/js/cert-designer.js";

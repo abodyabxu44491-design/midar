@@ -5,7 +5,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { startServer, client, ownerPassword, endPool, randomPhone, setupAdmin, randomEmail, mailOn, accountLogin } from "./helpers.js";
+import { startServer, client, ownerPassword, endPool, randomPhone, setupAdmin, randomEmail, accountLogin } from "./helpers.js";
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 

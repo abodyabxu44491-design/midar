@@ -3,7 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
-import { h, mount } from "../../shared/js/dom.js";
+import { h } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, btn, badge, sub, empty, toast, confirmAction, stats, line } from "../../shared/js/ui.js";
 import { ATTENDANCE, fmtDateTime } from "../../shared/js/format.js";

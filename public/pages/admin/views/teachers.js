@@ -290,7 +290,7 @@ export default async function teachers({ me, refresh }) {
           }, acc.is_active ? "danger sm" : "soft sm")));
     };
 
-    let photoBox = h("div");
+    const photoBox = h("div");
     const drawPhoto = (src) => mount(photoBox, src ? h("img", { class: "s-photo lg", src, alt: "" }) : avatar({ ...t, has_photo: false }, true));
     drawPhoto(t.has_photo ? photoUrl({ id: t.id, updated_at: t.updated_at }) : null);
     const file = input({ type: "file", accept: "image/*", hidden: true });

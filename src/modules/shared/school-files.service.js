@@ -7,7 +7,6 @@ import crypto from "node:crypto";
 import { transaction } from "../../core/db/pool.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { t, z } from "../../core/http/validate.js";
-import { hashPassword } from "../../core/auth/password.js";
 import { sealSecret, openSecret } from "../../core/auth/secret-box.js";
 import { logEvent } from "../../core/audit.js";
 import { qrDataUrl } from "./certificates.service.js";

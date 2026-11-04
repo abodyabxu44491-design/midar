@@ -31,7 +31,7 @@ const classTeachers = (q) => q(
     ORDER BY sub.name`);
 
 r.post("/page", limits.publicApi, handle(async (req, res) => {
-  const b = parse(openSchema, req.body);
+  parse(openSchema, req.body);
   res.json(await inSchool(req, "زائر", async (q, tenant) => {
     const settings = await getSettings(q);
 

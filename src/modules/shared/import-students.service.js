@@ -121,8 +121,8 @@ export async function analyze(q, tenant, rawRows, { gradeMap = {}, includeDuplic
     if (gradeText) {
       const m = matchGrade(index, { grade: gradeText, stage: r.stage || "", section: r.section || "" });
       let grade = m.status === "exact" ? m.grade : null;
-      let sectionText = m.section_text;
-      let directClass = m.class_id;
+      const sectionText = m.section_text;
+      const directClass = m.class_id;
       if (m.status === "ambiguous") {
         const key = gradeKey(gradeText, r.stage || "");
         const chosen = gradeMap[key] ? gradeById.get(Number(gradeMap[key])) : null;

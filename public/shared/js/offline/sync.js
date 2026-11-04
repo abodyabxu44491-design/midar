@@ -255,7 +255,7 @@ export const saveOfflineProfile = (p) => localStorage.setItem("midar_offline_pro
 export function warmOfflineShell(prefixes = ["/teacher/", "/shared/js/"]) {
   const vprefix = (import.meta.url.match(/^(.*?\/v\/[^/]+)\//) || [])[1];
   if (!vprefix || !navigator.onLine || !("serviceWorker" in navigator)) return;
-  let graph = {};
+  let graph;
   try { graph = JSON.parse(document.getElementById("module-graph")?.textContent || "{}"); } catch { return; }
   const urls = new Set();
   for (const [k, deps] of Object.entries(graph)) for (const u of [k, ...deps]) if (prefixes.some((p) => u.startsWith(p))) urls.add(u);

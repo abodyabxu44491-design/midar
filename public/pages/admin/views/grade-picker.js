@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../../shared/js/dom.js";
-import { dialog, btn } from "../../shared/js/ui.js";
+import { dialog } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 
 export function gradePicker(structure, { sectionsOn = true, onChange } = {}) {

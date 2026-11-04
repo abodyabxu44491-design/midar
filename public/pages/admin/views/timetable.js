@@ -6,7 +6,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, confirmAction, sectionMenu } from "../../shared/js/ui.js";
-import { timetableGrid, DAYS, WORK_DAYS, PERIODS } from "../../shared/js/timetable.js";
+import { timetableGrid, DAYS } from "../../shared/js/timetable.js";
 import { A, loadClasses, loadSubjects } from "./common.js";
 
 export default function timetable(ctx) {

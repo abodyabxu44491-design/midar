@@ -31,7 +31,7 @@ export function parseList(text, { dial = "967", existing = [] } = {}) {
   const seen = new Map();
   const out = [];
   for (const raw of String(text ?? "").split(/\r?\n/)) {
-    let line = ascii(raw).replace(/‎|‏| /g, " ").trim();
+    const line = ascii(raw).replace(/‎|‏| /g, " ").trim();
     if (!line) continue;
     const cells = line.includes("\t") ? line.split("\t") : /[|;،,]/.test(line) ? line.split(/[|;،,]/) : [line];
     let phone = null, phoneOk = false, phoneLabel = null, phoneCountry = null;

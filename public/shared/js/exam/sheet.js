@@ -31,7 +31,6 @@ function caretEnd(el) {
   const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
   const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
 }
-const atStart = (el) => { const s = getSelection(); if (!s.rangeCount || !s.isCollapsed) return false; const r = s.getRangeAt(0).cloneRange(); r.setStart(el, 0); return r.toString().length === 0; };
 
 export function sheetEditor({ paper, base, ctx, ro = false, queue, onChange, school, logoUrl }) {
   const S = () => paper.content.sections;

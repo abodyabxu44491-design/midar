@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, sub, badge, notice, toast } from "../../shared/js/ui.js";
+import { panel, field, input, select, btn, sub, notice, toast } from "../../shared/js/ui.js";
 import { A, countryField } from "./common.js";
 import { fmtDate } from "../../shared/js/format.js";
 import { logoPanel } from "./school-identity.js";

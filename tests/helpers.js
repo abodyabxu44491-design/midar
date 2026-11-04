@@ -5,7 +5,6 @@
  */
 import { createApp } from "../src/app.js";
 import { closePool, transaction } from "../src/core/db/pool.js";
-import { setTransport } from "../src/modules/shared/notify.service.js";
 
 export async function startServer() {
   const server = createApp().listen(0);

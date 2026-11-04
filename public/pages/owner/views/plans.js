@@ -84,7 +84,7 @@ function editor(p, catalog, refresh) {
   };
   const chk = (key, label) => { const el = h("input", { type: "checkbox", checked: !!p[key], style: "width:18px;height:18px" }); f[key] = el; return h("label", { class: "row", style: "align-items:center;gap:6px;min-width:0" }, el, label); };
 
-  let order = [...p.features, ...catalog.filter((c) => !p.features.includes(c.key) && c.is_active).map((c) => c.key)];
+  const order = [...p.features, ...catalog.filter((c) => !p.features.includes(c.key) && c.is_active).map((c) => c.key)];
   const always = (c) => c.kind === "core" || c.kind === "module";
   const on = new Set([...p.features, ...catalog.filter(always).map((c) => c.key)]);
   const featBox = h("div");

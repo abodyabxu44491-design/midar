@@ -59,7 +59,7 @@ export async function readXlsx(file) {
     const cells = [];
     for (const c of row.getElementsByTagName("c")) {
       const t = c.getAttribute("t"), v = c.getElementsByTagName("v")[0]?.textContent ?? "";
-      let val = "";
+      let val;
       if (t === "s") val = shared[Number(v)] ?? "";
       else if (t === "inlineStr") val = textOf(c);
       else if (t === "b") val = v === "1" ? "نعم" : "لا";
