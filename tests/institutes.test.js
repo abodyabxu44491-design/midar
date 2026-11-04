@@ -9,7 +9,7 @@ import { startServer, client, ownerPassword, endPool, uid, readySchool, setupAdm
 import { currentTotp } from "../src/core/auth/totp.js";
 import { transaction } from "../src/core/db/pool.js";
 
-let srv, owner, inst, admin, trainerA, trainerB, tA, tB, accountant;
+let srv, owner, inst, admin, trainerA, trainerB, tA, tB;
 const today = new Date().toISOString().slice(0, 10);
 const I = "/api/admin/institute";
 

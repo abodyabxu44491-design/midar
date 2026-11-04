@@ -179,7 +179,7 @@ export async function update(q, id, teacherId, patch) {
   const [cur] = await q("SELECT * FROM question_bank WHERE id = $1 AND NOT is_archived", [id]);
   if (!cur) throw notFound("السؤال غير موجود");
   if (teacherId && Number(cur.teacher_id) !== Number(teacherId)) throw forbidden("لا تعدّل إلا أسئلتك. انسخ السؤال لبنكك ثم عدّله.");
-  const merged = normalizeQuestion({ ...cur.body, type: cur.qtype, marks: cur.marks, ...patch, type: patch.type || cur.qtype });
+  const merged = normalizeQuestion({ ...cur.body, marks: cur.marks, ...patch, type: patch.type || cur.qtype });
   await q(
     `UPDATE question_bank SET subject_id = COALESCE($2, subject_id), grade_id = $3, term_id = $4, unit = $5, lesson = $6,
             qtype = $7, difficulty = $8, marks = $9, body = $10, is_shared = $11 WHERE id = $1`,

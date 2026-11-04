@@ -520,7 +520,6 @@ test("النظام المالي: حسابات وحركات واعتماد وتب
   const cash = accounts.data.find((a) => a.kind === "cash");
   const categories = (await A.admin.get("/api/admin/ledger/categories")).data;
   const expenseCat = categories.find((c) => c.direction === "expense");
-  const incomeCat = categories.find((c) => c.direction === "income");
 
   await A.admin.post("/api/admin/finance/invoices", { target: "student", target_id: s.student.id, title: "رسوم نشاط", amount: 200 });
   const inv = (await A.admin.get("/api/admin/finance/invoices")).data.invoices.find((i) => i.title === "رسوم نشاط");

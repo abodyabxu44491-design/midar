@@ -7,7 +7,7 @@ import { $, mount, h } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { setCurrency } from "../shared/js/format.js";
 import { attachBell } from "../shared/js/inbox.js";
-import { topbar, footer, tabs, lazy, panel, field, input, btn, toast, sub, notice, passwordChangeScreen, passwordInput, schoolLogoUrl } from "../shared/js/ui.js";
+import { topbar, footer, tabs, lazy, panel, field, btn, toast, sub, notice, passwordChangeScreen, passwordInput, schoolLogoUrl } from "../shared/js/ui.js";
 import { setApiBase } from "../admin/views/common.js";
 import { rememberSchool } from "../shared/js/recent.js";
 const ledger = lazy(() => import("../admin/views/ledger.js"), new URL("../admin/views/ledger.js", import.meta.url).pathname);
@@ -29,7 +29,6 @@ export async function startAccountant() {
     return passwordChangeScreen({ endpoint: "/api/accountant/password", logoutEndpoint: "/api/accountant/logout", school: me.school.name, name: me.name });
   }
   setCurrency(me.currency);
-  const full = me.permissions.approve && me.permissions.payroll && me.permissions.accounts;
   const institute = me.school.org_type === "institute";
   let ifees = null, ireports = null;
   if (institute) {

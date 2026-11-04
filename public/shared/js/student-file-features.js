@@ -168,7 +168,7 @@ function reviewView(r) {
     r.score !== null ? sub(`درجتك ${r.score} من ${r.max_score}`) : sub("بانتظار التصحيح"),
     r.questions.map((q, i) => {
       const a = q.answer;
-      let mine = "—", right = null;
+      let mine, right = null;
       if (q.type === "mcq" || q.type === "multi") {
         mine = (q.options || []).filter((o) => [].concat(a || []).includes(o.id)).map((o) => o.text).join("، ") || "—";
         right = (q.options || []).filter((o) => (q.correct || []).includes(o.id)).map((o) => o.text).join("، ");

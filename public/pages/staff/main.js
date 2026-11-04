@@ -342,7 +342,7 @@ function requestDialog(schoolCode) {
   drawWho();
   const msg = h("div");
 
-  const d = dialog("نسيت كلمة المرور", h("div", {},
+  dialog("نسيت كلمة المرور", h("div", {},
     h("div", { class: "row" }, field("أنا", f.job_title), field("وسيلة التواصل المفضلة", f.contact_pref)),
     who,
     field("الاسم الكامل", f.full_name),

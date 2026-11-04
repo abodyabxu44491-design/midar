@@ -47,6 +47,8 @@ export function zip(files) {
   return Buffer.concat([...parts, centralBuf, end]);
 }
 
+// Control characters are not allowed in the sheet XML, so they are dropped.
+// eslint-disable-next-line no-control-regex
 const esc = (v) => String(v).replace(/[<>&"\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, (c) =>
   ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c] || "");
 const colName = (i) => { let s = ""; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };

@@ -5,6 +5,7 @@
  */
 import crypto from "node:crypto";
 
+const TAG = 16;
 const parseKey = (hex) => (typeof hex === "string" && /^[0-9a-fA-F]{64}$/.test(hex) ? Buffer.from(hex, "hex") : null);
 
 export function createBox(hexKey) {
@@ -15,7 +16,7 @@ export function createBox(hexKey) {
     seal(plain, aad) {
       if (!key) return null;
       const iv = crypto.randomBytes(12);
-      const c = crypto.createCipheriv("aes-256-gcm", key, iv);
+      const c = crypto.createCipheriv("aes-256-gcm", key, iv, { authTagLength: TAG });
       c.setAAD(Buffer.from(String(aad)));
       const ct = Buffer.concat([c.update(String(plain), "utf8"), c.final()]);
       return `v1.${b64(iv)}.${b64(c.getAuthTag())}.${b64(ct)}`;
@@ -25,7 +26,8 @@ export function createBox(hexKey) {
       const [v, iv, tag, ct] = String(blob).split(".");
       if (v !== "v1" || !iv || !tag || !ct) return null;
       try {
-        const d = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
+        // The full 16-byte tag is required: a shortened tag would make forging a sealed value easier.
+        const d = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"), { authTagLength: TAG });
         d.setAAD(Buffer.from(String(aad)));
         d.setAuthTag(Buffer.from(tag, "base64url"));
         return Buffer.concat([d.update(Buffer.from(ct, "base64url")), d.final()]).toString("utf8");

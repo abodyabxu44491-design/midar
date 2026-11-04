@@ -7,8 +7,7 @@ import { currentEndpoint } from "../shared/js/push.js";
 import { h, $, mount } from "../shared/js/dom.js";
 import { api, idempotencyKey } from "../shared/js/api.js";
 import { topbar, footer, btn, empty, badge, dialog, toast, line, sub, notice, keyText, field, input, select, schoolLogoUrl, teacherCards } from "../shared/js/ui.js";
-import { money, setCurrency, fmtDate, fmtDateTime, fmtDay, today, ATTENDANCE, METHODS } from "../shared/js/format.js";
-import { timetableGrid } from "../shared/js/timetable.js";
+import { money, setCurrency, fmtDate, fmtDateTime, today, METHODS } from "../shared/js/format.js";
 import { receiptDialog, statementDialog } from "../shared/js/receipt.js";
 import { studentFile } from "../shared/js/student-file.js";
 import { notificationCenter, notificationPrefs, pushInvite, pushToggle } from "../shared/js/inbox.js";
@@ -40,12 +39,11 @@ async function load() {
 }
 
 const section = (title, ...kids) => h("section", { class: "panel" }, h("h2", {}, title), ...kids);
-const info = (label, value, cls = "") => line(h("span", { class: "sub" }, label), h("b", { class: cls }, value || "—"));
 const CLAIM = { pending: ["بانتظار تأكيد المدرسة", "amber"], confirmed: ["تم التأكيد", ""], rejected: ["مرفوض", "red"] };
 
 function render(d, inbox, chat) {
   if (d.currency) setCurrency(d.currency);
-  const s = d.student, f = d.fees;
+  const s = d.student;
   schoolName = d.school; studentName = s.name; className = s.class_name;
   document.title = `مدار — ${s.name}`;
 

@@ -102,7 +102,7 @@ async function listPage(root, refresh, go) {
 async function filePage(id, root, back, openHandover = false) {
   mount(root, skeleton(8));
   const [d, ov, types] = await Promise.all([api(`${F}/${id}`), api(`/api/owner/tenants/${id}/overview`).catch(() => null), loadOrgTypes().catch(() => null)]);
-  const s = d.school, p = d.profile;
+  const s = d.school;
   const reload = () => filePage(id, root, back);
   const tabs = [["info", "المعلومات الأساسية"], ["activation", "الاعتماد والتفعيل"], ["deliveries", "سجل الإرسال"], ["notes", "الملاحظات والتعديلات"], ["account", "الاشتراك والروابط"]];
   let tab = "info";

@@ -323,7 +323,8 @@ export async function buildShowcase(tid, { actor = "إعداد مدرسة الع
     const inv2 = await invoiceFor(term2, "رسوم الفصل الثاني", `${y0 + 1}-02-28`);
     const payDay = (term, late) => iso(addDays(D(term.start), between(late ? 30 : 0, late ? 110 : 45)));
     const method = () => { const r = R(); return r < 0.55 ? "cash" : r < 0.9 ? "transfer" : "online"; };
-    let paid = 0, partial = 0, unpaid2 = [];
+    let paid = 0, partial = 0;
+    const unpaid2 = [];
     for (const [ti, list] of [inv1, inv2].entries()) {
       const term = ti ? term2 : term1;
       for (const [i, inv] of list.entries()) {

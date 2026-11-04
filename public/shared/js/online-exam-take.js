@@ -314,7 +314,7 @@ export async function takeExam({ call, fetchFile, id, onExit, info }) {
         return h("div", { class: "oe-match-row" }, h("span", {}, rich(l.text)), sel);
       }));
       case "order": {
-        let order = answers[q.id] && answers[q.id].length === (q.items || []).length ? answers[q.id] : (q.items || []).map((x) => x.id);
+        const order = answers[q.id] && answers[q.id].length === (q.items || []).length ? answers[q.id] : (q.items || []).map((x) => x.id);
         const box = h("ol", { class: "oe-order" });
         const draw = () => mount(box, order.map((oid, i) => h("li", {}, h("span", {}, (q.items || []).find((x) => x.id === oid)?.text || ""),
           h("span", { class: "oe-order-btns" },

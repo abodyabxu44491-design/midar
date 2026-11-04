@@ -77,7 +77,7 @@ export function sendMedia(req, res, { mime, data }) {
   res.set({ "Content-Type": mime, "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" });
   const m = /^bytes=(\d*)-(\d*)$/.exec(req.get("range") || "");
   if (!m || (m[1] === "" && m[2] === "")) return res.send(buf);
-  let start = m[1] === "" ? Math.max(0, buf.length - Number(m[2])) : Number(m[1]);
+  const start = m[1] === "" ? Math.max(0, buf.length - Number(m[2])) : Number(m[1]);
   let end = m[1] !== "" && m[2] !== "" ? Number(m[2]) : buf.length - 1;
   end = Math.min(end, buf.length - 1);
   if (start > end || start >= buf.length) { res.set("Content-Range", `bytes */${buf.length}`); return res.status(416).end(); }

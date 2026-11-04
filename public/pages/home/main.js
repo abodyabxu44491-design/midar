@@ -5,7 +5,7 @@
  */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
-import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, installButton, showInstallBar, toast } from "../shared/js/ui.js";
+import { brandLogo, footer, field, input, textarea, notice, dialog, installButton, showInstallBar, toast } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 import { recentSchools, forgetSchool } from "../shared/js/recent.js";

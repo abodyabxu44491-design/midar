@@ -56,7 +56,7 @@ before(async () => {
   srv = await startServer();
   owner = client(srv.base);
   const code = process.env.OWNER_TOTP_SECRET ? currentTotp(process.env.OWNER_TOTP_SECRET) : undefined;
-  assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code: currentTotp(process.env.OWNER_TOTP_SECRET), code })).status, 200);
+  assert.equal((await owner.post("/api/owner/login", { username: process.env.OWNER_USERNAME, password: ownerPassword, code })).status, 200);
   await school(A, "مدرسة الحذر أ");
   await school(B, "مدرسة الحذر ب");
 });

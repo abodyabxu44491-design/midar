@@ -48,6 +48,9 @@ jobs:
       # A known high or critical vulnerability in a production dependency stops the merge.
       - name: فحص ثغرات المكتبات
         run: npm audit --omit=dev --audit-level=high
+      # Code checks: undefined names, unused code, unsafe patterns. Any finding stops the merge.
+      - name: فحص جودة الكود
+        run: npm run lint
       - name: تجهيز قاعدة البيانات
         run: |
           psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 \
@@ -59,4 +62,6 @@ jobs:
           npm run migrate
       - name: بصمة كلمة مرور المالك للاختبار
         run: echo "OWNER_PASSWORD_HASH=$(node scripts/owner-password.js "$TEST_OWNER_PASSWORD" | grep -o 'scrypt\$.*')" >> "$GITHUB_ENV"
-      - run: npm test
+      # The whole suite with coverage: below the floor (lines 94%, branches 80%, functions 89%) the run fails.
+      - name: الاختبارات وتغطية الكود
+        run: npm run test:coverage

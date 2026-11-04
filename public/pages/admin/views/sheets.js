@@ -6,7 +6,7 @@
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
 import { panel, field, select, input, btn, empty, sub, notice, docLogo, sectionMenu } from "../../shared/js/ui.js";
-import { ATTENDANCE, fmtDate } from "../../shared/js/format.js";
+import { fmtDate } from "../../shared/js/format.js";
 import { A, loadClasses } from "./common.js";
 import { cardWithActions } from "../../shared/js/parent-card.js";
 

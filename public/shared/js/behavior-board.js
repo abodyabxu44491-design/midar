@@ -5,7 +5,7 @@
  */
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
-import { panel, field, input, select, textarea, btn, empty, line, sub, toast, notice, confirmAction, switchBtn, dialog, badge } from "./ui.js";
+import { panel, field, input, select, btn, empty, line, sub, toast, notice, confirmAction, switchBtn, dialog, badge } from "./ui.js";
 import { fmtDate, today } from "./format.js";
 import { partsView } from "./parts.js";
 import { behaviorBlock } from "./student-file-features.js";

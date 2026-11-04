@@ -90,7 +90,6 @@ export function currentSessionHash(req, kind) {
 }
 
 export async function readSession(req, kind) {
-  const cfg = SESSION[kind];
   const token = tokenOf(req, kind);
   if (!token || token.length > 100) return null;
   const hash = sha256(token);

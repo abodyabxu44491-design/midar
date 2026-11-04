@@ -193,9 +193,8 @@ export function studentFile(d, { fees = feesReadOnly, toolbar = null, photo = nu
     timetable: icons.grid, teachers: icons.users, news: icons.megaphone, inbox: icons.bell, chat: icons.message,
     "online-exams": icons.monitor, certificates: icons.award, calendar: icons.calendar, transport: icons.bus, health: icons.heart,
     library: icons.book, surveys: icons.poll, meetings: icons.clock, behavior: icons.star, quran: icons.book, transcript: icons.award };
-  let current = null, elRef = null;
+  let elRef = null;
   const open = (key, stay = false) => {
-    current = key;
     nav.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === key));
     nav.querySelector("button.on")?.scrollIntoView({ block: "nearest", inline: "center", behavior: stay ? "auto" : "smooth" });
     mount(body, views[key]());

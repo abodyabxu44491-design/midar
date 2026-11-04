@@ -35,18 +35,21 @@ const FILTERS = {
   expiring: "s.status IN ('trial', 'active') AND s.ends_on BETWEEN CURRENT_DATE AND CURRENT_DATE + 7",
 };
 
-subscriptions.get("/", handle(async (req, res) => {
-  const f = parse(z.object({ filter: z.enum(Object.keys(FILTERS)).prefault("all"), plan_id: t.optId }), req.query);
-  res.json(await platform(req, (q) => q(
-    `SELECT t.id AS tenant_id, t.name, t.status AS tenant_status, s.id, s.kind, s.status, s.plan_id, s.plan_name,
+const LIST_SQL = `SELECT t.id AS tenant_id, t.name, t.status AS tenant_status, s.id, s.kind, s.status, s.plan_id, s.plan_name,
             s.starts_on, s.ends_on, s.price, s.discount, s.currency, s.billing_cycle, s.max_students, s.max_teachers,
             jsonb_array_length(s.addons) AS addons, (s.ends_on - CURRENT_DATE)::int AS days_left,
             u.students, u.teachers,
             (SELECT min(starts_on) FROM subscriptions x WHERE x.tenant_id = t.id AND x.kind = 'trial') AS first_trial,
             (SELECT min(starts_on) FROM subscriptions x WHERE x.tenant_id = t.id AND x.kind = 'paid') AS first_paid
        FROM tenants t JOIN subscriptions s ON s.id = t.subscription_id JOIN platform_tenant_usage() u ON u.tenant_id = t.id
-      WHERE ${FILTERS[f.filter]} ${f.plan_id ? "AND s.plan_id = $1" : ""}
-      ORDER BY s.ends_on NULLS LAST, t.name LIMIT 1000`, f.plan_id ? [f.plan_id] : [])));
+      WHERE `;
+
+subscriptions.get("/", handle(async (req, res) => {
+  const f = parse(z.object({ filter: z.enum(Object.keys(FILTERS)).prefault("all"), plan_id: t.optId }), req.query);
+  // The condition is one of the fixed FILTERS entries chosen by a zod enum; the plan id is a bound parameter.
+  // nosemgrep
+  const sql = LIST_SQL + FILTERS[f.filter] + (f.plan_id ? " AND s.plan_id = $1" : "") + " ORDER BY s.ends_on NULLS LAST, t.name LIMIT 1000";
+  res.json(await platform(req, (q) => q(sql, f.plan_id ? [f.plan_id] : [])));
 }));
 
 subscriptions.get("/stats", handle(async (req, res) => {

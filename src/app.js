@@ -19,7 +19,7 @@ import { securityHeaders, noIndex, sameOrigin, noStore, INDEXABLE } from "./core
 import { errorHandler, notFound } from "./core/http/errors.js";
 import { limits } from "./core/rate-limit.js";
 import { ownerNetwork } from "./core/auth/guards.js";
-import { healthCheck, transaction } from "./core/db/pool.js";
+import { healthCheck } from "./core/db/pool.js";
 import { handle } from "./core/http/errors.js";
 import { isSchoolCode } from "./core/reserved.js";
 import { baseUrl } from "./core/links.js";

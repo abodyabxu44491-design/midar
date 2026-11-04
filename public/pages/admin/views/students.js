@@ -6,10 +6,10 @@
 import { T } from "../../shared/js/terms.js";
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { personAvatar, formCard, formFold } from "../../shared/js/ui.js";
-import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dialog,
-  showCredentials, confirmAction, notice, docLogo, skeleton, stats as statCards } from "../../shared/js/ui.js";
-import { csv, fmtDate, money } from "../../shared/js/format.js";
+import { personAvatar, formCard } from "../../shared/js/ui.js";
+import { field, input, select, btn, empty, badge, sub, toast, dialog,
+  showCredentials, confirmAction, notice, skeleton, stats as statCards } from "../../shared/js/ui.js";
+import { csv } from "../../shared/js/format.js";
 import { waLink, fillTemplate, messageVars } from "../../shared/js/whatsapp.js";
 import { cardWithActions } from "../../shared/js/parent-card.js";
 import { A, loadClasses, classOptions, directoryLink, optional, rememberField } from "./common.js";

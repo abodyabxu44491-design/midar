@@ -105,7 +105,7 @@ test("واتساب تلقائي من الأحداث: الغياب يضيف رس�
   const [s1] = A.students;
   assert.equal((await A.admin.put(`${C}/notify`, { absence: { wa: true } })).data.absence.wa, true);
   await A.admin.post("/api/admin/attendance", { date: today, entries: [{ student_id: s1.id, status: "absent" }] });
-  let w = (await A.admin.get(`${C}/wa`)).data;
+  const w = (await A.admin.get(`${C}/wa`)).data;
   assert.equal(w.pending.length, 1);
   assert.equal(w.pending[0].kind, "absence");
   assert.equal((await A.admin.post(`${C}/wa/compose`, { target: "absent_today", message: "ابنكم {الطالب} غائب اليوم" })).data.added, 1);

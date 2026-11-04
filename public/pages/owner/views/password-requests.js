@@ -45,7 +45,7 @@ function row(r, refresh) {
 function approve(r, refresh) {
   const note = input({ placeholder: "ملاحظة (اختياري)" });
   const msg = h("div");
-  const d = dialog(`اعتماد طلب ${r.ref}`, h("div", {},
+  dialog(`اعتماد طلب ${r.ref}`, h("div", {},
     notice("سيُنشأ رابط يُستخدم مرة واحدة وينتهي بعد ساعتين. سلّمه لصاحب الحساب عبر القناة المعتمدة فقط.", "warn"),
     sub(`${r.full_name} — ${r.school_name} — ${JOBS[r.job_title]} — ${r.phone}`),
     note, msg),

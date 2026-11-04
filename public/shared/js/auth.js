@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 // Shared layout and controls for the sign-in, activation and password pages.
-import { h, mount } from "./dom.js";
+import { h } from "./dom.js";
 import { brandLogo, toAsciiDigits } from "./ui.js";
 import { icons } from "./icons.js";
 

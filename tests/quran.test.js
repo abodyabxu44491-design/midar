@@ -67,7 +67,7 @@ test("الحلقات والمستويات والأعضاء والسجل والت
 
   // Juz 30 memorised for s1 in three passages (one graded «repeat» does not count until redone).
   const rec = (b) => S.teacher.post(`${T}/records`, { student_id: s1.id, ...b });
-  let r = await rec({ kind: "new", from_surah: 78, from_ayah: 1, to_surah: 86, to_ayah: 17, grade: "excellent", mistakes: 0 });
+  const r = await rec({ kind: "new", from_surah: 78, from_ayah: 1, to_surah: 86, to_ayah: 17, grade: "excellent", mistakes: 0 });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   assert.equal(r.data.ayat, Q.indexOf(86, 17) - Q.indexOf(78, 1) + 1);
   assert.equal((await rec({ kind: "new", from_surah: 87, to_surah: 114, grade: "repeat" })).status, 201);
