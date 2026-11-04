@@ -5,3 +5,8 @@ node_modules/
 backups/
 __pycache__/
 coverage/
+
+# Browser tests
+e2e/.state.json
+playwright-report/
+test-results/

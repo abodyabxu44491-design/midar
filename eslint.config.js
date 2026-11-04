@@ -32,7 +32,7 @@ export default [
       "no-irregular-whitespace": ["error", { skipStrings: true, skipComments: true, skipRegExps: true, skipTemplates: true }],
     },
   },
-  { files: ["src/**/*.js", "scripts/**/*.js", "tests/**/*.js", "*.js", "*.mjs"], languageOptions: { globals: { ...globals.node } } },
+  { files: ["src/**/*.js", "scripts/**/*.js", "tests/**/*.js", "e2e/**/*.mjs", "*.js", "*.mjs"], languageOptions: { globals: { ...globals.node } } },
   { files: ["public/**/*.js"], languageOptions: { globals: { ...globals.browser } } },
   { files: ["public/sw.js"], languageOptions: { globals: { ...globals.serviceworker } } },
   // Runs first in very old browsers to decide whether the app can load at all, so it stays plain ES5.
