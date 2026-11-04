@@ -5,7 +5,7 @@
  */
 import { env } from "../../config/env.js";
 import { transaction } from "../db/pool.js";
-import { readSession, sessionRow, sessionHashOf } from "./sessions.js";
+import { readSession, sessionRow, sessionHashOf, keepCookie } from "./sessions.js";
 import { AppError, unauthorized, forbidden, notFound } from "../http/errors.js";
 import { togglesFrom, effectiveModules } from "../../modules/shared/modules.service.js";
 import { accessOf, entitlements, LOCK_MESSAGE } from "../../modules/shared/subscription.service.js";
@@ -61,6 +61,7 @@ export const requireStaff = (role) => async (req, res, next) => {
     const ctx = await transaction({ sessionHash: hash }, async (q, client) => {
       const s = await sessionRow(q, hash, role);
       if (!s) return null;
+      keepCookie(req, role, s);
       const [, res] = await client.query(`SELECT set_config('app.tenant_id', ${client.escapeLiteral(s.tenant_id)}, true);
         SELECT (SELECT row_to_json(t) FROM (SELECT id, name, status, max_students, subscription_end, directory_code, currency, emergency_locked_at, is_demo, org_type, org_type_key
                   FROM tenants WHERE id = app_tenant()) t) AS tenant,

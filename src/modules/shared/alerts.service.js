@@ -28,7 +28,7 @@ export async function dispatchAlertEmails() {
 
 // Phone notifications to the owner's devices: each new high-severity security alert and each new request (trial,
 // subscription, contact), once. Runs every minute; a device that the push service reports as gone is removed.
-const KIND = { trial: "طلب تجربة جديد", subscription: "طلب اشتراك جديد", contact: "رسالة تواصل جديدة", renewal: "طلب تجديد جديد", feature: "طلب إضافة ميزة" };
+const KIND = { trial: "طلب تجربة جديد", subscription: "طلب اشتراك جديد", contact: "رسالة تواصل جديدة", renewal: "طلب تجديد جديد", upgrade: "طلب ترقية باقة", feature: "طلب إضافة ميزة" };
 export async function dispatchOwnerPush() {
   if (!vapidKeys()) return 0;
   const { subs, items } = await transaction({ platform: true, actor: "النظام" }, async (q) => {
@@ -46,6 +46,10 @@ export async function dispatchOwnerPush() {
       ...leads.map((x) => ({ title: KIND[x.kind] || "طلب جديد", body: x.school_name || "", url: `${base}/#/requests`, tag: `lead-${x.id}`, priority: 2 })),
     ] };
   });
+  return deliverOwner(subs, items);
+}
+
+async function deliverOwner(subs, items) {
   if (!subs.length || !items.length) return 0;
   let sent = 0;
   const gone = [], failed = [];
@@ -64,4 +68,32 @@ export async function dispatchOwnerPush() {
     await q("UPDATE owner_push_subscriptions SET last_sent_at = now(), failures = 0 WHERE NOT (id = ANY($1::bigint[]))", [[...gone, ...failed]]);
   });
   return sent;
+}
+
+// Right after a request or an alert is saved: send at once instead of waiting for the minute timer (on a host that
+// sleeps when idle, the request that wakes it is the moment to send). Several triggers close together send once.
+let kick = null;
+export function kickOwnerPush() {
+  if (kick) return;
+  kick = setTimeout(() => { kick = null; dispatchOwnerPush().catch((e) => console.error("[إشعار المالك]", e.message)); }, 1500);
+  kick.unref?.();
+}
+
+// «Send a test»: one notification to every owner device now; returns how many devices got it.
+export async function testOwnerPush() {
+  if (!vapidKeys()) return { devices: 0, sent: 0 };
+  const subs = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT id, endpoint, p256dh, auth FROM owner_push_subscriptions"));
+  const sent = await deliverOwner(subs, [{ title: "إشعار تجريبي من مدار", body: "الإشعارات تعمل على هذا الجهاز.", url: `${env.OWNER_PATH}/#/security`, tag: "owner-test", priority: 1 }]);
+  return { devices: subs.length, sent };
+}
+
+// A one-off notification to the owner's devices for things that are not leads or alerts (a manager's password request).
+export function pushOwner(item) {
+  setTimeout(async () => {
+    try {
+      if (!vapidKeys()) return;
+      const subs = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT id, endpoint, p256dh, auth FROM owner_push_subscriptions WHERE failures < 5"));
+      await deliverOwner(subs, [{ priority: 2, ...item, url: item.url ? `${env.OWNER_PATH}/${item.url}` : `${env.OWNER_PATH}/` }]);
+    } catch (e) { console.error("[إشعار المالك]", e.message); }
+  }, 500).unref?.();
 }

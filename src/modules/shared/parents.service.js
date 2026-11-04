@@ -124,6 +124,14 @@ export async function link(q, parentId, studentId, { actor, source = "admin", re
   }
   await q(`UPDATE parent_link_requests SET status = 'approved', decided_by = $3, decided_at = now()
             WHERE parent_id = $1 AND student_id = $2 AND status = 'pending'`, [parentId, studentId, actor]);
+  // The parent's phones already receive notifications for their other children; a newly linked child joins them at
+  // once, so nothing has to be switched on again.
+  if (rows.length) {
+    await q(`INSERT INTO push_subscriptions (tenant_id, student_id, endpoint, p256dh, auth, parent_id)
+             SELECT DISTINCT ON (endpoint) app_tenant(), $2, endpoint, p256dh, auth, $1 FROM push_subscriptions
+              WHERE parent_id = $1 ORDER BY endpoint, id DESC
+             ON CONFLICT DO NOTHING`, [parentId, studentId]);
+  }
   return { linked: rows.length > 0, student: { id: s.id, name: s.full_name } };
 }
 export async function unlink(q, parentId, studentId, { actor }) {
@@ -398,7 +406,10 @@ export async function getParent(q, id) {
 export async function setStatus(q, id, status) {
   const rows = await q("UPDATE parents SET status = $2 WHERE id = $1 RETURNING id", [id, status]);
   if (!rows.length) throw notFound("الحساب غير موجود");
-  if (status === "disabled") await q("DELETE FROM sessions WHERE parent_id = $1", [id]);
+  if (status === "disabled") {
+    await q("DELETE FROM sessions WHERE parent_id = $1", [id]);
+    await q("DELETE FROM push_subscriptions WHERE parent_id = $1", [id]);
+  }
   return { ok: true };
 }
 export async function resetPassword(q, id) {

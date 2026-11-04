@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { pushOwner } from "./alerts.service.js";
 import crypto from "node:crypto";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
@@ -59,8 +60,13 @@ export const listForOwner = (q) => q(
     WHERE r.route = 'owner'
     ORDER BY r.status IN ('new', 'referred') DESC, r.id DESC LIMIT 300`);
 
+// A manager's password request waits for the owner: their phone is told at once.
+const toOwner = (school) => pushOwner({ title: "طلب استعادة كلمة مرور مدير", body: school || "", url: "#/passwords", tag: "pw-request" });
+
 export const submit = async (q, b) => {
   const [row] = await q("SELECT submit_password_request($1::jsonb) AS ref", [JSON.stringify(b)]);
+  const [r] = await q("SELECT r.route, t.name FROM password_requests r JOIN tenants t ON t.id = r.tenant_id WHERE r.ref = $1", [row.ref]);
+  if (r?.route === "owner") toOwner(r.name);
   return { ref: row.ref };
 };
 
@@ -87,6 +93,8 @@ export async function adminReview(q, id, b, actor, baseUrl) {
   if (user.role === "admin") {
     await q("UPDATE password_requests SET route = 'owner', account_role = 'admin', user_id = $2, admin_note = $3, reviewed_by = $4 WHERE id = $1",
       [id, user.id, b.note ?? null, actor]);
+    const [tn] = await q("SELECT name FROM tenants WHERE id = app_tenant()");
+    toOwner(tn?.name);
     return { status: "new", escalated: true };
   }
   if (!user.is_active) throw badRequest("هذا الحساب موقوف. فعّله أولًا من «المستخدمون» أو «المعلمون».");

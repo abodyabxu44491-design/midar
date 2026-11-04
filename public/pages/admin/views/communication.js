@@ -66,7 +66,7 @@ async function notifyRules(me) {
         h("thead", {}, h("tr", {}, h("th", {}, "الحدث"), h("th", {}, "يصل إلى"), h("th", {}, "الأولوية"), showPush ? h("th", { class: "c" }, "إشعار فوري") : null,
           showPush ? h("th", { class: "c", title: "لا يستطيع ولي الأمر إيقافه من إعداداته" }, "إلزامي") : null, showWa ? h("th", { class: "c" }, "واتساب") : null, showSms ? h("th", { class: "c" }, "رسالة نصية") : null)),
         h("tbody", {}, d.events.map((e) => h("tr", {},
-          h("td", {}, e.name, e.opt_in ? h("small", { class: "sub" }, "يُرسل فقط إذا فعّلته") : null), h("td", {}, h("small", { class: "muted" }, AUD[e.audience])),
+          h("td", {}, e.name, e.opt_in ? h("small", { class: "sub", style: "display:block" }, "يُرسل فقط إذا فعّلته") : null), h("td", {}, h("small", { class: "muted" }, AUD[e.audience])),
           h("td", {}, badge(...PRIO[e.priority])),
           showPush ? h("td", { class: "c" }, switchBtn(d.rules[e.key].push, `${e.name}: إشعار فوري`, (v) => save(e.key, "push", v))) : null,
           showPush ? h("td", { class: "c" }, e.audience === "staff" ? h("small", { class: "muted" }, "—")

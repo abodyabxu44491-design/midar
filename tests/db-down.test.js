@@ -33,16 +33,19 @@ test("قاعدة البيانات غير متاحة: رسالة الصيانة 5
   assert.ok(other.body.ref, "المرجع يبقى للدعم");
 });
 
-test("العمل الخلفي: كل دورة أثناء الاستخدام، ونادرًا عند الخمول", async () => {
-  let runs = 0;
-  const tick = gated(() => { runs++; }, { activeWithinMs: 50, idleEveryMs: 10_000 });
+test("العمل الخلفي: كل دورة أثناء الاستخدام، وعند الخمول كل الأعمال في نافذة واحدة مشتركة", async () => {
+  let a = 0, b = 0, c = 0;
+  const jobA = gated(() => { a++; }, { activeWithinMs: 50 });
+  const jobB = gated(() => { b++; }, { activeWithinMs: 50 });
+  const hourly = gated(() => { c++; }, { activeWithinMs: 50, activeEveryMs: 60 * 60_000 });
   markActive();
-  tick(); tick();
-  assert.equal(runs, 2, "أثناء الاستخدام يعمل كل مرة");
+  jobA(); jobA(); hourly(); hourly();
+  assert.equal(a, 2, "أثناء الاستخدام يعمل كل مرة");
+  assert.equal(c, 1, "والعمل الساعي مرة في الساعة");
   await new Promise((r) => setTimeout(r, 80));
-  tick(); tick(); tick();
-  assert.equal(runs, 2, "عند الخمول لا يعمل قبل مرور المدة");
+  for (let i = 0; i < 5; i++) { jobA(); jobB(); hourly(); }
+  assert.deepEqual([a, b, c], [3, 1, 2], "عند الخمول: كل عمل مرة واحدة في النافذة المشتركة، فتستيقظ القاعدة مرة واحدة");
   markActive();
-  tick();
-  assert.equal(runs, 3);
+  jobA();
+  assert.equal(a, 4);
 });

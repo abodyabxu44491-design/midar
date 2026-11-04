@@ -12,7 +12,7 @@ import { field, input, select, btn, empty, badge, line, sub, keyText, toast, dia
 import { csv, fmtDate, money } from "../../shared/js/format.js";
 import { waLink, fillTemplate, messageVars } from "../../shared/js/whatsapp.js";
 import { cardWithActions } from "../../shared/js/parent-card.js";
-import { A, loadClasses, directoryLink, optional, rememberField } from "./common.js";
+import { A, loadClasses, classOptions, directoryLink, optional, rememberField } from "./common.js";
 import { openStudentImport } from "./student-import.js";
 import { alertDialog } from "../../shared/js/student-alerts.js";
 import { studentFile } from "../../shared/js/student-file.js";

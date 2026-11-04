@@ -140,7 +140,9 @@ export function pushInvite({ key, save, title = "فعّل إشعارات مدا�
   if (!key) return box;
   (async () => {
     const st = await pushStatus();
-    if (st === "on") { refreshPush(save).catch(() => {}); return; }
+    if (st === "on") { refreshPush(save, key).catch(() => {}); return; }
+    // Allowed before but the subscription was lost: renew it quietly instead of asking again.
+    if (st === "off" && Notification.permission === "granted" && await refreshPush(save, key).catch(() => false)) return;
     // "Later" hides the invitation for a week, not for good.
     const until = Number(safe(() => localStorage.getItem(DISMISS), 0)) || 0;
     if (!force && until > Date.now()) return;
@@ -232,7 +234,7 @@ export function notificationsBell(base, go) {
     new MutationObserver(() => { if (card.hidden && card.childElementCount) wrap.remove(); }).observe(card, { attributes: true, attributeFilter: ["hidden"] });
     document.body.append(wrap);
   });
-  setTimeout(() => { if (data?.push?.key) refreshPush(save).catch(() => {}); }, 3000);
+  setTimeout(() => { if (data?.push?.key) refreshPush(save, data.push.key).catch(() => {}); }, 3000);
   setInterval(() => { if (!document.hidden) refresh(); }, 45_000);
   document.addEventListener("midar:push", () => refresh());
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });

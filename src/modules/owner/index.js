@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { clearSiteCache } from "../shared/plans-public.service.js";
 import { Router } from "express";
 import { ownerNetwork, requireOwner } from "../../core/auth/guards.js";
 import { env } from "../../config/env.js";
@@ -30,6 +31,8 @@ const r = Router();
 r.use(ownerNetwork);
 r.use(auth);
 r.use(requireOwner);
+// Any change made in the owner panel (plans, settings, testimonials, types) shows on the public site at once.
+r.use((req, res, next) => { if (req.method !== "GET") { clearSiteCache(); res.on("finish", clearSiteCache); } next(); });
 r.get("/network", (req, res) => res.json({
   ip: req.ip, ips: req.ips, forwarded_for: req.get("x-forwarded-for") || null,
   trust_proxy: env.TRUST_PROXY, ip_allowlist_enabled: env.ownerIps.length > 0,

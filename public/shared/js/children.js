@@ -20,8 +20,13 @@ export function forgetChild(school, id) {
 }
 export const isRemembered = (school, id) => rememberedChildren(school).some((c) => c.id === id);
 
+// A parent with one child goes straight to that child's file when the app opens.
+const ONLY = (school) => `midar_only_child_${school}`;
+export const onlyChild = (school) => safe(() => Number(localStorage.getItem(ONLY(school))) || null, null);
+export const setOnlyChild = (school, id) => safe(() => (id ? localStorage.setItem(ONLY(school), String(id)) : localStorage.removeItem(ONLY(school))));
+
 export const parentSignedIn = (school) => safe(() => localStorage.getItem(PARENT(school)) === "1", false);
-export const setParentSignedIn = (school, on) => safe(() => (on ? localStorage.setItem(PARENT(school), "1") : localStorage.removeItem(PARENT(school))));
+export const setParentSignedIn = (school, on) => safe(() => { if (on) localStorage.setItem(PARENT(school), "1"); else { localStorage.removeItem(PARENT(school)); localStorage.removeItem(ONLY(school)); } });
 
 export function currentChild(school) {
   const fromUrl = Number(new URLSearchParams(location.search).get("s")) || null;
