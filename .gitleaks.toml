@@ -1,6 +1,6 @@
 # Secret scanning (gitleaks). The default rules apply; these paths are reviewed and allowed:
 # - tests: made-up passwords and keys used only by the test suite.
-# - the tests workflow: the test-only owner password for the throwaway CI database.
+# - the tests and e2e workflows: the test-only owner password for the throwaway CI database.
 # - firebase-config.js: a Firebase web API key, which is public by design (it ships to every browser);
 #   access is limited by the Firebase project's own rules, not by keeping the key secret.
 title = "Midar"
@@ -12,6 +12,6 @@ useDefault = true
 description = "Reviewed: test fixtures and public client config"
 paths = [
   '''^tests/''',
-  '''^\.github/workflows/tests\.yml$''',
+  '''^\.github/workflows/(tests|e2e)\.yml$''',
   '''^public/shared/js/firebase-config\.js$''',
 ]
