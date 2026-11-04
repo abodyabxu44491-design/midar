@@ -56,6 +56,8 @@ r.patch("/catalog/:key", handle(async (req, res) => {
     if (!cur) throw notFound("الميزة غير موجودة");
     const keys = Object.keys(b).filter((k) => b[k] !== undefined);
     if (!keys.length) return;
+    // Column names come from the zod schema (featurePatch), never from the request; values are parameters.
+    // nosemgrep
     await q(`UPDATE features SET ${keys.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE key = $1`, [key, ...keys.map((k) => b[k])]);
   });
   res.json({ ok: true });

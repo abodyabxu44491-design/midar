@@ -1,0 +1,51 @@
+# Midar (مدار) - School Management Platform. Copyright (c) 2026 Midar. All rights reserved.
+# Security checks on every pull request: leaked secrets (gitleaks, whole history) and unsafe code patterns
+# (Semgrep, free community rules). Both tools run locally on the runner; no account or paid service is used.
+name: فحص الأمان
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: كلمات السر المسرّبة
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: تنزيل gitleaks (نسخة مثبتة وبصمة مؤكدة)
+        run: |
+          curl -sSfL -o gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz gitleaks
+      - name: فحص كل تاريخ المستودع
+        run: ./gitleaks git --no-banner --redact --config .gitleaks.toml --exit-code 1 .
+
+  code:
+    name: أنماط الكود غير الآمنة
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install semgrep==1.183.0
+      # Errors stop the merge. A reviewed false positive is marked in the code with «nosemgrep» and the reason.
+      - name: Semgrep
+        run: >
+          semgrep scan --metrics=off --error --severity ERROR
+          --config p/javascript --config p/nodejsscan --config p/express
+          --exclude public/shared/vendor --exclude tests
+          src public scripts

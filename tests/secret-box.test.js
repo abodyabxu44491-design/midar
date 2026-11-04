@@ -27,6 +27,17 @@ test("مدرسة أخرى أو مفتاح آخر أو عبث بالبيانات:
   assert.equal(box.open(parts.join("."), "school1"), null);
   assert.equal(box.open("garbage", "school1"), null);
 });
+test("وسم المصادقة المقصوص يُرفض: لا يكفي جزء من الوسم لتمرير قيمة مزوّرة", () => {
+  const blob = box.seal("secret-pass", "school1");
+  const parts = blob.split(".");
+  const full = Buffer.from(parts[2], "base64url");
+  assert.equal(full.length, 16);
+  for (const n of [4, 8, 12]) {
+    const cut = [...parts]; cut[2] = full.subarray(0, n).toString("base64url");
+    assert.equal(box.open(cut.join("."), "school1"), null, `وسم بطول ${n} مرفوض`);
+  }
+  assert.equal(box.open(blob, "school1"), "secret-pass");
+});
 test("بلا مفتاح: الميزة معطلة ولا يُحفظ شيء", () => {
   for (const bad of [undefined, "", "abc", "z".repeat(64)]) {
     const b = createBox(bad);
