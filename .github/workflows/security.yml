@@ -42,10 +42,17 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install semgrep==1.183.0
+      # The community rules at a fixed commit, so every run checks the same rules (and the same as a local run).
+      - name: قواعد Semgrep (نسخة مثبتة)
+        run: |
+          git init -q rules && cd rules
+          git remote add origin https://github.com/semgrep/semgrep-rules.git
+          git fetch -q --depth 1 origin 16b9e6d45f10649f6a531ec4838ed9924372c3bc
+          git checkout -q FETCH_HEAD
       # Errors stop the merge. A reviewed false positive is marked in the code with «nosemgrep» and the reason.
       - name: Semgrep
         run: >
           semgrep scan --metrics=off --error --severity ERROR
-          --config p/javascript --config p/nodejsscan --config p/express
-          --exclude public/shared/vendor --exclude tests
+          --config rules/javascript
+          --exclude public/shared/vendor --exclude tests --exclude rules
           src public scripts
