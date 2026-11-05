@@ -45,6 +45,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Any real key or password in the repository stops the merge (scripts/check-secrets.js).
+      - name: فحص الأسرار
+        run: npm run check:secrets
       # A known high or critical vulnerability in a production dependency stops the merge.
       - name: فحص ثغرات المكتبات
         run: npm audit --omit=dev --audit-level=high

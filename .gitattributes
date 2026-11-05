@@ -1,0 +1,12 @@
+# Text files are stored with LF; binary files are never diffed or converted.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.xlsx binary

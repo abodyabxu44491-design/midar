@@ -22,7 +22,8 @@
     "test": "NODE_ENV=test node --test --test-concurrency=1 tests/*.test.js",
     "workers:build": "node scripts/build-workers.js",
     "workers:dev": "npm run workers:build && wrangler dev",
-    "workers:deploy:staging": "npm run workers:build && wrangler deploy --env staging"
+    "workers:deploy:staging": "npm run workers:build && wrangler deploy --env staging",
+    "check:secrets": "node scripts/check-secrets.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
