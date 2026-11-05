@@ -18,7 +18,7 @@ after(async () => { await srv.close(); await endPool(); });
 const queriesOf = (res) => Number((res.headers.get("server-timing") || "").match(/desc="(\d+) queries/)?.[1] ?? NaN);
 
 test("زيارات الصفحة الرئيسية وبيانات الموقع لا تستعلم من قاعدة البيانات بعد أول تحميل", async () => {
-  clearSiteCache();
+  if (!process.env.TEST_BASE_URL) clearSiteCache();
   await fetch(`${srv.base}/api/site`);   // first load fills the cache
   for (let i = 0; i < 10; i++) {
     for (const path of ["/", "/api/site"]) {
@@ -30,7 +30,10 @@ test("زيارات الصفحة الرئيسية وبيانات الموقع ل�
   }
 });
 
-test("زيارة الموقع العام لا تُعدّ استخدامًا للمنصة (لا تشغّل المهام الخلفية بكامل سرعتها)", async () => {
+// The next two read or clear this process's own state, so they only apply when the server runs in this process.
+const inProcess = { skip: process.env.TEST_BASE_URL ? "الحالة داخل عملية الخادم نفسها (يُتحقق منها على Workers بـ KV)" : false };
+
+test("زيارة الموقع العام لا تُعدّ استخدامًا للمنصة (لا تشغّل المهام الخلفية بكامل سرعتها)", inProcess, async () => {
   await new Promise((r) => setTimeout(r, 30));
   const before = idleMs();
   for (const path of ["/api/site", "/api/version", "/api/analytics-config", "/"]) await (await fetch(`${srv.base}${path}`)).arrayBuffer();
@@ -39,7 +42,7 @@ test("زيارة الموقع العام لا تُعدّ استخدامًا لل
   assert.ok(idleMs() < before, "الاستخدام الحقيقي يُسجل");
 });
 
-test("تعديل المالك يمسح ذاكرة الموقع فيظهر التغيير فورًا", async () => {
+test("تعديل المالك يمسح ذاكرة الموقع فيظهر التغيير فورًا", inProcess, async () => {
   await fetch(`${srv.base}/api/site`);
   clearSiteCache();   // what every owner change does (owner/index.js)
   const res = await fetch(`${srv.base}/api/site`);
