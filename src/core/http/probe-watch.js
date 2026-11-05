@@ -8,6 +8,7 @@
 // refuses each request; this raises one alert so the owner knows it is happening.
 import { transaction } from "../db/pool.js";
 import { raiseAlert } from "../audit.js";
+import { background } from "../platform.js";
 
 const WINDOW_MS = 10 * 60 * 1000;
 const LIMIT = 30;
@@ -25,11 +26,11 @@ export function probeWatch(req, res, next) {
     hits.set(who, e);
     if (e.n >= LIMIT && !e.raised) {
       e.raised = true;
-      transaction({ platform: true, actor: "النظام" }, (q) => raiseAlert(q, {
+      background(transaction({ platform: true, actor: "النظام" }, (q) => raiseAlert(q, {
         kind: "access_probe", severity: "high", tenantId: req.tenantId,
         title: "طلبات مرفوضة متكررة من حساب داخل مدرسة",
         detail: `${e.n} طلبًا مرفوضًا أو لسجلات غير موجودة خلال 10 دقائق (المستخدم رقم ${req.user?.id ?? "?"}، العنوان ${req.ip || "غير معروف"}). قد تكون محاولة للوصول إلى بيانات غير مسموحة.`,
-      })).catch(() => {});
+      })).catch(() => {}));
     }
     if (hits.size > 5000) for (const [k, v] of hits) if (now - v.start > WINDOW_MS) hits.delete(k);
   });

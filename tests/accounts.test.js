@@ -465,7 +465,8 @@ test("جهاز جديد: كلمة مرور صحيحة ثم رمز على الب�
   const ok = await phone.post("/api/account/login/verify", { email, code });
   assert.equal(ok.status, 200, JSON.stringify(ok.data));
   assert.equal((await phone.post("/api/account/login/verify", { email, code })).status, 400, "الرمز مرة واحدة");
-  await new Promise((done) => setTimeout(done, 100));
+  // The notice is sent after the response; over real SMTP (TEST_BASE_URL) that takes longer than in-process.
+  await new Promise((done) => setTimeout(done, process.env.TEST_BASE_URL ? 2000 : 100));
   assert.match(mails.at(-1).subject, /تم الدخول إلى حسابك من جهاز جديد/, "إشعار بالدخول على البريد");
   assert.equal((await phone.post("/api/account/enter", { school: s.id })).status, 200);
   assert.equal((await phone.get("/api/admin/me")).status, 200);

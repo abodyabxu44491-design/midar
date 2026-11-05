@@ -34,6 +34,7 @@ import gateApi from "./modules/gate/index.js";
 import { accountRouter, appleCallback } from "./modules/account/routes.js";
 import { markActive } from "./core/activity.js";
 import { staffLoginRouter } from "./modules/shared/staff-auth.js";
+import { isWorkers } from "./core/platform.js";
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 const pages = path.join(WEB, "pages");
@@ -42,8 +43,17 @@ export function createApp() {
   const app = express();
   app.set("trust proxy", env.TRUST_PROXY);
   app.disable("x-powered-by");
+  // On Workers there is no socket address; Cloudflare sets CF-Connecting-IP to the visitor's address and overwrites
+  // any value a client sends, so it is the address to trust (rate limits, the owner's allowed addresses, audit logs).
+  if (isWorkers) {
+    app.use((req, res, next) => {
+      Object.defineProperty(req, "ip", { value: req.get("cf-connecting-ip") || "0.0.0.0", configurable: true });
+      next();
+    });
+  }
   app.use(perfMiddleware, securityHeaders, noIndex);
-  app.use(compression({ threshold: 1024 }));
+  // On Workers, Cloudflare compresses responses for each client; compressing here as well would encode them twice.
+  if (!isWorkers) app.use(compression({ threshold: 1024 }));
   const canonical = env.PUBLIC_URL ? new URL(env.PUBLIC_URL) : null;
   app.use((req, res, next) => {
     if (!canonical || !(req.method === "GET" || req.method === "HEAD") || !INDEXABLE.has(req.path)) return next();

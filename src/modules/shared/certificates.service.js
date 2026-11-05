@@ -4,7 +4,6 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import crypto from "node:crypto";
-import { createRequire } from "node:module";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { buildReportCard } from "./reports.service.js";
@@ -12,8 +11,8 @@ import * as results from "./results.service.js";
 import * as design from "./cert-design.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 import { notify } from "./notify.service.js";
+import qrcode from "qrcode-generator";
 
-const qrcode = createRequire(import.meta.url)("qrcode-generator");
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const newCode = () => Array.from(crypto.randomBytes(10), (b) => ALPHA[b % ALPHA.length]).join("");
 

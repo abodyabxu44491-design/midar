@@ -5,6 +5,7 @@
  */
 import { transaction } from "./db/pool.js";
 import { conflict, notFound, publicError } from "./http/errors.js";
+import { background } from "./platform.js";
 
 const SECRET_TTL = 30 * 60_000;
 const secrets = new Map();          // jobId ← { data, until }
@@ -62,6 +63,8 @@ export async function startJob({ tenantId = null, kind, total = 0, step = null, 
         .catch((e) => console.error("job notify", e.message));
     }
   })();
+  startSweeper();
+  background(task);
   active.add(task);
   task.finally(() => active.delete(task));
   return { id: job.id };
@@ -81,7 +84,12 @@ export async function readJob({ tenantId = null, id, req }) {
   return out;
 }
 
-setInterval(() => { const now = Date.now(); for (const [k, v] of secrets) if (v.until < now) secrets.delete(k); }, 5 * 60_000).unref();
+// Started on the first job, not at import: Workers do not allow timers while a module loads.
+let sweeper = null;
+const startSweeper = () => {
+  sweeper ??= setInterval(() => { const now = Date.now(); for (const [k, v] of secrets) if (v.until < now) secrets.delete(k); }, 5 * 60_000);
+  sweeper.unref?.();
+};
 
 export async function drainJobs(ms = 25_000) {
   if (!active.size) return;

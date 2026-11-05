@@ -7,7 +7,10 @@ import { createApp } from "../src/app.js";
 import { closePool, transaction } from "../src/core/db/pool.js";
 import { setTransport } from "../src/modules/shared/notify.service.js";
 
+// TEST_BASE_URL runs the same tests against a server started elsewhere, such as the Workers build under
+// `wrangler dev` (docs/cloudflare/PHASE-3-REPORT.md). The tests still reach the database directly for their checks.
 export async function startServer() {
+  if (process.env.TEST_BASE_URL) return { base: process.env.TEST_BASE_URL.replace(/\/+$/, ""), close: async () => {} };
   const server = createApp().listen(0);
   await new Promise((r) => server.once("listening", r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -83,7 +86,19 @@ export const randomPhone = () => `05${String(Math.floor(Math.random() * 1e8)).pa
 
 // Email for tests: every message lands in `mails` instead of an SMTP server.
 export const mails = [];
+// Against a separate server (TEST_BASE_URL) the platform sends real SMTP to a local sink (tests/smtp-sink.js).
+let sink = null;
 export async function mailOn() {
+  if (process.env.TEST_BASE_URL) {
+    if (!sink) {
+      const { startSmtpSink } = await import("./smtp-sink.js");
+      sink = await startSmtpSink((m) => mails.push(m));
+    }
+    await transaction({ platform: true }, (q) => q(
+      "UPDATE mail_gateway SET enabled = true, host = '127.0.0.1', port = $1, secure = false, username = '', from_email = 'no-reply@midar.test' WHERE id = 1",
+      [sink.port]));
+    return;
+  }
   const { setMailTransport } = await import("../src/modules/shared/mail.service.js");
   setMailTransport({ send: async (g, m) => { mails.push(m); } });
   await transaction({ platform: true }, (q) => q(

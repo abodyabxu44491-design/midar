@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import rateLimit from "express-rate-limit";
 import { transaction } from "./db/pool.js";
 import { isDemoSchool } from "../modules/shared/demo.service.js";
+import { isWorkers } from "./platform.js";
 
 const isTest = process.env.NODE_ENV === "test";
 const factor = isTest ? 100 : 1;
@@ -40,6 +41,28 @@ export class PgStore {
   }
 }
 
+// Workers do not allow timers while a module loads, and the library's default memory store starts one. This store
+// prunes expired keys as it goes instead. Counts kept in memory are per Worker instance, so on Workers the general
+// limits are approximate until they move to Cloudflare Rate Limiting (docs/cloudflare/PHASE-2-DESIGN.md, section 6);
+// the sensitive limits (shared: true) are counted in the database and stay exact.
+export class TimerlessMemoryStore {
+  localKeys = true;
+  hits = new Map();
+  init(options) { this.windowMs = options.windowMs; }
+  async get(k) { const e = this.hits.get(k); return e && e.resetTime > new Date() ? e : undefined; }
+  async increment(k) {
+    const now = Date.now();
+    if (this.hits.size > 10_000) for (const [key, e] of this.hits) if (e.resetTime.getTime() <= now) this.hits.delete(key);
+    let e = this.hits.get(k);
+    if (!e || e.resetTime.getTime() <= now) { e = { totalHits: 0, resetTime: new Date(now + this.windowMs) }; this.hits.set(k, e); }
+    e.totalHits++;
+    return { totalHits: e.totalHits, resetTime: e.resetTime };
+  }
+  async decrement(k) { const e = this.hits.get(k); if (e && e.totalHits > 0) e.totalHits--; }
+  async resetKey(k) { this.hits.delete(k); }
+  async resetAll() { this.hits.clear(); }
+}
+
 const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSuccessfulRequests = false, skip } = {}) => rateLimit({
   ...(keyGenerator ? { keyGenerator } : {}),
   ...(skip ? { skip } : {}),
@@ -49,7 +72,7 @@ const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSucces
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.", code: "rate_limited" },
-  ...(shared && !isTest ? { store: new PgStore(name) } : {}),
+  ...(shared && !isTest ? { store: new PgStore(name) } : isWorkers ? { store: new TimerlessMemoryStore() } : {}),
 });
 
 // A signed-in user is counted on their own session, not on the address: a whole school (a computer lab, a staff

@@ -7,6 +7,7 @@ import pg from "pg";
 import { env } from "../../config/env.js";
 import { performance } from "node:perf_hooks";
 import { recordQuery, recordTx } from "../perf.js";
+import { background, databaseUrl, perRequestConnections } from "../platform.js";
 
 pg.types.setTypeParser(1700, (v) => (v === null ? null : Number(v)));   // numeric
 pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
@@ -40,7 +41,17 @@ export async function closePool() {
   poolPromise = null;
 }
 
+// Workers: one connection per transaction, closed when it ends (see core/platform.js).
+async function connectOnce() {
+  const client = new pg.Client({ ...common, connectionString: databaseUrl(env.DATABASE_URL),
+    ssl: env.DATABASE_SSL ? { rejectUnauthorized: true } : false });
+  await client.connect();
+  client.release = () => { client.end().catch(() => {}); };
+  return client;
+}
+
 async function connect() {
+  if (perRequestConnections) return connectOnce();
   const pool = await getPool();
   try { return await pool.connect(); } catch (e) {
     await new Promise((r) => setTimeout(r, 800));
@@ -66,7 +77,7 @@ export async function transaction(ctx, fn) {
     q.afterCommit = (job) => after.push(job);
     const result = await fn(q, client);
     await client.query("COMMIT");
-    for (const job of after) Promise.resolve().then(job).catch((e) => console.error("[after-commit]", e.message));
+    for (const job of after) background(Promise.resolve().then(job).catch((e) => console.error("[after-commit]", e.message)));
     return result;
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
@@ -81,6 +92,10 @@ export const inTenant = (req, fn) =>
   transaction({ tenantId: req.tenantId, actor: req.actor, ip: req.ip }, fn);
 
 export async function healthCheck() {
+  if (perRequestConnections) {
+    const c = await connectOnce();
+    try { return (await c.query("SELECT 1 AS ok")).rows[0].ok === 1; } finally { c.release(); }
+  }
   const r = await (await getPool()).query("SELECT 1 AS ok");
   return r.rows[0].ok === 1;
 }
