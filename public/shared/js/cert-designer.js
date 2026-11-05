@@ -9,7 +9,7 @@
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
 import { btn, badge, empty, notice, sub, toast, dialog, field, input, select, confirmAction } from "./ui.js";
-import { PAGE, FONTS, FONT_LABELS, BORDERS, KINDS, FIELDS, presetLayout } from "./cert-presets.js";
+import { PAGE, FONT_LABELS, BORDERS, KINDS, FIELDS, presetLayout } from "./cert-presets.js";
 import { renderPage, fitText, SAMPLE, valuesOf } from "./cert-render.js";
 
 const PX = 96 / 25.4; // CSS pixels per millimetre

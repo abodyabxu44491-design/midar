@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, input, select, btn, sub, notice, badge, dialog, toast, keyText, line } from "../../shared/js/ui.js";
+import { field, input, btn, sub, notice, badge, dialog, toast, keyText, line } from "../../shared/js/ui.js";
 import { parseCsv } from "../../shared/js/format.js";
 import { A } from "./common.js";
 

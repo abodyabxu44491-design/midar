@@ -10,7 +10,6 @@ import { badRequest, notFound } from "../../core/http/errors.js";
 import { hashPassword } from "../../core/auth/password.js";
 
 export const JOBS = { admin: "إداري", accountant: "محاسب", teacher: "معلم" };
-export const CONTACTS = { phone: "اتصال هاتفي", whatsapp: "واتساب", email: "بريد إلكتروني" };
 export const STATUSES = {
   new: "جديد — بانتظار الاعتماد",
   referred: "محال إلى مالك المنصة",

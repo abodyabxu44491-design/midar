@@ -165,3 +165,24 @@ test("إيقاف جهاز يمنعه من المزامنة", async () => {
   const st = await s.A.admin.get("/api/admin/sync/stats");
   assert.ok(st.data.applied >= 3 && st.data.conflicts >= 1);
 });
+
+test("جهاز غاب أكثر من مدة الحفظ يُعاد تحميله حتى لو خلت المدرسة من أي تغيير حديث", async () => {
+  // A school quiet for over 30 days: the cleanup used to delete every change, and a device that was away the whole
+  // time then found nothing to compare its cursor with, so it kept stale data instead of reloading.
+  const ch = await s.t.get(`/api/teacher/sync/changes?since=0`);
+  const behind = Math.max(1, ch.data.cursor - 2);
+  // Ageing the rows needs the owner role: the application role cannot edit the change log, by design.
+  const pg = (await import("pg")).default;
+  const own = new pg.Client({ connectionString: process.env.MIGRATION_DATABASE_URL });
+  await own.connect();
+  await own.query("UPDATE sync_changes SET changed_at = now() - interval '40 days' WHERE tenant_id = $1", [s.A.id]);
+  await own.end();
+  const { purgeExpiredSessions } = await import("../src/core/auth/sessions.js");
+  await purgeExpiredSessions();
+  const left = await transaction({ platform: true }, (q) => q("SELECT count(*)::int AS n FROM sync_changes WHERE tenant_id = $1", [s.A.id]));
+  assert.equal(left[0].n, 1, "يبقى آخر تغيير للمدرسة مرجعًا للمقارنة");
+  const back = await s.t.get(`/api/teacher/sync/changes?since=${behind}`);
+  assert.equal(back.data.reset, true, "الجهاز المتأخر يُطلب منه إعادة التحميل");
+  const fresh = await s.t.get(`/api/teacher/sync/changes?since=${ch.data.cursor}`);
+  assert.notEqual(fresh.data.reset, true, "الجهاز المحدَّث لا يُعاد تحميله بلا داعٍ");
+});

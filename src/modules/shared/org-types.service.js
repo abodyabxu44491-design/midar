@@ -70,9 +70,6 @@ export async function publicTypes(q) {
              WHERE status = ANY($1) AND engine = ANY($2) ORDER BY sort, key`, [PUBLIC_STATUSES, PUBLIC_ENGINES]);
 }
 
-export async function allTypes(q) {
-  return q("SELECT key, name, engine, status FROM org_types ORDER BY sort, key");
-}
 
 // The type a new institution gets: the one asked for, or the base type of its engine. Only types on an engine the
 // platform runs today, and not switched off, can be used.

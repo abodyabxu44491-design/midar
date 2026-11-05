@@ -88,4 +88,3 @@ export function describeChanges(oldData, newData) {
     .filter((k) => !HIDDEN.has(k) && JSON.stringify(oldData[k]) !== JSON.stringify(newData[k]))
     .map((k) => ({ field: FIELDS[k] || "بيان آخر", from: fmt(oldData[k]), to: fmt(newData[k]) }));
 }
-export const valueLabel = fmt;

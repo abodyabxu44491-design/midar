@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, z } from "../../core/http/validate.js";
 import { limits } from "../../core/rate-limit.js";
 import { inSchool } from "./context.js";
 import * as reqs from "../shared/password-requests.service.js";

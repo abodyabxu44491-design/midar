@@ -7,7 +7,7 @@ import { Router } from "express";
 import { env } from "../../config/env.js";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, z } from "../../core/http/validate.js";
 
 const r = Router();
 // An optional text field: left out keeps the saved value, empty clears it (the site then stops showing it).

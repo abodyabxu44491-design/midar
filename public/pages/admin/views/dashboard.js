@@ -6,7 +6,7 @@
 import { T } from "../../shared/js/terms.js";
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, notice, line, sub, input, empty, badge, btn, keyText, linkRow, copyRow, schoolLogoUrl, kpiCard, kpiGrid, personAvatar } from "../../shared/js/ui.js";
+import { panel, notice, line, sub, input, empty, badge, btn, keyText, linkRow, schoolLogoUrl, kpiCard, kpiGrid, personAvatar } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { money, fmtDate } from "../../shared/js/format.js";
 import { waButton, messageVars } from "../../shared/js/whatsapp.js";

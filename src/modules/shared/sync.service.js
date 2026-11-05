@@ -11,7 +11,6 @@ import * as exams from "./exams.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 
 const ATTENDANCE_DAYS = 30;
-export const CHANGES_RETENTION_DAYS = 30;
 
 const myClasses = async (q, teacherId) =>
   (await q("SELECT DISTINCT class_id FROM teacher_assignments WHERE teacher_id = $1", [teacherId])).map((r) => Number(r.class_id));

@@ -26,7 +26,6 @@ export const issueSchema = z.object({
   dry_run: z.boolean().prefault(false),
 });
 
-export const resultOf = results.resultResult;
 const scopeOf = (q, b) => results.classScope(q, { class_id: b.class_id, scope: b.kind, term_id: b.term_id, year_id: b.year_id });
 
 // Writes one certificate with the next serial number. When it replaces an earlier one, the earlier becomes

@@ -5,7 +5,7 @@
  */
 import { h, mount } from "./dom.js";
 import { api } from "./api.js";
-import { panel, field, input, select, btn, empty, badge, line, sub, toast, notice, dialog, confirmAction, stats } from "./ui.js";
+import { panel, field, input, select, btn, empty, badge, line, sub, toast, dialog, confirmAction, stats } from "./ui.js";
 import { fmtDateTime } from "./format.js";
 import { rich } from "./exam/math.js";
 import { mediaPlayer } from "./exam/editor.js";

@@ -82,18 +82,6 @@ export async function valuesOf(q, entity, entityId) {
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
-export async function valuesFor(q, entity, ids) {
-  if (!ids.length) return new Map();
-  const rows = await q(
-    `SELECT v.entity_id, f.key, v.value FROM custom_values v JOIN custom_fields f ON f.id = v.field_id
-      WHERE f.entity = $1 AND v.entity_id = ANY($2::bigint[])`, [entity, ids]);
-  const out = new Map();
-  for (const r of rows) {
-    const key = Number(r.entity_id);
-    out.set(key, { ...(out.get(key) || {}), [r.key]: r.value });
-  }
-  return out;
-}
 
 export async function saveValues(q, entity, entityId, values) {
   await assertEntity(q, entity, entityId);

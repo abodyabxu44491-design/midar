@@ -27,16 +27,6 @@ export async function requireOwner(req, res, next) {
 }
 
 // requireStaff("admin") | requireStaff("teacher") | requireStaff("accountant")
-export const requireFinanceUser = async (req, res, next) => {
-  for (const role of ["admin", "accountant"]) {
-    const err = await new Promise((resolve) => {
-      requireStaff(role)(req, res, (e) => resolve(e || null));
-    });
-    if (!err) return next();
-    if (err.code === "demo_readonly") return next(err);
-  }
-  next(unauthorized());
-};
 
 export const requireModule = (...names) => (req, res, next) =>
   (names.every((n) => req.modules?.[n]) ? next() : next(notFound("هذا القسم غير مفعّل في هذه المدرسة")));

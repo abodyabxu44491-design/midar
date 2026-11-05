@@ -20,9 +20,6 @@ export const list = (q, entityType, entityId) => q(
   `SELECT id, filename, mime, size_bytes, uploaded_by, created_at
      FROM attachments WHERE entity_type = $1 AND entity_id = $2 ORDER BY id`, [entityType, entityId]);
 
-export const listForEntities = (q, entityType, ids) => (ids.length ? q(
-  `SELECT id, entity_id, filename, mime, size_bytes FROM attachments
-    WHERE entity_type = $1 AND entity_id = ANY($2::bigint[]) ORDER BY id`, [entityType, ids]) : []);
 
 const SIGNATURES = {
   "image/jpeg": (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,

@@ -14,7 +14,7 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
   empty, badge, notice, switchBtn, dialog, showCredentials, promptInstall, passwordInput, linkRow, copyRow } from "../../shared/js/ui.js";
 import { csv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
-import { A, directoryLink } from "./common.js";
+import { A } from "./common.js";
 import { dangerZone } from "../../shared/js/danger-zone.js";
 
 const SECTIONS = [

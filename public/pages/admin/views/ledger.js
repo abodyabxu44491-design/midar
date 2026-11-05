@@ -9,7 +9,7 @@ import { panel, field, input, select, textarea, btn, empty, badge, line, sub, st
   dialog, notice, confirmAction, docLogo, kpiCard, kpiGrid } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { barChart } from "../../shared/js/charts.js";
-import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, fmtDateTime, today } from "../../shared/js/format.js";
+import { money, setCurrency, getCurrency, CURRENCIES, fmtDate, today } from "../../shared/js/format.js";
 import { A } from "./common.js";
 import { fundField } from "../../shared/js/fund-picker.js";
 
