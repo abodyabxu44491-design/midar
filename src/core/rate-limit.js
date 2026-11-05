@@ -63,7 +63,25 @@ export class TimerlessMemoryStore {
   async resetAll() { this.hits.clear(); }
 }
 
-const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSuccessfulRequests = false, skip } = {}) => rateLimit({
+// On Workers the general limits (not shared) are counted by Cloudflare's rate limiting binding, the same across all
+// instances in a location (wrangler.jsonc "ratelimits", one per limit; periods are one minute). The binding has a
+// fixed limit, so a limit that depends on the request names its variant (api: per session or per address).
+const EDGE = { api: (req) => (sessionOrIp(req).startsWith("s:") ? "api_session" : "api_ip"), publicApi: () => "public_api", site: () => "site", health: () => "health" };
+const RATE_LIMITED = { error: "محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.", code: "rate_limited" };
+function edgeLimit(name, keyGenerator) {
+  return async (req, res, next) => {
+    const hook = globalThis.__midarPlatform?.rateLimit;
+    if (!hook) return next();
+    try {
+      const r = await hook(EDGE[name](req), (keyGenerator || ((x) => x.ip))(req));
+      if (r && !r.success) return res.status(429).set("Retry-After", "60").json(RATE_LIMITED);
+    } catch (e) { console.error("[حد المعدل]", e?.message || e); }   // the limiter failing must not block requests
+    return next();
+  };
+}
+
+const make = (name, windowMin, limit, opts = {}) => (isWorkers && !opts.shared && EDGE[name] ? edgeLimit(name, opts.keyGenerator) : makeLocal(name, windowMin, limit, opts));
+const makeLocal = (name, windowMin, limit, { shared = false, keyGenerator, skipSuccessfulRequests = false, skip } = {}) => rateLimit({
   ...(keyGenerator ? { keyGenerator } : {}),
   ...(skip ? { skip } : {}),
   skipSuccessfulRequests,
@@ -71,7 +89,7 @@ const make = (name, windowMin, limit, { shared = false, keyGenerator, skipSucces
   limit: typeof limit === "function" ? (req) => limit(req) * factor : limit * factor,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.", code: "rate_limited" },
+  message: RATE_LIMITED,
   ...(shared && !isTest ? { store: new PgStore(name) } : isWorkers ? { store: new TimerlessMemoryStore() } : {}),
 });
 

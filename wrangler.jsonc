@@ -29,6 +29,15 @@
   "triggers": { "crons": ["*/5 * * * *"] },
   // Shared state across instances: only the time of the last request, so idle schools let the database sleep.
   "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
+  // General rate limits, the same as the Node limits in src/core/rate-limit.js (login and payment limits stay in the
+  // database). Approximate and per Cloudflare location, which suits abuse protection.
+  "ratelimits": [
+    { "name": "RL_API_SESSION", "namespace_id": "1001", "simple": { "limit": 180, "period": 60 } },
+    { "name": "RL_API_IP", "namespace_id": "1002", "simple": { "limit": 600, "period": 60 } },
+    { "name": "RL_PUBLIC_API", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RL_SITE", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RL_HEALTH", "namespace_id": "1005", "simple": { "limit": 20, "period": 60 } }
+  ],
   "vars": {
     "NODE_ENV": "production",
     "COOKIE_SECURE": "true",
@@ -46,6 +55,14 @@
       "triggers": { "crons": ["*/5 * * * *"] },
       // Filled in when the staging namespace is created.
       "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
+      // Separate counters from production.
+      "ratelimits": [
+        { "name": "RL_API_SESSION", "namespace_id": "2001", "simple": { "limit": 180, "period": 60 } },
+        { "name": "RL_API_IP", "namespace_id": "2002", "simple": { "limit": 600, "period": 60 } },
+        { "name": "RL_PUBLIC_API", "namespace_id": "2003", "simple": { "limit": 120, "period": 60 } },
+        { "name": "RL_SITE", "namespace_id": "2004", "simple": { "limit": 120, "period": 60 } },
+        { "name": "RL_HEALTH", "namespace_id": "2005", "simple": { "limit": 20, "period": 60 } }
+      ],
       "vars": {
         "NODE_ENV": "production",
         "COOKIE_SECURE": "true",
