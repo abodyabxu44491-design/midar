@@ -33,7 +33,7 @@
   // what runs on each tick.
   "triggers": { "crons": ["*/5 * * * *"] },
   // Shared state across instances: only the time of the last request, so idle schools let the database sleep.
-  "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
+  "kv_namespaces": [{ "binding": "STATE", "id": "6618f5f6e43442f6bc247bd7a69e21bd" }],
   // File contents (attachments, exam media, certificate assets, book covers, school backups): src/core/blobs.js.
   // Private bucket: no public access, read only through the API after the database allows it.
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "midar-files" }],
@@ -56,7 +56,8 @@
     "NODE_ENV": "production",
     "COOKIE_SECURE": "true",
     "SESSION_COOKIE_MODE": "separate",
-    "TRUST_PROXY": "1"
+    "TRUST_PROXY": "1",
+    "PUBLIC_URL": "https://midarschool.com"
   },
   // Local development: wrangler reads the database address from
   // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE instead of this id.
