@@ -19,6 +19,8 @@ globalThis.__midarPlatform = {
   waitUntil,
   databaseUrl: () => env.HYPERDRIVE?.connectionString,
   onActive: () => recordActivity(env, waitUntil),
+  // Long jobs (imports) run from the queue, not after the response (src/core/jobs.js).
+  enqueueJob: env.JOBS ? (msg) => env.JOBS.send(msg) : undefined,
   // General rate limits (src/core/rate-limit.js): one Cloudflare binding per limit. Off in test runs, as on Node where
   // tests multiply every limit by 100, unless EDGE_LIMITS_IN_TEST=1.
   rateLimit: (name, key) => (process.env.NODE_ENV === "test" && process.env.EDGE_LIMITS_IN_TEST !== "1"

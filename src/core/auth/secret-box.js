@@ -36,6 +36,10 @@ export function createBox(hexKey) {
 
 function resolveKey(env = process.env) {
   if (parseKey(env.CREDENTIAL_KEY)) return env.CREDENTIAL_KEY;
+  // On Workers the database address is not DATABASE_URL (Hyperdrive gives it per request), so a key derived from it
+  // would silently differ from the server's and every stored secret would stop opening. There, CREDENTIAL_KEY is
+  // required: copy the key in effect on the current server (owner panel or `npm run credential:key`) before moving.
+  if (globalThis.__midarPlatform?.workers) return null;
   if (!env.DATABASE_URL) return null;
   return Buffer.from(crypto.hkdfSync("sha256", env.DATABASE_URL, "midar", "initial-credentials-v1", 32)).toString("hex");
 }

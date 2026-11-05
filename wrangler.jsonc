@@ -38,6 +38,12 @@
     { "name": "RL_SITE", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } },
     { "name": "RL_HEALTH", "namespace_id": "1005", "simple": { "limit": 20, "period": 60 } }
   ],
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "midar-jobs" }],
+    // One job per message. A failed run is retried (runQueuedJob never runs a claimed job twice), then kept in the
+    // dead-letter queue for inspection.
+    "consumers": [{ "queue": "midar-jobs", "max_batch_size": 1, "max_retries": 2, "dead_letter_queue": "midar-jobs-dlq" }]
+  },
   "vars": {
     "NODE_ENV": "production",
     "COOKIE_SECURE": "true",
@@ -55,6 +61,12 @@
       "triggers": { "crons": ["*/5 * * * *"] },
       // Filled in when the staging namespace is created.
       "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
+      "queues": {
+        "producers": [{ "binding": "JOBS", "queue": "midar-jobs-staging" }],
+        // One job per message. A failed run is retried (runQueuedJob never runs a claimed job twice), then kept in the
+        // dead-letter queue for inspection.
+        "consumers": [{ "queue": "midar-jobs-staging", "max_batch_size": 1, "max_retries": 2, "dead_letter_queue": "midar-jobs-staging-dlq" }]
+      },
       // Separate counters from production.
       "ratelimits": [
         { "name": "RL_API_SESSION", "namespace_id": "2001", "simple": { "limit": 180, "period": 60 } },
