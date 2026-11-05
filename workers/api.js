@@ -8,8 +8,14 @@
 import "./setup.js";
 import { httpServerHandler } from "cloudflare:node";
 import { createApp } from "../src/app.js";
+import { runScheduled } from "./schedule.js";
 
 const PORT = 3000;
 createApp().listen(PORT);
+const http = httpServerHandler({ port: PORT });
 
-export default httpServerHandler({ port: PORT });
+export default {
+  ...http,
+  // Cron Trigger (every five minutes): reminders, the gate, maintenance, notification retries (workers/schedule.js).
+  scheduled(controller, env, ctx) { ctx.waitUntil(runScheduled(controller.scheduledTime, env)); },
+};

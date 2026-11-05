@@ -6,6 +6,7 @@
 // Imported first by the Worker entry, so it runs before any module of the app (see src/core/platform.js).
 import { env, waitUntil } from "cloudflare:workers";
 import build from "../dist/workers/build.json";
+import { recordActivity } from "./schedule.js";
 
 process.env.MIDAR_BUILD_HASH = build.hash;
 process.env.MIDAR_BUILT_AT = build.builtAt;
@@ -17,4 +18,5 @@ globalThis.__midarPlatform = {
   workers: true,
   waitUntil,
   databaseUrl: () => env.HYPERDRIVE?.connectionString,
+  onActive: () => recordActivity(env, waitUntil),
 };

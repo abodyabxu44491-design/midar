@@ -24,6 +24,11 @@
     "not_found_handling": "none"
   },
   "observability": { "enabled": true },
+  // One Cron Trigger for all background work (the free plan allows five per account); workers/schedule.js decides
+  // what runs on each tick.
+  "triggers": { "crons": ["*/5 * * * *"] },
+  // Shared state across instances: only the time of the last request, so idle schools let the database sleep.
+  "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
   "vars": {
     "NODE_ENV": "production",
     "COOKIE_SECURE": "true",
@@ -38,6 +43,9 @@
       "name": "midar-api-staging",
       "define": { "import.meta.url": "\"file:///bundle/src/core/module.js\"" },
       "workers_dev": true,
+      "triggers": { "crons": ["*/5 * * * *"] },
+      // Filled in when the staging namespace is created.
+      "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
       "vars": {
         "NODE_ENV": "production",
         "COOKIE_SECURE": "true",

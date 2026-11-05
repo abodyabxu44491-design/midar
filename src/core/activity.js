@@ -7,7 +7,9 @@
 // it is awake must be allowed to sleep at night: background work runs on every tick while people use the platform,
 // and only now and then when nobody does.
 let last = Date.now();
-export const markActive = () => { last = Date.now(); };
+// On Workers each instance has its own memory, so the time is also shared through the platform hook (KV, see
+// workers/schedule.js); on Node the hook is absent.
+export const markActive = () => { last = Date.now(); globalThis.__midarPlatform?.onActive?.(); };
 export const idleMs = () => Date.now() - last;
 
 // While nobody uses the platform, every background job runs in one shared short window, once per IDLE_PERIOD: the
