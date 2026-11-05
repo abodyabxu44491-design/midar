@@ -4,6 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { z, t } from "../../core/http/validate.js";
+import * as blobs from "../../core/blobs.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 
 export const MAX_BYTES = 2 * 1024 * 1024;
@@ -36,20 +37,23 @@ export async function upload(q, { entityType, entityId, file, actor }) {
   if (!buffer.length) throw badRequest("الملف فارغ");
   if (buffer.length > MAX_BYTES) throw badRequest("حجم الملف أكبر من 2 ميجابايت");
   if (!matchesMime(buffer, file.mime)) throw badRequest("محتوى الملف لا يطابق نوعه. ارفع صورة JPG أو PNG أو WEBP أو ملف PDF سليمًا");
+  const stored = await blobs.keep(q, "attachment", buffer, file.mime);
   const [row] = await q(
-    `INSERT INTO attachments (tenant_id, entity_type, entity_id, filename, mime, size_bytes, data, uploaded_by)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id, filename, mime, size_bytes`,
-    [entityType, entityId, file.filename, file.mime, buffer.length, buffer, actor]);
+    `INSERT INTO attachments (tenant_id, entity_type, entity_id, filename, mime, size_bytes, data, blob_key, uploaded_by)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, filename, mime, size_bytes`,
+    [entityType, entityId, file.filename, file.mime, buffer.length, stored.data, stored.key, actor]);
   return row;
 }
 
 export async function download(q, id) {
-  const [row] = await q("SELECT filename, mime, data FROM attachments WHERE id = $1", [id]);
+  const [row] = await q("SELECT filename, mime, data, blob_key FROM attachments WHERE id = $1", [id]);
   if (!row) throw notFound("المرفق غير موجود");
-  return row;
+  const { blob_key, ...out } = row;
+  return { ...out, data: await blobs.load(row.data, blob_key) };
 }
 
 export async function remove(q, id) {
-  const rows = await q("DELETE FROM attachments WHERE id = $1 RETURNING id", [id]);
+  const rows = await q("DELETE FROM attachments WHERE id = $1 RETURNING id, blob_key", [id]);
   if (!rows.length) throw notFound("المرفق غير موجود");
+  blobs.drop(q, rows[0].blob_key);
 }

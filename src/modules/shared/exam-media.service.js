@@ -9,6 +9,7 @@
 import { z } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { matchesMime } from "./attachments.service.js";
+import * as blobs from "../../core/blobs.js";
 
 export const MEDIA_MAX = 10 * 1024 * 1024;
 export const ANSWER_MAX = 5 * 1024 * 1024;
@@ -58,17 +59,18 @@ export async function saveMedia(q, { teacherId = null, file, actor }) {
   // Videos are added by link (YouTube, Vimeo, Google Drive) so the school's database stays light; only sound is uploaded.
   if (canonical(file.mime).startsWith("video/")) throw badRequest("الفيديو يُضاف برابط (يوتيوب أو فيميو أو قوقل درايف) ولا يُرفع. ارفع المقاطع الصوتية فقط");
   const { mime, buffer, kind } = decode(file, MEDIA_MIMES, MEDIA_MAX, "media");
+  const stored = await blobs.keep(q, "exam-media", buffer, mime);
   const [row] = await q(
-    `INSERT INTO exam_media (tenant_id, kind, teacher_id, mime, size_bytes, data, name, uploaded_by)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id, kind, mime, size_bytes, name`,
-    [kind, teacherId, mime, buffer.length, buffer, file.name || null, actor]);
+    `INSERT INTO exam_media (tenant_id, kind, teacher_id, mime, size_bytes, data, blob_key, name, uploaded_by)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, kind, mime, size_bytes, name`,
+    [kind, teacherId, mime, buffer.length, stored.data, stored.key, file.name || null, actor]);
   return row;
 }
 
 export async function readMedia(q, id) {
-  const [row] = await q("SELECT kind, mime, data FROM exam_media WHERE id = $1", [id]);
+  const [row] = await q("SELECT kind, mime, data, blob_key FROM exam_media WHERE id = $1", [id]);
   if (!row) throw notFound("الملف غير موجود");
-  return row;
+  return { kind: row.kind, mime: row.mime, data: await blobs.load(row.data, row.blob_key) };
 }
 
 // Sends a stored file, honouring a byte range so phones can seek in a video or audio clip.
@@ -89,19 +91,23 @@ export function sendMedia(req, res, { mime, data }) {
 export async function saveAnswerFile(q, attemptId, question, file) {
   const { mime, buffer, kind } = decode(file, ANSWER_MIMES, ANSWER_MAX, "answer");
   if (kind !== question.respond) throw badRequest(question.respond === "audio" ? "هذا السؤال يُجاب بتسجيل صوتي" : "هذا السؤال يُجاب بصورة");
+  // A new answer replaces the previous one; the previous file is removed once this is saved.
+  const [prev] = await q("SELECT blob_key FROM online_answer_files WHERE attempt_id = $1 AND question_id = $2", [attemptId, question.id]);
+  const stored = await blobs.keep(q, "answer-file", buffer, mime);
   await q(
-    `INSERT INTO online_answer_files (tenant_id, attempt_id, question_id, kind, mime, size_bytes, data)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6)
+    `INSERT INTO online_answer_files (tenant_id, attempt_id, question_id, kind, mime, size_bytes, data, blob_key)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (attempt_id, question_id) DO UPDATE SET kind = EXCLUDED.kind, mime = EXCLUDED.mime,
-       size_bytes = EXCLUDED.size_bytes, data = EXCLUDED.data, created_at = now()`,
-    [attemptId, question.id, kind, mime, buffer.length, buffer]);
+       size_bytes = EXCLUDED.size_bytes, data = EXCLUDED.data, blob_key = EXCLUDED.blob_key, created_at = now()`,
+    [attemptId, question.id, kind, mime, buffer.length, stored.data, stored.key]);
+  blobs.drop(q, prev?.blob_key);
   return { kind, size_bytes: buffer.length };
 }
 
 export async function readAnswerFile(q, attemptId, questionId) {
-  const [row] = await q("SELECT kind, mime, data FROM online_answer_files WHERE attempt_id = $1 AND question_id = $2", [attemptId, questionId]);
+  const [row] = await q("SELECT kind, mime, data, blob_key FROM online_answer_files WHERE attempt_id = $1 AND question_id = $2", [attemptId, questionId]);
   if (!row) throw notFound("لا يوجد ملف لهذا السؤال");
-  return row;
+  return { kind: row.kind, mime: row.mime, data: await blobs.load(row.data, row.blob_key) };
 }
 
 export const answerFilesOf = async (q, attemptId) => new Set((await q(

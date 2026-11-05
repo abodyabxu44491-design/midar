@@ -7,7 +7,7 @@
 import crypto from "node:crypto";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, forbidden, conflict } from "../../core/http/errors.js";
-import { getFor } from "./exam-papers.service.js";
+import { getFor, readImage } from "./exam-papers.service.js";
 import { notify } from "./notify.service.js";
 import { resolveForExam } from "./grade-components.service.js";
 import * as media from "./exam-media.service.js";
@@ -297,9 +297,7 @@ async function assetOf(q, x, kind, assetId) {
     return media.readMedia(q, assetId);
   }
   if (!usesImage(x.content, assetId)) throw notFound("الصورة غير موجودة");
-  const [img] = await q("SELECT mime, data FROM exam_images WHERE id = $1", [assetId]);
-  if (!img) throw notFound("الصورة غير موجودة");
-  return img;
+  return readImage(q, assetId);
 }
 
 function reviewQuestions(content, a, withKey, files = new Set()) {

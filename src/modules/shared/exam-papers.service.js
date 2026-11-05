@@ -11,6 +11,7 @@ import {
   totals, checkPaper, stripAnswers, DEFAULT_EXAM_TYPES, ORDINALS, QTYPES, newQuestion, withLayoutDefaults, SECTION_TITLES,
 } from "../../../public/shared/js/exam/engine.js";
 import { paperQuestion, normalizeQuestion, newItemId, pick } from "./question-bank.service.js";
+import * as blobs from "../../core/blobs.js";
 
 const sectionSchema = z.object({
   id: z.string().regex(/^s_[a-z0-9]{3,20}$/, "معرّف قسم غير صالح"),
@@ -223,18 +224,24 @@ export async function saveImage(q, { kind = "question", teacherId = null, file, 
     thumb = Buffer.from(file.thumb.data, "base64");
     if (!thumb.length || thumb.length > 262144 || !matchesMime(thumb, file.thumb.mime)) thumb = null;
   }
+  const full = await blobs.keep(q, "exam-image", buffer, file.mime);
+  const small = thumb ? await blobs.keep(q, "exam-thumb", thumb, file.thumb.mime) : { data: null, key: null };
   const [row] = await q(
-    `INSERT INTO exam_images (tenant_id, kind, teacher_id, mime, size_bytes, data, uploaded_by, thumb, thumb_mime)
-     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, mime, size_bytes, (thumb IS NOT NULL) AS has_thumb`,
-    [kind, teacherId, file.mime, buffer.length, buffer, actor, thumb, thumb ? file.thumb.mime : null]);
+    `INSERT INTO exam_images (tenant_id, kind, teacher_id, mime, size_bytes, data, blob_key, uploaded_by, thumb, thumb_key, thumb_mime)
+     VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING id, mime, size_bytes, (thumb IS NOT NULL OR thumb_key IS NOT NULL) AS has_thumb`,
+    [kind, teacherId, file.mime, buffer.length, full.data, full.key, actor, small.data, small.key, thumb ? file.thumb.mime : null]);
   return row;
 }
+// The picture, or its reduced copy when asked and present. The full bytes are not read from the database for a thumb.
 export async function readImage(q, id, size = "full") {
   const [row] = size === "thumb"
-    ? await q("SELECT COALESCE(thumb_mime, mime) AS mime, COALESCE(thumb, data) AS data FROM exam_images WHERE id = $1", [id])
-    : await q("SELECT mime, data FROM exam_images WHERE id = $1", [id]);
+    ? await q(`SELECT mime, thumb_mime, thumb, thumb_key, blob_key,
+                      CASE WHEN thumb IS NULL AND thumb_key IS NULL THEN data END AS data FROM exam_images WHERE id = $1`, [id])
+    : await q("SELECT mime, data, blob_key FROM exam_images WHERE id = $1", [id]);
   if (!row) throw notFound("الصورة غير موجودة");
-  return row;
+  if (size === "thumb" && (row.thumb || row.thumb_key)) return { mime: row.thumb_mime || row.mime, data: await blobs.load(row.thumb, row.thumb_key) };
+  return { mime: row.mime, data: await blobs.load(row.data, row.blob_key) };
 }
 
 // Pictures and clips another school uploaded (or ones deleted since) are dropped, so a paper never points outside its school.

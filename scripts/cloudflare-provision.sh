@@ -30,6 +30,11 @@ KV_ID=$($W kv namespace list | node -e 'let s="";process.stdin.on("data",d=>s+=d
 [ -n "$KV_ID" ] || KV_ID=$($W kv namespace create "midar-state$SFX" | grep -oE '[0-9a-f]{32}' | head -1)
 echo "   $KV_ID"
 
+echo "== $ENV: R2 bucket (files)"
+if ! $W r2 bucket create "midar-files$SFX" 2>/tmp/r2.err; then
+  grep -qi "already exists" /tmp/r2.err && echo "   midar-files$SFX exists" || { cat /tmp/r2.err; echo "✗ R2 غير مفعّل في الحساب: فعّله من لوحة Cloudflare (R2 Object Storage) ثم أعد التشغيل"; exit 1; }
+fi
+
 echo "== $ENV: Queues"
 for q in "midar-jobs$SFX" "midar-jobs$SFX-dlq"; do $W queues create "$q" 2>/dev/null || echo "   $q exists"; done
 

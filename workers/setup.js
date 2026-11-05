@@ -25,6 +25,12 @@ globalThis.__midarPlatform = {
     put: (k, v, ttlMs) => waitUntil(env.STATE.put(`cache:${k}`, JSON.stringify(v), { expirationTtl: Math.max(60, Math.round(ttlMs / 1000)) }).catch(() => {})),
     del: (k) => waitUntil(env.STATE.delete(`cache:${k}`).catch(() => {})),
   } : undefined,
+  // File contents in R2 (src/core/blobs.js); without the binding they stay in the database.
+  blobs: env.FILES ? {
+    put: (key, bytes, mime) => env.FILES.put(key, bytes, { httpMetadata: { contentType: mime } }),
+    get: async (key) => { const o = await env.FILES.get(key); return o ? Buffer.from(await o.arrayBuffer()) : null; },
+    del: (key) => waitUntil(env.FILES.delete(key).catch((e) => console.error("[R2 حذف]", e?.message || e))),
+  } : undefined,
   // Long jobs (imports) run from the queue, not after the response (src/core/jobs.js).
   enqueueJob: env.JOBS ? (msg) => env.JOBS.send(msg) : undefined,
   // General rate limits (src/core/rate-limit.js): one Cloudflare binding per limit. Off in test runs, as on Node where
