@@ -66,7 +66,7 @@ def lockup(dark=False):
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} 220"><title>مدار — MIDAIR SCHOOL</title>
 <g transform="translate({W-300:.0f} 0) scale(.62) translate(-30 -60)">{inner}</g>
 <g transform="translate({40 + w/2:.1f} 98)">{wp} fill="{fg}"/></g>
-<text x="{40 + w/2:.1f}" y="196" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="700" letter-spacing="4.2" fill="{sub}">MIDAIR SCHOOL</text>
+<text x="{48 + w/2:.1f}" y="198" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" letter-spacing="16" fill="{sub}">SCHOOL</text>
 </svg>'''
 
 import os
