@@ -19,6 +19,12 @@ globalThis.__midarPlatform = {
   waitUntil,
   databaseUrl: () => env.HYPERDRIVE?.connectionString,
   onActive: () => recordActivity(env, waitUntil),
+  // Small shared cache (the public site's data), kept in KV with an expiry.
+  cache: env.STATE ? {
+    get: (k) => env.STATE.get(`cache:${k}`, "json"),
+    put: (k, v, ttlMs) => waitUntil(env.STATE.put(`cache:${k}`, JSON.stringify(v), { expirationTtl: Math.max(60, Math.round(ttlMs / 1000)) }).catch(() => {})),
+    del: (k) => waitUntil(env.STATE.delete(`cache:${k}`).catch(() => {})),
+  } : undefined,
   // Long jobs (imports) run from the queue, not after the response (src/core/jobs.js).
   enqueueJob: env.JOBS ? (msg) => env.JOBS.send(msg) : undefined,
   // General rate limits (src/core/rate-limit.js): one Cloudflare binding per limit. Off in test runs, as on Node where

@@ -4,7 +4,9 @@
 name: مراقبة الموقع
 on:
   schedule:
-    # Every 3 hours: each check wakes the database, which on the free tier is billed by the time it is awake.
+    # Every 3 hours the server only (no database). The database is checked once a day, at 06:07 UTC (09:07 in Riyadh
+    # and Sana'a), when schools are using the platform and it is awake anyway: each check of an idle database wakes it,
+    # and the free tier is billed by the time it is awake.
     - cron: "7 */3 * * *"
   workflow_dispatch:
 
@@ -29,6 +31,9 @@ jobs:
           }
           ok=0
           check "$SITE/healthz" || ok=1
-          check "$SITE/healthz/db" || ok=1
+          if [ "$(date -u +%H)" = "06" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            check "$SITE/healthz/db" || ok=1
+          fi
+          # The home page's data is cached for hours, so this check does not wake the database.
           if ! curl -fsS --max-time 60 "$SITE/" | grep -q "مدار"; then echo "::error::الصفحة الرئيسية لا تعرض المنصة"; ok=1; fi
           exit $ok

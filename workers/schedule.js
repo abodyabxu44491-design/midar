@@ -7,7 +7,7 @@
 // Cron Trigger fires every five minutes (wrangler.jsonc) and this decides what is due.
 //
 // Same policy as src/core/activity.js: every background job wakes the database, so while nobody uses the platform
-// everything runs together once every two hours and the database can sleep in between. "In use" is read from KV,
+// everything runs together once every six hours and the database can sleep in between. "In use" is read from KV,
 // where requests record their time at most once every five minutes per instance (recordActivity below).
 export const ACTIVE_WITHIN_MS = 15 * 60_000;
 const ACTIVITY_KEY = "last-activity";
@@ -20,8 +20,8 @@ export function dueJobs(when, lastActivity) {
   const topOfHour = minute < 5;                       // the tick that falls in the first five minutes of the hour
   const active = lastActivity != null && when - lastActivity < ACTIVE_WITHIN_MS;
   if (!active) {
-    // Idle: one shared window every two hours for everything.
-    return topOfHour && hour % 2 === 0 ? ["deliveries", "ownerPush", "gate", "alertEmails", "maintenance", "reminders", "dbUsage"] : [];
+    // Idle: one shared window every six hours for everything (00, 06, 12, 18 UTC).
+    return topOfHour && hour % 6 === 0 ? ["deliveries", "ownerPush", "gate", "alertEmails", "maintenance", "reminders", "dbUsage"] : [];
   }
   const jobs = ["deliveries", "ownerPush", "gate", "alertEmails"];
   if (topOfHour) jobs.push("maintenance", "reminders");

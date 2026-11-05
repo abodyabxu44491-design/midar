@@ -60,12 +60,22 @@ export async function publicPlans() {
 
 // The public site's data changes only when the owner edits it, but each visit (bots included) would wake the
 // database: it is kept in memory for a few minutes, and dropped at once after any change in the owner panel.
+// The public site's data changes only when the owner edits it, and every change clears the cache (owner/index.js), so
+// it is kept for hours: visitors and search engines then never wake the database. On Workers each instance has its
+// own memory, so the data is shared through KV (the platform's `cache` hook) and each instance keeps it only a minute,
+// which is how soon an owner's change reaches every instance.
+const SITE_TTL = 6 * 60 * 60_000;
+const shared = () => globalThis.__midarPlatform?.cache;
 let siteCache = null;
-export const clearSiteCache = () => { siteCache = null; };
+export const clearSiteCache = () => { siteCache = null; shared()?.del("site-data"); };
 export async function siteData() {
   if (siteCache && siteCache.until > Date.now()) return siteCache.data;
+  const cache = shared();
+  const kept = cache ? await cache.get("site-data").catch(() => null) : null;
+  if (kept) { siteCache = { data: kept, until: Date.now() + 60_000 }; return kept; }
   const data = await loadSiteData();
-  siteCache = { data, until: Date.now() + 5 * 60_000 };
+  siteCache = { data, until: Date.now() + (cache ? 60_000 : SITE_TTL) };
+  cache?.put("site-data", data, SITE_TTL);
   return data;
 }
 async function loadSiteData() {

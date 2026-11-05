@@ -64,7 +64,10 @@ export function createApp() {
 
   app.get("/healthz", (req, res) => res.json({ ok: true }));
   // Real use of the platform (not health checks) keeps the background work running at full pace.
-  app.use("/api", (req, res, next) => { markActive(); next(); });
+  // Not the public site's own requests (the home page loads /api/site): a search engine or a visitor opening the home
+  // page must not switch the background work to full pace, which keeps the database awake (and billed) for minutes.
+  const NOT_USE = new Set(["/site", "/version", "/analytics-config"]);
+  app.use("/api", (req, res, next) => { if (!NOT_USE.has(req.path)) markActive(); next(); });
 
   app.get("/healthz/db", limits.health, async (req, res) => {
     try { await healthCheck(); res.json({ ok: true, db: true }); }

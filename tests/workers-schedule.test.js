@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 // Background work on Workers (workers/schedule.js): the same policy as the Node timers — everything while the platform
-// is in use, and one shared window every two hours while it is idle, so the database can sleep.
+// is in use, and one shared window every six hours while it is idle, so the database can sleep.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dueJobs } from "../workers/schedule.js";
@@ -24,16 +24,16 @@ test("أثناء الاستخدام: الصيانة والتذكيرات أول 
   assert.ok(dueJobs(ten, ten - 1000).includes("maintenance"));
 });
 
-test("بلا استخدام: لا شيء، إلا نافذة واحدة مشتركة كل ساعتين تشمل كل المهام", () => {
+test("بلا استخدام: لا شيء، إلا نافذة واحدة مشتركة كل ست ساعات تشمل كل المهام", () => {
   const quiet = at("2026-11-05T01:35:00Z");
   assert.deepEqual(dueJobs(quiet, quiet - 3 * 60 * 60_000), []);
   assert.deepEqual(dueJobs(quiet, null), []);
-  assert.deepEqual(dueJobs(at("2026-11-05T03:00:00Z"), null), []);
-  assert.deepEqual(dueJobs(at("2026-11-05T02:00:00Z"), null), ALL);
-  // At most 12 wakes of the database per idle day.
+  assert.deepEqual(dueJobs(at("2026-11-05T02:00:00Z"), null), []);
+  assert.deepEqual(dueJobs(at("2026-11-05T06:00:00Z"), null), ALL);
+  // At most 4 wakes of the database per idle day.
   let wakes = 0;
   for (let m = 0; m < 24 * 60; m += 5) if (dueJobs(at("2026-11-05T00:00:00Z") + m * 60_000, null).length) wakes++;
-  assert.equal(wakes, 12);
+  assert.equal(wakes, 4);
 });
 
 test("آخر نشاط قبل 14 دقيقة يُعد استخدامًا، وقبل 16 لا", () => {
