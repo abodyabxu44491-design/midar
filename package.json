@@ -23,7 +23,8 @@
     "workers:build": "node scripts/build-workers.js",
     "workers:dev": "npm run workers:build && wrangler dev",
     "workers:deploy:staging": "npm run workers:build && wrangler deploy --env staging",
-    "check:secrets": "node scripts/check-secrets.js"
+    "check:secrets": "node scripts/check-secrets.js",
+    "test:e2e": "node scripts/e2e-roles.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
