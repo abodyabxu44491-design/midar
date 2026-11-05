@@ -13,7 +13,7 @@ let srv;
 before(async () => { srv = await startServer(); });
 after(async () => { await srv.close(); await endPool(); });
 
-const PAGES = ["/privacy", "/terms", "/subscription-policy", "/school-agreement", "/security", "/status"];
+const PAGES = ["/privacy", "/terms", "/subscription-policy", "/school-agreement", "/security", "/trust", "/support", "/status"];
 const queriesOf = (res) => Number((res.headers.get("server-timing") || "").match(/desc="(\d+) queries/)?.[1] ?? 0);
 
 test("كل صفحات السياسات تفتح وتربط ببعضها، دون استعلام قاعدة البيانات", async () => {
@@ -48,7 +48,7 @@ test("صفحة حالة الخدمة تفحص المنصة لا قاعدة ال�
 test("الصفحات الجديدة في خريطة الموقع ومسموحة لمحركات البحث", async () => {
   const map = await (await fetch(`${srv.base}/sitemap.xml`)).text();
   const robots = await (await fetch(`${srv.base}/robots.txt`)).text();
-  for (const p of ["/security", "/school-agreement"]) {
+  for (const p of ["/security", "/school-agreement", "/trust", "/support"]) {
     assert.ok(map.includes(p), `sitemap: ${p}`);
     assert.ok(robots.includes(`Allow: ${p}`), `robots: ${p}`);
     const res = await fetch(`${srv.base}${p}`);

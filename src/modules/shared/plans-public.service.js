@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { KINDS } from "./trust.service.js";
 import { publicTypes } from "./org-types.service.js";
 import { transaction } from "../../core/db/pool.js";
 import { demoSchool } from "./demo.service.js";
@@ -102,7 +103,10 @@ async function loadSiteData() {
        FROM accreditations WHERE status = 'published' AND evidence_confirmed AND (verify_url IS NOT NULL OR number IS NOT NULL)
         AND (expires_on IS NULL OR expires_on >= CURRENT_DATE) ORDER BY sort, id`));
   const org_types = await transaction({}, publicTypes);
-  return { ...s, company, plans: await publicPlans(), features, testimonials, accreditations, org_types, demo: Boolean(await demoSchool()) };
+  // The internal badges that are active now (a passing, still-valid check), named as the trust center names them.
+  const trust_badges = (await transaction({}, (q) => q("SELECT kind FROM trust_public_badges()")))
+    .filter((b) => KINDS[b.kind]).map((b) => ({ kind: b.kind, title: KINDS[b.kind].title }));
+  return { ...s, company, plans: await publicPlans(), features, testimonials, accreditations, org_types, trust_badges, demo: Boolean(await demoSchool()) };
 }
 
 // The company behind Midar, with only the fields the owner filled in (null when none is): nothing is shown or claimed

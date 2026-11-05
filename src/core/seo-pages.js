@@ -172,10 +172,10 @@ export function homeLd(origin, site = {}) {
   const sameAs = site.brand_instagram ? [`https://instagram.com/${site.brand_instagram}`] : [];
   const phone = site.brand_phone ? String(site.brand_phone).replace(/^0/, "+966") : null;
   return [
-    { "@context": "https://schema.org", "@type": "Organization", name: "مدار", alternateName: "MIDAR", url: `${origin}/`,
+    { "@context": "https://schema.org", "@type": "Organization", name: "مدار", alternateName: "MIDAIR SCHOOL", url: `${origin}/`,
       logo: `${origin}/brand/icon-512.png`, ...(sameAs.length ? { sameAs } : {}),
       ...(phone ? { contactPoint: { "@type": "ContactPoint", telephone: phone, contactType: "customer support", availableLanguage: ["ar"] } } : {}) },
-    { "@context": "https://schema.org", "@type": "WebSite", name: "مدار", alternateName: "MIDAR", url: `${origin}/`, inLanguage: "ar" },
+    { "@context": "https://schema.org", "@type": "WebSite", name: "مدار", alternateName: "MIDAIR SCHOOL", url: `${origin}/`, inLanguage: "ar" },
     { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "مدار", alternateName: "MIDAR — نظام إدارة المدارس",
       applicationCategory: "EducationalApplication", operatingSystem: "Web, Android, iOS", inLanguage: "ar", url: `${origin}/`,
       image: `${origin}/brand/og-home.jpg`,

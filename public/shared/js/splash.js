@@ -26,7 +26,7 @@
       <g class="sp-dot"><circle cx="432.8" cy="245.9" r="28" stroke-width="10"/></g>
     </svg>
     <div class="sp-word">مدار</div>
-    <div class="sp-latin">MIDAR</div>
+    <div class="sp-latin">SCHOOL</div>
   </div>`;
   const mount = () => document.body.prepend(el);
   if (document.body) mount(); else document.addEventListener("DOMContentLoaded", mount, { once: true });

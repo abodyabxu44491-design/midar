@@ -16,7 +16,6 @@ import { conflict } from "../../core/http/errors.js";
 
 export const ISSUER_DEFAULT = "MIDAIR SCHOOL";
 export const INTERNAL_NOTE = "شارة داخلية صادرة عن منصة مدار (MIDAIR SCHOOL) بناءً على إجراء نُفّذ فعلًا، وليست اعتمادًا حكوميًا أو شهادة من جهة خارجية.";
-const DAY = 86400000;
 
 // The eight badges. `certificate` names the internal certificate a passing check can be issued as, with its scope.
 export const KINDS = {
@@ -92,7 +91,8 @@ const AUTO = {
     const host = `_midar-verify.${s.trust_domain}`;
     const want = `midar-verify=${s.trust_domain_token}`;
     let records = [];
-    try { records = (await dns.resolveTxt(host)).map((parts) => parts.join("")); } catch (e) { records = []; }
+    const timeout = new Promise((_, no) => setTimeout(() => no(new Error("timeout")), 5000));
+    try { records = (await Promise.race([dns.resolveTxt(host), timeout])).map((parts) => parts.join("")); } catch { records = []; }
     const passed = records.includes(want);
     return {
       passed,
@@ -235,4 +235,3 @@ export async function verifyCertificate(q, ref) {
   return { ...row, status, note: INTERNAL_NOTE };
 }
 
-export const validFor = (kind) => KINDS[kind].days * DAY;

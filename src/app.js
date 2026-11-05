@@ -147,13 +147,16 @@ export function createApp() {
   app.get("/security", withOrigin("legal", "security.html"));
   app.get("/school-agreement", withOrigin("legal", "school-agreement.html"));
   app.get("/status", withOrigin("legal", "status.html"));
+  app.get("/trust", withOrigin("legal", "trust.html"));
+  app.get("/support", withOrigin("legal", "support.html"));
+  app.get(/^\/trust\/verify\/[A-Za-z0-9-]{1,20}$/, withOrigin("legal", "certificate.html"));
   app.get("/robots.txt", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("text/plain").send([
-    "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /subscription-policy", "Allow: /security", "Allow: /school-agreement", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
+    "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /subscription-policy", "Allow: /security", "Allow: /school-agreement", "Allow: /trust$", "Allow: /support", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
     "Allow: /home-page/", "Allow: /legal-page/", "Allow: /api/site", ...SEO_PAGES.map((p) => `Allow: /${p.slug}$`),
     "Disallow: /", "", `Sitemap: ${baseUrl(req)}/sitemap.xml`, ""].join("\n")));
   app.get("/sitemap.xml", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("application/xml").send(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
-      [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"], ["/subscription-policy", "0.3"], ["/security", "0.4"], ["/school-agreement", "0.3"]]
+      [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"], ["/subscription-policy", "0.3"], ["/security", "0.4"], ["/school-agreement", "0.3"], ["/trust", "0.5"], ["/support", "0.4"]]
         .map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><lastmod>${STARTED_AT.slice(0, 10)}</lastmod><priority>${p}</priority></url>`).join("\n")
     }\n</urlset>\n`));
   app.get("/.well-known/assetlinks.json", (req, res) => res.set("Cache-Control", "public, max-age=3600").json(
