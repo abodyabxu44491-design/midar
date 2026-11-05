@@ -55,7 +55,11 @@ export function detectPhone(raw, fallbackDial = "967") {
   if (d.startsWith("+")) { d = d.slice(1).replace(/\+/g, ""); explicit = true; } else if (d.startsWith("00")) { d = d.slice(2); explicit = true; }
   d = d.replace(/\+/g, "");
 
-  const withCode = explicit || (/^(967|966)/.test(d) && d.length === 12);
+  // A number that carries its country code without + or 00 (as people often save it, e.g. 971501234567) is taken
+  // as international: 11 digits or more, no leading 0, a known code, and not a local Yemeni or Saudi mobile.
+  const bareIntl = !explicit && d.length >= 11 && d.length <= 15 && !d.startsWith("0") && Boolean(codeOf(d))
+    && !YE_MOBILE.test(d) && !SA_MOBILE.test(d);
+  const withCode = explicit || (/^(967|966)/.test(d) && d.length === 12) || bareIntl;
   if (withCode) {
     const c = codeOf(d);
     const national = c ? d.slice(c.code.length) : d;

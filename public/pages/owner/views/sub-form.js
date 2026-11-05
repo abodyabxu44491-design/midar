@@ -3,11 +3,12 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { currencyOptions } from "../../shared/js/currencies.js";
 import { h, mount } from "/shared/js/dom.js";
 import { api } from "/shared/js/api.js";
 import { field, input, select, sub, notice } from "/shared/js/ui.js";
 
-export const CUR = { SAR: "ريال", USD: "دولار", YER: "ريال يمني" };
+export const CUR = Object.fromEntries(currencyOptions());
 export const KIND = { trial: "تجربة مجانية", paid: "اشتراك مدفوع", free: "مجاني (منحة)" };
 export const SUB_STATUS = {
   trial: ["تجربة مجانية", "amber"], active: ["فعّال", ""], pending_payment: ["بانتظار الدفع", "amber"], trial_expired: ["انتهت التجربة", "red"],

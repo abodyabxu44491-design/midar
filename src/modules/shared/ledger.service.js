@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { CURRENCY_CODES } from "../../../public/shared/js/currencies.js";
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 
@@ -20,7 +21,7 @@ const money = z.coerce.number().positive("المبلغ يجب أن يكون أك
 export const accountSchema = z.object({
   name: t.shortText("اسم الحساب", 80),
   kind: z.enum(["bank", "cash", "online", "donations", "other"]),
-  currency: z.enum(["SAR", "YER", "USD"]).optional(),
+  currency: z.enum(CURRENCY_CODES, "عملة غير معروفة").optional(),
   opening_balance: z.coerce.number().min(-100_000_000).max(100_000_000).prefault(0),
   low_balance: z.union([z.literal(""), z.coerce.number().min(0)]).optional().transform((v) => (v === "" || v === undefined ? null : Number(v))),
   note: t.optText(300),

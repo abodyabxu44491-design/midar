@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { currencyOptions } from "../../shared/js/currencies.js";
 import { $, h, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { topbar, footer, tabs, loginScreen, passwordChangeScreen, panel, field, input, select, btn, notice, sub, badge, dialog, line, keyText,
@@ -140,7 +141,7 @@ async function create({ go }) {
   const code = input({ class: "ltr", placeholder: `${g.id}-2`, autocapitalize: "none", spellcheck: false });
   const admin = input({ placeholder: "الاسم الكامل لمدير المدرسة" });
   const mail = input({ type: "email", class: "ltr", placeholder: "manager@example.com" });
-  const currency = select([["YER", "ريال يمني"], ["SAR", "ريال سعودي"], ["USD", "دولار أمريكي"]]);
+  const currency = select(currencyOptions());
   // Default to the currency the group's schools already use.
   currency.value = d.schools[0]?.currency || "SAR";
   code.value = `${g.id}-${d.schools.length + 1}`;

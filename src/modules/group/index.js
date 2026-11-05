@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { CURRENCY_CODES } from "../../../public/shared/js/currencies.js";
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, unauthorized, forbidden, notFound, badRequest, AppError } from "../../core/http/errors.js";
@@ -112,7 +113,7 @@ const newSchool = z.object({
   name: t.shortText("اسم المدرسة", 150),
   admin_name: t.name("اسم مدير المدرسة"),
   manager_email: managerEmail,
-  currency: z.enum(["SAR", "YER", "USD"]).prefault("YER"),
+  currency: z.enum(CURRENCY_CODES, "عملة غير معروفة").prefault("YER"),
 });
 
 r.post("/schools", handle(async (req, res) => {

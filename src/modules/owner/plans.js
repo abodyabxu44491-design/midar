@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { CURRENCY_CODES } from "../../../public/shared/js/currencies.js";
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, badRequest, conflict } from "../../core/http/errors.js";
@@ -65,7 +66,7 @@ const planSchema = z.object({
   code: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,29}$/, "رمز الباقة: حروف إنجليزية صغيرة وأرقام"),
   name: t.shortText("اسم الباقة", 60),
   tagline: t.optText(80), description: t.optText(500), badge: t.optText(30),
-  currency: z.enum(["SAR", "YER", "USD"]).prefault("SAR"),
+  currency: z.enum(CURRENCY_CODES, "عملة غير معروفة").prefault("SAR"),
   monthly_price: money, yearly_price: money,
   setup_fee: z.coerce.number().min(0).max(10_000_000).prefault(0),
   discount_kind: z.enum(["none", "percent", "amount", "price"]).prefault("none"),

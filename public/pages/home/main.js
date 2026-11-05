@@ -6,6 +6,7 @@
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
 import { productLine } from "../shared/js/company.js";
+import { currencyName } from "../shared/js/currencies.js";
 import { brandLogo, footer, field, input, textarea, btn, notice, sub, dialog, installButton, showInstallBar, toast } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
@@ -14,7 +15,6 @@ import { registerDialog } from "./register.js";
 
 const app = $("#app");
 
-const CUR = { SAR: "ريال", USD: "دولار", YER: "ريال يمني" };
 const fmt = (n) => Number(n).toLocaleString("ar", { maximumFractionDigits: 2 });
 
 async function start() {
@@ -278,7 +278,7 @@ async function startDemo(role, el) {
   }
 }
 
-const cur = (p) => CUR[p.currency] || p.currency;
+const cur = (p) => currencyName(p.currency);
 function priceBlock(p, cycle) {
   if (p.contact_only) return h("div", { class: "contact" }, "تواصل معنا للسعر");
   if (cycle === "yearly" && p.first_year) {

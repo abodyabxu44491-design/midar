@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { CURRENCY_CODES } from "../../../public/shared/js/currencies.js";
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, badRequest } from "../../core/http/errors.js";
@@ -169,7 +170,7 @@ const convertSchema = z.object({
   id: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{2,29}$/, "رمز المدرسة: حروف إنجليزية صغيرة وأرقام (3 إلى 30)").optional().or(z.literal("")),
   name: t.shortText("اسم المدرسة", 150),
   admin_name: t.name("اسم المدير").optional().prefault("مدير المدرسة"),
-  currency: z.enum(["SAR", "YER", "USD"]).prefault("SAR"),
+  currency: z.enum(CURRENCY_CODES, "عملة غير معروفة").prefault("SAR"),
   subscription: activateSchema,
   org_type: z.enum(["school", "institute"]).optional(),
   org_type_key: typeKey.optional(),
