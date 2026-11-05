@@ -24,6 +24,9 @@
     "not_found_handling": "none"
   },
   "observability": { "enabled": true },
+  // Runs the Worker near the database when that is faster: every request makes several database round trips, and
+  // the database is in one region (docs/cloudflare/ARCHITECTURE-DECISION.md, section 9).
+  "placement": { "mode": "smart" },
   // One Cron Trigger for all background work (the free plan allows five per account); workers/schedule.js decides
   // what runs on each tick.
   "triggers": { "crons": ["*/5 * * * *"] },
@@ -58,6 +61,7 @@
       "name": "midar-api-staging",
       "define": { "import.meta.url": "\"file:///bundle/src/core/module.js\"" },
       "workers_dev": true,
+      "placement": { "mode": "smart" },
       "triggers": { "crons": ["*/5 * * * *"] },
       // Filled in when the staging namespace is created.
       "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
