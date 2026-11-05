@@ -6,14 +6,14 @@
 // How the company behind Midar is named on public pages. Built only from what the owner entered in the panel
 // (/api/site → company): a registration or legal entity is never mentioned unless it was filled in.
 
-// "مدار — منتج MIDAR SCHOOL" or plain "مدار — منصة إدارة المدارس" when no company is set.
+// "مدار — منتج MIDAIR SCHOOL" or plain "مدار — منصة إدارة المدارس" when no company is set.
 export function productLine(company) {
   const name = company?.name_en || company?.name;
   return name ? `مدار — منتج ${name}` : "مدار — منصة إدارة المدارس";
 }
 
 // The operator sentence for the legal pages, or null when nothing is set:
-// "تقدّم خدمة مدار MIDAR SCHOOL (الاسم القانوني)، سجل تجاري رقم 123، اليمن. العنوان: …"
+// "تقدّم خدمة مدار MIDAIR SCHOOL (الاسم القانوني)، سجل تجاري رقم 123، اليمن. العنوان: …"
 export function operatorLine(company) {
   if (!company) return null;
   const name = company.name_en || company.name;

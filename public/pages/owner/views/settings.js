@@ -62,7 +62,7 @@ export default async function settings() {
       h("div", { class: "row" }, field("واتساب الدعم (يظهر للمدارس)", support), field("سطر التواصل", supportNote))),
     panel("هوية الشركة", null,
       notice("تظهر في تذييل الموقع وأعلى صفحات الخصوصية والشروط والاشتراكات. اكتب فقط ما هو موثّق رسميًا: الحقل الفارغ لا يظهر، ولا تذكر المنصة أي تسجيل أو جهة قانونية دون إدخالك.", ""),
-      h("div", { class: "row" }, field("اسم الشركة (عربي)", co.company_name), field("اسم الشركة (إنجليزي)", co.company_name_en, "مثل MIDAR SCHOOL")),
+      h("div", { class: "row" }, field("اسم الشركة (عربي)", co.company_name), field("اسم الشركة (إنجليزي)", co.company_name_en, "مثل MIDAIR SCHOOL")),
       field("الاسم القانوني كما في السجل التجاري", co.company_legal_name, "اتركه فارغًا إن لم يوجد سجل بعد"),
       h("div", { class: "row" }, field("رقم السجل التجاري", co.company_reg_no), field("الدولة", co.company_country)),
       field("العنوان الرسمي", co.company_address)),
