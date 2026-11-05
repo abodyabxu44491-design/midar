@@ -128,8 +128,10 @@ test("سجل الفحوص لا يُعدَّل ولا يُحذف، والزائر
 });
 
 test("الشارات النشطة تظهر في بيانات الموقع للصفحة الرئيسية وصفحة الباقات", async () => {
+  const was = (await owner.get("/api/owner/settings")).data.landing_mode;
   await owner.put("/api/owner/settings", { landing_mode: "marketing" });
   const s = (await pub.get("/api/site")).data;
+  await owner.put("/api/owner/settings", { landing_mode: was });
   assert.ok(Array.isArray(s.trust_badges));
   assert.ok(s.trust_badges.some((b) => b.kind === "data_privacy"), JSON.stringify(s.trust_badges));
 });

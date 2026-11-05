@@ -108,7 +108,9 @@ test("البريد الوارد عبر Cloudflare يظهر في الصندوق �
 });
 
 test("الهوية الرسمية تظهر كما أُدخلت فقط، وتقرؤها محركات البحث بالبيانات نفسها", async () => {
-  await owner.put("/api/owner/settings", { landing_mode: "marketing", site_url: "", email_info: "", email_support: "", founded_year: "", social_links: {} });
+  const CLEAR = { site_url: "", email_info: "", email_support: "", email_sales: "", email_admin: "", founded_year: "", social_links: {}, services_upcoming: "" };
+  const was = (await owner.get("/api/owner/settings")).data.landing_mode;
+  await owner.put("/api/owner/settings", { landing_mode: "marketing", ...CLEAR });
   let s = (await pub.get("/api/site")).data;
   assert.deepEqual(s.official.emails, {});
   assert.equal(s.official.founded_year, null, "لا سنة تأسيس دون إدخال");
@@ -135,7 +137,7 @@ test("الهوية الرسمية تظهر كما أُدخلت فقط، وتقر
   assert.ok(org.contactPoint.some((c) => c.contactType === "sales" && c.email === "sales@midarschool.com"));
   assert.equal(org.aggregateRating, undefined, "لا تقييمات مصطنعة في البيانات المنظمة");
   assert.ok(ld.some((o) => o["@type"] === "SoftwareApplication") && ld.some((o) => o["@type"] === "WebSite"));
-  await owner.put("/api/owner/settings", { founded_year: "", social_links: {}, services_upcoming: "" });
+  await owner.put("/api/owner/settings", { landing_mode: was, ...CLEAR });
 });
 
 test("صفحة الأسئلة الشائعة مكتوبة في الصفحة نفسها ومعها بياناتها المنظمة، وصفحة عن المنصة والدعم تفتحان", async () => {
