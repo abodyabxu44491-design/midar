@@ -31,7 +31,8 @@ KV_ID=$($W kv namespace list | node -e 'let s="";process.stdin.on("data",d=>s+=d
 echo "   $KV_ID"
 
 echo "== $ENV: R2 bucket (files)"
-if ! $W r2 bucket create "midar-files$SFX" 2>/tmp/r2.err; then
+# Western Europe, next to the Neon database in Frankfurt (without a hint the bucket may land in North America).
+if ! $W r2 bucket create "midar-files$SFX" --location weur 2>/tmp/r2.err; then
   grep -qi "already exists" /tmp/r2.err && echo "   midar-files$SFX exists" || { cat /tmp/r2.err; echo "✗ R2 غير مفعّل في الحساب: فعّله من لوحة Cloudflare (R2 Object Storage) ثم أعد التشغيل"; exit 1; }
 fi
 
