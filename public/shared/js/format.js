@@ -3,11 +3,8 @@
  * Copyright (c) 2026 Midar. All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
-export const CURRENCIES = {
-  SAR: { name: "ريال سعودي", symbol: "ر.س" },
-  YER: { name: "ريال يمني", symbol: "ر.ي" },
-  USD: { name: "دولار أمريكي", symbol: "$" },
-};
+import { CURRENCIES } from "./currencies.js";
+export { CURRENCIES };
 
 let currentCurrency = "SAR";
 export const setCurrency = (code) => { if (CURRENCIES[code]) currentCurrency = code; };

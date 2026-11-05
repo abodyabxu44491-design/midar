@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { CURRENCY_CODES } from "../../../public/shared/js/currencies.js";
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, notFound, conflict } from "../../core/http/errors.js";
@@ -39,7 +40,7 @@ const createSchema = z.object({
   plan: z.enum(["basic", "pro", "enterprise"]).prefault("basic"),
   max_students: z.coerce.number().int().min(1).max(100000).prefault(200),
   subscription_end: t.optDate,
-  currency: z.enum(["SAR", "YER", "USD"]).prefault("YER"),
+  currency: z.enum(CURRENCY_CODES, "عملة غير معروفة").prefault("YER"),
   subscription_price: z.coerce.number().min(0).max(1_000_000).optional(),
   grace_days: z.coerce.number().int().min(0).max(120).optional(),
   subscription: activateSchema.optional(),

@@ -5,7 +5,7 @@
  */
 import { h, mount } from "../../shared/js/dom.js";
 import { api } from "../../shared/js/api.js";
-import { panel, field, select, textarea, btn, empty, badge, sub, stats, toast, confirmAction, line } from "../../shared/js/ui.js";
+import { panel, field, select, textarea, btn, badge, sub, stats, toast, confirmAction, line } from "../../shared/js/ui.js";
 import { A } from "./common.js";
 
 const TARGETS = [["all", "كل أولياء الأمور"], ["class", "شعبة محددة"], ["absent_today", "أولياء أمور الغائبين اليوم"], ["overdue", "من عليهم رسوم متأخرة"]];

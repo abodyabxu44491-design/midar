@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../dom.js";
-import { api, ApiError } from "../api.js";
+import { api } from "../api.js";
 import { panel, field, input, textarea, select, btn, badge, notice, toast, confirmAction, dialog, empty, sub } from "../ui.js";
 import { icons } from "../icons.js";
 import { sortable } from "../sortable.js";

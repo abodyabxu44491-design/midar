@@ -20,10 +20,6 @@ export const termSchema = z.object({
   end_date: t.date,
 });
 export const ACTIONS = ["promote", "repeat", "graduate", "transfer", "withdraw"];
-export const ACTION_LABEL = {
-  promote: "ترفيع للصف التالي", repeat: "إعادة السنة", graduate: "تخرّج",
-  transfer: "نقل لمدرسة أخرى", withdraw: "انسحاب",
-};
 const RESULT_OF_ACTION = { promote: "promoted", repeat: "repeated", graduate: "graduated", transfer: "transferred", withdraw: "withdrawn" };
 const STATUS_OF_ACTION = { promote: "active", repeat: "active", graduate: "graduated", transfer: "transferred", withdraw: "withdrawn" };
 
@@ -322,8 +318,3 @@ export async function holidayImpact(q, start, end) {
   return r;
 }
 
-export async function holidayOn(q, date) {
-  const [row] = await q(
-    "SELECT id, name FROM holidays WHERE affects_attendance AND $1::date BETWEEN start_date AND end_date LIMIT 1", [date]);
-  return row || null;
-}

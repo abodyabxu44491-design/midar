@@ -4,3 +4,8 @@ node_modules/
 *.local
 backups/
 __pycache__/
+
+# Cloudflare Workers build output and local secrets
+dist/
+.dev.vars
+.wrangler/

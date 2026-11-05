@@ -11,9 +11,10 @@ import { transaction } from "../src/core/db/pool.js";
 
 let srv, A, B;
 const G = "/api/admin/attendance/gate";
+// Each simulated device has its own address: X-Forwarded-For for Node (behind a proxy), CF-Connecting-IP for Workers.
 const join = async (school, body, ip = "10.0.0.1") => {
   const res = await fetch(`${srv.base}/api/gate/${school}/join`, { method: "POST",
-    headers: { "Content-Type": "application/json", "X-Forwarded-For": ip }, body: JSON.stringify(body) });
+    headers: { "Content-Type": "application/json", "X-Forwarded-For": ip, "CF-Connecting-IP": ip }, body: JSON.stringify(body) });
   return { status: res.status, data: await res.json().catch(() => null) };
 };
 const device = (school, pid, secret) => async (path, body) => {

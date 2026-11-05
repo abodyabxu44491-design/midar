@@ -7,9 +7,12 @@ import { Router } from "express";
 import { env } from "../../config/env.js";
 import { transaction } from "../../core/db/pool.js";
 import { handle } from "../../core/http/errors.js";
-import { parse, t, z } from "../../core/http/validate.js";
+import { parse, z } from "../../core/http/validate.js";
 
 const r = Router();
+// An optional text field: left out keeps the saved value, empty clears it (the site then stops showing it).
+const text = (min, max) => z.string().trim().max(max).refine((v) => !v || v.length >= min, `قصير جدًا (${min} أحرف على الأقل)`)
+  .optional().transform((v) => (v === undefined ? undefined : v || null));
 const schema = z.object({
   landing_mode: z.enum(["blank", "marketing"]).optional(),
   brand_phone: z.string().trim().regex(/^[0-9+ ]{0,20}$/).optional().or(z.literal("")).transform((v) => v || null),
@@ -31,10 +34,17 @@ const schema = z.object({
   feature_request_mode: z.enum(["request", "upgrade", "hidden"]).optional(),
   site_headline: z.string().trim().max(120).optional().or(z.literal("")).transform((v) => v || null),
   site_subheadline: z.string().trim().max(300).optional().or(z.literal("")).transform((v) => v || null),
+  company_name: text(2, 120),
+  company_name_en: text(2, 120),
+  company_legal_name: text(2, 200),
+  company_reg_no: text(2, 60),
+  company_country: text(2, 60),
+  company_address: text(0, 300),
 });
 const COLS = ["landing_mode", "brand_phone", "brand_email", "brand_instagram", "support_whatsapp", "support_note", "trial_enabled", "trial_days",
   "trial_all_plans", "trial_without_plan", "trials_per_school", "trial_reminder_days", "trial_grace_days", "trial_owner_extend",
-  "show_plans_after_expiry", "default_grace_days", "feature_request_mode", "site_headline", "site_subheadline"];
+  "show_plans_after_expiry", "default_grace_days", "feature_request_mode", "site_headline", "site_subheadline",
+  "company_name", "company_name_en", "company_legal_name", "company_reg_no", "company_country", "company_address"];
 
 r.get("/", handle(async (req, res) => {
   const [row] = await transaction({ platform: true, actor: req.actor }, (q) =>

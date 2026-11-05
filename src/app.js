@@ -19,7 +19,7 @@ import { securityHeaders, noIndex, sameOrigin, noStore, INDEXABLE } from "./core
 import { errorHandler, notFound } from "./core/http/errors.js";
 import { limits } from "./core/rate-limit.js";
 import { ownerNetwork } from "./core/auth/guards.js";
-import { healthCheck, transaction } from "./core/db/pool.js";
+import { healthCheck } from "./core/db/pool.js";
 import { handle } from "./core/http/errors.js";
 import { isSchoolCode } from "./core/reserved.js";
 import { baseUrl } from "./core/links.js";
@@ -34,6 +34,7 @@ import gateApi from "./modules/gate/index.js";
 import { accountRouter, appleCallback } from "./modules/account/routes.js";
 import { markActive } from "./core/activity.js";
 import { staffLoginRouter } from "./modules/shared/staff-auth.js";
+import { isWorkers } from "./core/platform.js";
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 const pages = path.join(WEB, "pages");
@@ -42,8 +43,17 @@ export function createApp() {
   const app = express();
   app.set("trust proxy", env.TRUST_PROXY);
   app.disable("x-powered-by");
+  // On Workers there is no socket address; Cloudflare sets CF-Connecting-IP to the visitor's address and overwrites
+  // any value a client sends, so it is the address to trust (rate limits, the owner's allowed addresses, audit logs).
+  if (isWorkers) {
+    app.use((req, res, next) => {
+      Object.defineProperty(req, "ip", { value: req.get("cf-connecting-ip") || "0.0.0.0", configurable: true });
+      next();
+    });
+  }
   app.use(perfMiddleware, securityHeaders, noIndex);
-  app.use(compression({ threshold: 1024 }));
+  // On Workers, Cloudflare compresses responses for each client; compressing here as well would encode them twice.
+  if (!isWorkers) app.use(compression({ threshold: 1024 }));
   const canonical = env.PUBLIC_URL ? new URL(env.PUBLIC_URL) : null;
   app.use((req, res, next) => {
     if (!canonical || !(req.method === "GET" || req.method === "HEAD") || !INDEXABLE.has(req.path)) return next();
@@ -54,7 +64,10 @@ export function createApp() {
 
   app.get("/healthz", (req, res) => res.json({ ok: true }));
   // Real use of the platform (not health checks) keeps the background work running at full pace.
-  app.use("/api", (req, res, next) => { markActive(); next(); });
+  // Not the public site's own requests (the home page loads /api/site): a search engine or a visitor opening the home
+  // page must not switch the background work to full pace, which keeps the database awake (and billed) for minutes.
+  const NOT_USE = new Set(["/site", "/version", "/analytics-config"]);
+  app.use("/api", (req, res, next) => { if (!NOT_USE.has(req.path)) markActive(); next(); });
 
   app.get("/healthz/db", limits.health, async (req, res) => {
     try { await healthCheck(); res.json({ ok: true, db: true }); }
@@ -131,13 +144,16 @@ export function createApp() {
   app.get("/privacy", withOrigin("legal", "privacy.html"));
   app.get("/terms", withOrigin("legal", "terms.html"));
   app.get("/subscription-policy", withOrigin("legal", "subscription.html"));
+  app.get("/security", withOrigin("legal", "security.html"));
+  app.get("/school-agreement", withOrigin("legal", "school-agreement.html"));
+  app.get("/status", withOrigin("legal", "status.html"));
   app.get("/robots.txt", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("text/plain").send([
-    "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /subscription-policy", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
+    "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /subscription-policy", "Allow: /security", "Allow: /school-agreement", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
     "Allow: /home-page/", "Allow: /legal-page/", "Allow: /api/site", ...SEO_PAGES.map((p) => `Allow: /${p.slug}$`),
     "Disallow: /", "", `Sitemap: ${baseUrl(req)}/sitemap.xml`, ""].join("\n")));
   app.get("/sitemap.xml", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("application/xml").send(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
-      [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"], ["/subscription-policy", "0.3"]]
+      [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"], ["/subscription-policy", "0.3"], ["/security", "0.4"], ["/school-agreement", "0.3"]]
         .map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><lastmod>${STARTED_AT.slice(0, 10)}</lastmod><priority>${p}</priority></url>`).join("\n")
     }\n</urlset>\n`));
   app.get("/.well-known/assetlinks.json", (req, res) => res.set("Cache-Control", "public, max-age=3600").json(

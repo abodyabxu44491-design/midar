@@ -4,10 +4,14 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../shared/js/dom.js";
+import { operatorLine, productLine } from "../shared/js/company.js";
 
 async function contact() {
   let s = {};
   try { s = await (await fetch("/api/site")).json(); } catch { return; }
+  const operator = operatorLine(s.company);
+  for (const el of document.querySelectorAll("[data-operator]")) { el.textContent = operator || ""; el.hidden = !operator; }
+  for (const el of document.querySelectorAll("[data-product]")) el.textContent = productLine(s.company);
   const phone = s.support_whatsapp || s.brand_phone;
   const parts = [
     s.brand_email ? h("a", { href: `mailto:${s.brand_email}`, class: "ltr" }, s.brand_email) : null,

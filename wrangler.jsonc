@@ -1,0 +1,96 @@
+// Midar on Cloudflare Workers (docs/cloudflare/PHASE-2-DESIGN.md).
+// Build first: npm run workers:build. Secrets are never written here: `wrangler secret put NAME --env <env>`;
+// for local development they go in .dev.vars (not committed).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "midar-api",
+  "main": "workers/api.js",
+  "compatibility_date": "2026-10-19",
+  "upload_source_maps": true,
+  "alias": {
+    "fs": "./workers/fs-shim.js",
+    "node:fs": "./workers/fs-shim.js",
+    // body-parser's iconv-lite 0.4 calls its stream extension unconditionally on Node-like runtimes, but the bundler
+    // takes its browser build, which has none. 0.6.3 has the same API and checks first. Node keeps 0.4.
+    "iconv-lite": "iconv-lite-workers"
+  },
+  // The bundle is one module without a file URL. The app only uses import.meta.url to find public/ and package.json,
+  // which workers/fs-shim.js resolves by name, so any path two levels deep works.
+  "define": { "import.meta.url": "\"file:///bundle/src/core/module.js\"" },
+  "assets": {
+    "directory": "dist/workers/assets",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "observability": { "enabled": true },
+  // Runs the Worker near the database when that is faster: every request makes several database round trips, and
+  // the database is in one region (docs/cloudflare/ARCHITECTURE-DECISION.md, section 9).
+  "placement": { "mode": "smart" },
+  // One Cron Trigger for all background work (the free plan allows five per account); workers/schedule.js decides
+  // what runs on each tick.
+  "triggers": { "crons": ["*/5 * * * *"] },
+  // Shared state across instances: only the time of the last request, so idle schools let the database sleep.
+  "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
+  // File contents (attachments, exam media, certificate assets, book covers, school backups): src/core/blobs.js.
+  // Private bucket: no public access, read only through the API after the database allows it.
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "midar-files" }],
+  // General rate limits, the same as the Node limits in src/core/rate-limit.js (login and payment limits stay in the
+  // database). Approximate and per Cloudflare location, which suits abuse protection.
+  "ratelimits": [
+    { "name": "RL_API_SESSION", "namespace_id": "1001", "simple": { "limit": 180, "period": 60 } },
+    { "name": "RL_API_IP", "namespace_id": "1002", "simple": { "limit": 600, "period": 60 } },
+    { "name": "RL_PUBLIC_API", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RL_SITE", "namespace_id": "1004", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RL_HEALTH", "namespace_id": "1005", "simple": { "limit": 20, "period": 60 } }
+  ],
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "midar-jobs" }],
+    // One job per message. A failed run is retried (runQueuedJob never runs a claimed job twice), then kept in the
+    // dead-letter queue for inspection.
+    "consumers": [{ "queue": "midar-jobs", "max_batch_size": 1, "max_retries": 2, "dead_letter_queue": "midar-jobs-dlq" }]
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "COOKIE_SECURE": "true",
+    "SESSION_COOKIE_MODE": "separate",
+    "TRUST_PROXY": "1"
+  },
+  // Local development: wrangler reads the database address from
+  // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE instead of this id.
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+  "env": {
+    "staging": {
+      "name": "midar-api-staging",
+      "define": { "import.meta.url": "\"file:///bundle/src/core/module.js\"" },
+      "workers_dev": true,
+      "placement": { "mode": "smart" },
+      "triggers": { "crons": ["*/5 * * * *"] },
+      // Filled in when the staging namespace is created.
+      "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
+      "queues": {
+        "producers": [{ "binding": "JOBS", "queue": "midar-jobs-staging" }],
+        // One job per message. A failed run is retried (runQueuedJob never runs a claimed job twice), then kept in the
+        // dead-letter queue for inspection.
+        "consumers": [{ "queue": "midar-jobs-staging", "max_batch_size": 1, "max_retries": 2, "dead_letter_queue": "midar-jobs-staging-dlq" }]
+      },
+      "r2_buckets": [{ "binding": "FILES", "bucket_name": "midar-files-staging" }],
+      // Separate counters from production.
+      "ratelimits": [
+        { "name": "RL_API_SESSION", "namespace_id": "2001", "simple": { "limit": 180, "period": 60 } },
+        { "name": "RL_API_IP", "namespace_id": "2002", "simple": { "limit": 600, "period": 60 } },
+        { "name": "RL_PUBLIC_API", "namespace_id": "2003", "simple": { "limit": 120, "period": 60 } },
+        { "name": "RL_SITE", "namespace_id": "2004", "simple": { "limit": 120, "period": 60 } },
+        { "name": "RL_HEALTH", "namespace_id": "2005", "simple": { "limit": 20, "period": 60 } }
+      ],
+      "vars": {
+        "NODE_ENV": "production",
+        "COOKIE_SECURE": "true",
+        "SESSION_COOKIE_MODE": "separate",
+        "TRUST_PROXY": "1"
+      },
+      // Filled in when the staging Hyperdrive is created (docs/cloudflare/PHASE-3-REPORT.md).
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }]
+    }
+  }
+}

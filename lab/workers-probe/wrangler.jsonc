@@ -1,0 +1,6 @@
+// Local probe only (wrangler dev): runs Midar modules inside the Workers runtime for test/probe.test.js.
+{
+  "name": "midar-workers-probe",
+  "main": "src/probe.js",
+  "compatibility_date": "2026-10-19"
+}

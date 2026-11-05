@@ -30,3 +30,8 @@
 .seo .more a { font-weight: 700; }
 .st-foot { line-height: 2.2; }
 @media (max-width: 640px) { .seo .lead { font-size: 16px; } .seo .cta .st-btn { flex: 1 1 100%; } }
+
+/* Service status page */
+.status-box { padding: 16px 18px; border-radius: 12px; margin: 18px 0; background: #f3f5f9; border: 1px solid #dde3ee; font-weight: 600; }
+.status-box.ok { background: #ecf8f1; border-color: #b8e2c8; color: #17663a; }
+.status-box.down { background: #fdf0ef; border-color: #f2c4bf; color: #9b2c22; }

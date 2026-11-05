@@ -6,6 +6,7 @@
 import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { STAGES, TEMPLATES, SUBJECT_LIBRARY, GRADE_SETS, COUNTRIES, sectionName, gradeNames, stageName, countryKey, catalog } from "./academic-catalog.js";
+import * as blobs from "../../core/blobs.js";
 
 export { catalog };
 
@@ -119,22 +120,25 @@ export async function applyCountry(q, key) {
   }
 }
 
+const dropLogo = (q, rows) => { for (const r of rows) blobs.drop(q, r.blob_key, r.thumb_key); };
 export async function setLogo(q, file, actor, saveImage) {
   const img = await saveImage(q, { kind: "school_logo", file, actor });
   await q("INSERT INTO school_profile (tenant_id) VALUES (app_tenant()) ON CONFLICT DO NOTHING");
   const [old] = await q("SELECT logo_image_id FROM school_profile WHERE tenant_id = app_tenant()");
   await q("UPDATE school_profile SET logo_image_id = $1 WHERE tenant_id = app_tenant()", [img.id]);
-  if (old?.logo_image_id) await q(
+  if (old?.logo_image_id) dropLogo(q, await q(
     `DELETE FROM exam_images WHERE id = $1 AND kind = 'school_logo'
-       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)`, [old.logo_image_id]);
+       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)
+     RETURNING blob_key, thumb_key`, [old.logo_image_id]));
   return { logo_image_id: img.id };
 }
 export async function removeLogo(q) {
   const [old] = await q("SELECT logo_image_id FROM school_profile WHERE tenant_id = app_tenant()");
   await q("UPDATE school_profile SET logo_image_id = NULL WHERE tenant_id = app_tenant()");
-  if (old?.logo_image_id) await q(
+  if (old?.logo_image_id) dropLogo(q, await q(
     `DELETE FROM exam_images WHERE id = $1 AND kind = 'school_logo'
-       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)`, [old.logo_image_id]);
+       AND NOT EXISTS (SELECT 1 FROM exam_paper_settings WHERE logo_image_id = $1)
+     RETURNING blob_key, thumb_key`, [old.logo_image_id]));
 }
 
 export async function completeSetup(q) {

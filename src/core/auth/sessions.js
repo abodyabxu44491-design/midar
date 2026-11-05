@@ -151,7 +151,10 @@ export async function destroySession(req, res, kind) {
 
 export async function purgeExpiredSessions() {
   await transaction({ platform: true, actor: "النظام" }, async (q) => {
-    await q("DELETE FROM sync_changes WHERE changed_at < now() - interval '30 days'");
+    // Each school keeps its newest change even when it is old: a device whose cursor is older than every stored change
+    // is told to reload (sync.service), and that check needs at least one change to compare with.
+    await q(`DELETE FROM sync_changes c WHERE c.changed_at < now() - interval '30 days'
+               AND c.seq < (SELECT max(m.seq) FROM sync_changes m WHERE m.tenant_id = c.tenant_id)`);
     await q("DELETE FROM sync_operations WHERE status IN ('applied', 'rejected', 'resolved') AND received_at < now() - interval '90 days'");
     await q(`DELETE FROM sessions WHERE expires_at < now()
                OR last_seen_at < now() - make_interval(mins => COALESCE(idle_minutes, 24 * 60))`);

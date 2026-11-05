@@ -38,7 +38,6 @@ export async function unreadCounts(q, col, id) {
   const by = Object.fromEntries(rows.map((r) => [r.category, r.n]));
   return { unread: rows.reduce((a, r) => a + r.n, 0), by_category: by };
 }
-export const unreadCount = async (q, col, id) => (await unreadCounts(q, col, id)).unread;
 export const markRead = (q, col, id, b) => q(
   `UPDATE notifications SET read_at = now() WHERE ${col} = $1 AND read_at IS NULL AND ($2::bigint[] IS NULL OR id = ANY($2))`,
   [id, b.all ? null : (b.ids?.length ? b.ids : [0])]);

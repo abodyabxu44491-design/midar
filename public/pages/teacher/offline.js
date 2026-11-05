@@ -4,7 +4,7 @@
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
 import { h, mount } from "../shared/js/dom.js";
-import { btn, dialog, notice, sub, badge, empty, toast } from "../shared/js/ui.js";
+import { btn, dialog, notice, sub, toast } from "../shared/js/ui.js";
 import { ATTENDANCE } from "../shared/js/format.js";
 import { getSync, onSyncChange } from "../shared/js/offline/sync.js";
 

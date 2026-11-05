@@ -8,6 +8,7 @@
 // the link stored here plus the school's own admin user, checked on the server for every entry.
 import crypto from "node:crypto";
 import { transaction } from "../../core/db/pool.js";
+import { background } from "../../core/platform.js";
 import { AppError, badRequest, conflict, forbidden, notFound, unauthorized } from "../../core/http/errors.js";
 import { hashPassword, verifyPassword } from "../../core/auth/password.js";
 import { createSession } from "../../core/auth/sessions.js";
@@ -373,8 +374,8 @@ export async function loginVerify(b, req, res) {
     return { ok: true, email: a.email, name: a.full_name };
   });
   const when = new Date().toLocaleString("ar-SA-u-ca-gregory-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Riyadh" });
-  sendMail(noticeMail({ to: mail, title: "تم الدخول إلى حسابك من جهاز جديد",
-    lines: [`الجهاز: ${deviceLabel(req.get("user-agent"))}`, `الوقت: ${when}`, "إذا لم تكن أنت، ادخل إلى مدار وغيّر كلمة المرور ثم اختر «الخروج من كل الأجهزة»."] })).catch(() => {});
+  background(sendMail(noticeMail({ to: mail, title: "تم الدخول إلى حسابك من جهاز جديد",
+    lines: [`الجهاز: ${deviceLabel(req.get("user-agent"))}`, `الوقت: ${when}`, "إذا لم تكن أنت، ادخل إلى مدار وغيّر كلمة المرور ثم اختر «الخروج من كل الأجهزة»."] })).catch(() => {}));
   return out;
 }
 

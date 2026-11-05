@@ -8,6 +8,7 @@ import { badRequest, notFound, conflict } from "../../core/http/errors.js";
 import { notify } from "./notify.service.js";
 import { featureSettings } from "./feature-settings.service.js";
 import { createInvoices } from "./finance.service.js";
+import * as blobs from "../../core/blobs.js";
 
 const opt = (max) => z.string().trim().max(max).optional().nullable().transform((v) => v || null);
 const localDay = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Aden" });
@@ -188,25 +189,32 @@ export async function setCover(q, id, f, matchesMime) {
   if (!matchesMime(buffer, f.mime)) throw badRequest("محتوى الملف لا يطابق نوعه. ارفع صورة سليمة");
   const [book] = await q("SELECT id FROM library_books WHERE id = $1", [id]);
   if (!book) throw notFound("الكتاب غير موجود");
-  await q(`INSERT INTO library_book_covers (tenant_id, book_id, mime, size_bytes, data) VALUES (app_tenant(), $1, $2, $3, $4)
-           ON CONFLICT (tenant_id, book_id) DO UPDATE SET mime = EXCLUDED.mime, size_bytes = EXCLUDED.size_bytes, data = EXCLUDED.data, updated_at = now()`,
-  [id, f.mime, buffer.length, buffer]);
+  const [prev] = await q("SELECT blob_key FROM library_book_covers WHERE book_id = $1", [id]);
+  const stored = await blobs.keep(q, "book-cover", buffer, f.mime);
+  await q(`INSERT INTO library_book_covers (tenant_id, book_id, mime, size_bytes, data, blob_key) VALUES (app_tenant(), $1, $2, $3, $4, $5)
+           ON CONFLICT (tenant_id, book_id) DO UPDATE SET mime = EXCLUDED.mime, size_bytes = EXCLUDED.size_bytes, data = EXCLUDED.data,
+             blob_key = EXCLUDED.blob_key, updated_at = now()`,
+  [id, f.mime, buffer.length, stored.data, stored.key]);
+  blobs.drop(q, prev?.blob_key);
   await q("UPDATE library_books SET has_cover = true WHERE id = $1", [id]);
 }
 export async function removeCover(q, id) {
-  await q("DELETE FROM library_book_covers WHERE book_id = $1", [id]);
+  const gone = await q("DELETE FROM library_book_covers WHERE book_id = $1 RETURNING blob_key", [id]);
+  blobs.drop(q, ...gone.map((r) => r.blob_key));
   await q("UPDATE library_books SET has_cover = false WHERE id = $1", [id]);
 }
 export async function readCover(q, id) {
-  const [c] = await q("SELECT mime, data FROM library_book_covers WHERE book_id = $1", [id]);
+  const [c] = await q("SELECT mime, data, blob_key FROM library_book_covers WHERE book_id = $1", [id]);
   if (!c) throw notFound("لا توجد صورة غلاف");
-  return c;
+  return { mime: c.mime, data: await blobs.load(c.data, c.blob_key) };
 }
 export async function removeBook(q, id) {
   const [out] = await q("SELECT 1 FROM library_loans WHERE book_id = $1 AND returned_on IS NULL LIMIT 1", [id]);
   if (out) throw conflict("الكتاب معار حاليًا");
+  const covers = await q("SELECT blob_key FROM library_book_covers WHERE book_id = $1", [id]);
   const r = await q("DELETE FROM library_books WHERE id = $1 RETURNING id", [id]);
   if (!r.length) throw notFound("الكتاب غير موجود");
+  blobs.drop(q, ...covers.map((c) => c.blob_key));   // the cover row goes with the book (ON DELETE CASCADE)
 }
 
 export const loanSchema = z.object({ book_id: t.id, student_id: t.optId, staff_id: t.optId, due_on: t.optDate, note: opt(200) });

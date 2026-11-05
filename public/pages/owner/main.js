@@ -87,7 +87,7 @@ async function start() {
   const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
     [null, "المدارس والاشتراكات"], ["schools", "ملفات المدارس"], ["create", "إضافة مدرسة"], ["types", "أنواع المؤسسات"], ["groups", "مجموعات المدارس"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
     [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
-    [null, "المنصة"], ["security", "الأمان"], ["signin", "الدخول والبريد"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "آراء العملاء"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
+    [null, "المنصة"], ["security", "الأمان"], ["signin", "الدخول والبريد"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "الآراء والاعتمادات"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
     { overview, requests, subscriptions, plans, schools, create, types: orgTypes, groups, billing, passwords: passwordRequests, sms, security, signin, settings, testimonials, audit, danger }, ownerCtx,
     { primary: ["overview", "requests", "schools", "subscriptions"] });
   ownerCtx.go = (k) => t.show(k);

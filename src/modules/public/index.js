@@ -9,6 +9,7 @@ import site from "./site.js";
 import profile from "./profile.js";
 import payments from "./payments.js";
 import leads from "./leads.js";
+import reviews from "./reviews.js";
 import admissions from "./admissions.js";
 import password from "./password.js";
 import inbox from "./inbox.js";
@@ -25,6 +26,7 @@ import { publicDemoGuard } from "../shared/demo.service.js";
 
 const r = Router();
 r.use("/leads", leads);
+r.use("/reviews", reviews);
 r.use("/demo", demo);
 r.get("/push-key", (req, res) => res.set("Cache-Control", "no-cache").json({ key: pushPublicKey() }));
 r.use("/", verifyRouter);

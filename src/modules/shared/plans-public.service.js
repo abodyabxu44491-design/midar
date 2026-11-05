@@ -60,24 +60,56 @@ export async function publicPlans() {
 
 // The public site's data changes only when the owner edits it, but each visit (bots included) would wake the
 // database: it is kept in memory for a few minutes, and dropped at once after any change in the owner panel.
+// The public site's data changes only when the owner edits it, and every change clears the cache (owner/index.js), so
+// it is kept for hours: visitors and search engines then never wake the database. On Workers each instance has its
+// own memory, so the data is shared through KV (the platform's `cache` hook) and each instance keeps it only a minute,
+// which is how soon an owner's change reaches every instance.
+const SITE_TTL = 6 * 60 * 60_000;
+const shared = () => globalThis.__midarPlatform?.cache;
 let siteCache = null;
-export const clearSiteCache = () => { siteCache = null; };
+export const clearSiteCache = () => { siteCache = null; shared()?.del("site-data"); };
 export async function siteData() {
   if (siteCache && siteCache.until > Date.now()) return siteCache.data;
+  const cache = shared();
+  const kept = cache ? await cache.get("site-data").catch(() => null) : null;
+  if (kept) { siteCache = { data: kept, until: Date.now() + 60_000 }; return kept; }
   const data = await loadSiteData();
-  siteCache = { data, until: Date.now() + 5 * 60_000 };
+  siteCache = { data, until: Date.now() + (cache ? 60_000 : SITE_TTL) };
+  cache?.put("site-data", data, SITE_TTL);
   return data;
 }
 async function loadSiteData() {
   const [s] = await transaction({}, (q) => q(
     `SELECT landing_mode, brand_phone, brand_email, brand_instagram, support_whatsapp, trial_enabled, trial_days, trial_without_plan,
-            site_headline, site_subheadline FROM platform_settings WHERE id`));
-  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp };
+            site_headline, site_subheadline, company_name, company_name_en, company_legal_name, company_reg_no, company_country,
+            company_address FROM platform_settings WHERE id`));
+  const company = companyOf(s);
+  for (const k of Object.keys(s)) if (k.startsWith("company_")) delete s[k];
+  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp, company };
   const features = await transaction({}, (q) => q(
     `SELECT key, name, description, category, kind, requestable FROM features WHERE is_active ORDER BY sort, key`));
-  const testimonials = await transaction({}, (q) => q(
-    `SELECT id, school_name, author_name, author_title, body, rating, logo FROM testimonials
-      WHERE status = 'approved' AND consent ORDER BY sort, id LIMIT 12`));
+  // Platform scope only to see whether the linked school is a current customer (schools are isolated otherwise); the
+  // query is fixed and returns public fields only, never the school's id.
+  const testimonials = await transaction({ platform: true }, (q) => q(
+    `SELECT t.id, t.school_name, t.author_name, t.author_title, t.body, t.rating, t.logo, t.service_used,
+            to_char(COALESCE(t.consent_at, t.created_at::date), 'YYYY-MM') AS month,
+            (t.tenant_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenants x WHERE x.id = t.tenant_id AND x.status = 'active')) AS subscriber
+       FROM testimonials t WHERE t.status = 'approved' AND t.consent ORDER BY t.sort, t.id LIMIT 12`));
+  // Only certifications that can be checked and are still valid.
+  const accreditations = await transaction({}, (q) => q(
+    `SELECT id, issuer, title, number, verify_url, scope, to_char(issued_on, 'YYYY-MM-DD') AS issued_on,
+            to_char(expires_on, 'YYYY-MM-DD') AS expires_on
+       FROM accreditations WHERE status = 'published' AND evidence_confirmed AND (verify_url IS NOT NULL OR number IS NOT NULL)
+        AND (expires_on IS NULL OR expires_on >= CURRENT_DATE) ORDER BY sort, id`));
   const org_types = await transaction({}, publicTypes);
-  return { ...s, plans: await publicPlans(), features, testimonials, org_types, demo: Boolean(await demoSchool()) };
+  return { ...s, company, plans: await publicPlans(), features, testimonials, accreditations, org_types, demo: Boolean(await demoSchool()) };
+}
+
+// The company behind Midar, with only the fields the owner filled in (null when none is): nothing is shown or claimed
+// about a legal entity or registration until it is entered.
+function companyOf(s) {
+  const c = { name: s.company_name, name_en: s.company_name_en, legal_name: s.company_legal_name, reg_no: s.company_reg_no,
+    country: s.company_country, address: s.company_address };
+  for (const k of Object.keys(c)) if (!c[k]) delete c[k];
+  return Object.keys(c).length ? c : null;
 }

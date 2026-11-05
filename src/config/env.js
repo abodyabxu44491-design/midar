@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import dotenv from "dotenv";
 import { z } from "zod";
+import { isPublicTotp, isPublicOwnerPath } from "./public-examples.js";
 
 dotenv.config({ path: fs.existsSync(".env.local") ? ".env.local" : ".env" });
 
@@ -66,6 +67,16 @@ export const env = Object.freeze({
 
 if (env.isProd && !env.OWNER_TOTP_SECRET) {
   console.warn("ℹ OWNER_TOTP_SECRET غير مضبوط: سيُطلب من المالك تفعيل التحقق الثنائي من شاشة الدخول قبل أي جلسة.");
+}
+
+// Test and example values are public (they are in the repository); the live owner panel must not use them.
+if (env.isProd && isPublicTotp(env.OWNER_TOTP_SECRET)) {
+  console.error("✗ OWNER_TOTP_SECRET مفتاح أمثلة منشور في المستودع. أنشئ مفتاحًا خاصًا: npm run owner:totp");
+  process.exit(1);
+}
+if (env.isProd && isPublicOwnerPath(env.OWNER_PATH)) {
+  console.error("✗ OWNER_PATH رابط أمثلة منشور في المستودع. اختر رابطًا سريًا خاصًا بك.");
+  process.exit(1);
 }
 
 if (env.isProd && !env.COOKIE_SECURE) {

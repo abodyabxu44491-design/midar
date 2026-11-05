@@ -33,6 +33,8 @@ export function computeBuildHash(dir = PUBLIC_DIR) {
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 export const APP_RELEASE = pkg.version;
-export const BUILD_HASH = computeBuildHash();
+// Workers bundles compute these at build time (scripts/build-workers.js): hashing every file at start-up costs CPU on
+// each new instance, and the clock reads zero while a Worker module loads.
+export const BUILD_HASH = process.env.MIDAR_BUILD_HASH || computeBuildHash();
 export const APP_VERSION = `${APP_RELEASE}-${BUILD_HASH}`;
-export const STARTED_AT = new Date().toISOString();
+export const STARTED_AT = process.env.MIDAR_BUILT_AT || new Date().toISOString();

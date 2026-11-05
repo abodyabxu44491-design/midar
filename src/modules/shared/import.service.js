@@ -3,8 +3,8 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
-import { z, t } from "../../core/http/validate.js";
-import { badRequest, conflict } from "../../core/http/errors.js";
+import { z } from "../../core/http/validate.js";
+import { badRequest } from "../../core/http/errors.js";
 import * as students from "./students.service.js";
 import { cleanName, normalizePhone } from "./students.service.js";
 

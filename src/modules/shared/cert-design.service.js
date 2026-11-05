@@ -9,6 +9,7 @@ import { z, t } from "../../core/http/validate.js";
 import { badRequest, notFound } from "../../core/http/errors.js";
 import { matchesMime } from "./attachments.service.js";
 import { ELEMENT_TYPES, BORDERS, FONTS, PRESETS, presetFor, presetLayout } from "../../../public/shared/js/cert-presets.js";
+import * as blobs from "../../core/blobs.js";
 
 const color = z.string().regex(/^(#[0-9A-Fa-f]{6}|transparent)$/, "لون غير صحيح");
 const mm = (max = 420) => z.number().min(-50).max(max);
@@ -124,16 +125,17 @@ export async function addAsset(q, f, actor) {
   if (!matchesMime(buffer, f.mime)) throw badRequest("محتوى الملف لا يطابق نوعه. ارفع صورة PNG أو JPG أو WEBP سليمة");
   const [{ n }] = await q("SELECT count(*)::int AS n FROM certificate_assets WHERE NOT hidden");
   if (n >= 200) throw badRequest("مكتبة الصور ممتلئة (200 صورة). أخفِ صورًا لا تحتاجها.");
-  const [row] = await q(`INSERT INTO certificate_assets (tenant_id, name, mime, size_bytes, width, height, data, uploaded_by)
-                         VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7) RETURNING id, name, mime, size_bytes, width, height`,
-  [f.name, f.mime, buffer.length, f.width ?? null, f.height ?? null, buffer, actor]);
+  const stored = await blobs.keep(q, "cert-asset", buffer, f.mime);
+  const [row] = await q(`INSERT INTO certificate_assets (tenant_id, name, mime, size_bytes, width, height, data, blob_key, uploaded_by)
+                         VALUES (app_tenant(), $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, mime, size_bytes, width, height`,
+  [f.name, f.mime, buffer.length, f.width ?? null, f.height ?? null, stored.data, stored.key, actor]);
   return row;
 }
 export const assets = (q) => q("SELECT id, name, mime, size_bytes, width, height, created_at FROM certificate_assets WHERE NOT hidden ORDER BY id DESC");
 export async function readAsset(q, id) {
-  const [row] = await q("SELECT mime, data FROM certificate_assets WHERE id = $1", [id]);
+  const [row] = await q("SELECT mime, data, blob_key FROM certificate_assets WHERE id = $1", [id]);
   if (!row) throw notFound("الصورة غير موجودة");
-  return row;
+  return { mime: row.mime, data: await blobs.load(row.data, row.blob_key) };
 }
 export async function hideAsset(q, id) {
   const rows = await q("UPDATE certificate_assets SET hidden = true WHERE id = $1 RETURNING id", [id]);
@@ -144,6 +146,7 @@ export async function hideAsset(q, id) {
 export async function assetsFor(q, layouts) {
   const ids = [...new Set(layouts.filter(Boolean).flatMap(assetIds))];
   if (!ids.length) return {};
-  const rows = await q("SELECT id, mime, data FROM certificate_assets WHERE id = ANY($1)", [ids]);
-  return Object.fromEntries(rows.map((r) => [r.id, `data:${r.mime};base64,${r.data.toString("base64")}`]));
+  const rows = await q("SELECT id, mime, data, blob_key FROM certificate_assets WHERE id = ANY($1)", [ids]);
+  const loaded = await Promise.all(rows.map(async (r) => [r.id, `data:${r.mime};base64,${Buffer.from(await blobs.load(r.data, r.blob_key)).toString("base64")}`]));
+  return Object.fromEntries(loaded);
 }

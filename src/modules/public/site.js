@@ -14,6 +14,7 @@ import { getSettings } from "../shared/public-settings.service.js";
 import { studentSummaries } from "../shared/finance.service.js";
 import { forAllClasses } from "../shared/timetable.service.js";
 import { logoId } from "../shared/school-logo.service.js";
+import { readImage } from "../shared/exam-papers.service.js";
 
 const r = Router({ mergeParams: true });
 const base = accessSchema;
@@ -152,8 +153,7 @@ r.get("/logo", handle(async (req, res) => {
   const img = await inSchool(req, "زائر", async (q) => {
     const id = await logoId(q);
     if (!id) return null;
-    const [row] = await q(`SELECT ${req.query.size === "thumb" ? "COALESCE(thumb_mime, mime) AS mime, COALESCE(thumb, data) AS data" : "mime, data"} FROM exam_images WHERE id = $1`, [id]);
-    return row;
+    return readImage(q, id, req.query.size === "thumb" ? "thumb" : "full").catch(() => null);
   });
   if (!img) throw notFound("لا يوجد شعار");
   res.set({ "Cache-Control": req.query.v ? "public, max-age=2592000, immutable" : "public, max-age=3600", "X-Content-Type-Options": "nosniff" })

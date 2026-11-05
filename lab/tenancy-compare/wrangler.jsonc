@@ -1,0 +1,14 @@
+// Comparison lab, local only (wrangler dev). Never deployed; no real data. See README.md.
+{
+  "name": "midar-tenancy-lab",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-19",
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
+  "d1_databases": [{ "binding": "DB", "database_name": "midar-lab", "database_id": "00000000-0000-0000-0000-000000000000" }],
+  "durable_objects": { "bindings": [{ "name": "SCHOOL", "class_name": "SchoolDB" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SchoolDB"] }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "midar-lab-files" }],
+  // Local only: wrangler reads CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_PG instead of this id.
+  "hyperdrive": [{ "binding": "PG", "id": "00000000000000000000000000000000" }],
+  "vars": { "LAB_SECRET": "lab-only-secret-not-for-production", "LAB_UNSAFE": "1" }
+}

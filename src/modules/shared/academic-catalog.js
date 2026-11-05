@@ -168,7 +168,6 @@ export const COUNTRIES = {
   },
   OTHER: { name: "دولة أخرى", currency: null, dial: "", grade_set: "arabic_basic", days: [0, 1, 2, 3, 4], phone_hint: "", holidays: [] },
 };
-export const DEFAULT_COUNTRY = "YE";
 export const countryKey = (name) => {
   const v = String(name || "").trim();
   if (!v) return null;

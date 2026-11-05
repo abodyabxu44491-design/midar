@@ -14,7 +14,7 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, textarea, select, btn, line, sub, keyText, toast, confirmAction, sectionMenu,
   empty, badge, notice, switchBtn, dialog, showCredentials, promptInstall, passwordInput, linkRow, copyRow } from "../../shared/js/ui.js";
 import { csv, CURRENCIES, setCurrency, money, fmtDate } from "../../shared/js/format.js";
-import { A, directoryLink } from "./common.js";
+import { A } from "./common.js";
 import { dangerZone } from "../../shared/js/danger-zone.js";
 
 const SECTIONS = [
@@ -303,7 +303,7 @@ async function messagesView({ me }) {
     sub("تُفتح الرسالة جاهزة في واتساب من جهازك."),
     sub("المتغيرات: {الطالب} {المدرسة} {الفصل} {التاريخ} {المبلغ} {الرابط}"),
     h("div", { class: "row" }, field("دولة المدرسة", code), custom),
-    sub("يُستخدم لإكمال الأرقام المحلية (05…) عند فتح واتساب. الأرقام المكتوبة بصيغة دولية (+…) تُستخدم كما هي."),
+    sub("كل رقم يُعرف بدولته تلقائيًا: الأرقام السعودية (05…) واليمنية (7…) والمكتوبة برمز دولة (+… أو 00… أو 971…) تُفتح على واتساب صحيحة، حتى لو اختلفت دول أولياء الأمور في المدرسة نفسها. دولة المدرسة تُستخدم فقط لرقم محلي لا تُعرف دولته."),
     TPL.map(([k, label]) => field(label, fields[k])),
     btn("حفظ القوالب", async () => {
       await api(`${A}/messaging/templates`, { country_code: countryCode(),

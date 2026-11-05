@@ -8,9 +8,9 @@ import { api } from "../../shared/js/api.js";
 import { panel, field, input, select, textarea, btn, badge, sub, notice, toast, dialog, empty, line, topbar, footer } from "../../shared/js/ui.js";
 import { icons } from "../../shared/js/icons.js";
 import { fmtDate } from "../../shared/js/format.js";
+import { currencyName } from "../../shared/js/currencies.js";
 
 const A = "/api/admin/subscription";
-const CUR = { SAR: "ريال", USD: "دولار", YER: "ريال يمني" };
 const STATE_BADGE = { trial: ["تجربة مجانية", "amber"], trial_grace: ["انتهت التجربة — فترة سماح", "amber"], active: ["فعّالة", ""], grace: ["فترة سماح", "amber"], locked: ["متوقفة", "red"] };
 const REQ = { feature: "طلب ميزة", upgrade: "طلب ترقية", renewal: "طلب تجديد", subscription: "طلب اشتراك", contact: "تواصل" };
 const RSTATUS = { new: ["بانتظار الرد", "amber"], reviewing: ["قيد المراجعة", "blue"], approved: ["تمت الموافقة", ""], awaiting_payment: ["بانتظار الدفع", "amber"],
@@ -103,8 +103,8 @@ export async function mySubscription({ me, show }) {
     h("div", { class: "sub-plans", id: "sub-plans" }, d.plans.map((p) => h("div", { class: `sub-plan${p.name === s?.plan_name ? " cur" : ""}` },
       h("h3", {}, p.name, p.name === s?.plan_name ? badge("باقتك الحالية") : null), p.tagline ? sub(p.tagline) : null,
       p.contact_only ? h("b", {}, "تواصل معنا للسعر") : h("div", {},
-        p.monthly ? h("div", {}, h("b", { style: "font-size:20px" }, Number(p.monthly.final).toLocaleString("ar")), ` ${CUR[p.currency]} شهريًا`) : null,
-        p.yearly ? h("div", {}, h("b", {}, Number(p.yearly.final).toLocaleString("ar")), ` ${CUR[p.currency]} سنويًا`) : null),
+        p.monthly ? h("div", {}, h("b", { style: "font-size:20px" }, Number(p.monthly.final).toLocaleString("ar")), ` ${currencyName(p.currency)} شهريًا`) : null,
+        p.yearly ? h("div", {}, h("b", {}, Number(p.yearly.final).toLocaleString("ar")), ` ${currencyName(p.currency)} سنويًا`) : null),
       sub(`${p.max_students ? `حتى ${p.max_students} طالب` : "طلاب بلا حد"} — ${p.features.length} ميزة`),
       btn(p.name === s?.plan_name ? "طلب تجديد" : "طلب هذه الباقة", () => requestDialog(p.name === s?.plan_name ? "renewal" : (s?.kind === "trial" || locked ? "subscription" : "upgrade"), { plan: p, monthly: !!p.monthly }, show),
         p.highlight ? "" : "soft"))))) : null;

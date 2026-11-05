@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { CURRENCY_CODES } from "../../../public/shared/js/currencies.js";
 import { kickOwnerPush } from "../shared/alerts.service.js";
 import { Router } from "express";
 import { inTenant, transaction } from "../../core/db/pool.js";
@@ -123,7 +124,7 @@ r.get("/currency", handle(async (req, res) => {
 }));
 
 r.put("/currency", handle(async (req, res) => {
-  const { currency } = parse(z.object({ currency: z.enum(["SAR", "YER", "USD"]) }), req.body);
+  const { currency } = parse(z.object({ currency: z.enum(CURRENCY_CODES, "عملة غير معروفة") }), req.body);
   await inTenant(req, async (q) => {
     const [used] = await q("SELECT 1 FROM finance_entries LIMIT 1");
     if (used) throw badRequest("لا يمكن تغيير عملة المدرسة بعد تسجيل حركات مالية. أنشئ حسابًا بعملة أخرى بدلًا من ذلك.");

@@ -17,6 +17,7 @@ import { sealCredential } from "../../core/auth/secret-box.js";
 import { logEvent, securityEvent, recentFailures, clearLoginFailures } from "../../core/audit.js";
 import { env } from "../../config/env.js";
 import { ensureDefaults } from "./academic.service.js";
+import * as blobs from "../../core/blobs.js";
 
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
@@ -287,11 +288,15 @@ export async function createBackup(ctx, tid, reason, q0 = null) {
     const json = Buffer.from(JSON.stringify({ format: "midar-backup-1", tenant: tid, schema: v, created_at: new Date().toISOString(), data }));
     const packed = await gzip(json);
     const tables = Object.fromEntries(Object.entries(data).map(([k, rows]) => [k, rows.length]));
+    // The packed backup goes to R2 when available (the database keeps the row, the fingerprint and the key).
+    const stored = await blobs.keep(q, "backup", packed, "application/gzip");
     const [row] = await q(
-      `INSERT INTO tenant_backups (tenant_id, tenant_name, reason, created_by, scope, schema_version, tables, size_bytes, sha256, data)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, size_bytes`,
-      [tid, t.name, reason.slice(0, 200), ctx.actor, ctx.scope, v, tables, packed.length, sha(packed), packed]);
-    await q(`DELETE FROM tenant_backups WHERE tenant_id = $1 AND id NOT IN (SELECT id FROM tenant_backups WHERE tenant_id = $1 ORDER BY id DESC LIMIT ${KEEP_BACKUPS})`, [tid]);
+      `INSERT INTO tenant_backups (tenant_id, tenant_name, reason, created_by, scope, schema_version, tables, size_bytes, sha256, data, blob_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, size_bytes`,
+      [tid, t.name, reason.slice(0, 200), ctx.actor, ctx.scope, v, tables, packed.length, sha(packed), stored.data, stored.key]);
+    const pruned = await q(`DELETE FROM tenant_backups WHERE tenant_id = $1 AND id NOT IN (SELECT id FROM tenant_backups WHERE tenant_id = $1 ORDER BY id DESC LIMIT ${KEEP_BACKUPS})
+                             RETURNING blob_key`, [tid]);
+    blobs.drop(q, ...pruned.map((p) => p.blob_key));
     await log(q, ctx, tid, `منطقة الحذر: نسخة احتياطية #${row.id} (${reason})`);
     return { ...row, tables };
   };
@@ -301,6 +306,7 @@ export async function createBackup(ctx, tid, reason, q0 = null) {
 export async function readBackup(q, id, tid = null) {
   const [b] = await q(`SELECT * FROM tenant_backups WHERE id = $1 ${tid ? "AND tenant_id = $2" : ""}`, tid ? [id, tid] : [id]);
   if (!b) throw notFound("النسخة غير موجودة");
+  b.data = await blobs.load(b.data, b.blob_key);
   if (sha(b.data) !== b.sha256) throw conflict("النسخة تالفة (البصمة غير مطابقة)، لا يمكن استخدامها");
   const doc = JSON.parse((await gunzip(b.data)).toString("utf8"));
   if (doc.format !== "midar-backup-1" || doc.tenant !== b.tenant_id) throw conflict("صيغة النسخة غير معروفة");

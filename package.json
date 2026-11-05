@@ -19,7 +19,12 @@
     "owner:password": "node scripts/owner-password.js",
     "credential:key": "node scripts/credential-key.js",
     "owner:totp": "node scripts/owner-totp.js",
-    "test": "NODE_ENV=test node --test --test-concurrency=1 tests/*.test.js"
+    "test": "NODE_ENV=test node --test --test-concurrency=1 tests/*.test.js",
+    "workers:build": "node scripts/build-workers.js",
+    "workers:dev": "npm run workers:build && wrangler dev",
+    "workers:deploy:staging": "npm run workers:build && wrangler deploy --env staging",
+    "check:secrets": "node scripts/check-secrets.js",
+    "test:e2e": "node scripts/e2e-roles.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -35,5 +40,9 @@
     "web-push": "^3.6.7",
     "zod": "^4.6.7"
   },
-  "main": "src/server.js"
+  "main": "src/server.js",
+  "devDependencies": {
+    "iconv-lite-workers": "npm:iconv-lite@0.6.3",
+    "wrangler": "4.151.2"
+  }
 }

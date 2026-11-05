@@ -6,6 +6,7 @@
 // Emails new high-severity security alerts to OWNER_ALERT_EMAIL (when set and the mail gateway is ready), so the
 // owner learns of a new-device sign-in, a burst of failed sign-ins or a large deletion without opening the panel.
 import { transaction } from "../../core/db/pool.js";
+import { background } from "../../core/platform.js";
 import { env } from "../../config/env.js";
 import { sendMail, noticeMail, mailReady } from "./mail.service.js";
 import { sendPush, vapidKeys } from "./notify.service.js";
@@ -75,7 +76,12 @@ async function deliverOwner(subs, items) {
 let kick = null;
 export function kickOwnerPush() {
   if (kick) return;
-  kick = setTimeout(() => { kick = null; dispatchOwnerPush().catch((e) => console.error("[إشعار المالك]", e.message)); }, 1500);
+  let done;
+  background(new Promise((r) => { done = r; }));
+  kick = setTimeout(() => {
+    kick = null;
+    dispatchOwnerPush().catch((e) => console.error("[إشعار المالك]", e.message)).finally(done);
+  }, 1500);
   kick.unref?.();
 }
 
@@ -89,11 +95,13 @@ export async function testOwnerPush() {
 
 // A one-off notification to the owner's devices for things that are not leads or alerts (a manager's password request).
 export function pushOwner(item) {
+  let done;
+  background(new Promise((r) => { done = r; }));
   setTimeout(async () => {
     try {
       if (!vapidKeys()) return;
       const subs = await transaction({ platform: true, actor: "النظام" }, (q) => q("SELECT id, endpoint, p256dh, auth FROM owner_push_subscriptions WHERE failures < 5"));
       await deliverOwner(subs, [{ priority: 2, ...item, url: item.url ? `${env.OWNER_PATH}/${item.url}` : `${env.OWNER_PATH}/` }]);
-    } catch (e) { console.error("[إشعار المالك]", e.message); }
+    } catch (e) { console.error("[إشعار المالك]", e.message); } finally { done(); }
   }, 500).unref?.();
 }

@@ -51,9 +51,8 @@ r.post("/students/analyze", handle(async (req, res) => {
 r.post("/students/commit", handle(async (req, res) => {
   const b = parse(studentsRows, req.body);
   const tenant = req.tenant;
-  res.status(202).json(await startJob({ tenantId: req.tenantId, kind: "import_students", total: b.rows.length, step: "استيراد الطلاب", req },
-    async ({ progress }) => ({ summary: await inTenant(req, (q) => studentsImport.commit(q, tenant, b.rows,
-      { gradeMap: b.grade_map, includeDuplicates: b.include_duplicates, onProgress: (n, total) => progress(n, total) })) })));
+  res.status(202).json(await startJob({ tenantId: req.tenantId, kind: "import_students", total: b.rows.length, step: "استيراد الطلاب", req,
+    input: { tenantId: req.tenantId, actor: req.actor, ip: req.ip, tenant, rows: b.rows, gradeMap: b.grade_map, includeDuplicates: b.include_duplicates } }));
 }));
 
 const teachersRows = z.object({
@@ -90,12 +89,8 @@ r.post("/teachers/analyze", handle(async (req, res) => {
 r.post("/teachers/commit", handle(async (req, res) => {
   const b = parse(teachersRows, req.body);
   const maxTeachers = req.subscription?.max_teachers ?? null;
-  res.status(202).json(await startJob({ tenantId: req.tenantId, kind: "import_teachers", total: b.rows.length, step: "استيراد المعلمين", req },
-    async ({ progress }) => {
-      const { credentials, ...summary } = await inTenant(req, (q) => teachersImport.commit(q, req.tenantId, b.rows,
-        { gradeMap: b.grade_map, maxTeachers, onProgress: (n, total) => progress(n, total) }));
-      return { summary, secret: { credentials } };
-    }));
+  res.status(202).json(await startJob({ tenantId: req.tenantId, kind: "import_teachers", total: b.rows.length, step: "استيراد المعلمين", req,
+    input: { tenantId: req.tenantId, actor: req.actor, ip: req.ip, rows: b.rows, gradeMap: b.grade_map, maxTeachers } }));
 }));
 
 r.get("/template/:kind", handle(async (req, res) => {

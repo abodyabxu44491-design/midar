@@ -9,6 +9,7 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import { badRequest } from "./errors.js";
+import { isWorkers } from "../platform.js";
 
 const PRIVATE_V4 = [["10.0.0.0", 8], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.168.0.0", 16],
   ["100.64.0.0", 10], ["0.0.0.0", 8], ["192.0.0.0", 24], ["198.18.0.0", 15], ["224.0.0.0", 4], ["240.0.0.0", 4]];
@@ -20,12 +21,20 @@ function isPrivate(ip) {
   return x === "::" || x === "::1" || x.startsWith("fc") || x.startsWith("fd") || x.startsWith("fe80") || x.startsWith("ff");
 }
 
+// Workers do not implement dns.lookup (it throws); they resolve over DNS-over-HTTPS (1.1.1.1) with resolve4/resolve6.
+// Without this every gateway address would be refused on Workers as unreachable.
+async function resolveAll(host) {
+  if (!isWorkers) return dns.lookup(host, { all: true }).catch(() => []);
+  const [v4, v6] = await Promise.all([dns.resolve4(host).catch(() => []), dns.resolve6(host).catch(() => [])]);
+  return [...v4, ...v6].map((address) => ({ address }));
+}
+
 export async function assertPublicHttps(raw) {
   let u;
   try { u = new URL(raw); } catch { throw badRequest("رابط البوابة غير صحيح"); }
   if (u.protocol !== "https:" || u.username || u.password) throw badRequest("رابط البوابة يجب أن يبدأ بـ https:// بلا اسم مستخدم");
   const host = u.hostname.replace(/^\[|\]$/g, "");
-  const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => []);
+  const addrs = net.isIP(host) ? [{ address: host }] : await resolveAll(host);
   if (!addrs.length) throw badRequest("تعذر الوصول إلى عنوان البوابة");
   if (addrs.some((a) => isPrivate(a.address))) throw badRequest("عنوان البوابة يجب أن يكون عنوانًا عامًا على الإنترنت");
   return u;

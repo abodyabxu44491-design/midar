@@ -54,7 +54,10 @@ test("آراء العملاء: لا يُنشر رأي بلا موافقة، وي
   assert.equal(t.status, 201, JSON.stringify(t.data));
   let site = (await pub.get("/api/site")).data;
   assert.equal(site.testimonials.some((x) => x.id === t.data.id), false, "بانتظار الاعتماد لا يظهر");
-  await owner.put(`/api/owner/testimonials/${t.data.id}`, { ...t.data, status: "approved" });
+  const bare = await owner.put(`/api/owner/testimonials/${t.data.id}`, { ...t.data, status: "approved" });
+  assert.equal(bare.status, 400, "النشر يحتاج تسجيل من وافق ومتى");
+  const ok = await owner.put(`/api/owner/testimonials/${t.data.id}`, { ...t.data, status: "approved", consent_by: "مدير المدرسة", consent_at: "2026-10-01" });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
   site = (await pub.get("/api/site")).data;
   assert.equal(site.testimonials.some((x) => x.id === t.data.id), true);
   const basic = site.plans.find((p) => p.code === "basic");

@@ -44,7 +44,6 @@ export function ayahAt(i) {
 const JUZ_INDEX = JUZ_STARTS.map(([s, a]) => indexOf(s, a));
 // The juz as a range of positions: [first, last].
 export const juzRange = (j) => [JUZ_INDEX[j - 1], j < 30 ? JUZ_INDEX[j] - 1 : TOTAL_AYAT];
-export const juzOf = (i) => { let j = 30; while (j > 1 && JUZ_INDEX[j - 1] > i) j--; return j; };
 
 // Merges ranges [[a, b], ...] into sorted, non-overlapping ones.
 export function merge(ranges) {

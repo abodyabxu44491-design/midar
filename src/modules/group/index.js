@@ -3,14 +3,14 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { CURRENCY_CODES } from "../../../public/shared/js/currencies.js";
 import { Router } from "express";
 import { transaction } from "../../core/db/pool.js";
 import { handle, unauthorized, forbidden, notFound, badRequest, AppError } from "../../core/http/errors.js";
 import { parse, t, z } from "../../core/http/validate.js";
 import { hashPassword, verifyPassword, canonPassword } from "../../core/auth/password.js";
-import { newTempPassword } from "../../core/auth/codes.js";
 import { createSession, destroySession, readSession } from "../../core/auth/sessions.js";
-import { logEvent, clearLoginFailures } from "../../core/audit.js";
+import { logEvent } from "../../core/audit.js";
 import { limits } from "../../core/rate-limit.js";
 import { schoolLinks } from "../../core/links.js";
 import { createTenant, codeSchema } from "../owner/tenants.js";
@@ -113,7 +113,7 @@ const newSchool = z.object({
   name: t.shortText("اسم المدرسة", 150),
   admin_name: t.name("اسم مدير المدرسة"),
   manager_email: managerEmail,
-  currency: z.enum(["SAR", "YER", "USD"]).prefault("YER"),
+  currency: z.enum(CURRENCY_CODES, "عملة غير معروفة").prefault("YER"),
 });
 
 r.post("/schools", handle(async (req, res) => {
