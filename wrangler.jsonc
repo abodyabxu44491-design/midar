@@ -6,6 +6,8 @@
   "name": "midar-api",
   "main": "workers/api.js",
   "compatibility_date": "2026-10-19",
+  // Node.js APIs and process.env (populated from vars and secrets) for the Express app.
+  "compatibility_flags": ["nodejs_compat"],
   "upload_source_maps": true,
   "alias": {
     "fs": "./workers/fs-shim.js",
@@ -90,7 +92,7 @@
         "TRUST_PROXY": "1"
       },
       // Filled in when the staging Hyperdrive is created (docs/cloudflare/PHASE-3-REPORT.md).
-      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }]
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "1055c2766b47437c85ab60663824f7ea" }]
     }
   }
 }
