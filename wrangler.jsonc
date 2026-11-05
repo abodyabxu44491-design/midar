@@ -67,7 +67,7 @@
       "placement": { "mode": "smart" },
       "triggers": { "crons": ["*/5 * * * *"] },
       // Filled in when the staging namespace is created.
-      "kv_namespaces": [{ "binding": "STATE", "id": "00000000000000000000000000000000" }],
+      "kv_namespaces": [{ "binding": "STATE", "id": "60158500c93b402abffbdd1a2bb84fd5" }],
       "queues": {
         "producers": [{ "binding": "JOBS", "queue": "midar-jobs-staging" }],
         // One job per message. A failed run is retried (runQueuedJob never runs a claimed job twice), then kept in the
