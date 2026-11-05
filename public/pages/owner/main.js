@@ -18,6 +18,7 @@ import passwordRequests from "./views/password-requests.js";
 import settings from "./views/settings.js";
 import testimonials from "./views/testimonials.js";
 import trust from "./views/trust.js";
+import inbox from "./views/inbox.js";
 import groups from "./views/groups.js";
 import billing from "./views/billing.js";
 import danger from "./views/danger.js";
@@ -87,9 +88,9 @@ async function start() {
   const ownerCtx = {};
   const t = tabs([["overview", "المؤشرات"], ["requests", "الطلبات"],
     [null, "المدارس والاشتراكات"], ["schools", "ملفات المدارس"], ["create", "إضافة مدرسة"], ["types", "أنواع المؤسسات"], ["groups", "مجموعات المدارس"], ["subscriptions", "الاشتراكات"], ["plans", "الباقات"], ["billing", "الفواتير"],
-    [null, "الدعم والتواصل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
+    [null, "الدعم والتواصل"], ["inbox", "صندوق الرسائل"], ["passwords", "طلبات كلمات المرور"], ["sms", "الرسائل النصية"],
     [null, "المنصة"], ["security", "الأمان"], ["signin", "الدخول والبريد"], ["settings", "إعدادات المنصة والتجربة"], ["testimonials", "الآراء والاعتمادات"], ["trust", "مركز الثقة"], ["audit", "سجل العمليات"], ["danger", "منطقة الحذر"]],
-    { overview, requests, subscriptions, plans, schools, create, types: orgTypes, groups, billing, passwords: passwordRequests, sms, security, signin, settings, testimonials, trust, audit, danger }, ownerCtx,
+    { overview, requests, subscriptions, plans, schools, create, types: orgTypes, groups, billing, passwords: passwordRequests, inbox, sms, security, signin, settings, testimonials, trust, audit, danger }, ownerCtx,
     { primary: ["overview", "requests", "schools", "subscriptions"] });
   ownerCtx.go = (k) => t.show(k);
   let lastUnseen = null;

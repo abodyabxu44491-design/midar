@@ -83,10 +83,12 @@ async function loadSiteData() {
   const [s] = await transaction({}, (q) => q(
     `SELECT landing_mode, brand_phone, brand_email, brand_instagram, support_whatsapp, trial_enabled, trial_days, trial_without_plan,
             site_headline, site_subheadline, company_name, company_name_en, company_legal_name, company_reg_no, company_country,
-            company_address FROM platform_settings WHERE id`));
+            company_address, site_url, email_info, email_support, email_sales, email_admin, founded_year, social_links, about_summary,
+            about_audience, services_upcoming FROM platform_settings WHERE id`));
   const company = companyOf(s);
-  for (const k of Object.keys(s)) if (k.startsWith("company_")) delete s[k];
-  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp, company };
+  const official = officialOf(s);
+  for (const k of Object.keys(s)) if (/^(company_|email_|about_|social_links|site_url|founded_year|services_upcoming)/.test(k)) delete s[k];
+  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp, company, official };
   const features = await transaction({}, (q) => q(
     `SELECT key, name, description, category, kind, requestable FROM features WHERE is_active ORDER BY sort, key`));
   // Platform scope only to see whether the linked school is a current customer (schools are isolated otherwise); the
@@ -106,7 +108,18 @@ async function loadSiteData() {
   // The internal badges that are active now (a passing, still-valid check), named as the trust center names them.
   const trust_badges = (await transaction({}, (q) => q("SELECT kind FROM trust_public_badges()")))
     .filter((b) => KINDS[b.kind]).map((b) => ({ kind: b.kind, title: KINDS[b.kind].title }));
-  return { ...s, company, plans: await publicPlans(), features, testimonials, accreditations, org_types, trust_badges, demo: Boolean(await demoSchool()) };
+  return { ...s, company, official, plans: await publicPlans(), features, testimonials, accreditations, org_types, trust_badges, demo: Boolean(await demoSchool()) };
+}
+
+// The official identity and contact details, only as the owner entered them: an address is shown once the owner has
+// filled it in (after its mailbox or forwarding works), and nothing is assumed.
+function officialOf(s) {
+  const emails = Object.fromEntries(["info", "support", "sales", "admin"].map((k) => [k, s[`email_${k}`]]).filter(([, v]) => v));
+  const social = { ...(s.social_links || {}) };
+  if (s.brand_instagram) social.instagram = `https://instagram.com/${s.brand_instagram}`;
+  const upcoming = String(s.services_upcoming || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  return { site_url: s.site_url || null, emails, social, founded_year: s.founded_year || null, summary: s.about_summary || null,
+    audience: s.about_audience || null, upcoming };
 }
 
 // The company behind Midar, with only the fields the owner filled in (null when none is): nothing is shown or claimed

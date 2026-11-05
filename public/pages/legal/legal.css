@@ -80,3 +80,15 @@
   .cert-doc { margin: 0; break-inside: avoid; opacity: 1; }
   @page { size: A4; margin: 14mm; }
 }
+
+/* About page identity card */
+.ab-id { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; padding: 20px; border: 1px solid #dde3ee; border-radius: 16px; background: #fff; margin: 6px 0 10px; }
+.ab-logo { height: 64px; }
+.ab-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; flex: 1 1 280px; }
+.ab-facts dt { color: #6B7489; } .ab-facts dd { margin: 0; font-weight: 600; }
+.faq-group { margin-top: 22px; }
+.faq-group details { border: 1px solid #dde3ee; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; background: #fff; }
+.faq-group summary { font-weight: 700; cursor: pointer; }
+.faq-group details p { margin: 8px 0 0; }
+.inq-box { padding: 0; margin-bottom: 8px; }
+.st-foot-mail a { color: inherit; }

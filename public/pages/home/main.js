@@ -12,6 +12,7 @@ import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 import { recentSchools, forgetSchool } from "../shared/js/recent.js";
 import { registerDialog } from "./register.js";
+import { inquiryForm } from "../shared/js/inquiry-form.js";
 
 const app = $("#app");
 
@@ -324,23 +325,7 @@ function planCard(p, cycle, site) {
       p.trial ? h("button", { class: "try", onclick: () => trialDialog(site, p) }, `أو جرّبها مجانًا ${p.trial_days} يومًا`) : null));
 }
 
-function contactForm(onDone, prefill) {
-  const f = { school_name: input({ autocomplete: "organization" }), contact_name: input({ autocomplete: "name" }),
-    phone: input({ class: "ltr", inputMode: "tel", autocomplete: "tel" }), email: input({ type: "email", class: "ltr", autocomplete: "email" }), note: textarea({ rows: 3, value: prefill }) };
-  const msg = h("div");
-  const send = h("button", { class: "st-btn pri wide", type: "button" }, "إرسال");
-  send.addEventListener("click", async () => {
-    mount(msg); send.disabled = true;
-    try {
-      await api("/api/public/leads", { kind: "contact", ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value.trim()])) });
-      const ok = h("div", { class: "st-ok" }, icons.check({ size: 40 }), h("h3", {}, "وصلتنا رسالتك"), h("p", {}, "سنتواصل معك قريبًا بإذن الله."));
-      if (onDone) onDone(ok); else mount(msg, ok);
-    } catch (e) { mount(msg, notice(e.message, "err")); send.disabled = false; }
-  });
-  return h("div", {}, field("اسم المدرسة", f.school_name),
-    h("div", { class: "row" }, field("اسمك", f.contact_name), field("رقم الجوال", f.phone)),
-    field("البريد الإلكتروني", f.email), field("رسالتك", f.note), msg, send);
-}
+function contactForm(onDone, prefill) { return inquiryForm({ prefill, onDone }); }
 
 function formDialog(title, top, form) {
   const box = h("div", { class: "st-form", style: "padding:0" }, top, form);

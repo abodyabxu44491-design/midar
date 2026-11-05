@@ -34,17 +34,20 @@ export async function dispatchOwnerPush() {
   if (!vapidKeys()) return 0;
   const { subs, items } = await transaction({ platform: true, actor: "النظام" }, async (q) => {
     const subs = await q("SELECT id, endpoint, p256dh, auth FROM owner_push_subscriptions WHERE failures < 5");
-    const [cur] = await q("SELECT last_alert_id, last_lead_id FROM owner_push_cursor WHERE id = 1 FOR UPDATE SKIP LOCKED");
+    const [cur] = await q("SELECT last_alert_id, last_lead_id, last_inquiry_id FROM owner_push_cursor WHERE id = 1 FOR UPDATE SKIP LOCKED");
     if (!cur) return { subs: [], items: [] };
     const alerts = await q(
       `SELECT id, title, detail FROM security_alerts WHERE id > $1 AND severity = 'high' ORDER BY id LIMIT 10`, [cur.last_alert_id]);
     const leads = await q(`SELECT id, kind, school_name FROM leads WHERE id > $1 ORDER BY id LIMIT 10`, [cur.last_lead_id]);
-    const [{ a, l }] = await q("SELECT COALESCE((SELECT max(id) FROM security_alerts), 0) AS a, COALESCE((SELECT max(id) FROM leads), 0) AS l");
-    await q("UPDATE owner_push_cursor SET last_alert_id = $1, last_lead_id = $2 WHERE id = 1", [a, l]);
+    const inquiries = await q(`SELECT id, subject, name FROM inquiries WHERE id > $1 ORDER BY id LIMIT 10`, [cur.last_inquiry_id]);
+    const [{ a, l, i }] = await q(`SELECT COALESCE((SELECT max(id) FROM security_alerts), 0) AS a, COALESCE((SELECT max(id) FROM leads), 0) AS l,
+                                          COALESCE((SELECT max(id) FROM inquiries), 0) AS i`);
+    await q("UPDATE owner_push_cursor SET last_alert_id = $1, last_lead_id = $2, last_inquiry_id = $3 WHERE id = 1", [a, l, i]);
     const base = env.OWNER_PATH;
     return { subs, items: [
       ...alerts.map((x) => ({ title: `تنبيه أمني: ${x.title}`, body: x.detail || "", url: `${base}/#/security`, tag: `alert-${x.id}`, priority: 1 })),
       ...leads.map((x) => ({ title: KIND[x.kind] || "طلب جديد", body: x.school_name || "", url: `${base}/#/requests`, tag: `lead-${x.id}`, priority: 2 })),
+      ...inquiries.map((x) => ({ title: `رسالة جديدة: ${x.subject}`, body: x.name, url: `${base}/#/inbox`, tag: `inquiry-${x.id}`, priority: 2 })),
     ] };
   });
   return deliverOwner(subs, items);
