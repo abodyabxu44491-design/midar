@@ -20,6 +20,8 @@ export default async function settings() {
   const email = input({ class: "ltr", type: "email", value: s.brand_email || "" });
   const insta = input({ class: "ltr", value: s.brand_instagram || "", placeholder: "midar.school" });
   const support = input({ class: "ltr", inputMode: "tel", value: s.support_whatsapp || "" });
+  const co = Object.fromEntries(["company_name", "company_name_en", "company_legal_name", "company_reg_no", "company_country", "company_address"]
+    .map((k) => [k, input({ value: s[k] || "", class: /_en$|_reg_no$/.test(k) ? "ltr" : "" })]));
   const supportNote = input({ value: s.support_note || "", placeholder: "سطر يظهر للمدارس في صفحة اشتراكها" });
 
   const [tOn, tOnL] = chk(s.trial_enabled, "التجربة المجانية متاحة");
@@ -40,6 +42,7 @@ export default async function settings() {
       await api("/api/owner/settings", {
         landing_mode: mode.value, site_headline: headline.value, site_subheadline: subhead.value, brand_phone: phone.value, brand_email: email.value, brand_instagram: insta.value,
         support_whatsapp: support.value, support_note: supportNote.value,
+        ...Object.fromEntries(Object.entries(co).map(([k, el]) => [k, el.value])),
         trial_enabled: tOn.checked, trial_days: Number(days.value), trial_all_plans: tAll.checked, trial_without_plan: tNo.checked,
         trials_per_school: Number(perSchool.value), trial_reminder_days: reminders.value.split(/[،,\s]+/).filter(Boolean).map(Number),
         trial_grace_days: Number(tGrace.value), trial_owner_extend: tExt.checked, show_plans_after_expiry: showPlans.checked,
@@ -57,6 +60,12 @@ export default async function settings() {
       h("div", { class: "row" }, field("جوال التواصل (واتساب) في الصفحة", phone), field("البريد الإلكتروني", email)),
       field("حساب إنستغرام", insta, "اسم الحساب فقط، مثل midar.school"),
       h("div", { class: "row" }, field("واتساب الدعم (يظهر للمدارس)", support), field("سطر التواصل", supportNote))),
+    panel("هوية الشركة", null,
+      notice("تظهر في تذييل الموقع وأعلى صفحات الخصوصية والشروط والاشتراكات. اكتب فقط ما هو موثّق رسميًا: الحقل الفارغ لا يظهر، ولا تذكر المنصة أي تسجيل أو جهة قانونية دون إدخالك.", ""),
+      h("div", { class: "row" }, field("اسم الشركة (عربي)", co.company_name), field("اسم الشركة (إنجليزي)", co.company_name_en, "مثل MIDAR SCHOOL")),
+      field("الاسم القانوني كما في السجل التجاري", co.company_legal_name, "اتركه فارغًا إن لم يوجد سجل بعد"),
+      h("div", { class: "row" }, field("رقم السجل التجاري", co.company_reg_no), field("الدولة", co.company_country)),
+      field("العنوان الرسمي", co.company_address)),
     panel("إعدادات التجربة المجانية", null,
       tOnL, h("div", { class: "row" }, field("مدة التجربة (يوم)", days), field("عدد التجارب المسموحة لكل مدرسة", perSchool, "الافتراضي مرة واحدة، ويمكنك منح تجربة إضافية يدويًا"),
         field("فترة سماح بعد التجربة (يوم)", tGrace)),

@@ -5,6 +5,7 @@
  */
 import { h, $, mount } from "../shared/js/dom.js";
 import { api } from "../shared/js/api.js";
+import { productLine } from "../shared/js/company.js";
 import { brandLogo, footer, field, input, textarea, select, btn, notice, sub, dialog, installButton, showInstallBar, toast } from "../shared/js/ui.js";
 import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
@@ -196,7 +197,7 @@ function marketing(site) {
         brandLogo("", false, "row"),
         h("nav", { class: "legal" }, guides.map(([slug, name]) => h("a", { href: `/${slug}` }, name)),
           h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "الشروط والأحكام"), h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات")),
-        h("small", {}, `© ${new Date().getFullYear()} مدار — منصة إدارة المدارس`)))));
+        h("small", {}, `© ${new Date().getFullYear()} ${productLine(site.company)}`)))));
 }
 
 function readJson(id) {

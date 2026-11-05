@@ -81,13 +81,25 @@ export async function siteData() {
 async function loadSiteData() {
   const [s] = await transaction({}, (q) => q(
     `SELECT landing_mode, brand_phone, brand_email, brand_instagram, support_whatsapp, trial_enabled, trial_days, trial_without_plan,
-            site_headline, site_subheadline FROM platform_settings WHERE id`));
-  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp };
+            site_headline, site_subheadline, company_name, company_name_en, company_legal_name, company_reg_no, company_country,
+            company_address FROM platform_settings WHERE id`));
+  const company = companyOf(s);
+  for (const k of Object.keys(s)) if (k.startsWith("company_")) delete s[k];
+  if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp, company };
   const features = await transaction({}, (q) => q(
     `SELECT key, name, description, category, kind, requestable FROM features WHERE is_active ORDER BY sort, key`));
   const testimonials = await transaction({}, (q) => q(
     `SELECT id, school_name, author_name, author_title, body, rating, logo FROM testimonials
       WHERE status = 'approved' AND consent ORDER BY sort, id LIMIT 12`));
   const org_types = await transaction({}, publicTypes);
-  return { ...s, plans: await publicPlans(), features, testimonials, org_types, demo: Boolean(await demoSchool()) };
+  return { ...s, company, plans: await publicPlans(), features, testimonials, org_types, demo: Boolean(await demoSchool()) };
+}
+
+// The company behind Midar, with only the fields the owner filled in (null when none is): nothing is shown or claimed
+// about a legal entity or registration until it is entered.
+function companyOf(s) {
+  const c = { name: s.company_name, name_en: s.company_name_en, legal_name: s.company_legal_name, reg_no: s.company_reg_no,
+    country: s.company_country, address: s.company_address };
+  for (const k of Object.keys(c)) if (!c[k]) delete c[k];
+  return Object.keys(c).length ? c : null;
 }
