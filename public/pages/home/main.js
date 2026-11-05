@@ -196,7 +196,8 @@ function marketing(site) {
       h("div", { class: "in" },
         brandLogo("", false, "row"),
         h("nav", { class: "legal" }, guides.map(([slug, name]) => h("a", { href: `/${slug}` }, name)),
-          h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "الشروط والأحكام"), h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات")),
+          h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "الشروط والأحكام"), h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات"),
+          h("a", { href: "/school-agreement" }, "اتفاقية المدارس"), h("a", { href: "/security" }, "حماية البيانات"), h("a", { href: "/status" }, "حالة الخدمة")),
         h("small", {}, `© ${new Date().getFullYear()} ${productLine(site.company)}`)))));
 }
 

@@ -38,7 +38,7 @@ export const securityHeaders = helmet({
   referrerPolicy: { policy: "same-origin" },
 });
 
-export const INDEXABLE = new Set(["/", "/privacy", "/terms", "/robots.txt", "/sitemap.xml", ...SEO_SLUGS.map((s) => `/${s}`)]);
+export const INDEXABLE = new Set(["/", "/privacy", "/terms", "/subscription-policy", "/security", "/school-agreement", "/robots.txt", "/sitemap.xml", ...SEO_SLUGS.map((s) => `/${s}`)]);
 export function noIndex(req, res, next) {
   if (!((req.method === "GET" || req.method === "HEAD") && INDEXABLE.has(req.path))) res.setHeader("X-Robots-Tag", "noindex, nofollow");
   next();
