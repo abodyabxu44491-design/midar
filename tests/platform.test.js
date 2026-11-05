@@ -1716,7 +1716,25 @@ test("الإنتاج بدون OWNER_TOTP_SECRET يعمل ويخبر أن الت�
   assert.equal(without.status, 0, "يعمل بدون المتغير");
   assert.match(without.stderr, /التحقق الثنائي/, "ويخبر بأن المالك سيفعّله من شاشة الدخول");
 
-  const withSecret = run({ OWNER_TOTP_SECRET: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" });
-  assert.equal(withSecret.status, 0);
+  const withSecret = run({ OWNER_TOTP_SECRET: "KRSXG5DSNFXGOIDUMVZXIIDUN5SXG4TFOQ" });
+  assert.equal(withSecret.status, 0, withSecret.stderr);
   assert.doesNotMatch(withSecret.stderr, /التحقق الثنائي/, "لا تنبيه عند ضبطه");
+
+  // Values written in the repository for tests are public, so production refuses them.
+  const known = run({ OWNER_TOTP_SECRET: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" });
+  assert.equal(known.status, 1, "مفتاح الأمثلة مرفوض في الإنتاج");
+  assert.match(known.stderr, /مفتاح أمثلة منشور/);
+  const ciPath = run({ OWNER_PATH: "/control-ci-secret-path", OWNER_TOTP_SECRET: "KRSXG5DSNFXGOIDUMVZXIIDUN5SXG4TFOQ" });
+  assert.equal(ciPath.status, 1, "رابط لوحة المالك من إعدادات الاختبار مرفوض في الإنتاج");
+  const dev = run({ NODE_ENV: "development", COOKIE_SECURE: "false", OWNER_TOTP_SECRET: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" });
+  assert.equal(dev.status, 0, "مسموح خارج الإنتاج");
+});
+
+test("كلمة مرور الاختبار المنشورة مرفوضة للمالك في الإنتاج حتى لو طابقت", async () => {
+  const { isPublicOwnerPassword, isPublicTotp } = await import("../src/config/public-examples.js");
+  assert.equal(isPublicOwnerPassword(ownerPassword), true, "كلمة مرور الاختبار في القائمة");
+  assert.equal(isPublicOwnerPassword("a-private-password"), false);
+  assert.equal(isPublicTotp("jbswy3dpehpk3pxpAAAA"), true);
+  const src = (await import("node:fs")).readFileSync(new URL("../src/modules/owner/auth.js", import.meta.url), "utf8");
+  assert.match(src, /env\.isProd && isPublicOwnerPassword\(b\.password\)/, "الدخول يرفضها في الإنتاج");
 });

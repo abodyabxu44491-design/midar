@@ -6,6 +6,7 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 import { env } from "../../config/env.js";
+import { isPublicOwnerPassword } from "../../config/public-examples.js";
 import { transaction } from "../../core/db/pool.js";
 import { handle, unauthorized, badRequest } from "../../core/http/errors.js";
 import { parse, z } from "../../core/http/validate.js";
@@ -69,7 +70,8 @@ r.post("/login", limits.login, handle(async (req, res) => {
     || (await recentFailures(q, "owner_login_failed", "owner", 15)) >= 40);
   if (locked) throw unauthorized("تم قفل الدخول مؤقتًا بسبب محاولات خاطئة. حاول بعد 15 دقيقة.");
 
-  const passOk = await verifyPassword(b.password, env.OWNER_PASSWORD_HASH);
+  // In production the test password is refused even when it matches: it is written in the repository.
+  const passOk = await verifyPassword(b.password, env.OWNER_PASSWORD_HASH) && !(env.isProd && isPublicOwnerPassword(b.password));
   const userOk = safeEqual(b.username, env.OWNER_USERNAME);
   const mfa = await transaction(ctx, (q) => ownerTotp(q));
   // The code is checked only after the password, so a wrong password never spends a backup code.
