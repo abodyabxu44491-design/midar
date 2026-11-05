@@ -147,7 +147,12 @@ function marketing(site) {
       r.rating ? h("div", { class: "rv-stars", "aria-label": `${r.rating} من 5` }, "★".repeat(r.rating), h("span", {}, "★".repeat(5 - r.rating))) : null,
       h("blockquote", {}, r.body),
       h("figcaption", {}, r.logo ? h("img", { src: r.logo, alt: "", width: 44, height: 44 }) : null,
-        h("span", {}, h("b", {}, r.school_name), r.author_name || r.author_title ? h("small", {}, [r.author_name, r.author_title].filter(Boolean).join(" — ")) : null)))))
+        h("span", {}, h("b", {}, r.school_name), r.author_name || r.author_title ? h("small", {}, [r.author_name, r.author_title].filter(Boolean).join(" — ")) : null)),
+      h("div", { class: "rv-meta" },
+        r.subscriber ? h("span", { class: "rv-badge" }, "مدرسة مشتركة في مدار") : null,
+        r.service_used ? h("span", {}, `تستخدم: ${r.service_used}`) : null,
+        r.month ? h("span", {}, monthName(r.month)) : null,
+        h("button", { type: "button", class: "lnk rv-report", onclick: () => reportDialog(r) }, "الإبلاغ عن خطأ")))))
       : h("div", { class: "rv-invite" }, h("p", {}, "نجمع آراء المدارس التي تستخدم مدار وننشرها بعد موافقتها. هل تستخدم مدار في مدرستك؟ شاركنا تجربتك."),
         h("button", { type: "button", class: "st-btn out", onclick: () => contactDialog(site, "أريد مشاركة تجربة مدرستنا مع مدار: ") }, "شارك تجربتك"))));
 
@@ -166,6 +171,19 @@ function marketing(site) {
     h("button", { type: "button", class: "way", onclick: () => contactDialog(site) }, icons.edit({ size: 20 }), h("span", {}, h("b", {}, "أرسل رسالة"), h("small", {}, "ونرد عليك قريبًا"))),
   ].filter(Boolean);
 
+  // Certifications appear only when the owner published one with a way to verify it (the server filters the rest).
+  const accr = site.accreditations || [];
+  const accrSec = accr.length ? h("section", { class: "st-sec", id: "accreditations" }, h("div", { class: "in" },
+    h("span", { class: "sec-eb" }, "الاعتمادات"), h("h2", {}, "شهادات واعتمادات يمكنك التحقق منها"),
+    h("div", { class: "ac-grid" }, accr.map((a) => h("article", { class: "ac-card" },
+      h("h3", {}, a.title), h("p", { class: "ac-issuer" }, a.issuer),
+      h("p", {}, a.scope),
+      h("dl", {},
+        a.number ? [h("dt", {}, "رقم الشهادة"), h("dd", { class: "ltr" }, a.number)] : null,
+        a.issued_on ? [h("dt", {}, "تاريخ الإصدار"), h("dd", {}, a.issued_on)] : null,
+        a.expires_on ? [h("dt", {}, "صالحة حتى"), h("dd", {}, a.expires_on)] : null),
+      a.verify_url ? h("a", { href: a.verify_url, target: "_blank", rel: "noopener", class: "st-btn out" }, "التحقق من الجهة المانحة") : null))))) : null;
+
   const trust = h("section", { class: "st-sec soft", id: "trust" }, h("div", { class: "in" },
     h("span", { class: "sec-eb" }, "الثقة والأمان"), h("h2", {}, "لماذا تثق المدارس بمدار؟"),
     h("div", { class: "trust-grid" },
@@ -176,7 +194,8 @@ function marketing(site) {
       h("div", { class: "trust-card" }, h("h3", {}, icons.file({ size: 20 }), "السياسات والمساعدة"),
         h("nav", { class: "trust-links" },
           h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "الشروط والأحكام"),
-          h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات والإلغاء"), link("faq", "الأسئلة الشائعة"),
+          h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات والإلغاء"), h("a", { href: "/school-agreement" }, "اتفاقية استخدام المدارس"),
+          h("a", { href: "/security" }, "كيف نحمي البيانات"), h("a", { href: "/status" }, "حالة الخدمة"), link("faq", "الأسئلة الشائعة"),
           h("button", { type: "button", class: "lnk", onclick: () => statusDialog() }, "متابعة طلب سابق"))))));
 
   const endSec = h("section", { class: "st-sec", id: "contact" }, h("div", { class: "st-end" },
@@ -191,7 +210,7 @@ function marketing(site) {
     h("h2", {}, "أسئلة شائعة"),
     h("div", { class: "st-faq" }, faq.map(([q, a]) => h("details", {}, h("summary", {}, q), h("p", {}, a)))))) : null;
 
-  mount(app, h("div", { class: "st" }, nav, hero, audiences, features, demoSec, how, plansSec, reviewsSec, trialSec, trust, faqSec, endSec,
+  mount(app, h("div", { class: "st" }, nav, hero, audiences, features, demoSec, how, plansSec, reviewsSec, accrSec, trialSec, trust, faqSec, endSec,
     h("footer", { class: "st-foot" },
       h("div", { class: "in" },
         brandLogo("", false, "row"),
@@ -326,6 +345,27 @@ function formDialog(title, top, form) {
 }
 
 function trialDialog(site, plan = null) { registerDialog(site, { kind: "trial", plan }); }
+
+const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+function monthName(ym) { const [y, m] = ym.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; }
+
+// A visitor tells us a published review is wrong; it reaches the owner only.
+function reportDialog(r) {
+  const reason = textarea({ rows: 3, maxLength: 500, placeholder: "مثال: هذه المدرسة لا تستخدم مدار، أو النص منسوب لغير صاحبه" });
+  const contact = input({ placeholder: "اختياري: جوالك أو بريدك لنتواصل معك" });
+  const out = h("div");
+  const send = h("button", { class: "st-btn pri wide", type: "button" }, "إرسال البلاغ");
+  const form = h("div", {}, h("p", {}, `البلاغ عن رأي «${r.school_name}». نراجع كل بلاغ ونصحح الرأي أو نخفيه إذا ثبت خطؤه.`),
+    field("ما الخطأ؟", reason), field("للتواصل", contact), out, send);
+  const ref = formDialog("الإبلاغ عن رأي غير صحيح", null, form);
+  send.addEventListener("click", async () => {
+    mount(out); send.disabled = true;
+    try {
+      const res = await api(`/api/public/reviews/${r.id}/report`, { reason: reason.value, contact: contact.value });
+      mount(ref.box, notice(res.message, "ok")); send.remove();
+    } catch (e) { mount(out, notice(e.message, "err")); send.disabled = false; }
+  });
+}
 
 function contactDialog(site, prefill = "") {
   let ref;

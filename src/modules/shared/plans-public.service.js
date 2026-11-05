@@ -88,11 +88,21 @@ async function loadSiteData() {
   if (s.landing_mode !== "marketing") return { landing_mode: s.landing_mode, brand_email: s.brand_email, brand_phone: s.brand_phone, brand_instagram: s.brand_instagram, support_whatsapp: s.support_whatsapp, company };
   const features = await transaction({}, (q) => q(
     `SELECT key, name, description, category, kind, requestable FROM features WHERE is_active ORDER BY sort, key`));
-  const testimonials = await transaction({}, (q) => q(
-    `SELECT id, school_name, author_name, author_title, body, rating, logo FROM testimonials
-      WHERE status = 'approved' AND consent ORDER BY sort, id LIMIT 12`));
+  // Platform scope only to see whether the linked school is a current customer (schools are isolated otherwise); the
+  // query is fixed and returns public fields only, never the school's id.
+  const testimonials = await transaction({ platform: true }, (q) => q(
+    `SELECT t.id, t.school_name, t.author_name, t.author_title, t.body, t.rating, t.logo, t.service_used,
+            to_char(COALESCE(t.consent_at, t.created_at::date), 'YYYY-MM') AS month,
+            (t.tenant_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenants x WHERE x.id = t.tenant_id AND x.status = 'active')) AS subscriber
+       FROM testimonials t WHERE t.status = 'approved' AND t.consent ORDER BY t.sort, t.id LIMIT 12`));
+  // Only certifications that can be checked and are still valid.
+  const accreditations = await transaction({}, (q) => q(
+    `SELECT id, issuer, title, number, verify_url, scope, to_char(issued_on, 'YYYY-MM-DD') AS issued_on,
+            to_char(expires_on, 'YYYY-MM-DD') AS expires_on
+       FROM accreditations WHERE status = 'published' AND evidence_confirmed AND (verify_url IS NOT NULL OR number IS NOT NULL)
+        AND (expires_on IS NULL OR expires_on >= CURRENT_DATE) ORDER BY sort, id`));
   const org_types = await transaction({}, publicTypes);
-  return { ...s, company, plans: await publicPlans(), features, testimonials, org_types, demo: Boolean(await demoSchool()) };
+  return { ...s, company, plans: await publicPlans(), features, testimonials, accreditations, org_types, demo: Boolean(await demoSchool()) };
 }
 
 // The company behind Midar, with only the fields the owner filled in (null when none is): nothing is shown or claimed

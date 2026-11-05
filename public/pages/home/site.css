@@ -387,3 +387,18 @@ textarea.rg-in { height: auto; min-height: 96px; padding: 12px 14px; line-height
 @media (max-width: 560px) {
   .hero-ticks { gap: 8px 14px; font-size: 13px; }
 }
+
+/* Reviews: date, service and the customer badge; certifications that can be verified */
+.rv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.rv-badge { background: #ecf8f1; color: #17663a; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+.rv-report { margin-inline-start: auto; font-size: 12px; color: var(--muted); }
+.ac-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.ac-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 8px; }
+.ac-card h3 { margin: 0; font-size: 17px; } .ac-issuer { margin: 0; color: var(--acc); font-weight: 600; }
+.ac-card p { margin: 0; line-height: 1.8; }
+.ac-card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 4px 0; font-size: 14px; }
+.ac-card dt { color: var(--muted); } .ac-card dd { margin: 0; }
+.ac-card .st-btn { align-self: flex-start; margin-top: auto; }
+.rv-report { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+.rv-report:hover { color: var(--acc); }
+.ac-card .st-btn { padding: 8px 14px; font-size: 14px; }
