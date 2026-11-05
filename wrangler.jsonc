@@ -61,7 +61,7 @@
   },
   // Local development: wrangler reads the database address from
   // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE instead of this id.
-  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "6cad76532596440e8f0e30fa45381dba" }],
   "env": {
     "staging": {
       "name": "midar-api-staging",
