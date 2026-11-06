@@ -1,6 +1,6 @@
 # البريد الرسمي، وصندوق الرسائل، والظهور في محركات البحث
 
-آخر تحديث: 5 نوفمبر 2026. هذا التقرير يفرّق بين ما نُفّذ واختُبر في الكود، وما ينتظر إعدادًا في Cloudflare أو حساباتك.
+آخر تحديث: 6 نوفمبر 2026. هذا التقرير يفرّق بين ما نُفّذ واختُبر في الكود، وما ينتظر إعدادًا في Cloudflare أو حساباتك.
 
 ## 1. ما نُفّذ في المنصة (مختبر)
 
@@ -19,33 +19,36 @@
 | **sitemap.xml وrobots.txt** | تشمل:<br>• `/about`<br>• `/faq`<br>• `/support`<br>• `/trust`<br>والصفحات العامة كلها مسموحة. | `tests/legal-pages.test.js` |
 | **Canonical** | لكل صفحة عامة. | — |
 
-## 2. ما ينتظرك في Cloudflare (لم يُنفَّذ: لا صلاحية)
+## 2. ما نُفّذ في Cloudflare (6 نوفمبر 2026)
 
-الرمز الحالي يملك صلاحية Workers فقط، ولا يرى نطاق `midarschool.com`. لذلك **لم أقرأ ولم أغيّر أي سجل DNS**.
+النطاق `midarschool.com` نُقل إلى حساب مدار في Cloudflare (Cloudflare Registrar)، والموقع يعمل على Workers بشهادة HTTPS صالحة وHSTS.
 
-**أ. تأكد أن النطاق مضاف إلى حساب Cloudflare.** إن لم يكن مضافًا، أضفه وغيّر خوادم الأسماء عند المسجّل.
+**Email Routing: مفعّل.** عنوان الوجهة `midarschool.app@gmail.com` متحقق منه.
 
-**ب. وسّع صلاحيات الرمز، أو أنشئ رمزًا جديدًا مقصورًا على `midarschool.com`:**
-- Zone · Zone · Read
-- Zone · DNS · Edit
-- Zone · Email Routing Rules · Edit
-- Account · Email Routing Addresses · Edit
-- Account · Workers Scripts · Edit (موجودة)
+| العنوان | الإجراء |
+|---|---|
+| `info@` و`support@` و`sales@` و`admin@` | عامل البريد `midar-email-inbound`: يحوّل الرسالة إلى Gmail أولًا، ثم يسجّلها في صندوق الرسائل عبر ربط داخلي (Service Binding) بعامل المنصة `midar-api` |
+| `noreply@` | تُرفض الرسائل الواردة (للإرسال فقط) |
 
-**ج. بعد ذلك أنفّذ بالترتيب، وأعرض عليك سجلات DNS الحالية قبل أي تغيير:**
-1. تفعيل Email Routing. تضيف Cloudflare تلقائيًا سجلات MX الثلاثة وسجل SPF (`v=spf1 include:_spf.mx.cloudflare.net ~all`). إذا كان على النطاق MX لمزوّد آخر فسأتوقف وأسألك.
-2. إضافة `midarschool.app@gmail.com` عنوانَ وجهة. **تصلك رسالة تحقق في Gmail ويجب أن تضغط رابطها بنفسك.**
-3. نشر عامل البريد:
-   ```
-   cd deploy/email-worker
-   npx wrangler deploy
-   npx wrangler secret put INBOUND_EMAIL_SECRET
-   ```
-   والقيمة نفسها تُضاف على خادم المنصة متغيرَ بيئة.
-4. قواعد التوجيه: `info@` و`support@` و`sales@` و`admin@` تذهب إلى العامل.
-5. سجل DMARC للمراقبة أولًا: `_dmarc` بالقيمة `v=DMARC1; p=none; rua=mailto:admin@midarschool.com`.
-6. الاختبار: رسالة إلى كل عنوان، والتأكد من وصولها إلى Gmail وظهورها في صندوق الرسائل.
-7. إدخال العناوين في «الهوية الرسمية والتواصل» **بعد** نجاح الاختبار، حتى لا يُعلن عنوان لا يستقبل.
+**سجلات DNS في النطاق:**
+
+| النوع | الاسم | القيمة | المصدر |
+|---|---|---|---|
+| MX ×3 | `@` | `route1/2/3.mx.cloudflare.net` | Email Routing (مقفلة) |
+| TXT | `cf2024-1._domainkey` | مفتاح DKIM | Email Routing (مقفل) |
+| TXT | `@` | `v=spf1 include:_spf.mx.cloudflare.net ~all` | Email Routing |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:admin@midarschool.com` | مراقبة فقط |
+| TXT | `@` | `google-site-verification=…` | منقول من الحساب القديم |
+| CNAME | `send` و`rsend` | `*.forge.rmta.net` | منقول من الحساب القديم (Resend) |
+| TXT | `resend._domainkey` | مفتاح DKIM | منقول من الحساب القديم (Resend) |
+| Worker | `@` و`www` | `midar-api` | نطاقات مخصصة للعامل |
+
+**السر المشترك** `INBOUND_EMAIL_SECRET` مضبوط على `midar-email-inbound` و`midar-api` (الإنتاج) كسر Cloudflare، وليس في المستودع.
+
+**التحقق:**
+- رسالة موقّعة لكل عنوان من العناوين الأربعة سُجّلت بنوعها الصحيح (عام، دعم فني، مبيعات، إدارة)، وسُجّل حدث الاستلام.
+- التوقيع المزوّر مرفوض.
+- العناوين الرسمية مُدخلة في «الهوية الرسمية والتواصل»، وتظهر في البيانات المنظمة (Organization وContactPoint).
 
 ## 3. حدود الإرسال (بصدق)
 
@@ -58,10 +61,10 @@
 
 ## 4. محركات البحث
 
-- **HTTPS وHSTS:** مفعّلان في المنصة (HSTS في رؤوس الأمان). صلاحية الشهادة على `midarschool.com` لم أستطع فحصها من بيئة العمل، لأن الوصول إلى النطاق محجوب هنا.
+- **HTTPS وHSTS:** الشهادة على `midarschool.com` صالحة (فُحصت في 6 نوفمبر 2026)، ورأس `Strict-Transport-Security: max-age=31536000; includeSubDomains` يصل مع كل صفحة.
 - **Google Search Console وBing Webmaster Tools:** تحتاج حساباتك:
   1. أضف النطاق.
-  2. تُعطى سجل TXT للتحقق، وأضيفه أنا بعد توسيع الصلاحيات.
+  2. سجل التحقق من Google (`google-site-verification`) موجود في النطاق، فالتحقق قائم إن كان الحساب نفسه.
   3. أرسل `https://midarschool.com/sitemap.xml`.
   
   يمكن لـ Bing استيراد الموقع من Search Console مباشرة.
