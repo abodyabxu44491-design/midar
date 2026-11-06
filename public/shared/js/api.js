@@ -6,6 +6,7 @@
 export class ApiError extends Error {
   constructor(message, status, code, details) {
     super(message); this.status = status; this.code = code;
+    if (details?.ref) this.ref = String(details.ref);
     if (details?.errors) this.errors = details.errors;
     if (details?.invalid) this.invalid = details.invalid;
     if (details?.changed) this.changed = details.changed;
@@ -91,7 +92,10 @@ async function once(url, method, body, timeoutMs) {
   try { data = await res.json(); } catch { /* ignore */ }
   if (!res.ok) {
     if (data?.code === "subscription_inactive" && !window.__midarLockReload) { window.__midarLockReload = true; setTimeout(() => location.reload(), 1200); }
-    const down = res.status >= 500 || !data;
+    // Keep safe, actionable 5xx messages from known services, such as a failed login-code email.
+    // Unknown server failures and database outages still use the generic maintenance message.
+    const genericServerFailure = !data?.error || ["server", "unavailable", "timeout"].includes(data?.code);
+    const down = !data || (res.status >= 500 && genericServerFailure);
     throw new ApiError(down ? MAINTENANCE : data.error || MAINTENANCE, res.status, data?.code, data);
   }
   return data;
