@@ -9,5 +9,7 @@
     "FORWARD_TO": "midarschool.app@gmail.com",
     "PLATFORM_URL": "https://midarschool.com"
   },
+  // The platform Worker (wrangler.jsonc at the repository root): messages are posted to it inside Cloudflare.
+  "services": [{ "binding": "PLATFORM", "service": "midar-api" }],
   "observability": { "enabled": true }
 }

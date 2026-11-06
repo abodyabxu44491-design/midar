@@ -35,7 +35,9 @@ export async function record(message, env, raw) {
     subject: mail.subject || "", text: textOf(mail).slice(0, MAX_TEXT),
     message_id: mail.messageId || message.headers.get("message-id") || "", sent_at: Date.now(),
   });
-  const res = await fetch(`${env.PLATFORM_URL.replace(/\/+$/, "")}/api/inbound/email`, {
+  // With the PLATFORM service binding (the platform Worker in the same account) the call stays inside Cloudflare.
+  const send = env.PLATFORM ? (url, init) => env.PLATFORM.fetch(url, init) : fetch;
+  const res = await send(`${env.PLATFORM_URL.replace(/\/+$/, "")}/api/inbound/email`, {
     method: "POST", headers: { "content-type": "application/json", "x-midar-signature": `sha256=${await sign(env.INBOUND_EMAIL_SECRET, body)}` }, body,
   });
   if (!res.ok) throw new Error(`platform ${res.status}`);
