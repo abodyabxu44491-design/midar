@@ -47,7 +47,7 @@ def icon(size=512, maskable=False, simple=False):
     pad = 'transform="translate(56 56) scale(.78)"' if maskable else ""
     rx = 0 if maskable else 112
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="{size}" height="{size}">
-<title>مدار MIDAR</title>
+<title>مدار — MIDAIR SCHOOL</title>
 <rect width="512" height="512" rx="{rx}" fill="{NAVY}"/>
 <g {pad}>{mark_inner(WHITE, TEAL, "#2E6F83", NAVY, simple=simple)}</g>
 </svg>'''
@@ -63,10 +63,10 @@ def lockup(dark=False):
     inner = mark_inner(WHITE, "#5FD3CB", "#3F7F92", NAVY) if dark else mark_inner(NAVY, TEAL_D, "#9FCFCB", "#FFFFFF")
     wp,w = placed(word,wb,0,0,120)
     W = 40 + w + 30 + 300
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} 220"><title>مدار MIDAR</title>
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} 220"><title>مدار — MIDAIR SCHOOL</title>
 <g transform="translate({W-300:.0f} 0) scale(.62) translate(-30 -60)">{inner}</g>
 <g transform="translate({40 + w/2:.1f} 98)">{wp} fill="{fg}"/></g>
-<text x="{40 + w/2:.1f}" y="196" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" letter-spacing="14" fill="{sub}">MIDAR</text>
+<text x="{48 + w/2:.1f}" y="198" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" letter-spacing="16" fill="{sub}">SCHOOL</text>
 </svg>'''
 
 import os

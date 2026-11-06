@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-<title>مدار MIDAR</title>
+<title>مدار — MIDAIR SCHOOL</title>
 <rect width="512" height="512" rx="112" fill="#16244A"/>
 <g ><mask id="m3"><rect x="-100" y="-100" width="800" height="800" fill="#fff"/><rect x="83.9" y="112.0" width="344.2" height="248" fill="#000"/></mask>
 <path d="M 42 318 A 214 58 0 0 1 470 318" fill="none" stroke="#2E6F83" stroke-width="30" stroke-linecap="round" transform="rotate(-14 256 318)" mask="url(#m3)"/>

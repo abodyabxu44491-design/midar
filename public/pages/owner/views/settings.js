@@ -22,6 +22,20 @@ export default async function settings() {
   const support = input({ class: "ltr", inputMode: "tel", value: s.support_whatsapp || "" });
   const co = Object.fromEntries(["company_name", "company_name_en", "company_legal_name", "company_reg_no", "company_country", "company_address"]
     .map((k) => [k, input({ value: s[k] || "", class: /_en$|_reg_no$/.test(k) ? "ltr" : "" })]));
+  const SOC = [["x", "X (تويتر)"], ["facebook", "فيسبوك"], ["linkedin", "لينكدإن"], ["youtube", "يوتيوب"], ["tiktok", "تيك توك"], ["snapchat", "سناب شات"], ["telegram", "تيليجرام"]];
+  const off = {
+    site_url: input({ class: "ltr", value: s.site_url || "", placeholder: "https://midarschool.com" }),
+    email_info: input({ class: "ltr", type: "email", value: s.email_info || "", placeholder: "info@midarschool.com" }),
+    email_support: input({ class: "ltr", type: "email", value: s.email_support || "", placeholder: "support@midarschool.com" }),
+    email_sales: input({ class: "ltr", type: "email", value: s.email_sales || "", placeholder: "sales@midarschool.com" }),
+    email_admin: input({ class: "ltr", type: "email", value: s.email_admin || "", placeholder: "admin@midarschool.com" }),
+    founded_year: input({ type: "number", min: 1990, max: new Date().getFullYear(), value: s.founded_year || "" }),
+    about_summary: textarea({ rows: 3, maxLength: 600, value: s.about_summary || "" }),
+    about_audience: textarea({ rows: 2, maxLength: 400, value: s.about_audience || "" }),
+    services_upcoming: textarea({ rows: 3, maxLength: 1500, value: s.services_upcoming || "", placeholder: "خدمة في كل سطر" }),
+  };
+  const soc = Object.fromEntries(SOC.map(([k]) => [k, input({ class: "ltr", value: s.social_links?.[k] || "", placeholder: "https://…" })]));
+  const [notify, notifyL] = chk(s.inquiry_notify, "أرسل لي بريدًا عند وصول رسالة جديدة", "يحتاج خدمة إرسال بريد مهيأة؛ إشعار الجوال يصل في كل الأحوال");
   const supportNote = input({ value: s.support_note || "", placeholder: "سطر يظهر للمدارس في صفحة اشتراكها" });
 
   const [tOn, tOnL] = chk(s.trial_enabled, "التجربة المجانية متاحة");
@@ -43,6 +57,8 @@ export default async function settings() {
         landing_mode: mode.value, site_headline: headline.value, site_subheadline: subhead.value, brand_phone: phone.value, brand_email: email.value, brand_instagram: insta.value,
         support_whatsapp: support.value, support_note: supportNote.value,
         ...Object.fromEntries(Object.entries(co).map(([k, el]) => [k, el.value])),
+        ...Object.fromEntries(Object.entries(off).map(([k, el]) => [k, el.value])),
+        social_links: Object.fromEntries(Object.entries(soc).map(([k, el]) => [k, el.value.trim()])), inquiry_notify: notify.checked,
         trial_enabled: tOn.checked, trial_days: Number(days.value), trial_all_plans: tAll.checked, trial_without_plan: tNo.checked,
         trials_per_school: Number(perSchool.value), trial_reminder_days: reminders.value.split(/[،,\s]+/).filter(Boolean).map(Number),
         trial_grace_days: Number(tGrace.value), trial_owner_extend: tExt.checked, show_plans_after_expiry: showPlans.checked,
@@ -66,6 +82,17 @@ export default async function settings() {
       field("الاسم القانوني كما في السجل التجاري", co.company_legal_name, "اتركه فارغًا إن لم يوجد سجل بعد"),
       h("div", { class: "row" }, field("رقم السجل التجاري", co.company_reg_no), field("الدولة", co.company_country)),
       field("العنوان الرسمي", co.company_address)),
+    panel("الهوية الرسمية والتواصل", null,
+      notice("تظهر في صفحة «عن منصة مدار» وصفحة الدعم وتذييل الموقع، وفي البيانات التي تقرؤها محركات البحث. لا تُدخل عنوان بريد قبل تفعيل استقباله (Cloudflare Email Routing) واختباره، ولا سنة تأسيس لا تستطيع إثباتها.", ""),
+      field("الموقع الرسمي", off.site_url),
+      h("div", { class: "row" }, field("الاستفسارات العامة", off.email_info), field("الدعم الفني", off.email_support)),
+      h("div", { class: "row" }, field("الاشتراكات والمبيعات", off.email_sales), field("المراسلات الإدارية (تصله الإشعارات)", off.email_admin)),
+      field("سنة التأسيس", off.founded_year, "اتركها فارغة إن لم تكن موثقة"),
+      field("وصف المنصة", off.about_summary), field("الفئة المستهدفة", off.about_audience),
+      field("خدمات قيد التطوير (لم تُتح بعد)", off.services_upcoming, "تظهر تحت «قيد التطوير» حتى لا يُفهم أنها متاحة"),
+      h("div", { class: "row" }, ...SOC.slice(0, 4).map(([k, l]) => field(l, soc[k]))),
+      h("div", { class: "row" }, ...SOC.slice(4).map(([k, l]) => field(l, soc[k]))),
+      notifyL),
     panel("إعدادات التجربة المجانية", null,
       tOnL, h("div", { class: "row" }, field("مدة التجربة (يوم)", days), field("عدد التجارب المسموحة لكل مدرسة", perSchool, "الافتراضي مرة واحدة، ويمكنك منح تجربة إضافية يدويًا"),
         field("فترة سماح بعد التجربة (يوم)", tGrace)),

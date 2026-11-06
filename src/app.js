@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Abdullah Al-Sakkani (عبدالله السكني). All rights reserved.
  * Proprietary and confidential. Unauthorized copying or distribution is prohibited.
  */
+import { inboundEmail } from "./modules/public/inbound-email.js";
 import express from "express";
 import { probeWatch } from "./core/http/probe-watch.js";
 import compression from "compression";
@@ -23,7 +24,8 @@ import { healthCheck } from "./core/db/pool.js";
 import { handle } from "./core/http/errors.js";
 import { isSchoolCode } from "./core/reserved.js";
 import { baseUrl } from "./core/links.js";
-import { SEO_PAGES, renderSeoPage, homeLd, ldScripts } from "./core/seo-pages.js";
+import { SEO_PAGES, renderSeoPage, homeLd, ldScripts, faqLd } from "./core/seo-pages.js";
+import { FAQ, FAQ_FLAT } from "./core/faq.js";
 import ownerApi from "./modules/owner/index.js";
 import groupApi from "./modules/group/index.js";
 import adminApi from "./modules/school-admin/index.js";
@@ -39,6 +41,7 @@ import { isWorkers } from "./core/platform.js";
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 const pages = path.join(WEB, "pages");
 
+const escHtml = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 export function createApp() {
   const app = express();
   app.set("trust proxy", env.TRUST_PROXY);
@@ -98,6 +101,8 @@ export function createApp() {
       || /^\/admin\/teachers\/\d+\/photo$/.test(req.path)
       || /^\/(admin|teacher)\/papers\/import$/.test(req.path)))
     || (req.method === "PUT" && /^\/(admin|teacher)\/papers\/\d+$/.test(req.path));
+  // Email received through Cloudflare Email Routing, signed by the email Worker (the signature covers the exact body).
+  app.post("/api/inbound/email", limits.api, express.text({ type: "*/*", limit: "300kb" }), noStore, inboundEmail);
   app.post("/api/account/oauth/apple/callback", limits.login, express.urlencoded({ extended: false, limit: "16kb" }), cookieParser(), noStore, appleCallback);
   api.use((req, res, next) => { res.set("X-App-Version", APP_VERSION); next(); });
   api.use(limits.api, noStore, (req, res, next) => (isMediaUpload(req) ? mediaJson : isUpload(req) ? uploadJson : smallJson)(req, res, next), cookieParser(), sameOrigin);
@@ -147,13 +152,25 @@ export function createApp() {
   app.get("/security", withOrigin("legal", "security.html"));
   app.get("/school-agreement", withOrigin("legal", "school-agreement.html"));
   app.get("/status", withOrigin("legal", "status.html"));
+  app.get("/trust", withOrigin("legal", "trust.html"));
+  app.get("/about", withOrigin("legal", "about.html"));
+  // The FAQ is written into the page itself (not loaded by script) so search engines read it, with its FAQPage data.
+  app.get("/faq", (req, res) => {
+    const items = FAQ.map(([group, qs]) => `    <section class="faq-group"><h2>${escHtml(group)}</h2>\n${qs.map(([q, a]) =>
+      `      <details><summary>${escHtml(q)}</summary><p>${escHtml(a)}</p></details>`).join("\n")}\n    </section>`).join("\n");
+    res.set("Cache-Control", "no-cache").type("html").send(renderPage(file("legal", "faq.html"), { isProd: env.isProd })
+      .replaceAll("__ORIGIN__", baseUrl(req)).replace("<!--FAQ-->", items)
+      .replace("</head>", `  ${ldScripts([faqLd(FAQ_FLAT)])}\n</head>`));
+  });
+  app.get("/support", withOrigin("legal", "support.html"));
+  app.get(/^\/trust\/verify\/[A-Za-z0-9-]{1,20}$/, withOrigin("legal", "certificate.html"));
   app.get("/robots.txt", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("text/plain").send([
-    "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /subscription-policy", "Allow: /security", "Allow: /school-agreement", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
+    "User-agent: *", "Allow: /$", "Allow: /privacy", "Allow: /terms", "Allow: /subscription-policy", "Allow: /security", "Allow: /school-agreement", "Allow: /trust$", "Allow: /support", "Allow: /about", "Allow: /faq", "Allow: /brand/", "Allow: /v/", "Allow: /shared/",
     "Allow: /home-page/", "Allow: /legal-page/", "Allow: /api/site", ...SEO_PAGES.map((p) => `Allow: /${p.slug}$`),
     "Disallow: /", "", `Sitemap: ${baseUrl(req)}/sitemap.xml`, ""].join("\n")));
   app.get("/sitemap.xml", (req, res) => res.set("Cache-Control", "public, max-age=3600").type("application/xml").send(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
-      [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"], ["/subscription-policy", "0.3"], ["/security", "0.4"], ["/school-agreement", "0.3"]]
+      [["/", "1.0"], ...SEO_PAGES.map((p) => [`/${p.slug}`, "0.8"]), ["/privacy", "0.3"], ["/terms", "0.3"], ["/subscription-policy", "0.3"], ["/security", "0.4"], ["/school-agreement", "0.3"], ["/trust", "0.5"], ["/support", "0.4"], ["/about", "0.6"], ["/faq", "0.6"]]
         .map(([u, p]) => `  <url><loc>${baseUrl(req)}${u}</loc><lastmod>${STARTED_AT.slice(0, 10)}</lastmod><priority>${p}</priority></url>`).join("\n")
     }\n</urlset>\n`));
   app.get("/.well-known/assetlinks.json", (req, res) => res.set("Cache-Control", "public, max-age=3600").json(

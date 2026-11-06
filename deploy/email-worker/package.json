@@ -1,0 +1,8 @@
+{
+  "name": "midar-email-inbound",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Email Routing worker: forwards mail to the owner's inbox and records it in Midar.",
+  "dependencies": { "postal-mime": "2.4.4" },
+  "scripts": { "deploy": "wrangler deploy", "test": "node --test test.js" }
+}

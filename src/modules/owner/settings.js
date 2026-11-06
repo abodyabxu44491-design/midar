@@ -13,6 +13,9 @@ const r = Router();
 // An optional text field: left out keeps the saved value, empty clears it (the site then stops showing it).
 const text = (min, max) => z.string().trim().max(max).refine((v) => !v || v.length >= min, `قصير جدًا (${min} أحرف على الأقل)`)
   .optional().transform((v) => (v === undefined ? undefined : v || null));
+const mail = z.union([z.literal(""), z.null(), z.string().trim().toLowerCase().email("البريد غير صحيح").max(200)]).optional()
+  .transform((v) => (v === undefined ? undefined : v || null));
+export const SOCIAL = ["x", "facebook", "linkedin", "youtube", "tiktok", "snapchat", "telegram"];
 const schema = z.object({
   landing_mode: z.enum(["blank", "marketing"]).optional(),
   brand_phone: z.string().trim().regex(/^[0-9+ ]{0,20}$/).optional().or(z.literal("")).transform((v) => v || null),
@@ -40,11 +43,25 @@ const schema = z.object({
   company_reg_no: text(2, 60),
   company_country: text(2, 60),
   company_address: text(0, 300),
+  site_url: z.union([z.literal(""), z.null(), z.string().trim().toLowerCase().regex(/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}$/, "اكتب الرابط كاملًا بلا مسار، مثل https://midarschool.com")])
+    .optional().transform((v) => (v === undefined ? undefined : v || null)),
+  email_info: mail, email_support: mail, email_sales: mail, email_admin: mail,
+  founded_year: z.union([z.literal(""), z.null(), z.coerce.number().int().min(1990).max(new Date().getFullYear())]).optional()
+    .transform((v) => (v === undefined ? undefined : v || null)),
+  social_links: z.partialRecord(z.enum(SOCIAL, "منصة غير معروفة"), z.union([z.literal(""), z.string().trim().url("الرابط غير صحيح").max(200)
+    .refine((v) => v.startsWith("https://"), "الرابط يجب أن يبدأ بـ https://")])).optional()
+    .transform((v) => (v === undefined ? undefined : Object.fromEntries(Object.entries(v).filter(([, u]) => u)))),
+  about_summary: text(20, 600),
+  about_audience: text(10, 400),
+  services_upcoming: text(0, 1500),
+  inquiry_notify: z.boolean().optional(),
 });
 const COLS = ["landing_mode", "brand_phone", "brand_email", "brand_instagram", "support_whatsapp", "support_note", "trial_enabled", "trial_days",
   "trial_all_plans", "trial_without_plan", "trials_per_school", "trial_reminder_days", "trial_grace_days", "trial_owner_extend",
   "show_plans_after_expiry", "default_grace_days", "feature_request_mode", "site_headline", "site_subheadline",
-  "company_name", "company_name_en", "company_legal_name", "company_reg_no", "company_country", "company_address"];
+  "company_name", "company_name_en", "company_legal_name", "company_reg_no", "company_country", "company_address",
+  "site_url", "email_info", "email_support", "email_sales", "email_admin", "founded_year", "social_links", "about_summary", "about_audience",
+  "services_upcoming", "inquiry_notify"];
 
 r.get("/", handle(async (req, res) => {
   const [row] = await transaction({ platform: true, actor: req.actor }, (q) =>

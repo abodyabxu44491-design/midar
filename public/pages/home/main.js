@@ -12,6 +12,7 @@ import { icons } from "../shared/js/icons.js";
 import { startAnalytics } from "../shared/js/analytics.js";
 import { recentSchools, forgetSchool } from "../shared/js/recent.js";
 import { registerDialog } from "./register.js";
+import { inquiryForm } from "../shared/js/inquiry-form.js";
 
 const app = $("#app");
 
@@ -133,13 +134,18 @@ function marketing(site) {
     h("button", { class: cycle === "yearly" ? "on" : "", onclick: () => { cycle = "yearly"; drawToggle(); drawPlans(); } }, "سنوي")) : null);
   const drawPlans = () => mount(grid, plans.map((p) => planCard(p, cycle, site)));
   drawToggle(); drawPlans();
+  // The internal badges active now, each from a check that passed; the trust center says what proves each one.
+  const trustStrip = () => h("div", { class: "tb-strip" },
+    (site.trust_badges || []).map((b) => h("a", { class: "tb-chip", href: "/trust" }, h("i", { "aria-hidden": "true" }, "✓"), b.title)),
+    h("a", { class: "tb-more", href: "/trust" }, (site.trust_badges || []).length ? "مركز الثقة والتوثيق ←" : "مركز الثقة والتوثيق: ما الذي نفعله وكيف تتحقق منه ←"),
+    h("small", { class: "tb-note" }, "شارات داخلية تصدرها منصة مدار بعد فحوص حقيقية، وليست اعتمادًا حكوميًا أو شهادة من جهة خارجية."));
   const plansSec = plans.length ? h("section", { class: "st-sec", id: "plans" }, h("div", { class: "in" },
     h("span", { class: "sec-eb" }, "الأسعار"), h("h2", {}, "الباقات والأسعار"),
     h("p", { class: "sub-h" }, plans.every((p) => p.features.length === (plans[0]?.features.length || 0))
       ? "كل المميزات متاحة في كل الباقات، والفرق في عدد الطلاب وعدد المدارس." : "اختر الباقة المناسبة لحجم مدرستك، ورقِّها في أي وقت بدون فقدان بياناتك."),
     toggle, grid, h("p", { class: "plans-note" },
       "يُدفع الاشتراك سنويًا مقدمًا. سعر السنة الأولى عرض للمدارس الجديدة، ثم يتجدد الاشتراك بالسعر السنوي المذكور. التفاصيل في ",
-      h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات والإلغاء"), "."))) : null;
+      h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات والإلغاء"), "."), trustStrip())) : null;
 
   const reviewsSec = h("section", { class: "st-sec soft", id: "reviews" }, h("div", { class: "in" },
     h("span", { class: "sec-eb" }, "آراء العملاء"), h("h2", {}, "آراء عملائنا وشركائنا"),
@@ -185,7 +191,7 @@ function marketing(site) {
       a.verify_url ? h("a", { href: a.verify_url, target: "_blank", rel: "noopener", class: "st-btn out" }, "التحقق من الجهة المانحة") : null))))) : null;
 
   const trust = h("section", { class: "st-sec soft", id: "trust" }, h("div", { class: "in" },
-    h("span", { class: "sec-eb" }, "الثقة والأمان"), h("h2", {}, "لماذا تثق المدارس بمدار؟"),
+    h("span", { class: "sec-eb" }, "الثقة والأمان"), h("h2", {}, "لماذا تثق المدارس بمدار؟"), trustStrip(),
     h("div", { class: "trust-grid" },
       h("div", { class: "trust-card" }, h("h3", {}, icons.building({ size: 20 }), "عن مدار"),
         h("p", {}, "مدار منصة عربية لإدارة المدارس، تعمل من المتصفح على الكمبيوتر والجوال بدون تثبيت برامج، وتناسب المدارس في أي دولة.")),
@@ -195,7 +201,8 @@ function marketing(site) {
         h("nav", { class: "trust-links" },
           h("a", { href: "/privacy" }, "سياسة الخصوصية"), h("a", { href: "/terms" }, "الشروط والأحكام"),
           h("a", { href: "/subscription-policy" }, "سياسة الاشتراكات والإلغاء"), h("a", { href: "/school-agreement" }, "اتفاقية استخدام المدارس"),
-          h("a", { href: "/security" }, "كيف نحمي البيانات"), h("a", { href: "/status" }, "حالة الخدمة"), link("faq", "الأسئلة الشائعة"),
+          h("a", { href: "/security" }, "كيف نحمي البيانات"), h("a", { href: "/trust" }, "مركز الثقة والتوثيق"), h("a", { href: "/support" }, "الدعم الفني"),
+          h("a", { href: "/status" }, "حالة الخدمة"), link("faq", "الأسئلة الشائعة"),
           h("button", { type: "button", class: "lnk", onclick: () => statusDialog() }, "متابعة طلب سابق"))))));
 
   const endSec = h("section", { class: "st-sec", id: "contact" }, h("div", { class: "st-end" },
@@ -318,23 +325,7 @@ function planCard(p, cycle, site) {
       p.trial ? h("button", { class: "try", onclick: () => trialDialog(site, p) }, `أو جرّبها مجانًا ${p.trial_days} يومًا`) : null));
 }
 
-function contactForm(onDone, prefill) {
-  const f = { school_name: input({ autocomplete: "organization" }), contact_name: input({ autocomplete: "name" }),
-    phone: input({ class: "ltr", inputMode: "tel", autocomplete: "tel" }), email: input({ type: "email", class: "ltr", autocomplete: "email" }), note: textarea({ rows: 3, value: prefill }) };
-  const msg = h("div");
-  const send = h("button", { class: "st-btn pri wide", type: "button" }, "إرسال");
-  send.addEventListener("click", async () => {
-    mount(msg); send.disabled = true;
-    try {
-      await api("/api/public/leads", { kind: "contact", ...Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value.trim()])) });
-      const ok = h("div", { class: "st-ok" }, icons.check({ size: 40 }), h("h3", {}, "وصلتنا رسالتك"), h("p", {}, "سنتواصل معك قريبًا بإذن الله."));
-      if (onDone) onDone(ok); else mount(msg, ok);
-    } catch (e) { mount(msg, notice(e.message, "err")); send.disabled = false; }
-  });
-  return h("div", {}, field("اسم المدرسة", f.school_name),
-    h("div", { class: "row" }, field("اسمك", f.contact_name), field("رقم الجوال", f.phone)),
-    field("البريد الإلكتروني", f.email), field("رسالتك", f.note), msg, send);
-}
+function contactForm(onDone, prefill) { return inquiryForm({ prefill, onDone }); }
 
 function formDialog(title, top, form) {
   const box = h("div", { class: "st-form", style: "padding:0" }, top, form);

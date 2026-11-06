@@ -3078,3 +3078,6 @@ dialog .student-form.tidy { background: var(--bg); margin: 0 -18px; padding: 12p
 .uni-kpi b { color: var(--navy); font-size: 17px; }
 .uni-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .uni-marks input { max-width: 90px; }
+
+/* Site message form: the field only bots fill in stays out of sight and out of the tab order. */
+.inq-trap { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

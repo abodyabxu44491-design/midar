@@ -39,6 +39,8 @@ const schema = z.object({
   NEON_CU_HOURS_LIMIT: z.coerce.number().positive().prefault(100),
   NEON_STORAGE_GB_LIMIT: z.coerce.number().positive().prefault(0.5),
   NEON_TRANSFER_GB_LIMIT: z.coerce.number().positive().prefault(5),
+  // Shared with the email Worker (Cloudflare Email Routing) that hands each received message to the platform.
+  INBOUND_EMAIL_SECRET: z.string().regex(/^[A-Za-z0-9_-]{32,128}$/, "INBOUND_EMAIL_SECRET: 32 حرفًا على الأقل (أحرف وأرقام و - _)").optional().or(z.literal("")),
   CREDENTIAL_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "CREDENTIAL_KEY يجب أن يكون 64 خانة hex (npm run credential:key)").optional().or(z.literal("")),
   VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/).optional().or(z.literal("")),
   VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/).optional().or(z.literal("")),

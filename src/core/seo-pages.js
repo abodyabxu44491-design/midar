@@ -168,17 +168,36 @@ export const HOME_FAQ = [
 export const faqLd = (faq) => ({ "@context": "https://schema.org", "@type": "FAQPage",
   mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) });
 
+// What search engines and AI tools read about the platform: only facts the owner entered (official addresses, accounts,
+// founding year, operator), never ratings, awards or claims that cannot be checked.
 export function homeLd(origin, site = {}) {
-  const sameAs = site.brand_instagram ? [`https://instagram.com/${site.brand_instagram}`] : [];
-  const phone = site.brand_phone ? String(site.brand_phone).replace(/^0/, "+966") : null;
+  const o = site.official || {};
+  const url = `${o.site_url || origin}/`;
+  const sameAs = Object.values(o.social || {});
+  if (!sameAs.length && site.brand_instagram) sameAs.push(`https://instagram.com/${site.brand_instagram}`);
+  const phone = site.support_whatsapp || site.brand_phone;
+  const tel = phone ? `+${String(phone).replace(/\D/g, "").replace(/^00/, "")}` : null;
+  const emails = o.emails || {};
+  const points = [
+    emails.support || tel ? { "@type": "ContactPoint", contactType: "customer support", ...(emails.support ? { email: emails.support } : {}),
+      ...(tel ? { telephone: tel } : {}), availableLanguage: ["ar"] } : null,
+    emails.sales ? { "@type": "ContactPoint", contactType: "sales", email: emails.sales, availableLanguage: ["ar"] } : null,
+  ].filter(Boolean);
+  const company = site.company || {};
+  const org = { "@context": "https://schema.org", "@type": "Organization", "@id": `${url}#organization`, name: "مدار | MIDAIR SCHOOL",
+    alternateName: ["مدار", "MIDAIR SCHOOL"], url, logo: `${origin}/brand/icon-512.png`,
+    description: "منصة سحابية لإدارة المدارس والمؤسسات التعليمية.",
+    ...(emails.info ? { email: emails.info } : {}), ...(o.founded_year ? { foundingDate: String(o.founded_year) } : {}),
+    ...(company.legal_name ? { legalName: company.legal_name } : {}),
+    ...(company.country ? { address: { "@type": "PostalAddress", addressCountry: company.country, ...(company.address ? { addressLocality: company.address } : {}) } } : {}),
+    ...(sameAs.length ? { sameAs } : {}), ...(points.length ? { contactPoint: points } : {}) };
   return [
-    { "@context": "https://schema.org", "@type": "Organization", name: "مدار", alternateName: "MIDAR", url: `${origin}/`,
-      logo: `${origin}/brand/icon-512.png`, ...(sameAs.length ? { sameAs } : {}),
-      ...(phone ? { contactPoint: { "@type": "ContactPoint", telephone: phone, contactType: "customer support", availableLanguage: ["ar"] } } : {}) },
-    { "@context": "https://schema.org", "@type": "WebSite", name: "مدار", alternateName: "MIDAR", url: `${origin}/`, inLanguage: "ar" },
-    { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "مدار", alternateName: "MIDAR — نظام إدارة المدارس",
-      applicationCategory: "EducationalApplication", operatingSystem: "Web, Android, iOS", inLanguage: "ar", url: `${origin}/`,
-      image: `${origin}/brand/og-home.jpg`,
+    org,
+    { "@context": "https://schema.org", "@type": "WebSite", "@id": `${url}#website`, name: "مدار | MIDAIR SCHOOL", alternateName: ["مدار", "MIDAIR SCHOOL"],
+      url, inLanguage: "ar", publisher: { "@id": `${url}#organization` } },
+    { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "مدار | MIDAIR SCHOOL", alternateName: "نظام مدار لإدارة المدارس",
+      applicationCategory: "EducationalApplication", operatingSystem: "Web, Android, iOS", inLanguage: "ar", url,
+      image: `${origin}/brand/og-home.jpg`, publisher: { "@id": `${url}#organization` },
       description: "نظام عربي لإدارة المدارس: الطلاب والمعلمون، الحضور والغياب، الاختبارات والدرجات والشهادات، الجداول، الرسوم والرواتب، وتطبيق ولي الأمر." },
     faqLd(HOME_FAQ),
   ];

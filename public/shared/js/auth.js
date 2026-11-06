@@ -45,7 +45,7 @@ export function authShell({ title, text, points = [], school, kicker }, ...conte
           h("h2", {}, title),
           text && h("p", {}, text),
           points.length ? h("ul", { class: "au-points" }, points.map(([icon, label]) => h("li", {}, h("span", {}, icon({ size: 16 })), label))) : null)),
-      h("small", { class: "au-copy" }, "مدار · منصة إدارة المدارس")),
+      h("small", { class: "au-copy" }, "مدار · MIDAIR SCHOOL")),
     h("main", { class: "au-main" },
       h("div", { class: "au-panel" }, ...content,
         h("div", { class: "au-foot" }, icons.lock({ size: 13 }), "اتصال آمن ومشفّر"))));

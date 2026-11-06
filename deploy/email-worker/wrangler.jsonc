@@ -1,0 +1,13 @@
+// The email Worker for midarschool.com. Free on the Workers free plan (100,000 requests a day).
+// Deploy:  npx wrangler deploy        then in Cloudflare: Email → Email Routing → Routing rules, route
+// info@, support@, sales@ and admin@ to the Worker "midar-email-inbound" (or a catch-all to it).
+{
+  "name": "midar-email-inbound",
+  "main": "index.js",
+  "compatibility_date": "2026-10-01",
+  "vars": {
+    "FORWARD_TO": "midarschool.app@gmail.com",
+    "PLATFORM_URL": "https://midarschool.com"
+  },
+  "observability": { "enabled": true }
+}
